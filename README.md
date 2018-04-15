@@ -16,9 +16,9 @@ A configuration file in json format must be passed like this: `gorilla.exe -conf
 }
 ```
 
-`url` should be the directory that includes all of the manifests
-`manifest` is the manifest that is assigned to this machine
-`cachepath` is Gorilla's working directory, where we will store copies of manifests 
+* `url` is the directory that includes all of the manifests
+* `manifest` is the manifest that is assigned to this machine
+* `cachepath` is Gorilla's working directory, where we will store copies of manifests 
 
 ## Manifests
 A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in json format and must include the name of the manifest:

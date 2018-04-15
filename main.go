@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
     "fmt"
 	"io"
 	"io/ioutil"
     "net/http"
     "os"
+    "os/exec"
     "path/filepath"
     "flag"
     "strings"
@@ -192,6 +194,43 @@ func getConfig(configpath string) configObject {
 	return config
 }
 
+func chocoInstall(action string, item string) {
+	chocoCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
+	chocoArgs := []string{action, item, "-y"}
+
+	fmt.Println("command:", chocoCmd, chocoArgs)
+	cmd := exec.Command(chocoCmd, chocoArgs...)
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Println("command:", chocoCmd, chocoArgs)
+		fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for choco", err)
+		os.Exit(1)
+	}
+
+	scanner := bufio.NewScanner(cmdReader)
+	go func() {
+		for scanner.Scan() {
+			fmt.Printf("choco output | %s\n", scanner.Text())
+		}
+	}()
+
+	err = cmd.Start()
+	if err != nil {
+		fmt.Println("command:", chocoCmd, chocoArgs)
+		fmt.Println(os.Stderr, "Error starting Cmd", err)
+		os.Exit(1)
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		fmt.Println("command:", chocoCmd, chocoArgs)
+		fmt.Println(os.Stderr, "Choco error", err)
+		os.Exit(1)
+	}
+
+	return
+}
+
 
 func main() {
 	// Get config file from command args, error if blank.
@@ -237,10 +276,7 @@ func main() {
 	// }
 
 	for item, action := range actions {
-		fmt.Println(action, item)
-		
+		chocoInstall(action, item)
 	}
-
-
 
 }

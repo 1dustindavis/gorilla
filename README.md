@@ -6,7 +6,7 @@ Gorilla is intended to provide application management on Windows using [Munki](h
 Gorilla currently uses [Chocolatey](https://github.com/chocolatey/choco) to install software.
 
 ## Config
-A configuration file in json format must be passed like this: `gorilla.exe -config <path to config>`
+A configuration file in json format must be passed like this: `gorilla.exe -config <path to config>`.
 
 ```json
 {
@@ -16,9 +16,9 @@ A configuration file in json format must be passed like this: `gorilla.exe -conf
 }
 ```
 
-* `url` is the directory that includes all of the manifests
-* `manifest` is the manifest that is assigned to this machine
-* `cachepath` is Gorilla's working directory, where we will store copies of manifests 
+* `url` is the directory that includes all of the manifests.
+* `manifest` is the manifest that is assigned to this machine.
+* `cachepath` is Gorilla's working directory, where we will store copies of manifests. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`
 
 ## Manifests
 A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in json format and must include the name of the manifest:

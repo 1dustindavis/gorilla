@@ -2,7 +2,7 @@
 Munki-like Application Management for Windows
 
 ## Overview
-Gorilla is intended to provide application management on Windows using [Munki](https://github.com/airbnb/gosal) as inspiration.
+Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
 Gorilla currently uses [Chocolatey](https://github.com/chocolatey/choco) to install software.
 
 ## Config

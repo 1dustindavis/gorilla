@@ -6,12 +6,14 @@ import (
     "fmt"
 	"io"
 	"io/ioutil"
+	"net"
     "net/http"
     "os"
     "os/exec"
     "path/filepath"
     "flag"
     "strings"
+    "time"
 	)
 
 
@@ -30,7 +32,19 @@ func downloadFile(file string, url string) error {
     defer out.Close()
 
     // Get the data
-    resp, err := http.Get(url)
+    client := &http.Client{
+	    Transport: &http.Transport{
+	        Dial: (&net.Dialer{
+	                Timeout:   10 * time.Second,
+	                KeepAlive: 10 * time.Second,
+	        }).Dial,
+	        TLSHandshakeTimeout:   10 * time.Second,
+	        ResponseHeaderTimeout: 10 * time.Second,
+	        ExpectContinueTimeout: 1 * time.Second,
+	    },
+	}
+    resp, err := client.Get(url)
+
     if err != nil {
         return err
     }
@@ -54,17 +68,47 @@ type statusObject struct {
 }
 
 
-func getStatus() error {
+func getCurrentStatus() error {
 	// iterate through apps and get current status
 	return nil
 }
 
 
+func downloadCatalog(cachePath string, url string, catalog string) {
+	err := downloadFile(cachePath, (url + "catalogs/" + catalog + ".json"))
+    if err != nil {
+        fmt.Println("Unable to retrieve catalog:", catalog, err)
+		os.Exit(1)
+    }
+    return
+}
+
+
+type catalogItem struct {
+  	DisplayName string `json:"display_name"`
+  	InstallerItemLocation string `json:"installer_item_location"`
+  	Version string `json:"version"`
+  	Dependencies []string 
+}
+
+
+func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
+	jsonPath := filepath.Join(cachePath, catalogName) + ".json"
+	jsonFile, err := ioutil.ReadFile(jsonPath)
+    var catalog map[string]catalogItem
+	err = json.Unmarshal(jsonFile, &catalog)
+	if err != nil {
+		fmt.Println("Unable to parse json catalog:", jsonPath, err)
+	}
+	return catalog
+}
+
+
 func downloadManifest(cachePath string, url string, manifest string) {
 	// Download the manifest
-	err := downloadFile(cachePath, (url + manifest + ".json"))
+	err := downloadFile(cachePath, (url + "manifests/" + manifest + ".json"))
     if err != nil {
-        fmt.Println("Unable to retrieve manifest: ", manifest, err)
+        fmt.Println("Unable to retrieve manifest:", manifest, err)
 		os.Exit(1)
     }
     return
@@ -86,7 +130,7 @@ func getManifest(cachePath string, manifestName string) manifestObject {
     var manifest manifestObject
 	err = json.Unmarshal(jsonFile, &manifest)
 	if err != nil {
-		fmt.Println("Unable to parse json manifest: ", jsonPath, err)
+		fmt.Println("Unable to parse json manifest:", jsonPath, err)
 	}
 	return manifest
 }
@@ -160,6 +204,7 @@ func getManifests(config configObject) []manifestObject {
 type configObject struct {
 	URL string
 	Manifest string
+	Catalog string
 	CachePath string
 }
 
@@ -194,9 +239,28 @@ func getConfig(configpath string) configObject {
 	return config
 }
 
-func chocoInstall(action string, item string) {
+func downloadPackage(relPath string, url string, packageLocation string) {
+	// Download the manifest
+	err := downloadFile(relPath, (url + packageLocation))
+    if err != nil {
+        fmt.Println("Unable to retrieve package:", packageLocation, err)
+        os.Exit(1)
+    }
+    return
+}
+
+func chocoInstall(action string, item catalogItem, config configObject) {
+
+	tokens := strings.Split(item.InstallerItemLocation, "/")
+	fileName := tokens[len(tokens)-1]
+	relPath := strings.Join(tokens[:len(tokens)-1], "/")
+	absPath := filepath.Join(config.CachePath, relPath)
+	absFile := filepath.Join(absPath, fileName)
+
+	downloadPackage(absPath, config.URL, item.InstallerItemLocation)
+
 	chocoCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-	chocoArgs := []string{action, item, "-y"}
+	chocoArgs := []string{action, absFile, "-y", "-r"}
 
 	fmt.Println("command:", chocoCmd, chocoArgs)
 	cmd := exec.Command(chocoCmd, chocoArgs...)
@@ -245,38 +309,45 @@ func main() {
 	// Get the actual configuration
 	config := getConfig(*configArg)
 
+	// Download and parse the catalog
+	downloadCatalog(config.CachePath, config.URL, config.Catalog)
+	catalog := getCatalog(config.CachePath, config.Catalog)
+
 	// Get the manifests
 	manifests := getManifests(config)
 
 	// Compile all of the installs, uninstalls, and upgrades
-	var actions map[string]string
-	actions = make(map[string]string)
+	var installs, uninstalls, upgrades []string
 	for _, manifest := range manifests {
 		for _, item := range manifest.Installs {
 			if item != "" {
-				actions[item] = "install"
+				installs = append([]string{item}, installs...)
 			}
 		}
 		for _, item := range manifest.Uninstalls {
 			if item != "" {
-				actions[item] = "uninstall"
+				uninstalls = append([]string{item}, uninstalls...)
 			}
 		}
 		for _, item := range manifest.Upgrades {
 			if item != "" {
-				actions[item] = "upgrade"
+				upgrades = append([]string{item}, upgrades...)
 			}
 		}
 	}
-	// fmt.Printf("\n")
-	// fmt.Printf("%-10s %-10s\n", "Action", "Item")
-	// fmt.Printf("%-10s %-10s\n", "----------", "----------")
-	// for item, action := range actions {
-	// 	fmt.Printf("%-10s %-10s\n", action, item)
-	// }
 
-	for item, action := range actions {
-		chocoInstall(action, item)
+	for _, item := range installs {
+		if catalog[item].InstallerItemLocation == "" {
+			fmt.Println("installer_item_location missing for item:", item)
+			continue
+		}
+		if len(catalog[item].Dependencies) > 0 {
+			for _, dependency := range catalog[item].Dependencies {
+				chocoInstall("install", catalog[dependency], config)
+			}
+		}
+		chocoInstall("install", catalog[item], config)
 	}
+	
 
 }

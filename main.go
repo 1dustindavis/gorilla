@@ -3,19 +3,18 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-    "fmt"
+	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
-    "net/http"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "flag"
-    "strings"
-    "time"
-	)
-
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 func downloadFile(file string, url string) error {
 	// Get the absolute file path
@@ -23,79 +22,74 @@ func downloadFile(file string, url string) error {
 	fileName := tokens[len(tokens)-1]
 	absPath := filepath.Join(file, fileName)
 
-    // Create the dir and file
-    err := os.MkdirAll(filepath.Clean(file), 0755)
-    out, err := os.Create(filepath.Clean(absPath))
-    if err != nil {
-        return err
-    }
-    defer out.Close()
-
-    // Get the data
-    client := &http.Client{
-	    Transport: &http.Transport{
-	        Dial: (&net.Dialer{
-	                Timeout:   10 * time.Second,
-	                KeepAlive: 10 * time.Second,
-	        }).Dial,
-	        TLSHandshakeTimeout:   10 * time.Second,
-	        ResponseHeaderTimeout: 10 * time.Second,
-	        ExpectContinueTimeout: 1 * time.Second,
-	    },
+	// Create the dir and file
+	err := os.MkdirAll(filepath.Clean(file), 0755)
+	out, err := os.Create(filepath.Clean(absPath))
+	if err != nil {
+		return err
 	}
-    resp, err := client.Get(url)
+	defer out.Close()
 
-    if err != nil {
-        return err
-    }
-    defer resp.Body.Close()
+	// Get the data
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: 10 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+	resp, err := client.Get(url)
 
-    // Write the body to file
-    _, err = io.Copy(out, resp.Body)
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
-    return nil
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
-
 
 // Object to store application status
 type statusObject struct {
 	Application string
-	Version string
-	Installed bool
+	Version     string
+	Installed   bool
 }
-
 
 func getCurrentStatus() error {
 	// iterate through apps and get current status
 	return nil
 }
 
-
 func downloadCatalog(cachePath string, url string, catalog string) {
 	err := downloadFile(cachePath, (url + "catalogs/" + catalog + ".json"))
-    if err != nil {
-        fmt.Println("Unable to retrieve catalog:", catalog, err)
+	if err != nil {
+		fmt.Println("Unable to retrieve catalog:", catalog, err)
 		os.Exit(1)
-    }
-    return
+	}
+	return
 }
-
 
 type catalogItem struct {
-  	DisplayName string `json:"display_name"`
-  	InstallerItemLocation string `json:"installer_item_location"`
-  	Version string `json:"version"`
-  	Dependencies []string 
+	DisplayName           string `json:"display_name"`
+	InstallerItemLocation string `json:"installer_item_location"`
+	Version               string `json:"version"`
+	Dependencies          []string
 }
-
 
 func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
 	jsonPath := filepath.Join(cachePath, catalogName) + ".json"
 	jsonFile, err := ioutil.ReadFile(jsonPath)
-    var catalog map[string]catalogItem
+	var catalog map[string]catalogItem
 	err = json.Unmarshal(jsonFile, &catalog)
 	if err != nil {
 		fmt.Println("Unable to parse json catalog:", jsonPath, err)
@@ -103,38 +97,35 @@ func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
 	return catalog
 }
 
-
 func downloadManifest(cachePath string, url string, manifest string) {
 	// Download the manifest
 	err := downloadFile(cachePath, (url + "manifests/" + manifest + ".json"))
-    if err != nil {
-        fmt.Println("Unable to retrieve manifest:", manifest, err)
+	if err != nil {
+		fmt.Println("Unable to retrieve manifest:", manifest, err)
 		os.Exit(1)
-    }
-    return
+	}
+	return
 }
 
 type manifestObject struct {
-  Name string `json:"name"`
-  Includes []string `json:"included_manifests"`
-  Installs []string `json:"managed_installs"`
-  Uninstalls []string `json:"managed_uninstalls"`
-  Upgrades []string `json:"managed_upgrades"`
+	Name       string   `json:"name"`
+	Includes   []string `json:"included_manifests"`
+	Installs   []string `json:"managed_installs"`
+	Uninstalls []string `json:"managed_uninstalls"`
+	Upgrades   []string `json:"managed_upgrades"`
 }
-
 
 func getManifest(cachePath string, manifestName string) manifestObject {
 	// Get the json file and look for included_manifests
 	jsonPath := filepath.Join(cachePath, manifestName) + ".json"
 	jsonFile, err := ioutil.ReadFile(jsonPath)
-    var manifest manifestObject
+	var manifest manifestObject
 	err = json.Unmarshal(jsonFile, &manifest)
 	if err != nil {
 		fmt.Println("Unable to parse json manifest:", jsonPath, err)
 	}
 	return manifest
 }
-
 
 func getManifests(config configObject) []manifestObject {
 	// Create a slice of all manifest objects
@@ -196,18 +187,16 @@ func getManifests(config configObject) []manifestObject {
 		manifestsProcessed++
 		manifestsRemaining = manifestsTotal - manifestsProcessed
 	}
-    return manifests
+	return manifests
 }
-
 
 // Object to store our configuration
 type configObject struct {
-	URL string
-	Manifest string
-	Catalog string
+	URL       string
+	Manifest  string
+	Catalog   string
 	CachePath string
 }
-
 
 func getConfig(configpath string) configObject {
 	// Get the config at configpath and return a configObject
@@ -218,8 +207,8 @@ func getConfig(configpath string) configObject {
 	}
 	var config configObject
 	err = json.Unmarshal(configfile, &config)
- 	if err != nil {
-	    fmt.Println("Unable to parse json configuration: ", err)
+	if err != nil {
+		fmt.Println("Unable to parse json configuration: ", err)
 		os.Exit(1)
 	}
 	// If URL wasnt provided, exit
@@ -242,14 +231,14 @@ func getConfig(configpath string) configObject {
 func downloadPackage(relPath string, url string, packageLocation string) {
 	// Download the manifest
 	err := downloadFile(relPath, (url + packageLocation))
-    if err != nil {
-        fmt.Println("Unable to retrieve package:", packageLocation, err)
-        os.Exit(1)
-    }
-    return
+	if err != nil {
+		fmt.Println("Unable to retrieve package:", packageLocation, err)
+		os.Exit(1)
+	}
+	return
 }
 
-func chocoInstall(action string, item catalogItem, config configObject) {
+func chocoCommand(action string, item catalogItem, config configObject) {
 
 	tokens := strings.Split(item.InstallerItemLocation, "/")
 	fileName := tokens[len(tokens)-1]
@@ -295,7 +284,6 @@ func chocoInstall(action string, item catalogItem, config configObject) {
 	return
 }
 
-
 func main() {
 	// Get config file from command args, error if blank.
 	configArg := flag.String("config", "", "Path to configuration file in json format")
@@ -316,19 +304,22 @@ func main() {
 	// Get the manifests
 	manifests := getManifests(config)
 
-	// Compile all of the installs, uninstalls, and upgrades
+	// Compile all of the installs, uninstalls, and upgrades into arrays
 	var installs, uninstalls, upgrades []string
 	for _, manifest := range manifests {
+		// Installs
 		for _, item := range manifest.Installs {
 			if item != "" {
 				installs = append([]string{item}, installs...)
 			}
 		}
+		// Uninstalls
 		for _, item := range manifest.Uninstalls {
 			if item != "" {
 				uninstalls = append([]string{item}, uninstalls...)
 			}
 		}
+		// Upgrades
 		for _, item := range manifest.Upgrades {
 			if item != "" {
 				upgrades = append([]string{item}, upgrades...)
@@ -336,18 +327,21 @@ func main() {
 		}
 	}
 
+	// Iterate through the installs array, install dependencies, and then the item itself.
 	for _, item := range installs {
+		// Check if the installer is available
 		if catalog[item].InstallerItemLocation == "" {
 			fmt.Println("installer_item_location missing for item:", item)
 			continue
 		}
+		// Check for dependencies, install if found
 		if len(catalog[item].Dependencies) > 0 {
 			for _, dependency := range catalog[item].Dependencies {
-				chocoInstall("install", catalog[dependency], config)
+				chocoCommand("install", catalog[dependency], config)
 			}
 		}
-		chocoInstall("install", catalog[item], config)
+		// Install the item
+		chocoCommand("install", catalog[item], config)
 	}
-	
 
 }

@@ -80,10 +80,10 @@ func downloadCatalog(cachePath string, url string, catalog string) {
 }
 
 type catalogItem struct {
-	DisplayName           string `json:"display_name"`
-	InstallerItemLocation string `json:"installer_item_location"`
-	Version               string `json:"version"`
-	Dependencies          []string
+	DisplayName           string   `json:"display_name"`
+	InstallerItemLocation string   `json:"installer_item_location"`
+	Version               string   `json:"version"`
+	Dependencies          []string `json:"dependencies"`
 }
 
 func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
@@ -192,10 +192,10 @@ func getManifests(config configObject) []manifestObject {
 
 // Object to store our configuration
 type configObject struct {
-	URL       string
-	Manifest  string
-	Catalog   string
-	CachePath string
+	URL       string `json:"url"`
+	Manifest  string `json:"manifest"`
+	Catalog   string `json:"catalog"`
+	CachePath string `json:"cachepath"`
 }
 
 func getConfig(configpath string) configObject {

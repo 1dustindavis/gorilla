@@ -8,7 +8,7 @@ Gorilla currently uses [Chocolatey](https://github.com/chocolatey/choco) to inst
 All files can be served from any standard web server with a directory stucture like this:
 
 ```bash
-gorilla (top-level)
+[web root]
 ├── manifests
 │   ├── **/*.yaml
 ├── catalogs

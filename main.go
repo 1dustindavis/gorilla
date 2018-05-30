@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 	"net"
@@ -71,7 +71,7 @@ func getCurrentStatus() error {
 }
 
 func downloadCatalog(cachePath string, url string, catalog string) {
-	err := downloadFile(cachePath, (url + "catalogs/" + catalog + ".json"))
+	err := downloadFile(cachePath, (url + "catalogs/" + catalog + ".yaml"))
 	if err != nil {
 		fmt.Println("Unable to retrieve catalog:", catalog, err)
 		os.Exit(1)
@@ -80,26 +80,26 @@ func downloadCatalog(cachePath string, url string, catalog string) {
 }
 
 type catalogItem struct {
-	DisplayName           string   `json:"display_name"`
-	InstallerItemLocation string   `json:"installer_item_location"`
-	Version               string   `json:"version"`
-	Dependencies          []string `json:"dependencies"`
+	DisplayName           string   `yaml:"display_name"`
+	InstallerItemLocation string   `yaml:"installer_item_location"`
+	Version               string   `yaml:"version"`
+	Dependencies          []string `yaml:"dependencies"`
 }
 
 func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
-	jsonPath := filepath.Join(cachePath, catalogName) + ".json"
-	jsonFile, err := ioutil.ReadFile(jsonPath)
+	yamlPath := filepath.Join(cachePath, catalogName) + ".yaml"
+	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var catalog map[string]catalogItem
-	err = json.Unmarshal(jsonFile, &catalog)
+	err = yaml.Unmarshal(yamlFile, &catalog)
 	if err != nil {
-		fmt.Println("Unable to parse json catalog:", jsonPath, err)
+		fmt.Println("Unable to parse yaml catalog:", yamlPath, err)
 	}
 	return catalog
 }
 
 func downloadManifest(cachePath string, url string, manifest string) {
 	// Download the manifest
-	err := downloadFile(cachePath, (url + "manifests/" + manifest + ".json"))
+	err := downloadFile(cachePath, (url + "manifests/" + manifest + ".yaml"))
 	if err != nil {
 		fmt.Println("Unable to retrieve manifest:", manifest, err)
 		os.Exit(1)
@@ -108,21 +108,21 @@ func downloadManifest(cachePath string, url string, manifest string) {
 }
 
 type manifestObject struct {
-	Name       string   `json:"name"`
-	Includes   []string `json:"included_manifests"`
-	Installs   []string `json:"managed_installs"`
-	Uninstalls []string `json:"managed_uninstalls"`
-	Upgrades   []string `json:"managed_upgrades"`
+	Name       string   `yaml:"name"`
+	Includes   []string `yaml:"included_manifests"`
+	Installs   []string `yaml:"managed_installs"`
+	Uninstalls []string `yaml:"managed_uninstalls"`
+	Upgrades   []string `yaml:"managed_upgrades"`
 }
 
 func getManifest(cachePath string, manifestName string) manifestObject {
-	// Get the json file and look for included_manifests
-	jsonPath := filepath.Join(cachePath, manifestName) + ".json"
-	jsonFile, err := ioutil.ReadFile(jsonPath)
+	// Get the yaml file and look for included_manifests
+	yamlPath := filepath.Join(cachePath, manifestName) + ".yaml"
+	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var manifest manifestObject
-	err = json.Unmarshal(jsonFile, &manifest)
+	err = yaml.Unmarshal(yamlFile, &manifest)
 	if err != nil {
-		fmt.Println("Unable to parse json manifest:", jsonPath, err)
+		fmt.Println("Unable to parse yaml manifest:", yamlPath, err)
 	}
 	return manifest
 }
@@ -192,10 +192,10 @@ func getManifests(config configObject) []manifestObject {
 
 // Object to store our configuration
 type configObject struct {
-	URL       string `json:"url"`
-	Manifest  string `json:"manifest"`
-	Catalog   string `json:"catalog"`
-	CachePath string `json:"cachepath"`
+	URL       string `yaml:"url"`
+	Manifest  string `yaml:"manifest"`
+	Catalog   string `yaml:"catalog"`
+	CachePath string `yaml:"cachepath"`
 }
 
 func getConfig(configpath string) configObject {
@@ -206,9 +206,9 @@ func getConfig(configpath string) configObject {
 		os.Exit(1)
 	}
 	var config configObject
-	err = json.Unmarshal(configfile, &config)
+	err = yaml.Unmarshal(configfile, &config)
 	if err != nil {
-		fmt.Println("Unable to parse json configuration: ", err)
+		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
 	// If URL wasnt provided, exit
@@ -286,7 +286,7 @@ func chocoCommand(action string, item catalogItem, config configObject) {
 
 func main() {
 	// Get config file from command args, error if blank.
-	configArg := flag.String("config", "", "Path to configuration file in json format")
+	configArg := flag.String("config", "", "Path to configuration file in yaml format")
 	flag.Parse()
 	if *configArg == "" {
 		fmt.Println("Configuration file required!")

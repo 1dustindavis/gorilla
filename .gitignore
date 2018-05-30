@@ -14,5 +14,9 @@ gorilla
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
 
+# OS files
+*.DS_Store
+
 #Misc files used in dev
 config.json
+config.yaml

@@ -5,6 +5,18 @@ Munki-like Application Management for Windows
 Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
 Gorilla currently uses [Chocolatey](https://github.com/chocolatey/choco) to install software.
 
+All files can be served from any standard web server with a directory stucture like this:
+
+```bash
+gorilla (top-level)
+├── manifests
+│   ├── **/*.yaml
+├── catalogs
+│   ├── **/*.yaml
+└── packages
+    └── **/*.nupkg
+```
+
 ## Config
 A configuration file in yaml format must be passed like this: `gorilla.exe -config <path to config>`.
 

@@ -21,11 +21,10 @@ cachepath: C:/gorilla/cache
 * `cachepath` is Gorilla's working directory, where we will store copies of manifests. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`
 
 ## Manifests
-A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in yaml format and must include the name of the manifest:
+A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in yaml format:
 
 ```yaml
 ---
-name: example
 managed_installs:
   - googlechrome
   - slack

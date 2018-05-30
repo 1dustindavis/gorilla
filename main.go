@@ -108,7 +108,6 @@ func downloadManifest(cachePath string, url string, manifest string) {
 }
 
 type manifestObject struct {
-	Name       string   `yaml:"name"`
 	Includes   []string `yaml:"included_manifests"`
 	Installs   []string `yaml:"managed_installs"`
 	Uninstalls []string `yaml:"managed_uninstalls"`

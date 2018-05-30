@@ -179,6 +179,7 @@ func getManifests(config configObject) []manifestObject {
 		}
 		// Update manifests
 		if uniqueInManifests {
+			// manifests = append([]manifestObject{newManifest}, manifests...)
 			manifests = append(manifests, newManifest)
 		}
 
@@ -310,38 +311,38 @@ func main() {
 		// Installs
 		for _, item := range manifest.Installs {
 			if item != "" {
-				installs = append([]string{item}, installs...)
+				installs = append(installs, item)
 			}
 		}
 		// Uninstalls
 		for _, item := range manifest.Uninstalls {
 			if item != "" {
-				uninstalls = append([]string{item}, uninstalls...)
+				uninstalls = append(uninstalls, item)
 			}
 		}
 		// Upgrades
 		for _, item := range manifest.Upgrades {
 			if item != "" {
-				upgrades = append([]string{item}, upgrades...)
+				upgrades = append(upgrades, item)
 			}
 		}
 	}
 
 	// Iterate through the installs array, install dependencies, and then the item itself.
 	for _, item := range installs {
-		// Check if the installer is available
-		if catalog[item].InstallerItemLocation == "" {
-			fmt.Println("installer_item_location missing for item:", item)
-			continue
-		}
-		// Check for dependencies, install if found
-		if len(catalog[item].Dependencies) > 0 {
-			for _, dependency := range catalog[item].Dependencies {
-				chocoCommand("install", catalog[dependency], config)
+		// Check if the installer is nupkg
+		if strings.HasSuffix(catalog[item].InstallerItemLocation, ".nupkg") {
+			// Check for dependencies, install if found
+			if len(catalog[item].Dependencies) > 0 {
+				for _, dependency := range catalog[item].Dependencies {
+					chocoCommand("install", catalog[dependency], config)
+				}
 			}
+			// Install the item
+			chocoCommand("install", catalog[item], config)
+		} else {
+			fmt.Println("Unsupported installer type:", item)
 		}
-		// Install the item
-		chocoCommand("install", catalog[item], config)
 	}
 
 }

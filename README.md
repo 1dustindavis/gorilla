@@ -10,11 +10,11 @@ All files can be served from any standard web server with a directory stucture l
 ```bash
 [web root]
 ├── manifests
-│   ├── **/*.yaml
+│   ├── *.yaml
 ├── catalogs
-│   ├── **/*.yaml
+│   ├── *.yaml
 └── packages
-    └── **/*.nupkg
+    └── *.nupkg
 ```
 
 ## Config

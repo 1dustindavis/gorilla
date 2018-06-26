@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"gopkg.in/yaml.v2"
@@ -49,6 +51,10 @@ func downloadFile(file string, url string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode <= 200 && resp.StatusCode >= 299 {
+		return fmt.Errorf("%s : Download status code: %d", fileName, resp.StatusCode)
+	}
+
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
@@ -82,6 +88,7 @@ func downloadCatalog(cachePath string, url string, catalog string) {
 type catalogItem struct {
 	DisplayName           string   `yaml:"display_name"`
 	InstallerItemLocation string   `yaml:"installer_item_location"`
+	InstallerItemHash     string   `yaml:"installer_item_hash"`
 	Version               string   `yaml:"version"`
 	Dependencies          []string `yaml:"dependencies"`
 }
@@ -197,6 +204,7 @@ type configObject struct {
 	Manifest  string `yaml:"manifest"`
 	Catalog   string `yaml:"catalog"`
 	CachePath string `yaml:"cachepath"`
+	Verbose   bool   `yaml:"verbose,omitempty"`
 }
 
 func getConfig(configpath string) configObject {
@@ -239,46 +247,110 @@ func downloadPackage(relPath string, url string, packageLocation string) {
 	return
 }
 
-func chocoCommand(action string, item catalogItem, config configObject) {
+func checkHash(file string, sha string) bool {
+	f, err := os.Open(file)
+	if err != nil {
+		fmt.Printf("Unable to open file %s\n", err)
+		return false
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		fmt.Printf("Unable to verify hash due to IO error: %s\n", err)
+		return false
+	}
+	shaHash := hex.EncodeToString(h.Sum(nil))
+	if shaHash != sha {
+		fmt.Println("Downloaded file hash does not match config hash")
+		return false
+	}
+	return true
+}
 
+func runCommand(action string, item catalogItem, config configObject) {
+
+	// Get all the path strings we will need
 	tokens := strings.Split(item.InstallerItemLocation, "/")
 	fileName := tokens[len(tokens)-1]
 	relPath := strings.Join(tokens[:len(tokens)-1], "/")
 	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
+	fileExt := strings.ToLower(filepath.Ext(absFile))
 
-	downloadPackage(absPath, config.URL, item.InstallerItemLocation)
+	// If the file exists, check the hash
+	var verified bool
+	if _, err := os.Stat(absFile); err == nil {
+		verified = checkHash(absFile, item.InstallerItemHash)
+	}
 
-	chocoCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-	chocoArgs := []string{action, absFile, "-y", "-r"}
+	// If hash failed, download the installer
+	if !verified {
+		fmt.Printf("Downloading %s...\n", fileName)
+		downloadPackage(absPath, config.URL, item.InstallerItemLocation)
+		verified = checkHash(absFile, item.InstallerItemHash)
+	}
 
-	fmt.Println("command:", chocoCmd, chocoArgs)
-	cmd := exec.Command(chocoCmd, chocoArgs...)
+	// Return if hash verification fails
+	if !verified {
+		fmt.Println("Hash mismatch:", fileName)
+		return
+	}
+
+	// Define the command and arguments based on the installer type
+	var installCmd string
+	var installArgs []string
+
+	if fileExt == ".nupkg" {
+		fmt.Println("Installing nupkg/choco:", fileName)
+		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
+		installArgs = []string{action, absFile, "-y", "-r"}
+
+	} else if fileExt == ".msi" {
+		fmt.Println("Installing MSI for", fileName)
+		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
+		installArgs = []string{"/I", absFile, "/quiet"}
+
+	} else if fileExt == ".exe" {
+		fmt.Println("EXE support not added yet:", fileName)
+		return
+	} else if fileExt == ".ps1" {
+		fmt.Println("Powershell support not added yet:", fileName)
+		return
+	} else {
+		fmt.Println("Unable to install", fileName)
+		fmt.Println("Installer type unsupported:", fileExt)
+		return
+	}
+
+	cmd := exec.Command(installCmd, installArgs...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("command:", chocoCmd, chocoArgs)
-		fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for choco", err)
+		fmt.Println("command:", installCmd, installArgs)
+		fmt.Fprintln(os.Stderr, "Error creating pipe to stdout", err)
 		os.Exit(1)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
-	go func() {
-		for scanner.Scan() {
-			fmt.Printf("choco output | %s\n", scanner.Text())
-		}
-	}()
+	if config.Verbose {
+		fmt.Println("command:", installCmd, installArgs)
+		go func() {
+			for scanner.Scan() {
+				fmt.Printf("Installer output | %s\n", scanner.Text())
+			}
+		}()
+	}
 
 	err = cmd.Start()
 	if err != nil {
-		fmt.Println("command:", chocoCmd, chocoArgs)
-		fmt.Println(os.Stderr, "Error starting Cmd", err)
+		fmt.Println("command:", installCmd, installArgs)
+		fmt.Println(os.Stderr, "Error running command:", err)
 		os.Exit(1)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		fmt.Println("command:", chocoCmd, chocoArgs)
-		fmt.Println(os.Stderr, "Choco error", err)
+		fmt.Println("command:", installCmd, installArgs)
+		fmt.Println(os.Stderr, "Installer error:", err)
 		os.Exit(1)
 	}
 
@@ -286,8 +358,9 @@ func chocoCommand(action string, item catalogItem, config configObject) {
 }
 
 func main() {
-	// Get config file from command args, error if blank.
+	// Get the command line args, error if blank.
 	configArg := flag.String("config", "", "Path to configuration file in yaml format")
+	verboseArg := flag.Bool("verbose", false, "Enable verbose output")
 	flag.Parse()
 	if *configArg == "" {
 		fmt.Println("Configuration file required!")
@@ -297,6 +370,11 @@ func main() {
 
 	// Get the actual configuration
 	config := getConfig(*configArg)
+
+	// Set the verbosity
+	if *verboseArg == true && !config.Verbose {
+		config.Verbose = true
+	}
 
 	// Download and parse the catalog
 	downloadCatalog(config.CachePath, config.URL, config.Catalog)
@@ -330,19 +408,15 @@ func main() {
 
 	// Iterate through the installs array, install dependencies, and then the item itself.
 	for _, item := range installs {
-		// Check if the installer is nupkg
-		if strings.HasSuffix(catalog[item].InstallerItemLocation, ".nupkg") {
-			// Check for dependencies, install if found
-			if len(catalog[item].Dependencies) > 0 {
-				for _, dependency := range catalog[item].Dependencies {
-					chocoCommand("install", catalog[dependency], config)
-				}
+		// Check for dependencies and install if found
+		if len(catalog[item].Dependencies) > 0 {
+			for _, dependency := range catalog[item].Dependencies {
+				runCommand("install", catalog[dependency], config)
 			}
-			// Install the item
-			chocoCommand("install", catalog[item], config)
-		} else {
-			fmt.Println("Unsupported installer type:", item)
 		}
+		// Install the item
+		runCommand("install", catalog[item], config)
+
 	}
 
 }

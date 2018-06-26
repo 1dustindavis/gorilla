@@ -3,7 +3,7 @@ Munki-like Application Management for Windows
 
 ## Overview
 Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
-Gorilla currently uses [Chocolatey](https://github.com/chocolatey/choco) to install software.
+Gorilla supports .nupkg [(installed via chocolatey)](https://github.com/chocolatey/choco) or .msi files.
 
 All files can be served from any standard web server with a directory stucture like this:
 
@@ -14,7 +14,8 @@ All files can be served from any standard web server with a directory stucture l
 ├── catalogs
 │   ├── *.yaml
 └── packages
-    └── *.nupkg
+    ├── *.nupkg
+    └── *.msi
 ```
 
 ## Config
@@ -56,22 +57,26 @@ A catalog contains details on all available packages. Catalogs are in yaml forma
 ---
 googlechrome:
   display_name: Google Chrome
-  installer_item_location: packages/GoogleChrome.65.0.3325.18100.nupkg
+  installer_item_hash: c1ed04713c5a8b4ff8bc7d77036644dac505784818b91850f180e08da786fbca
+  installer_item_location: packages/GoogleChrome.65.0.3325.18100.msi
   version: 65.0.3325.18100
 
 colorprinter:
   display_name: Color Printer
+  installer_item_hash: a8b4ff8bc7d77036644c1ed04713c550550f180e08da786fbca784818b918dac
   installer_item_location: packages/colorprinter.1.0.nupkg
   version: 1.0
   dependencies: Canon-Drivers
 
 Canon-Drivers:
   display_name: Canon Printer Drivers
+  installer_item_hash: ca784818b91850f180e08da786ac1ed04713c5a8b4ff8bc7d77036644dac505aec
   installer_item_location: packages/Canon-Drivers.1.0.nupkg
   version: 1.0
 ```
 
 * `display_name` is currently unused, but optionally includes a human-readable name.
-* `installer_item_location` is required for installation and should be the path to the package, relative to the `url` provided in the configuration file.
+* `installer_item_hash` is required and should be a sha256 hash of the file located at `installer_item_location`.
+* `installer_item_location` is required and should be the path to the package, relative to the `url` provided in the configuration file.
 * `version` is currently unused, but we plan to use this for comparing the current install status.
 * `dependencies` is an optional array of package names that should be installed before this package.

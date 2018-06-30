@@ -76,15 +76,6 @@ func getCurrentStatus() error {
 	return nil
 }
 
-func downloadCatalog(cachePath string, url string, catalog string) {
-	err := downloadFile(cachePath, (url + "catalogs/" + catalog + ".yaml"))
-	if err != nil {
-		fmt.Println("Unable to retrieve catalog:", catalog, err)
-		os.Exit(1)
-	}
-	return
-}
-
 type catalogItem struct {
 	DisplayName           string   `yaml:"display_name"`
 	InstallerItemLocation string   `yaml:"installer_item_location"`
@@ -102,16 +93,6 @@ func getCatalog(cachePath string, catalogName string) map[string]catalogItem {
 		fmt.Println("Unable to parse yaml catalog:", yamlPath, err)
 	}
 	return catalog
-}
-
-func downloadManifest(cachePath string, url string, manifest string) {
-	// Download the manifest
-	err := downloadFile(cachePath, (url + "manifests/" + manifest + ".yaml"))
-	if err != nil {
-		fmt.Println("Unable to retrieve manifest:", manifest, err)
-		os.Exit(1)
-	}
-	return
 }
 
 type manifestObject struct {
@@ -134,7 +115,7 @@ func getManifest(cachePath string, manifestName string) manifestObject {
 	return manifest
 }
 
-func getManifests(config configObject) []manifestObject {
+func getManifests() []manifestObject {
 	// Create a slice of all manifest objects
 	var manifests []manifestObject
 	// Create a slice with the names of all manifests
@@ -151,10 +132,19 @@ func getManifests(config configObject) []manifestObject {
 
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
+
 		// Add the current manifest to our working list
 		workingList := []string{currentManifest}
+
+		// Download the manifest
+		manifestURL := config.URL + "manifests/" + currentManifest + ".yaml"
+		err := downloadFile(config.CachePath, manifestURL)
+		if err != nil {
+			fmt.Println("Unable to retrieve manifest:", currentManifest, err)
+			os.Exit(1)
+		}
+
 		// Get new manifest
-		downloadManifest(config.CachePath, config.URL, currentManifest)
 		newManifest := getManifest(config.CachePath, currentManifest)
 
 		// Add any includes to our working list
@@ -164,6 +154,7 @@ func getManifests(config configObject) []manifestObject {
 
 		// Get workingList unique items, and add to the real list
 		for _, item := range workingList {
+
 			// Check if unique in manifestsList
 			var uniqueInList = true
 			for i := range manifestsList {
@@ -207,44 +198,34 @@ type configObject struct {
 	Verbose   bool   `yaml:"verbose,omitempty"`
 }
 
-func getConfig(configpath string) configObject {
+func getConfig(configPath string) configObject {
 	// Get the config at configpath and return a configObject
-	configfile, err := ioutil.ReadFile(configpath)
+	configFile, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		fmt.Println("Unable to read configuration file: ", err)
 		os.Exit(1)
 	}
-	var config configObject
-	err = yaml.Unmarshal(configfile, &config)
+	var configuration configObject
+	err = yaml.Unmarshal(configFile, &configuration)
 	if err != nil {
 		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
 	// If URL wasnt provided, exit
-	if config.URL == "" {
+	if configuration.URL == "" {
 		fmt.Println("Invalid configuration - URL: ", err)
 		os.Exit(1)
 	}
 	// If Manifest wasnt provided, exit
-	if config.Manifest == "" {
+	if configuration.Manifest == "" {
 		fmt.Println("Invalid configuration - Manifest: ", err)
 		os.Exit(1)
 	}
 	// If CachePath wasn't provided, configure a default
-	if config.CachePath == "" {
-		config.CachePath = filepath.Join(os.Getenv("ProgramData"), "gorilla/cache")
+	if configuration.CachePath == "" {
+		configuration.CachePath = filepath.Join(os.Getenv("ProgramData"), "gorilla/cache")
 	}
-	return config
-}
-
-func downloadPackage(relPath string, url string, packageLocation string) {
-	// Download the manifest
-	err := downloadFile(relPath, (url + packageLocation))
-	if err != nil {
-		fmt.Println("Unable to retrieve package:", packageLocation, err)
-		os.Exit(1)
-	}
-	return
+	return configuration
 }
 
 func checkHash(file string, sha string) bool {
@@ -267,7 +248,7 @@ func checkHash(file string, sha string) bool {
 	return true
 }
 
-func runCommand(action string, item catalogItem, config configObject) {
+func runCommand(action string, item catalogItem) {
 
 	// Get all the path strings we will need
 	tokens := strings.Split(item.InstallerItemLocation, "/")
@@ -286,7 +267,13 @@ func runCommand(action string, item catalogItem, config configObject) {
 	// If hash failed, download the installer
 	if !verified {
 		fmt.Printf("Downloading %s...\n", fileName)
-		downloadPackage(absPath, config.URL, item.InstallerItemLocation)
+		// Download the installer
+		installerURL := config.URL + item.InstallerItemLocation
+		err := downloadFile(absPath, installerURL)
+		if err != nil {
+			fmt.Println("Unable to retrieve package:", item.InstallerItemLocation, err)
+			os.Exit(1)
+		}
 		verified = checkHash(absFile, item.InstallerItemHash)
 	}
 
@@ -357,6 +344,8 @@ func runCommand(action string, item catalogItem, config configObject) {
 	return
 }
 
+var config configObject
+
 func main() {
 	// Get the command line args, error if blank.
 	configArg := flag.String("config", "", "Path to configuration file in yaml format")
@@ -369,19 +358,26 @@ func main() {
 	}
 
 	// Get the actual configuration
-	config := getConfig(*configArg)
+	config = getConfig(*configArg)
 
 	// Set the verbosity
 	if *verboseArg == true && !config.Verbose {
 		config.Verbose = true
 	}
 
-	// Download and parse the catalog
-	downloadCatalog(config.CachePath, config.URL, config.Catalog)
+	// Download the catalog
+	catalogURL := config.URL + "catalogs/" + config.Catalog + ".yaml"
+	err := downloadFile(config.CachePath, catalogURL)
+	if err != nil {
+		fmt.Println("Unable to retrieve catalog:", config.Catalog, err)
+		os.Exit(1)
+	}
+	
+	// Parse the catalog
 	catalog := getCatalog(config.CachePath, config.Catalog)
 
 	// Get the manifests
-	manifests := getManifests(config)
+	manifests := getManifests()
 
 	// Compile all of the installs, uninstalls, and upgrades into arrays
 	var installs, uninstalls, upgrades []string
@@ -411,11 +407,11 @@ func main() {
 		// Check for dependencies and install if found
 		if len(catalog[item].Dependencies) > 0 {
 			for _, dependency := range catalog[item].Dependencies {
-				runCommand("install", catalog[dependency], config)
+				runCommand("install", catalog[dependency])
 			}
 		}
 		// Install the item
-		runCommand("install", catalog[item], config)
+		runCommand("install", catalog[item])
 
 	}
 

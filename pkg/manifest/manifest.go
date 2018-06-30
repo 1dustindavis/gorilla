@@ -2,11 +2,12 @@ package manifest
 
 import (
 	"fmt"
-	"github.com/1dustindavis/gorilla/pkg/download"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/1dustindavis/gorilla/pkg/download"
+	"gopkg.in/yaml.v2"
 )
 
 // Item represents a single object from the manifest

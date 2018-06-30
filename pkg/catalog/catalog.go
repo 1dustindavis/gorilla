@@ -2,11 +2,12 @@ package catalog
 
 import (
 	"fmt"
-	"github.com/1dustindavis/gorilla/pkg/download"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"path/filepath"
+
+	"github.com/1dustindavis/gorilla/pkg/download"
+	"gopkg.in/yaml.v2"
 )
 
 // Item contains an individual entry from the catalog

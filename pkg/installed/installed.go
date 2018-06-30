@@ -1,8 +1,9 @@
 package installed
 
 import (
-	"golang.org/x/sys/windows/registry"
 	"log"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // Application Contiains attributes for an installed application

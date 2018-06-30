@@ -3,15 +3,16 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/installed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 )
 
 func runCommand(action string, item catalog.Item, cachePath string, verbose bool, repoURL string) {

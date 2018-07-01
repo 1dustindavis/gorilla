@@ -78,5 +78,5 @@ Canon-Drivers:
 * `display_name` is currently unused, but optionally includes a human-readable name.
 * `installer_item_hash` is required and should be a sha256 hash of the file located at `installer_item_location`.
 * `installer_item_location` is required and should be the path to the package, relative to the `url` provided in the configuration file.
-* `version` is currently unused, but we plan to use this for comparing the current install status.
+* `version` is compared to the currently installed version to determine if it needs to be installed.
 * `dependencies` is an optional array of package names that should be installed before this package.

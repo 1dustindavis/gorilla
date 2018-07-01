@@ -1,8 +1,12 @@
-package installed
+package status
 
 import (
+	"fmt"
 	"log"
+	"strings"
 
+	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/hashicorp/go-version"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -26,8 +30,8 @@ func stringInSlice(a string, list []string) bool {
 }
 
 // CheckRegistry iterates through the local registry and compiles all installed software.
-// returns a slice that contains multiples of `Application`.
-func CheckRegistry() []Application {
+// returns a map of `Application` that are defined in the registry
+func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
 
 	// Get the Uninstall key from HKLM
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
@@ -42,7 +46,8 @@ func CheckRegistry() []Application {
 		log.Fatal(err)
 	}
 
-	var installedItems []Application
+	var installedItems map[string]Application
+	installedItems = make(map[string]Application)
 	// Get the details of each subkey
 	for _, item := range subKeys {
 		var installedItem Application
@@ -65,11 +70,34 @@ func CheckRegistry() []Application {
 			if err != nil {
 				log.Fatal(err)
 			}
-			installedItems = append(installedItems, installedItem)
+			installedItems[installedItem.Name] = installedItem
 		}
 
 	}
 
-	return installedItems
+	// Iterate through the reg keys to compare with the catalog
+	catalogVersion, err := version.NewVersion(catalogItem.Version)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, regItem := range installedItems {
+		// Check if the catalog name is in the registry
+		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
+			installed = true
+
+			// Check if the catalog version matches the registry
+			currentVersion, err := version.NewVersion(regItem.Version)
+			if err != nil {
+				fmt.Println("Unable to parse current version", err)
+			}
+			if !currentVersion.LessThan(catalogVersion) {
+				versionMatch = true
+			}
+			break
+		}
+
+	}
+
+	return installed, versionMatch, checkErr
 
 }

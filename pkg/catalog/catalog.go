@@ -19,7 +19,7 @@ type Item struct {
 	Dependencies          []string `yaml:"dependencies"`
 }
 
-// Get returns a map of Items from the catalog
+// Get returns a map of `Item` from the catalog
 func Get(cachePath string, catalogName string, repoURL string) map[string]Item {
 
 	// Download the catalog

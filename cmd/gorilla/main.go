@@ -11,8 +11,8 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
-	"github.com/1dustindavis/gorilla/pkg/installed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
+	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
 func runCommand(action string, item catalog.Item, cachePath string, verbose bool, repoURL string) {
@@ -145,12 +145,18 @@ func main() {
 		}
 	}
 
-	// Get the currently installed applications from the registry
-	installedApplications := installed.CheckRegistry()
-	fmt.Println(installedApplications)
-
 	// Iterate through the installs array, install dependencies, and then the item itself.
 	for _, item := range installs {
+		// Check current install status
+		installed, versionMatch, err := status.CheckRegistry(catalog[item])
+		if err != nil {
+			fmt.Println("Unable to check status of item:", item)
+		}
+		if installed && versionMatch {
+			fmt.Println(item, "already installed.")
+			continue
+		}
+
 		// Check for dependencies and install if found
 		if len(catalog[item].Dependencies) > 0 {
 			for _, dependency := range catalog[item].Dependencies {

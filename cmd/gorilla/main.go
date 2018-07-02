@@ -52,4 +52,9 @@ func main() {
 		installer.Install(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 
+	// Iterate through the uninstalls array and uninstall the item.
+	for _, item := range uninstalls {
+		// Install the item
+		installer.Uninstall(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+	}
 }

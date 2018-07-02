@@ -12,11 +12,13 @@ import (
 
 // Item contains an individual entry from the catalog
 type Item struct {
-	DisplayName           string   `yaml:"display_name"`
-	InstallerItemLocation string   `yaml:"installer_item_location"`
-	InstallerItemHash     string   `yaml:"installer_item_hash"`
-	Version               string   `yaml:"version"`
 	Dependencies          []string `yaml:"dependencies"`
+	DisplayName           string   `yaml:"display_name"`
+	InstallerItemHash     string   `yaml:"installer_item_hash"`
+	InstallerItemLocation string   `yaml:"installer_item_location"`
+	InstallerType         string   `yaml:"installer_type"`
+	UninstallMethod       string   `yaml:"uninstall_method"`
+	Version               string   `yaml:"version"`
 }
 
 // Get returns a map of `Item` from the catalog

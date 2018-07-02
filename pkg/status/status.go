@@ -29,9 +29,7 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-// CheckRegistry iterates through the local registry and compiles all installed software.
-// returns a map of `Application` that are defined in the registry
-func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+func getUninstallKeys() map[string]Application {
 
 	// Get the Uninstall key from HKLM
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
@@ -70,10 +68,40 @@ func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool,
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			installedItem.Uninstall, _, err = itemKey.GetStringValue("UninstallString")
+			if err != nil {
+				log.Fatal(err)
+			}
 			installedItems[installedItem.Name] = installedItem
 		}
 
 	}
+	return installedItems
+}
+
+// UninstallReg returns the UninstallString from the registry
+func UninstallReg(itemName string) string {
+	// Get all installed items from the registry
+	installedItems := getUninstallKeys()
+	var uninstallString string
+
+	for _, regItem := range installedItems {
+		// Check if the catalog name is in the registry
+		if strings.Contains(regItem.Name, itemName) {
+			uninstallString = regItem.Uninstall
+			break
+		}
+	}
+	return uninstallString
+}
+
+// CheckRegistry iterates through the local registry and compiles all installed software.
+// returns a map of `Application` that are defined in the registry
+func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+
+	// Get all installed items from the registry
+	installedItems := getUninstallKeys()
 
 	// Iterate through the reg keys to compare with the catalog
 	catalogVersion, err := version.NewVersion(catalogItem.Version)

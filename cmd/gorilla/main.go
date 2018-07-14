@@ -40,7 +40,7 @@ func main() {
 		}
 	}
 
-	// Iterate through the installs array, install dependencies, and then the item itself.
+	// Iterate through the installs array, install dependencies, and then the item itself
 	for _, item := range installs {
 		// Check for dependencies and install if found
 		if len(catalog[item].Dependencies) > 0 {
@@ -52,9 +52,15 @@ func main() {
 		installer.Install(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 
-	// Iterate through the uninstalls array and uninstall the item.
+	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Install the item
 		installer.Uninstall(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+	}
+
+	// Iterate through the upgrades array and upgrade the item **if it is already installed**
+	for _, item := range upgrades {
+		// Install the item
+		installer.Upgrade(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 }

@@ -49,7 +49,8 @@ func runCommand(installCmd string, installArgs []string, verbose bool) {
 	return
 }
 
-func alreadyInstalled(catalogItem catalog.Item) bool {
+// Returns true if the item is already installed AND up-to-date.
+func alreadyUpToDate(catalogItem catalog.Item) bool {
 	installed, versionMatch, err := status.CheckRegistry(catalogItem)
 	if err != nil {
 		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
@@ -62,11 +63,25 @@ func alreadyInstalled(catalogItem catalog.Item) bool {
 	return false
 }
 
+// Returns true if the item is installed, but not up-to-date
+func upgradeNeeded(catalogItem catalog.Item) bool {
+	installed, versionMatch, err := status.CheckRegistry(catalogItem)
+	if err != nil {
+		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
+		return false
+	}
+	if installed && !versionMatch {
+		fmt.Println(catalogItem.DisplayName, "already installed.")
+		return true
+	}
+	return false
+}
+
 // Install runs the installer
 func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 
 	// Check if the item is currently installed and up-to-date
-	if alreadyInstalled(item) {
+	if alreadyUpToDate(item) {
 		return
 	}
 
@@ -137,7 +152,7 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 
 	// Check if the item is currently installed and up-to-date
-	if !alreadyInstalled(item) {
+	if !alreadyUpToDate(item) {
 		return
 	}
 
@@ -192,6 +207,77 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	}
 
 	runCommand(uninstallCmd, uninstallArgs, verbose)
+
+	return
+}
+
+// Upgrade runs the installer if the item is already installed, but not up-to-date
+func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) {
+
+	// Check if the item is currently installed and out of date
+	if !upgradeNeeded(item) {
+		return
+	}
+
+	// Get all the path strings we will need
+	tokens := strings.Split(item.InstallerItemLocation, "/")
+	fileName := tokens[len(tokens)-1]
+	relPath := strings.Join(tokens[:len(tokens)-1], "/")
+	absPath := filepath.Join(cachePath, relPath)
+	absFile := filepath.Join(absPath, fileName)
+	fileExt := strings.ToLower(filepath.Ext(absFile))
+
+	// If the file exists, check the hash
+	var verified bool
+	if _, err := os.Stat(absFile); err == nil {
+		verified = download.Verify(absFile, item.InstallerItemHash)
+	}
+
+	// If hash failed, download the installer
+	if !verified {
+		fmt.Printf("Downloading %s...\n", item.DisplayName)
+		// Download the installer
+		installerURL := repoURL + item.InstallerItemLocation
+		err := download.File(absPath, installerURL)
+		if err != nil {
+			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
+		}
+		verified = download.Verify(absFile, item.InstallerItemHash)
+	}
+
+	// Return if hash verification fails
+	if !verified {
+		log.Println("Hash mismatch:", item.DisplayName)
+		return
+	}
+
+	// Define the command and arguments based on the installer type
+	var installCmd string
+	var installArgs []string
+
+	if fileExt == ".nupkg" {
+		fmt.Println("Installing choco:", fileName)
+		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
+		installArgs = []string{"install", absFile, "-y", "-r"}
+
+	} else if fileExt == ".msi" {
+		fmt.Println("Installing MSI for", fileName)
+		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
+		installArgs = []string{"/I", absFile, "/quiet"}
+
+	} else if fileExt == ".exe" {
+		fmt.Println("EXE support not added yet:", fileName)
+		return
+	} else if fileExt == ".ps1" {
+		fmt.Println("Powershell support not added yet:", fileName)
+		return
+	} else {
+		fmt.Println("Unable to install", fileName)
+		fmt.Println("Installer type unsupported:", fileExt)
+		return
+	}
+
+	runCommand(installCmd, installArgs, verbose)
 
 	return
 }

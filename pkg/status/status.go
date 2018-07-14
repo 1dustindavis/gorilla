@@ -96,8 +96,7 @@ func UninstallReg(itemName string) string {
 	return uninstallString
 }
 
-// CheckRegistry iterates through the local registry and compiles all installed software.
-// returns a map of `Application` that are defined in the registry
+// CheckRegistry iterates through the local registry and compiles all installed software
 func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
 
 	// Get all installed items from the registry

@@ -34,14 +34,14 @@ func getUninstallKeys() map[string]Application {
 	// Get the Uninstall key from HKLM
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Unable to read registry key", err)
 	}
 	defer key.Close()
 
 	// Get all the subkeys under Uninstall
 	subKeys, err := key.ReadSubKeyNames(0)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Unable to read registry sub key:", err)
 	}
 
 	var installedItems map[string]Application
@@ -52,7 +52,7 @@ func getUninstallKeys() map[string]Application {
 		itemKeyName := `Software\Microsoft\Windows\CurrentVersion\Uninstall\` + item
 		itemKey, err := registry.OpenKey(registry.LOCAL_MACHINE, itemKeyName, registry.READ)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("Unable to read registry key", err)
 		}
 		defer key.Close()
 
@@ -61,17 +61,17 @@ func getUninstallKeys() map[string]Application {
 			installedItem.Key = itemKeyName
 			installedItem.Name, _, err = itemKey.GetStringValue("DisplayName")
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("Unable to read DisplayName", err)
 			}
 
 			installedItem.Version, _, err = itemKey.GetStringValue("DisplayVersion")
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("Unable to read DisplayVersion", err)
 			}
 
 			installedItem.Uninstall, _, err = itemKey.GetStringValue("UninstallString")
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("Unable to read UninstallString", err)
 			}
 			installedItems[installedItem.Name] = installedItem
 		}
@@ -98,6 +98,10 @@ func UninstallReg(itemName string) string {
 
 // CheckRegistry iterates through the local registry and compiles all installed software
 func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+	// If we don't have version information, we cant compare
+	if catalogItem.Version == "" {
+		return false, false, checkErr
+	}
 
 	// Get all installed items from the registry
 	installedItems := getUninstallKeys()
@@ -105,7 +109,7 @@ func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool,
 	// Iterate through the reg keys to compare with the catalog
 	catalogVersion, err := version.NewVersion(catalogItem.Version)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Unable to access current version information: ", catalogItem.DisplayName, err)
 	}
 	for _, regItem := range installedItems {
 		// Check if the catalog name is in the registry

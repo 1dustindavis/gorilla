@@ -22,7 +22,7 @@ func main() {
 	for _, manifestItem := range manifests {
 		// Installs
 		for _, item := range manifestItem.Installs {
-			if item != "" {
+			if item != "" && catalog[item].InstallerItemLocation != "" {
 				installs = append(installs, item)
 			}
 		}

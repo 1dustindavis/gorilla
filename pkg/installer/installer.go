@@ -139,8 +139,10 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 		fmt.Println("EXE support not added yet:", fileName)
 		return
 	} else if fileExt == ".ps1" {
-		fmt.Println("Powershell support not added yet:", fileName)
-		return
+		fmt.Println("Installing via Powershell:", fileName)
+		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
 	} else {
 		fmt.Println("Unable to install", fileName)
 		fmt.Println("Installer type unsupported:", fileExt)
@@ -285,11 +287,11 @@ func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	} else if fileExt == ".ps1" {
 		fmt.Println("Powershell support not added yet:", fileName)
 		return
-	} else {
-		fmt.Println("Unable to install", fileName)
-		fmt.Println("Installer type unsupported:", fileExt)
-		return
 	}
+
+	fmt.Println("Unable to install", fileName)
+	fmt.Println("Installer type unsupported:", fileExt)
+	return
 
 	runCommand(installCmd, installArgs, verbose)
 

@@ -96,6 +96,9 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	// If the file exists, check the hash
 	var verified bool
 	if _, err := os.Stat(absFile); err == nil {
+		if item.InstallerItemHash == "" {
+			log.Fatalln("Installer hash missing for item:", item.DisplayName)
+		}
 		verified = download.Verify(absFile, item.InstallerItemHash)
 	}
 

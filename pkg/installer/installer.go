@@ -93,12 +93,13 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	absFile := filepath.Join(absPath, fileName)
 	fileExt := strings.ToLower(filepath.Ext(absFile))
 
+	// Fail if we dont have a hash
+	if item.InstallerItemHash == "" {
+		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+	}
 	// If the file exists, check the hash
 	var verified bool
 	if _, err := os.Stat(absFile); err == nil {
-		if item.InstallerItemHash == "" {
-			log.Fatalln("Installer hash missing for item:", item.DisplayName)
-		}
 		verified = download.Verify(absFile, item.InstallerItemHash)
 	}
 
@@ -166,6 +167,11 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	absPath := filepath.Join(cachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 
+	// Fail if we dont have a hash
+	if item.InstallerItemHash == "" {
+		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+	}
+
 	// If the file exists, check the hash
 	var verified bool
 	if _, err := os.Stat(absFile); err == nil {
@@ -229,6 +235,11 @@ func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	absPath := filepath.Join(cachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 	fileExt := strings.ToLower(filepath.Ext(absFile))
+
+	// Fail if we dont have a hash
+	if item.InstallerItemHash == "" {
+		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+	}
 
 	// If the file exists, check the hash
 	var verified bool

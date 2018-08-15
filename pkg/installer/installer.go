@@ -14,36 +14,37 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
-func runCommand(installCmd string, installArgs []string, verbose bool) {
-	cmd := exec.Command(installCmd, installArgs...)
+// runCommand executes a command and it's argurments in the CMD enviroment
+func runCommand(command string, arguments []string, verbose bool) {
+	cmd := exec.Command(command, arguments...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("command:", installCmd, installArgs)
+		fmt.Println("command:", command, arguments)
 		fmt.Fprintln(os.Stderr, "Error creating pipe to stdout", err)
 		os.Exit(1)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
 	if verbose {
-		fmt.Println("command:", installCmd, installArgs)
+		fmt.Println("command:", command, arguments)
 		go func() {
 			for scanner.Scan() {
-				fmt.Printf("Installer output | %s\n", scanner.Text())
+				fmt.Printf("Command output | %s\n", scanner.Text())
 			}
 		}()
 	}
 
 	err = cmd.Start()
 	if err != nil {
-		fmt.Println("command:", installCmd, installArgs)
+		fmt.Println("command:", command, arguments)
 		fmt.Println(os.Stderr, "Error running command:", err)
 		os.Exit(1)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		fmt.Println("command:", installCmd, installArgs)
-		fmt.Println(os.Stderr, "Installer error:", err)
+		fmt.Println("command:", command, arguments)
+		fmt.Println(os.Stderr, "Command error:", err)
 		os.Exit(1)
 	}
 	return
@@ -51,7 +52,7 @@ func runCommand(installCmd string, installArgs []string, verbose bool) {
 
 // Returns true if the item is already installed AND up-to-date.
 func alreadyUpToDate(catalogItem catalog.Item) bool {
-	installed, versionMatch, err := status.CheckRegistry(catalogItem)
+	installed, versionMatch, err := status.CheckStatus(catalogItem)
 	if err != nil {
 		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
 		return false
@@ -65,7 +66,7 @@ func alreadyUpToDate(catalogItem catalog.Item) bool {
 
 // Returns true if the item is installed, but not up-to-date
 func upgradeNeeded(catalogItem catalog.Item) bool {
-	installed, versionMatch, err := status.CheckRegistry(catalogItem)
+	installed, versionMatch, err := status.CheckStatus(catalogItem)
 	if err != nil {
 		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
 		return false
@@ -133,7 +134,7 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	} else if fileExt == ".msi" {
 		fmt.Println("Installing MSI for", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
-		installArgs = []string{"/I", absFile, "/quiet"}
+		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
 		fmt.Println("EXE support not added yet:", fileName)
@@ -210,7 +211,7 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	} else if item.UninstallMethod == "msi" {
 		fmt.Println("unnstalling MSI for", item.DisplayName)
 		uninstallCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
-		uninstallArgs = []string{"/X", absFile, "/quiet"}
+		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
 	} else {
 		fmt.Println("Unable to uninstall", item.DisplayName)
 		fmt.Println("Installer type unsupported:", item.UninstallMethod)
@@ -279,7 +280,7 @@ func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	} else if fileExt == ".msi" {
 		fmt.Println("Installing MSI for", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
-		installArgs = []string{"/I", absFile, "/quiet"}
+		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
 		fmt.Println("EXE support not added yet:", fileName)
@@ -287,11 +288,11 @@ func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	} else if fileExt == ".ps1" {
 		fmt.Println("Powershell support not added yet:", fileName)
 		return
+	} else {
+		fmt.Println("Unable to install", fileName)
+		fmt.Println("Installer type unsupported:", fileExt)
+		return
 	}
-
-	fmt.Println("Unable to install", fileName)
-	fmt.Println("Installer type unsupported:", fileExt)
-	return
 
 	runCommand(installCmd, installArgs, verbose)
 

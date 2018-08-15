@@ -10,6 +10,19 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var (
+	// URL of the web server with all of our files
+	URL string
+	// Manifest is a yaml file with the packages to manage on this node
+	Manifest string
+	// Catalog is a yaml file with details on the available packages
+	Catalog string
+	// CachePath is a directory we will use for temporary storage
+	CachePath string
+	// Verbose is true is we should output more detail than normal
+	Verbose bool
+)
+
 // Object to store our configuration
 type Object struct {
 	URL       string `yaml:"url"`
@@ -68,6 +81,12 @@ func Get() Object {
 	if verbose == true && !configuration.Verbose {
 		configuration.Verbose = true
 	}
+
+	URL = configuration.URL
+	Manifest = configuration.Manifest
+	Catalog = configuration.Catalog
+	CachePath = configuration.CachePath
+	Verbose = configuration.Verbose
 
 	return configuration
 }

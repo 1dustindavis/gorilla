@@ -14,6 +14,8 @@ import (
 type Item struct {
 	Dependencies          []string `yaml:"dependencies"`
 	DisplayName           string   `yaml:"display_name"`
+	InstallCheckPath      string   `yaml:"install_check_path"`
+	InstallCheckScript    string   `yaml:"install_check_script"`
 	InstallerItemHash     string   `yaml:"installer_item_hash"`
 	InstallerItemLocation string   `yaml:"installer_item_location"`
 	InstallerType         string   `yaml:"installer_type"`

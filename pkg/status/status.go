@@ -2,10 +2,15 @@ package status
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/hashicorp/go-version"
 	"golang.org/x/sys/windows/registry"
 )
@@ -96,8 +101,58 @@ func UninstallReg(itemName string) string {
 	return uninstallString
 }
 
-// CheckRegistry iterates through the local registry and compiles all installed software
-func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+func checkScript(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+
+	// Write InstallCheckScript to disk as a Powershell file
+	tmpScript := filepath.Join(config.CachePath, "tmpCheckScript.ps1")
+	ioutil.WriteFile(tmpScript, []byte(catalogItem.InstallCheckScript), 0755)
+
+	// Build the command to execute the script
+	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+
+	// Execute the script
+	cmd := exec.Command(psCmd, psArgs...)
+	stdOut, stdErr := cmd.CombinedOutput()
+
+	// Delete the temporary sctip
+	os.Remove(tmpScript)
+
+	if config.Verbose {
+		fmt.Println("stdout:")
+		fmt.Println(stdOut)
+		fmt.Println("stderr:")
+		fmt.Println(stdErr)
+	}
+	if stdErr != nil {
+		installed = true
+		versionMatch = true
+	} else {
+		installed = true
+		versionMatch = false
+	}
+
+	return installed, versionMatch, checkErr
+}
+
+func checkPath(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+	path := filepath.Clean(catalogItem.InstallCheckPath)
+	if config.Verbose {
+		fmt.Println(path)
+	}
+	if _, checkErr := os.Stat(path); checkErr == nil {
+		installed = true
+		versionMatch = true
+	}
+
+	installed = true
+	versionMatch = false
+
+	return installed, versionMatch, checkErr
+}
+
+// checkRegistry iterates through the local registry and compiles all installed software
+func checkRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
 	// If we don't have version information, we cant compare
 	if catalogItem.Version == "" {
 		return false, false, checkErr
@@ -130,5 +185,23 @@ func CheckRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool,
 	}
 
 	return installed, versionMatch, checkErr
+
+}
+
+// CheckStatus determines the method for checking status
+func CheckStatus(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+
+	if catalogItem.InstallCheckScript != "" {
+		fmt.Printf("Checking status of %s via Script...\n", catalogItem.DisplayName)
+		return checkScript(catalogItem)
+
+	} else if catalogItem.InstallCheckPath != "" {
+		fmt.Printf("Checking status of %s via Path...\n", catalogItem.DisplayName)
+		return checkPath(catalogItem)
+
+	}
+
+	fmt.Printf("Checking status of %s via Registry...\n", catalogItem.DisplayName)
+	return checkRegistry(catalogItem)
 
 }

@@ -3,7 +3,7 @@ Munki-like Application Management for Windows
 
 ## Overview
 Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
-Gorilla supports .nupkg [(installed via chocolatey)](https://github.com/chocolatey/choco) or .msi files.
+Gorilla supports `.msi`, `.ps1`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
 
 All files can be served from any standard web server with a directory stucture like this:
 

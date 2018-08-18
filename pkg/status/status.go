@@ -25,6 +25,11 @@ type Application struct {
 	Version   string
 }
 
+var (
+	// RegistryItems contains the status of all of the applications in the registry
+	RegistryItems map[string]Application
+)
+
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
@@ -49,8 +54,7 @@ func getUninstallKeys() map[string]Application {
 		log.Fatal("Unable to read registry sub key:", err)
 	}
 
-	var installedItems map[string]Application
-	installedItems = make(map[string]Application)
+	installedItems := make(map[string]Application)
 	// Get the details of each subkey
 	for _, item := range subKeys {
 		var installedItem Application
@@ -83,22 +87,6 @@ func getUninstallKeys() map[string]Application {
 
 	}
 	return installedItems
-}
-
-// UninstallReg returns the UninstallString from the registry
-func UninstallReg(itemName string) string {
-	// Get all installed items from the registry
-	installedItems := getUninstallKeys()
-	var uninstallString string
-
-	for _, regItem := range installedItems {
-		// Check if the catalog name is in the registry
-		if strings.Contains(regItem.Name, itemName) {
-			uninstallString = regItem.Uninstall
-			break
-		}
-	}
-	return uninstallString
 }
 
 func checkScript(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
@@ -158,15 +146,12 @@ func checkRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool,
 		return false, false, checkErr
 	}
 
-	// Get all installed items from the registry
-	installedItems := getUninstallKeys()
-
 	// Iterate through the reg keys to compare with the catalog
 	catalogVersion, err := version.NewVersion(catalogItem.Version)
 	if err != nil {
 		fmt.Println("Unable to access current version information: ", catalogItem.DisplayName, err)
 	}
-	for _, regItem := range installedItems {
+	for _, regItem := range RegistryItems {
 		// Check if the catalog name is in the registry
 		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
 			installed = true
@@ -201,7 +186,11 @@ func CheckStatus(catalogItem catalog.Item) (installed bool, versionMatch bool, c
 
 	}
 
+	// If needed, populate applications status from the registry
+	if len(RegistryItems) == 0 {
+		RegistryItems = getUninstallKeys()
+	}
+
 	fmt.Printf("Checking status of %s via Registry...\n", catalogItem.DisplayName)
 	return checkRegistry(catalogItem)
-
 }

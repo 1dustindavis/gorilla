@@ -44,7 +44,7 @@ managed_installs:
   - Slack
 managed_uninstalls:
   - Firefox
-managed_upgrades:
+managed_updates:
   - Jre8
 included_manifests:
   - printers

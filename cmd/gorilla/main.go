@@ -17,8 +17,8 @@ func main() {
 	// Get the manifests
 	manifests := manifest.Get(localConfig.CachePath, localConfig.Manifest, localConfig.URL)
 
-	// Compile all of the installs, uninstalls, and upgrades into arrays
-	var installs, uninstalls, upgrades []string
+	// Compile all of the installs, uninstalls, and updates into arrays
+	var installs, uninstalls, updates []string
 	for _, manifestItem := range manifests {
 		// Installs
 		for _, item := range manifestItem.Installs {
@@ -32,10 +32,10 @@ func main() {
 				uninstalls = append(uninstalls, item)
 			}
 		}
-		// Upgrades
-		for _, item := range manifestItem.Upgrades {
+		// Updates
+		for _, item := range manifestItem.Updates {
 			if item != "" {
-				upgrades = append(upgrades, item)
+				updates = append(updates, item)
 			}
 		}
 	}
@@ -58,8 +58,8 @@ func main() {
 		installer.Uninstall(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 
-	// Iterate through the upgrades array and upgrade the item **if it is already installed**
-	for _, item := range upgrades {
+	// Iterate through the updates array and upgrade the item **if it is already installed**
+	for _, item := range updates {
 		// Install the item
 		installer.Upgrade(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}

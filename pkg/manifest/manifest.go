@@ -16,7 +16,7 @@ type Item struct {
 	Includes   []string `yaml:"included_manifests"`
 	Installs   []string `yaml:"managed_installs"`
 	Uninstalls []string `yaml:"managed_uninstalls"`
-	Upgrades   []string `yaml:"managed_upgrades"`
+	Updates    []string `yaml:"managed_updates"`
 }
 
 func getManifest(cachePath string, manifestName string) Item {

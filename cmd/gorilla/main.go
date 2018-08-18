@@ -58,9 +58,9 @@ func main() {
 		installer.Uninstall(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 
-	// Iterate through the updates array and upgrade the item **if it is already installed**
+	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Install the item
-		installer.Upgrade(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+		installer.Update(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
 	}
 }

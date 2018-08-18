@@ -11,6 +11,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/hashicorp/go-version"
 	"golang.org/x/sys/windows/registry"
 )
@@ -89,7 +90,7 @@ func getUninstallKeys() map[string]Application {
 	return installedItems
 }
 
-func checkScript(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+func checkScript(catalogItem catalog.Item) (install bool, checkErr error) {
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(config.CachePath, "tmpCheckScript.ps1")
@@ -112,45 +113,50 @@ func checkScript(catalogItem catalog.Item) (installed bool, versionMatch bool, c
 		fmt.Println("stderr:")
 		fmt.Println(stdErr)
 	}
-	if stdErr != nil {
-		installed = true
-		versionMatch = true
+
+	// Dont't install if stderr is zero
+	if stdErr == nil {
+		install = false
 	} else {
-		installed = true
-		versionMatch = false
+		install = true
 	}
 
-	return installed, versionMatch, checkErr
+	return install, checkErr
 }
 
-func checkPath(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+func checkPath(catalogItem catalog.Item) (install bool, checkErr error) {
 	path := filepath.Clean(catalogItem.InstallCheckPath)
+	hash := catalogItem.InstallCheckPathHash
 	if config.Verbose {
 		fmt.Println(path)
 	}
-	if _, checkErr := os.Stat(path); checkErr == nil {
-		installed = true
-		versionMatch = true
+
+	// Confirm that path exists
+	// Install if we get an error
+	if _, checkErr := os.Stat(path); checkErr != nil {
+		install = true
+	} else {
+		install = false
 	}
 
-	installed = true
-	versionMatch = false
+	// If a hash is configured, verify it matches
+	if !install && hash != "" {
+		install = download.Verify(path, hash)
+	}
 
-	return installed, versionMatch, checkErr
+	return install, checkErr
 }
 
 // checkRegistry iterates through the local registry and compiles all installed software
-func checkRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
-	// If we don't have version information, we cant compare
-	if catalogItem.Version == "" {
-		return false, false, checkErr
-	}
-
+func checkRegistry(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
 	// Iterate through the reg keys to compare with the catalog
 	catalogVersion, err := version.NewVersion(catalogItem.Version)
 	if err != nil {
-		fmt.Println("Unable to access current version information: ", catalogItem.DisplayName, err)
+		fmt.Println("Unable to parse new version: ", catalogItem.DisplayName, err)
 	}
+
+	var installed bool
+	var versionMatch bool
 	for _, regItem := range RegistryItems {
 		// Check if the catalog name is in the registry
 		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
@@ -169,12 +175,27 @@ func checkRegistry(catalogItem catalog.Item) (installed bool, versionMatch bool,
 
 	}
 
-	return installed, versionMatch, checkErr
+	// If we don't have version information, we can't compare
+	if catalogItem.Version == "" {
+		versionMatch = true
+	}
+
+	if installType == "update" && !installed {
+		install = false
+	} else if installType == "uninstall" && installed {
+		install = false
+	} else if installed && versionMatch {
+		install = false
+	} else {
+		install = true
+	}
+
+	return install, checkErr
 
 }
 
 // CheckStatus determines the method for checking status
-func CheckStatus(catalogItem catalog.Item) (installed bool, versionMatch bool, checkErr error) {
+func CheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
 
 	if catalogItem.InstallCheckScript != "" {
 		fmt.Printf("Checking status of %s via Script...\n", catalogItem.DisplayName)
@@ -192,5 +213,5 @@ func CheckStatus(catalogItem catalog.Item) (installed bool, versionMatch bool, c
 	}
 
 	fmt.Printf("Checking status of %s via Registry...\n", catalogItem.DisplayName)
-	return checkRegistry(catalogItem)
+	return checkRegistry(catalogItem, installType)
 }

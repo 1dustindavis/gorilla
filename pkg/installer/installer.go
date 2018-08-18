@@ -50,39 +50,17 @@ func runCommand(command string, arguments []string, verbose bool) {
 	return
 }
 
-// Returns true if the item is already installed AND up-to-date.
-func alreadyUpToDate(catalogItem catalog.Item) bool {
-	installed, versionMatch, err := status.CheckStatus(catalogItem)
-	if err != nil {
-		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
-		return false
-	}
-	if installed && versionMatch {
-		fmt.Println(catalogItem.DisplayName, "already installed.")
-		return true
-	}
-	return false
-}
-
-// Returns true if the item is installed, but not up-to-date
-func upgradeNeeded(catalogItem catalog.Item) bool {
-	installed, versionMatch, err := status.CheckStatus(catalogItem)
-	if err != nil {
-		fmt.Println("Unable to check status of item:", catalogItem.DisplayName)
-		return false
-	}
-	if installed && !versionMatch {
-		fmt.Println(catalogItem.DisplayName, "already installed.")
-		return true
-	}
-	return false
-}
-
 // Install runs the installer
 func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 
-	// Check if the item is currently installed and up-to-date
-	if alreadyUpToDate(item) {
+	// Check the items current status
+	install, err := status.CheckStatus(item, "install")
+	if err != nil {
+		fmt.Println("Unable to check status of ", item.DisplayName)
+		return
+	}
+
+	if !install {
 		return
 	}
 
@@ -158,8 +136,14 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 // Uninstall runs the uninstaller
 func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 
-	// Check if the item is currently installed and up-to-date
-	if !alreadyUpToDate(item) {
+	// Check the items current status
+	install, err := status.CheckStatus(item, "uninstall")
+	if err != nil {
+		fmt.Println("Unable to check status of ", item.DisplayName)
+		return
+	}
+
+	if install {
 		return
 	}
 
@@ -223,11 +207,17 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	return
 }
 
-// Upgrade runs the installer if the item is already installed, but not up-to-date
-func Upgrade(item catalog.Item, cachePath string, verbose bool, repoURL string) {
+// Update runs the installer if the item is already installed, but not up-to-date
+func Update(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 
-	// Check if the item is currently installed and out of date
-	if !upgradeNeeded(item) {
+	// Check the items current status
+	install, err := status.CheckStatus(item, "update")
+	if err != nil {
+		fmt.Println("Unable to check status of ", item.DisplayName)
+		return
+	}
+
+	if !install {
 		return
 	}
 

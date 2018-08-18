@@ -99,7 +99,7 @@ ChefClient:
 
 ```
 
-* `display_name` is currently unused, but optionally includes a human-readable name.
+* `display_name` should be a human-readable name, and match the Display name of registry items.
 * `install_check_path` is a path to a file that must exist for the item to be considered installed. If this option is not provided, Gorilla will default to using the registry.
 * `install_check_script` is a PowerShell code block that will be executed to determine if the package should be installed. Any non-zero exit code will be considered installed. If this option is not provided, Gorilla will default to using the registry.
 * `installer_item_hash` is required and should be a sha256 hash of the file located at `installer_item_location`.

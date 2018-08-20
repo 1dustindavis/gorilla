@@ -87,11 +87,11 @@ ChefClient:
     $latest = "13.8.5"
     $current = chef-client --version
     $current = $current.Split(" ")[1]
-    $upToDate = [System.Version]$current -gt [System.Version]$latest
+    $upToDate = [System.Version]$current -ge [System.Version]$latest
     If ($upToDate) {
-      exit 1
-    } Else {
       exit 0
+    } Else {
+      exit 1
     }
   installer_item_location: packages/apps/chef-client/chef-client-13.8.5-x64.msi
   installer_item_hash: c1ed04719c5a8b4ff9bc7d77036644dec505984808b91850f180e08da786fbca

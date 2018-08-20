@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
 // runCommand executes a command and it's argurments in the CMD enviroment
-func runCommand(command string, arguments []string, verbose bool) {
+func runCommand(command string, arguments []string) {
 	cmd := exec.Command(command, arguments...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -25,7 +26,7 @@ func runCommand(command string, arguments []string, verbose bool) {
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
-	if verbose {
+	if config.Verbose {
 		fmt.Println("command:", command, arguments)
 		go func() {
 			for scanner.Scan() {
@@ -51,7 +52,7 @@ func runCommand(command string, arguments []string, verbose bool) {
 }
 
 // Install runs the installer
-func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) {
+func Install(item catalog.Item) {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "install")
@@ -68,7 +69,7 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	tokens := strings.Split(item.InstallerItemLocation, "/")
 	fileName := tokens[len(tokens)-1]
 	relPath := strings.Join(tokens[:len(tokens)-1], "/")
-	absPath := filepath.Join(cachePath, relPath)
+	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 	fileExt := strings.ToLower(filepath.Ext(absFile))
 
@@ -86,7 +87,7 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 	if !verified {
 		fmt.Printf("Downloading %s...\n", item.DisplayName)
 		// Download the installer
-		installerURL := repoURL + item.InstallerItemLocation
+		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
@@ -128,13 +129,13 @@ func Install(item catalog.Item, cachePath string, verbose bool, repoURL string) 
 		return
 	}
 
-	runCommand(installCmd, installArgs, verbose)
+	runCommand(installCmd, installArgs)
 
 	return
 }
 
 // Uninstall runs the uninstaller
-func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string) {
+func Uninstall(item catalog.Item) {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "uninstall")
@@ -151,7 +152,7 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	tokens := strings.Split(item.InstallerItemLocation, "/")
 	fileName := tokens[len(tokens)-1]
 	relPath := strings.Join(tokens[:len(tokens)-1], "/")
-	absPath := filepath.Join(cachePath, relPath)
+	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 
 	// Fail if we dont have a hash
@@ -169,7 +170,7 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 	if !verified {
 		fmt.Printf("Downloading %s...\n", item.DisplayName)
 		// Download the installer
-		installerURL := repoURL + item.InstallerItemLocation
+		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
@@ -202,13 +203,13 @@ func Uninstall(item catalog.Item, cachePath string, verbose bool, repoURL string
 		return
 	}
 
-	runCommand(uninstallCmd, uninstallArgs, verbose)
+	runCommand(uninstallCmd, uninstallArgs)
 
 	return
 }
 
 // Update runs the installer if the item is already installed, but not up-to-date
-func Update(item catalog.Item, cachePath string, verbose bool, repoURL string) {
+func Update(item catalog.Item) {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "update")
@@ -225,7 +226,7 @@ func Update(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 	tokens := strings.Split(item.InstallerItemLocation, "/")
 	fileName := tokens[len(tokens)-1]
 	relPath := strings.Join(tokens[:len(tokens)-1], "/")
-	absPath := filepath.Join(cachePath, relPath)
+	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 	fileExt := strings.ToLower(filepath.Ext(absFile))
 
@@ -244,7 +245,7 @@ func Update(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 	if !verified {
 		fmt.Printf("Downloading %s...\n", item.DisplayName)
 		// Download the installer
-		installerURL := repoURL + item.InstallerItemLocation
+		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
@@ -284,7 +285,7 @@ func Update(item catalog.Item, cachePath string, verbose bool, repoURL string) {
 		return
 	}
 
-	runCommand(installCmd, installArgs, verbose)
+	runCommand(installCmd, installArgs)
 
 	return
 }

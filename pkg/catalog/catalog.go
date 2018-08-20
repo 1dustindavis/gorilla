@@ -6,6 +6,7 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"gopkg.in/yaml.v2"
 )
@@ -25,18 +26,18 @@ type Item struct {
 }
 
 // Get returns a map of `Item` from the catalog
-func Get(cachePath string, catalogName string, repoURL string) map[string]Item {
+func Get() map[string]Item {
 
 	// Download the catalog
-	catalogURL := repoURL + "catalogs/" + catalogName + ".yaml"
-	err := download.File(cachePath, catalogURL)
+	catalogURL := config.URL + "catalogs/" + config.Catalog + ".yaml"
+	err := download.File(config.CachePath, catalogURL)
 	if err != nil {
-		fmt.Println("Unable to retrieve catalog:", catalogName, err)
+		fmt.Println("Unable to retrieve catalog:", config.Catalog, err)
 		log.Fatal(err)
 	}
 
 	// Parse the catalog
-	yamlPath := filepath.Join(cachePath, catalogName) + ".yaml"
+	yamlPath := filepath.Join(config.CachePath, config.Catalog) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var catalog map[string]Item
 	err = yaml.Unmarshal(yamlFile, &catalog)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"gopkg.in/yaml.v2"
 )
@@ -19,9 +20,9 @@ type Item struct {
 	Updates    []string `yaml:"managed_updates"`
 }
 
-func getManifest(cachePath string, manifestName string) Item {
+func getManifest(manifestName string) Item {
 	// Get the yaml file and look for included_manifests
-	yamlPath := filepath.Join(cachePath, manifestName) + ".yaml"
+	yamlPath := filepath.Join(config.CachePath, manifestName) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var manifest Item
 	err = yaml.Unmarshal(yamlFile, &manifest)
@@ -32,7 +33,7 @@ func getManifest(cachePath string, manifestName string) Item {
 }
 
 // Get returns a slice the includes all manifest objects
-func Get(cachePath string, manifest string, repoURL string) []Item {
+func Get() []Item {
 	// Create a slice of all manifest objects
 	var manifests []Item
 	// Create a slice with the names of all manifests
@@ -45,7 +46,7 @@ func Get(cachePath string, manifest string, repoURL string) []Item {
 	var manifestsRemaining = 1
 
 	// Add the top level manifest to the list
-	manifestsList = append(manifestsList, manifest)
+	manifestsList = append(manifestsList, config.Manifest)
 
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
@@ -54,15 +55,15 @@ func Get(cachePath string, manifest string, repoURL string) []Item {
 		workingList := []string{currentManifest}
 
 		// Download the manifest
-		manifestURL := repoURL + "manifests/" + currentManifest + ".yaml"
-		err := download.File(cachePath, manifestURL)
+		manifestURL := config.URL + "manifests/" + currentManifest + ".yaml"
+		err := download.File(config.CachePath, manifestURL)
 		if err != nil {
 			fmt.Println("Unable to retrieve manifest:", currentManifest, err)
 			os.Exit(1)
 		}
 
 		// Get new manifest
-		newManifest := getManifest(cachePath, currentManifest)
+		newManifest := getManifest(currentManifest)
 
 		// Add any includes to our working list
 		for _, item := range newManifest.Includes {

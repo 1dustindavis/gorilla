@@ -34,20 +34,20 @@ type Object struct {
 
 func parseArguments() (string, bool) {
 	// Get the command line args, error if config is missing.
-	configArg := flag.String("config", "", "Path to configuration file in yaml format")
+	helpArg := flag.String("help", "", "Displays this help message")
+	configArg := flag.String("config", filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml"), "Path to configuration file in yaml format")
 	verboseArg := flag.Bool("verbose", false, "Enable verbose output")
 	flag.Parse()
-	if *configArg == "" {
-		fmt.Println("Configuration file required!")
+	if *helpArg != "" {
 		flag.PrintDefaults()
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	return *configArg, *verboseArg
 }
 
-// Get returns the local configuration as a config.Object
-func Get() Object {
+// Get retrieves and then stores the local configuration
+func Get() {
 
 	configPath, verbose := parseArguments()
 
@@ -88,5 +88,5 @@ func Get() Object {
 	CachePath = configuration.CachePath
 	Verbose = configuration.Verbose
 
-	return configuration
+	return
 }

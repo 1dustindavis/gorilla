@@ -19,7 +19,7 @@ All files can be served from any standard web server with a directory stucture l
 ```
 
 ## Config
-A configuration file in yaml format must be passed like this: `gorilla.exe -config <path to config>`.
+The configuration file is in yaml format and defaults to `%ProgramData%/gorilla/config.yaml`, but alternatively may be passed like this: `gorilla.exe -config <path to config>`.
 
 ```yaml
 ---

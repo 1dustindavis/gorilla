@@ -9,13 +9,13 @@ import (
 
 func main() {
 	// Get the configuration
-	localConfig := config.Get()
+	config.Get()
 
 	// Get the catalog
-	catalog := catalog.Get(localConfig.CachePath, localConfig.Catalog, localConfig.URL)
+	catalog := catalog.Get()
 
 	// Get the manifests
-	manifests := manifest.Get(localConfig.CachePath, localConfig.Manifest, localConfig.URL)
+	manifests := manifest.Get()
 
 	// Compile all of the installs, uninstalls, and updates into arrays
 	var installs, uninstalls, updates []string
@@ -45,22 +45,22 @@ func main() {
 		// Check for dependencies and install if found
 		if len(catalog[item].Dependencies) > 0 {
 			for _, dependency := range catalog[item].Dependencies {
-				installer.Install(catalog[dependency], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+				installer.Install(catalog[dependency])
 			}
 		}
 		// Install the item
-		installer.Install(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+		installer.Install(catalog[item])
 	}
 
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Install the item
-		installer.Uninstall(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+		installer.Uninstall(catalog[item])
 	}
 
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Install the item
-		installer.Update(catalog[item], localConfig.CachePath, localConfig.Verbose, localConfig.URL)
+		installer.Update(catalog[item])
 	}
 }

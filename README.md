@@ -1,7 +1,7 @@
 # Gorilla
 Munki-like Application Management for Windows
 
-## [Getting Started](https://github.com/1dustindavis/gorilla/wiki)
+**[Getting Started](https://github.com/1dustindavis/gorilla/wiki)**
 
 ## Overview
 Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.

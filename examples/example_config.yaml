@@ -1,0 +1,5 @@
+---
+url: https://example.com/gorilla/
+manifest: example_manifest.yaml
+catalog: example_catalog.yaml
+cachepath: c:/cpe/gorilla/cache

@@ -57,9 +57,9 @@ A catalog contains details on all available packages. Catalogs are in yaml forma
 ---
 GoogleChrome:
   display_name: Google Chrome
-  installer_item_hash: c1ed04713c5a8b4ff8bc7d77036644dac505784818b91850f180e08da786fbca
-  installer_item_location: packages/GoogleChrome.65.0.3325.18100.msi
-  version: 65.0.3325.18100
+  installer_item_location: packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg
+  installer_item_hash: ce9c44417489d6c1f205422a4b9e8d5181d1ac24b6dcae3bd68ec315efdeb18b
+  version: 68.0.3440.106
 
 ColorPrinter:
   display_name: Color Printer
@@ -77,25 +77,26 @@ CanonDrivers:
 Chocolatey:
   display_name: Chocolatey
   install_check_path: C:\ProgramData\chocolatey\bin\choco.exe
-  installer_item_location: packages/apps/chocolatey/chocolateyInstall.ps1
+  installer_item_location: packages/chocolatey/chocolateyInstall.ps1
   installer_item_hash: 38cf17a230dbe53efc49f63bbc9931296b5cea84f45ac6528ce60767fe370230
   version: 1.0
 
 ChefClient:
   display_name: Chef Client
   install_check_script: |
-    $latest = "13.8.5"
-    $current = chef-client --version
+    $latest = "14.3.37"
+    $current = C:\opscode\chef\bin\chef-client.bat --version
     $current = $current.Split(" ")[1]
     $upToDate = [System.Version]$current -ge [System.Version]$latest
     If ($upToDate) {
-      exit 0
-    } Else {
       exit 1
+    } Else {
+      exit 0
     }
-  installer_item_location: packages/apps/chef-client/chef-client-13.8.5-x64.msi
-  installer_item_hash: c1ed04719c5a8b4ff9bc7d77036644dec505984808b91850f180e08da786fbca
-  version: 13.8.5
+  installer_item_location: packages/chef-client/chef-client-14.3.37-1-x64.msi
+  installer_item_hash: f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d
+  version: 14.3.37
+  uninstall_method: msi
 
 ```
 

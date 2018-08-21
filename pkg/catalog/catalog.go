@@ -1,13 +1,12 @@
 package catalog
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"gopkg.in/yaml.v2"
 )
 
@@ -30,19 +29,20 @@ func Get() map[string]Item {
 
 	// Download the catalog
 	catalogURL := config.URL + "catalogs/" + config.Catalog + ".yaml"
+	gorillalog.Info("Catalog Url:", catalogURL)
 	err := download.File(config.CachePath, catalogURL)
 	if err != nil {
-		fmt.Println("Unable to retrieve catalog:", config.Catalog, err)
-		log.Fatal(err)
+		gorillalog.Error("Unable to retrieve catalog:", config.Catalog, err)
 	}
 
 	// Parse the catalog
 	yamlPath := filepath.Join(config.CachePath, config.Catalog) + ".yaml"
+	gorillalog.Debug("Catalog file path:", yamlPath)
 	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var catalog map[string]Item
 	err = yaml.Unmarshal(yamlFile, &catalog)
 	if err != nil {
-		fmt.Println("Unable to parse yaml catalog:", yamlPath, err)
+		gorillalog.Error("Unable to parse yaml catalog:", yamlPath, err)
 	}
 	return catalog
 }

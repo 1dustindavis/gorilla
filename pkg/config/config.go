@@ -21,6 +21,8 @@ var (
 	CachePath string
 	// Verbose is true is we should output more detail than normal
 	Verbose bool
+	// Debug is true is we should output as much as we can
+	Debug bool
 )
 
 // Object to store our configuration
@@ -30,26 +32,28 @@ type Object struct {
 	Catalog   string `yaml:"catalog"`
 	CachePath string `yaml:"cachepath"`
 	Verbose   bool   `yaml:"verbose,omitempty"`
+	Debug     bool   `yaml:"debug,omitempty"`
 }
 
-func parseArguments() (string, bool) {
+func parseArguments() (string, bool, bool) {
 	// Get the command line args, error if config is missing.
 	helpArg := flag.String("help", "", "Displays this help message")
 	configArg := flag.String("config", filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml"), "Path to configuration file in yaml format")
 	verboseArg := flag.Bool("verbose", false, "Enable verbose output")
+	debugArg := flag.Bool("debug", false, "Enable debug output")
 	flag.Parse()
 	if *helpArg != "" {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
 
-	return *configArg, *verboseArg
+	return *configArg, *verboseArg, *debugArg
 }
 
 // Get retrieves and then stores the local configuration
 func Get() {
 
-	configPath, verbose := parseArguments()
+	configPath, verbose, debug := parseArguments()
 
 	// Get the config at configpath and return a config.Object
 	configFile, err := ioutil.ReadFile(configPath)
@@ -81,12 +85,18 @@ func Get() {
 	if verbose == true && !configuration.Verbose {
 		configuration.Verbose = true
 	}
+	// Set the debug and verbose
+	if debug == true && !configuration.Debug {
+		configuration.Debug = true
+		configuration.Verbose = true
+	}
 
 	URL = configuration.URL
 	Manifest = configuration.Manifest
 	Catalog = configuration.Catalog
 	CachePath = configuration.CachePath
 	Verbose = configuration.Verbose
+	Debug = configuration.Debug
 
 	return
 }

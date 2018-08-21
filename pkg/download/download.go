@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
 // File downloads a provided url to the file path specified.
@@ -66,18 +68,18 @@ func File(file string, url string) error {
 func Verify(file string, sha string) bool {
 	f, err := os.Open(file)
 	if err != nil {
-		fmt.Printf("Unable to open file %s\n", err)
+		gorillalog.Warn("Unable to open file:", err)
 		return false
 	}
 	defer f.Close()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		fmt.Printf("Unable to verify hash due to IO error: %s\n", err)
+		gorillalog.Warn("Unable to verify hash due to IO error:", err)
 		return false
 	}
 	shaHash := hex.EncodeToString(h.Sum(nil))
 	if shaHash != sha {
-		fmt.Println("Downloaded file hash does not match catalog hash")
+		gorillalog.Warn("Downloaded file hash does not match catalog hash")
 		return false
 	}
 	return true

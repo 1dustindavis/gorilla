@@ -2,8 +2,6 @@ package installer
 
 import (
 	"bufio"
-	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +10,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
@@ -20,33 +19,30 @@ func runCommand(command string, arguments []string) {
 	cmd := exec.Command(command, arguments...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("command:", command, arguments)
-		fmt.Fprintln(os.Stderr, "Error creating pipe to stdout", err)
-		os.Exit(1)
+		gorillalog.Warn("command:", command, arguments)
+		gorillalog.Error("Error creating pipe to stdout", err)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
 	if config.Verbose {
-		fmt.Println("command:", command, arguments)
+		gorillalog.Debug("command:", command, arguments)
 		go func() {
 			for scanner.Scan() {
-				fmt.Printf("Command output | %s\n", scanner.Text())
+				gorillalog.Debug("Command output | ", scanner.Text())
 			}
 		}()
 	}
 
 	err = cmd.Start()
 	if err != nil {
-		fmt.Println("command:", command, arguments)
-		fmt.Println(os.Stderr, "Error running command:", err)
-		os.Exit(1)
+		gorillalog.Warn("command:", command, arguments)
+		gorillalog.Error("Error running command:", err)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		fmt.Println("command:", command, arguments)
-		fmt.Println(os.Stderr, "Command error:", err)
-		os.Exit(1)
+		gorillalog.Warn("command:", command, arguments)
+		gorillalog.Error("Command error:", err)
 	}
 	return
 }
@@ -57,7 +53,7 @@ func Install(item catalog.Item) {
 	// Check the items current status
 	install, err := status.CheckStatus(item, "install")
 	if err != nil {
-		fmt.Println("Unable to check status of ", item.DisplayName)
+		gorillalog.Warn("Unable to check status of ", item.DisplayName)
 		return
 	}
 
@@ -75,7 +71,8 @@ func Install(item catalog.Item) {
 
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
-		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
+		return
 	}
 	// If the file exists, check the hash
 	var verified bool
@@ -85,19 +82,20 @@ func Install(item catalog.Item) {
 
 	// If hash failed, download the installer
 	if !verified {
-		fmt.Printf("Downloading %s...\n", item.DisplayName)
+		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
 		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
-			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
+			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+			return
 		}
 		verified = download.Verify(absFile, item.InstallerItemHash)
 	}
 
 	// Return if hash verification fails
 	if !verified {
-		log.Println("Hash mismatch:", item.DisplayName)
+		gorillalog.Warn("Hash mismatch:", item.DisplayName)
 		return
 	}
 
@@ -106,26 +104,26 @@ func Install(item catalog.Item) {
 	var installArgs []string
 
 	if fileExt == ".nupkg" {
-		fmt.Println("Installing choco:", fileName)
+		gorillalog.Info("Installing nupkg:", fileName)
 		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 		installArgs = []string{"install", absFile, "-y", "-r"}
 
 	} else if fileExt == ".msi" {
-		fmt.Println("Installing MSI for", fileName)
+		gorillalog.Info("Installing MSI installer:", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
-		fmt.Println("EXE support not added yet:", fileName)
+		gorillalog.Warn("EXE support not added yet:", fileName)
 		return
 	} else if fileExt == ".ps1" {
-		fmt.Println("Installing via Powershell:", fileName)
+		gorillalog.Info("Installing Powershell script:", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
-		fmt.Println("Unable to install", fileName)
-		fmt.Println("Installer type unsupported:", fileExt)
+		gorillalog.Warn("Unable to install", fileName)
+		gorillalog.Warn("Installer type unsupported:", fileExt)
 		return
 	}
 
@@ -140,7 +138,7 @@ func Uninstall(item catalog.Item) {
 	// Check the items current status
 	install, err := status.CheckStatus(item, "uninstall")
 	if err != nil {
-		fmt.Println("Unable to check status of ", item.DisplayName)
+		gorillalog.Warn("Unable to check status of ", item.DisplayName)
 		return
 	}
 
@@ -157,7 +155,8 @@ func Uninstall(item catalog.Item) {
 
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
-		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
+		return
 	}
 
 	// If the file exists, check the hash
@@ -168,19 +167,20 @@ func Uninstall(item catalog.Item) {
 
 	// If hash failed, download the installer
 	if !verified {
-		fmt.Printf("Downloading %s...\n", item.DisplayName)
+		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
 		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
-			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
+			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+			return
 		}
 		verified = download.Verify(absFile, item.InstallerItemHash)
 	}
 
 	// Return if hash verification fails
 	if !verified {
-		log.Println("Hash mismatch:", item.DisplayName)
+		gorillalog.Warn("Hash mismatch:", item.DisplayName)
 		return
 	}
 
@@ -189,17 +189,17 @@ func Uninstall(item catalog.Item) {
 	var uninstallArgs []string
 
 	if item.UninstallMethod == "choco" {
-		fmt.Println("Uninstalling choco:", item.DisplayName)
+		gorillalog.Info("Uninstalling nupkg:", item.DisplayName)
 		uninstallCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 		uninstallArgs = []string{"uninstall", absFile, "-y", "-r"}
 
 	} else if item.UninstallMethod == "msi" {
-		fmt.Println("unnstalling MSI for", item.DisplayName)
+		gorillalog.Info("Unnstalling MSI", item.DisplayName)
 		uninstallCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
 	} else {
-		fmt.Println("Unable to uninstall", item.DisplayName)
-		fmt.Println("Installer type unsupported:", item.UninstallMethod)
+		gorillalog.Warn("Unable to uninstall", item.DisplayName)
+		gorillalog.Warn("Installer type unsupported:", item.UninstallMethod)
 		return
 	}
 
@@ -214,7 +214,7 @@ func Update(item catalog.Item) {
 	// Check the items current status
 	install, err := status.CheckStatus(item, "update")
 	if err != nil {
-		fmt.Println("Unable to check status of ", item.DisplayName)
+		gorillalog.Warn("Unable to check status of ", item.DisplayName)
 		return
 	}
 
@@ -232,7 +232,8 @@ func Update(item catalog.Item) {
 
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
-		log.Fatalln("Installer hash missing for item:", item.DisplayName)
+		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
+		return
 	}
 
 	// If the file exists, check the hash
@@ -243,19 +244,20 @@ func Update(item catalog.Item) {
 
 	// If hash failed, download the installer
 	if !verified {
-		fmt.Printf("Downloading %s...\n", item.DisplayName)
+		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
 		installerURL := config.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
-			log.Fatalln("Unable to retrieve package:", item.InstallerItemLocation, err)
+			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+			return
 		}
 		verified = download.Verify(absFile, item.InstallerItemHash)
 	}
 
 	// Return if hash verification fails
 	if !verified {
-		log.Println("Hash mismatch:", item.DisplayName)
+		gorillalog.Warn("Hash mismatch:", item.DisplayName)
 		return
 	}
 
@@ -264,24 +266,24 @@ func Update(item catalog.Item) {
 	var installArgs []string
 
 	if fileExt == ".nupkg" {
-		fmt.Println("Installing choco:", fileName)
+		gorillalog.Info("Installing nupkg:", fileName)
 		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 		installArgs = []string{"install", absFile, "-y", "-r"}
 
 	} else if fileExt == ".msi" {
-		fmt.Println("Installing MSI for", fileName)
+		gorillalog.Info("Installing MSI", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
-		fmt.Println("EXE support not added yet:", fileName)
+		gorillalog.Warn("EXE support not added yet:", fileName)
 		return
 	} else if fileExt == ".ps1" {
-		fmt.Println("Powershell support not added yet:", fileName)
+		gorillalog.Warn("Powershell support not added yet:", fileName)
 		return
 	} else {
-		fmt.Println("Unable to install", fileName)
-		fmt.Println("Installer type unsupported:", fileExt)
+		gorillalog.Warn("Unable to install", fileName)
+		gorillalog.Warn("Installer type unsupported:", fileExt)
 		return
 	}
 

@@ -1,13 +1,12 @@
 package manifest
 
 import (
-	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"gopkg.in/yaml.v2"
 )
 
@@ -27,7 +26,7 @@ func getManifest(manifestName string) Item {
 	var manifest Item
 	err = yaml.Unmarshal(yamlFile, &manifest)
 	if err != nil {
-		fmt.Println("Unable to parse yaml manifest:", yamlPath, err)
+		gorillalog.Error("Unable to parse yaml manifest:", yamlPath, err)
 	}
 	return manifest
 }
@@ -56,10 +55,10 @@ func Get() []Item {
 
 		// Download the manifest
 		manifestURL := config.URL + "manifests/" + currentManifest + ".yaml"
+		gorillalog.Info("Manifest Url:", manifestURL)
 		err := download.File(config.CachePath, manifestURL)
 		if err != nil {
-			fmt.Println("Unable to retrieve manifest:", currentManifest, err)
-			os.Exit(1)
+			gorillalog.Error("Unable to retrieve manifest:", currentManifest, err)
 		}
 
 		// Get new manifest

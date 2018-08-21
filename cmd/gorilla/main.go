@@ -6,13 +6,9 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
-	"github.com/pkg/profile"
 )
 
 func main() {
-
-	// CPU profiling by default
-	defer profile.Start().Stop()
 
 	// Create a new logger object
 	gorillalog.NewLog()

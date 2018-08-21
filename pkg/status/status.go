@@ -1,6 +1,7 @@
 package status
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -102,20 +103,25 @@ func checkScript(catalogItem catalog.Item) (install bool, checkErr error) {
 
 	// Execute the script
 	cmd := exec.Command(psCmd, psArgs...)
-	stdOut, stdErr := cmd.CombinedOutput()
-
-	// Delete the temporary sctip
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+	// Delete the temporary script
 	os.Remove(tmpScript)
 
 	if config.Verbose {
+		fmt.Println("Command Error:")
+		fmt.Println(err)
 		fmt.Println("stdout:")
-		fmt.Println(stdOut)
+		fmt.Println(outStr)
 		fmt.Println("stderr:")
-		fmt.Println(stdErr)
+		fmt.Println(errStr)
 	}
 
 	// Dont't install if stderr is zero
-	if stdErr == nil {
+	if errStr == "" {
 		install = false
 	} else {
 		install = true

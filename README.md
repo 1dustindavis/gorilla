@@ -31,7 +31,7 @@ catalog: production
 cachepath: C:/gorilla/cache
 ```
 
-* `url` is the directory that includes all of the manifests.
+* `url` is the path on your server that contains the directories for manifests, catalogs, and packages.
 * `manifest` is the manifest that is assigned to this machine.
 * `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`
 

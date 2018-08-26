@@ -100,11 +100,22 @@ ChefClient:
   version: 14.3.37
   uninstall_method: msi
 
+vlc:
+  display_name: VLC
+  install_check_path: C:\Program Files (x86)\VideoLAN\VLC\vlc.exe
+  installer_item_location: packages/apps/vlc/vlc-3.0.3-win32.exe
+  installer_item_hash: 65bf42b15a05b13197e4dd6cdf181e39f30d47feb2cb6cc929db21cd634cd36f
+  installer_item_arguments: 
+     - /L=1033
+     - /S
+  version: 3.0.3
+
 ```
 
 * `display_name` should be a human-readable name, and match the Display name of registry items.
 * `install_check_path` is a path to a file that must exist for the item to be considered installed. If this option is not provided, Gorilla will default to using the registry.
 * `install_check_script` is a PowerShell code block that will be executed to determine if the package should be installed. Any non-zero exit code will be considered installed. If this option is not provided, Gorilla will default to using the registry.
+* `installer_item_arguments` is an optional list of arguments to pass to the installer. Currently only supported by exe installers.
 * `installer_item_hash` is required and should be a sha256 hash of the file located at `installer_item_location`.
 * `installer_item_location` is required and should be the path to the package, relative to the `url` provided in the configuration file.
 * `version` is compared to the currently installed version to determine if it needs to be installed.

@@ -116,6 +116,7 @@ func Install(item catalog.Item) {
 	} else if fileExt == ".exe" {
 		gorillalog.Info("Installing exe installer:", fileName)
 		installCmd = absFile
+		installArgs = item.InstallerItemArguments
 
 	} else if fileExt == ".ps1" {
 		gorillalog.Info("Installing Powershell script:", fileName)
@@ -272,13 +273,14 @@ func Update(item catalog.Item) {
 		installArgs = []string{"install", absFile, "-y", "-r"}
 
 	} else if fileExt == ".msi" {
-		gorillalog.Info("Installing MSI", fileName)
+		gorillalog.Info("Installing MSI:", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
 		gorillalog.Info("Installing exe installer:", fileName)
 		installCmd = absFile
+		installArgs = item.InstallerItemArguments
 
 	} else if fileExt == ".ps1" {
 		gorillalog.Info("Installing Powershell script:", fileName)
@@ -286,7 +288,7 @@ func Update(item catalog.Item) {
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
-		gorillalog.Warn("Unable to install", fileName)
+		gorillalog.Warn("Unable to install:", fileName)
 		gorillalog.Warn("Installer type unsupported:", fileExt)
 		return
 	}

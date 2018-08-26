@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/1dustindavis/gorilla/pkg/report"
 	"gopkg.in/yaml.v2"
 )
 
@@ -91,12 +92,17 @@ func Get() {
 		configuration.Verbose = true
 	}
 
+	// Set global variables
 	URL = configuration.URL
 	Manifest = configuration.Manifest
 	Catalog = configuration.Catalog
 	CachePath = configuration.CachePath
 	Verbose = configuration.Verbose
 	Debug = configuration.Debug
+
+	// Add to GorillaReport
+	report.Items["Manifest"] = Manifest
+	report.Items["Catalog"] = Catalog
 
 	return
 }

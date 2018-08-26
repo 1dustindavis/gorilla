@@ -6,12 +6,16 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
+	"github.com/1dustindavis/gorilla/pkg/report"
 )
 
 func main() {
 
 	// Create a new logger object
 	gorillalog.NewLog()
+
+	// Start creating GorillaReport
+	report.Start()
 
 	// Get our configuration
 	config.Get()
@@ -39,6 +43,9 @@ func main() {
 	// Prepare and update
 	gorillalog.Info("Processing managed updates...")
 	process.Updates(updates, catalog)
+
+	// Save GorillaReport to disk
+	report.End()
 
 	gorillalog.Info("Done!")
 }

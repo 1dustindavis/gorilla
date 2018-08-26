@@ -1,0 +1,74 @@
+package report
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/user"
+	"path/filepath"
+	"time"
+)
+
+var (
+	// Items contains the data we will save to GorillaReport
+	Items = make(map[string]interface{})
+
+	// InstalledItems contains a list of items we attempted to install
+	InstalledItems []interface{}
+
+	// UninstalledItems contains a list of items we attempted to uninstall
+	UninstalledItems []interface{}
+
+	// UpdatedItems contains a list of items we attempted to update
+	UpdatedItems []interface{}
+)
+
+// Start adds the data we already know at the begining of a run
+func Start() {
+
+	// Store the start time
+	currentTime := time.Now().UTC()
+	Items["StartTime"] = fmt.Sprint(currentTime.Format("2006-01-02 15:04:05 -0700"))
+
+	// Store the current user
+	currentUser, userErr := user.Current()
+	if userErr != nil {
+		fmt.Println("Unable to determine current user", userErr)
+	}
+	Items["CurrentUser"] = fmt.Sprint(currentUser.Username)
+
+	// Store the hostname
+	hostName, hostErr := os.Hostname()
+	if hostErr != nil {
+		fmt.Println("Unable to determine current time", hostErr)
+	}
+	Items["HostName"] = fmt.Sprint(hostName)
+}
+
+// End will compile everything and save to disk
+func End() {
+
+	// Compile everything
+	Items["InstalledItems"] = InstalledItems
+	Items["UninstalledItems"] = UninstalledItems
+	Items["UpdatedItems"] = UpdatedItems
+
+	// Store the end time
+	currentTime := time.Now().UTC()
+	Items["EndTime"] = fmt.Sprint(currentTime.Format("2006-01-02 15:04:05 -0700"))
+
+	// Convert it all to json
+	reportJSON, marshalErr := json.Marshal(Items)
+	if marshalErr != nil {
+		fmt.Println("Unable to create GorillaReport json", marshalErr)
+	}
+
+	// Write Items to disk as GorillaReport.json
+	reportPath := filepath.Join(os.Getenv("ProgramData"), "gorilla/GorillaReport.json")
+	writeErr := ioutil.WriteFile(reportPath, reportJSON, 0644)
+	if writeErr != nil {
+		fmt.Println("Unable to write GorillaReport.json to disk:", writeErr)
+	}
+
+}

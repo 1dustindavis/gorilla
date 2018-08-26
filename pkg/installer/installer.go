@@ -11,6 +11,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
@@ -129,6 +130,10 @@ func Install(item catalog.Item) {
 		return
 	}
 
+	// Add the item to InstalledItems in GorillaReport
+	report.InstalledItems = append(report.InstalledItems, item)
+
+	// Run the command and arguments
 	runCommand(installCmd, installArgs)
 
 	return
@@ -205,6 +210,10 @@ func Uninstall(item catalog.Item) {
 		return
 	}
 
+	// Add the item to UninstalledItems in GorillaReport
+	report.UninstalledItems = append(report.UninstalledItems, item)
+
+	// Run the command and arguments
 	runCommand(uninstallCmd, uninstallArgs)
 
 	return
@@ -293,6 +302,10 @@ func Update(item catalog.Item) {
 		return
 	}
 
+	// Add the item to UpdatedItems in GorillaReport
+	report.UpdatedItems = append(report.UpdatedItems, item)
+
+	// Run the command and arguments
 	runCommand(installCmd, installArgs)
 
 	return

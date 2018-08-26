@@ -114,8 +114,9 @@ func Install(item catalog.Item) {
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
-		gorillalog.Warn("EXE support not added yet:", fileName)
-		return
+		gorillalog.Info("Installing exe installer:", fileName)
+		installCmd = absFile
+
 	} else if fileExt == ".ps1" {
 		gorillalog.Info("Installing Powershell script:", fileName)
 		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
@@ -276,11 +277,14 @@ func Update(item catalog.Item) {
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 
 	} else if fileExt == ".exe" {
-		gorillalog.Warn("EXE support not added yet:", fileName)
-		return
+		gorillalog.Info("Installing exe installer:", fileName)
+		installCmd = absFile
+
 	} else if fileExt == ".ps1" {
-		gorillalog.Warn("Powershell support not added yet:", fileName)
-		return
+		gorillalog.Info("Installing Powershell script:", fileName)
+		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
 	} else {
 		gorillalog.Warn("Unable to install", fileName)
 		gorillalog.Warn("Installer type unsupported:", fileExt)

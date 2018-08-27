@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/report"
+	"github.com/1dustindavis/gorilla/pkg/version"
 	"gopkg.in/yaml.v2"
 )
 
@@ -38,13 +39,24 @@ type Object struct {
 
 func parseArguments() (string, bool, bool) {
 	// Get the command line args, error if config is missing.
-	helpArg := flag.String("help", "", "Displays this help message")
+	helpArg := flag.Bool("help", false, "Displays this help message")
 	configArg := flag.String("config", filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml"), "Path to configuration file in yaml format")
 	verboseArg := flag.Bool("verbose", false, "Enable verbose output")
 	debugArg := flag.Bool("debug", false, "Enable debug output")
+	versionArg := flag.Bool("version", false, "Display version number")
+	aboutArg := flag.Bool("about", false, "Display version number and other build info")
 	flag.Parse()
-	if *helpArg != "" {
+	if *helpArg {
+		version.Print()
 		flag.PrintDefaults()
+		os.Exit(0)
+	}
+	if *versionArg {
+		version.Print()
+		os.Exit(0)
+	}
+	if *aboutArg {
+		version.PrintFull()
 		os.Exit(0)
 	}
 

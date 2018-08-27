@@ -85,13 +85,13 @@ func Version() Info {
 // Print outputs the application name and version string.
 func Print() {
 	v := Version()
-	fmt.Printf("%s version %s\n", appName, v.Version)
+	fmt.Printf("%s %s\n", appName, v.Version)
 }
 
 // PrintFull prints the application name and detailed version information.
 func PrintFull() {
 	v := Version()
-	fmt.Printf("%s - version %s\n", appName, v.Version)
+	fmt.Printf("%s %s\n", appName, v.Version)
 	fmt.Printf("  branch: \t%s\n", v.Branch)
 	fmt.Printf("  revision: \t%s\n", v.Revision)
 	fmt.Printf("  build date: \t%s\n", v.BuildDate)

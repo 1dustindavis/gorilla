@@ -15,6 +15,7 @@ REVSHORT = $(shell git rev-parse --short HEAD)
 USER = $(shell git config --global user.email)
 APP_NAME = gorilla
 PKGDIR_TMP = ${TMPDIR}golang
+XGO_INSTALLED = $(shell command -v xgo 2> /dev/null)
 
 ifneq ($(OS), Windows_NT)
 	CURRENT_PLATFORM = linux
@@ -53,7 +54,7 @@ define HELP_TEXT
 	make clean        - Delete all build artifacts
 
 	make build        - Build the code
-	make release      - Build the code in a docker container for release
+	make release      - Build in a docker container using xgo
 
 	make test         - Run the Go tests
 	make lint         - Run the Go linters
@@ -79,11 +80,13 @@ clean:
 build: .pre-build
 	GOOS=windows GOARCH=amd64 go build -i -o build/${APP_NAME}.exe -pkgdir ${PKGDIR_TMP} -ldflags ${BUILD_VERSION} ./cmd/gorilla
 
-.pre-release:
-	rm -rf release/
+.pre-release: clean
 	mkdir -p release/
 
 release: .pre-release
+ifndef XGO_INSTALLED
+	$(error "xgo is not available, please install xgo")
+endif
 	xgo --targets=windows/amd64 -dest release/ -ldflags ${BUILD_VERSION} ./cmd/gorilla
 	mv release/*.exe release/gorilla.exe
 

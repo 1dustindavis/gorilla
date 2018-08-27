@@ -89,12 +89,12 @@ endif
 	mv release/*.exe release/gorilla.exe
 
 test:
-	go test -cover -race -v $(shell go list ./... | grep -v /vendor/)
+	GOOS=windows GOARCH=amd64 go test -cover -race -v $(shell go list ./... | grep -v /vendor/)
 
 lint:
 	@if gofmt -l . | egrep -v ^vendor/ | grep .go; then \
 	  echo "^- Repo contains improperly formatted go files; run gofmt -w *.go" && exit 1; \
 	  else echo "All .go files formatted correctly"; fi
-	go tool vet ./
+	GOOS=windows GOARCH=amd64 go vet ./...
 	# Bandaid until https://github.com/golang/lint/pull/325 is merged
 	golint -set_exit_status `go list ./... | grep -v /vendor/`

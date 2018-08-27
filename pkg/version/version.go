@@ -38,7 +38,6 @@ Available values and defaults to use with ldflags:
 	revision  = "unknown"
 	goVersion = "unknown"
 	buildDate = "unknown"
-	buildUser = "unknown"
 	appName   = "unknown"
 */
 package version
@@ -56,7 +55,6 @@ var (
 	revision  = "unknown"
 	goVersion = "unknown"
 	buildDate = "unknown"
-	buildUser = "unknown"
 	appName   = "unknown"
 )
 
@@ -67,7 +65,6 @@ type Info struct {
 	Revision  string `json:"revision"`
 	GoVersion string `json:"go_version"`
 	BuildDate string `json:"build_date"`
-	BuildUser string `json:"build_user"`
 }
 
 // Version returns a structure with the current version information.
@@ -78,7 +75,6 @@ func Version() Info {
 		Revision:  revision,
 		GoVersion: goVersion,
 		BuildDate: buildDate,
-		BuildUser: buildUser,
 	}
 }
 
@@ -95,7 +91,6 @@ func PrintFull() {
 	fmt.Printf("  branch: \t%s\n", v.Branch)
 	fmt.Printf("  revision: \t%s\n", v.Revision)
 	fmt.Printf("  build date: \t%s\n", v.BuildDate)
-	fmt.Printf("  build user: \t%s\n", v.BuildUser)
 	fmt.Printf("  go version: \t%s\n", v.GoVersion)
 }
 

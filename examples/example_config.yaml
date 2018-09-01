@@ -1,5 +1,7 @@
 ---
 url: https://example.com/gorilla/
-manifest: example_manifest.yaml
-catalog: example_catalog.yaml
+manifest: example_manifest
+catalog: example_catalog
 cachepath: c:/cpe/gorilla/cache
+# authuser: johnny
+# authpass: pizza

@@ -7,9 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/version"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -25,6 +26,10 @@ var (
 	Verbose bool
 	// Debug is true is we should output as much as we can
 	Debug bool
+	// AuthUser is the username we will use for basic http auth
+	AuthUser string
+	// AuthPass is the password we will use for basic http auth
+	AuthPass string
 )
 
 // Object to store our configuration
@@ -35,6 +40,8 @@ type Object struct {
 	CachePath string `yaml:"cachepath"`
 	Verbose   bool   `yaml:"verbose,omitempty"`
 	Debug     bool   `yaml:"debug,omitempty"`
+	AuthUser  string `yaml:"authuser,omitempty"`
+	AuthPass  string `yaml:"authpass,omitempty"`
 }
 
 func parseArguments() (string, bool, bool) {
@@ -111,6 +118,8 @@ func Get() {
 	CachePath = configuration.CachePath
 	Verbose = configuration.Verbose
 	Debug = configuration.Debug
+	AuthUser = configuration.AuthUser
+	AuthPass = configuration.AuthPass
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = Manifest

@@ -29,11 +29,15 @@ url: https://YourWebServer/gorilla/
 manifest: example
 catalog: production
 cachepath: C:/gorilla/cache
+authuser: johnny
+authpass: pizzaisyummy
 ```
 
 * `url` is the path on your server that contains the directories for manifests, catalogs, and packages.
 * `manifest` is the manifest that is assigned to this machine.
 * `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`
+* `authuser` is the optional username for http basic auth
+* `authpass` is the option password for http basic auth
 
 ## Manifests
 A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in yaml format and must include the name of the manifest:

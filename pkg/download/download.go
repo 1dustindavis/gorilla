@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
@@ -32,7 +33,7 @@ func File(file string, url string) error {
 	}
 	defer out.Close()
 
-	// Get the data
+	// Setup out http client
 	client := &http.Client{
 		Transport: &http.Transport{
 			Dial: (&net.Dialer{
@@ -44,18 +45,30 @@ func File(file string, url string) error {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
-	resp, err := client.Get(url)
+
+	// Build the request
+	req, err := http.NewRequest("GET", url, nil)
+
+	// If configured, set our auth headers
+	if config.AuthUser != "" && config.AuthPass != "" {
+		req.SetBasicAuth(config.AuthUser, config.AuthPass)
+	}
+
+	// Actually send the request, using the client we setup
+	// Storing the response in resp
+	resp, err := client.Do(req)
 
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
+	// Check that the request was successful
 	if resp.StatusCode <= 200 && resp.StatusCode >= 299 {
 		return fmt.Errorf("%s : Download status code: %d", fileName, resp.StatusCode)
 	}
 
-	// Write the body to file
+	// Write the body of the response to disk
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		return err

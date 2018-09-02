@@ -38,19 +38,19 @@ tls_client_key: c:/certs/client.key
 tls_server_cert: c:/certs/server.pem
 ```
 
-#### Required Keys
+### Required Keys
 * `url` is the path on your server that contains the directories for manifests, catalogs, and packages.
 * `manifest` is the primary manifest that is assigned to this machine.
 * `catalog` is the catalog that is assigned to this machine.
 
-#### Optional Keys
+### Optional Keys
 * `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`.
 
-##### Basic Auth
+Basic Auth
 * `auth_user` is an optional username for http basic auth.
 * `auth_pass` is an option password for http basic auth.
 
-##### TLS Auth
+TLS Auth
 * `tls_auth` must be true if you are using TLS mutual authentication.
 * `tls_client_cert` is the absolute path to your client certificate in PEM format.
 * `tls_client_key` is the absolute path to your client private key in PEM format.

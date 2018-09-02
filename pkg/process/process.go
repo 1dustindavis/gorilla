@@ -1,7 +1,14 @@
 package process
 
 import (
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/installer"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
@@ -62,5 +69,85 @@ func Updates(updates []string, catalog map[string]catalog.Item) {
 	for _, item := range updates {
 		// Update the item
 		installer.Update(catalog[item])
+	}
+}
+
+func dirEmpty(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	// read in ONLY one file
+	_, err = f.Readdir(1)
+
+	// and if the file is EOF... well, the dir is empty.
+	if err == io.EOF {
+		return true
+	}
+	return false
+}
+
+func fileOld(info os.FileInfo) bool {
+	// Age of the file
+	fileAge := time.Since(info.ModTime())
+
+	// Our limit
+	days := 5
+
+	// Convert from days
+	hours := days * 24
+	ageLimit := time.Duration(hours) * time.Hour
+
+	// If the file is older than our limit, delete it
+	if fileAge > ageLimit {
+		return true
+	}
+
+	return false
+}
+
+// CleanUp checks the age of items in the cache and removes if older than 10 days
+func CleanUp() {
+
+	// Clean up old files
+	err := filepath.Walk(config.CachePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			gorillalog.Warn("Failed to access path:", path, err)
+			return err
+		}
+		// If not a directory and older that our limit, delete
+		if !info.IsDir() && fileOld(info) {
+			gorillalog.Info("Cleaning old cached file:", info.Name())
+			os.Remove(path)
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		gorillalog.Warn("error walking path:", config.CachePath, err)
+		return
+	}
+
+	// Clean up empty directories
+	err = filepath.Walk(config.CachePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			gorillalog.Warn("Failed to access path:", path, err)
+			return err
+		}
+
+		// If a dir and empty, delete
+		if info.IsDir() && dirEmpty(path) {
+			gorillalog.Info("Cleaning empty directory:", info.Name())
+			os.Remove(path)
+			return nil
+
+		}
+		return nil
+	})
+	if err != nil {
+		gorillalog.Warn("error walking path:", config.CachePath, err)
+		return
 	}
 }

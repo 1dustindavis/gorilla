@@ -17,7 +17,8 @@ All files can be served from any standard web server with a directory stucture l
 │   ├── *.yaml
 └── packages
     ├── *.nupkg
-    └── *.msi
+    ├── *.msi
+    └── *.exe
 ```
 
 ## Config
@@ -29,15 +30,31 @@ url: https://YourWebServer/gorilla/
 manifest: example
 catalog: production
 cachepath: C:/gorilla/cache
-authuser: johnny
+authuser: GorillaRepoUser
 authpass: pizzaisyummy
+tls_auth: true
+tls_client_cert: c:/certs/client.pem
+tls_client_key: c:/certs/client.key
+tls_server_cert: c:/certs/server.pem
 ```
 
+#### Required Keys
 * `url` is the path on your server that contains the directories for manifests, catalogs, and packages.
-* `manifest` is the manifest that is assigned to this machine.
-* `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`
-* `authuser` is the optional username for http basic auth
-* `authpass` is the option password for http basic auth
+* `manifest` is the primary manifest that is assigned to this machine.
+* `catalog` is the catalog that is assigned to this machine.
+
+#### Optional Keys
+* `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`.
+
+##### Basic Auth
+* `authuser` is an optional username for http basic auth.
+* `authpass` is an option password for http basic auth.
+
+##### TLS Auth
+* `tls_auth` must be true if you are using TLS mutual authentication.
+* `tls_client_cert` is the absolute path to your client certificate in PEM format.
+* `tls_client_key` is the absolute path to your client private key in PEM format.
+* `tls_server_cert` is the absolute path to your server's CA cert in PEM format.
 
 ## Manifests
 A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in yaml format and must include the name of the manifest:

@@ -2,9 +2,12 @@ package download
 
 import (
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -33,23 +36,66 @@ func File(file string, url string) error {
 	}
 	defer out.Close()
 
-	// Setup out http client
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: 10 * time.Second,
-			}).Dial,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
+	// Declare the http client
+	var client *http.Client
+
+	// If TLSAuth is true, configure server and client certs
+	if config.TLSAuth {
+		// Load	the client certificate and private key
+		clientCert, err := tls.LoadX509KeyPair(config.TLSClientCert, config.TLSClientKey)
+		if err != nil {
+			return err
+		}
+
+		// Load server certificates
+		serverCert, err := ioutil.ReadFile(config.TLSServerCert)
+		if err != nil {
+			return err
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(serverCert)
+
+		// Setup the tls configuration
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{clientCert},
+			RootCAs:      caCertPool,
+			// Insecure, but might need to be an option for odd configurations in the future
+			// Renegotiation: tls.RenegotiateFreelyAsClient,
+		}
+		tlsConfig.BuildNameToCertificate()
+
+		// Setup the http client
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+				Dial: (&net.Dialer{
+					Timeout:   10 * time.Second,
+					KeepAlive: 10 * time.Second,
+				}).Dial,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: 10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
+	} else {
+		// Setup our http client without
+		client = &http.Client{
+			Transport: &http.Transport{
+				Dial: (&net.Dialer{
+					Timeout:   10 * time.Second,
+					KeepAlive: 10 * time.Second,
+				}).Dial,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: 10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
 	}
 
 	// Build the request
 	req, err := http.NewRequest("GET", url, nil)
 
-	// If configured, set our auth headers
+	// If we have a user and pass, configure basic auth
 	if config.AuthUser != "" && config.AuthPass != "" {
 		req.SetBasicAuth(config.AuthUser, config.AuthPass)
 	}

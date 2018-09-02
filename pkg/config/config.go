@@ -48,8 +48,8 @@ type Object struct {
 	CachePath     string `yaml:"cachepath"`
 	Verbose       bool   `yaml:"verbose,omitempty"`
 	Debug         bool   `yaml:"debug,omitempty"`
-	AuthUser      string `yaml:"authuser,omitempty"`
-	AuthPass      string `yaml:"authpass,omitempty"`
+	AuthUser      string `yaml:"auth_user,omitempty"`
+	AuthPass      string `yaml:"auth_pass,omitempty"`
 	TLSAuth       bool   `yaml:"tls_auth,omitempty"`
 	TLSClientCert string `yaml:"tls_client_cert,omitempty"`
 	TLSClientKey  string `yaml:"tls_client_key,omitempty"`

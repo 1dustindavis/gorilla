@@ -48,38 +48,87 @@ type Object struct {
 	CachePath     string `yaml:"cachepath"`
 	Verbose       bool   `yaml:"verbose,omitempty"`
 	Debug         bool   `yaml:"debug,omitempty"`
-	AuthUser      string `yaml:"authuser,omitempty"`
-	AuthPass      string `yaml:"authpass,omitempty"`
+	AuthUser      string `yaml:"auth_user,omitempty"`
+	AuthPass      string `yaml:"auth_pass,omitempty"`
 	TLSAuth       bool   `yaml:"tls_auth,omitempty"`
 	TLSClientCert string `yaml:"tls_client_cert,omitempty"`
 	TLSClientKey  string `yaml:"tls_client_key,omitempty"`
 	TLSServerCert string `yaml:"tls_server_cert,omitempty"`
 }
 
+// Define flag defaults
+var (
+	aboutArg       bool
+	aboutDefault   = false
+	configArg      string
+	configDefault  = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
+	debugArg       bool
+	debugDefault   = false
+	helpArg        bool
+	helpDefault    = false
+	verboseArg     bool
+	verboseDefault = false
+	versionArg     bool
+	versionDefault = false
+)
+
+const usage = `
+Gorilla - Munki-like Application Management for Windows
+https://github.com/1dustindavis/gorilla
+
+Usage: gorilla.exe [options]
+
+Options:
+-c, -config         path to configuration file in yaml format
+-v, -verbose        enable verbose output
+-d, -debug          enable debug output
+-a, -about          displays the version number and other build info
+-V, -version        display the version number
+-h, -help           display this help message
+
+`
+
+func init() {
+	// Define flag names and defaults here
+
+	// About
+	flag.BoolVar(&aboutArg, "about", aboutDefault, "")
+	flag.BoolVar(&aboutArg, "a", aboutDefault, "")
+	// Config
+	flag.StringVar(&configArg, "config", configDefault, "")
+	flag.StringVar(&configArg, "c", configDefault, "")
+	// Debug
+	flag.BoolVar(&debugArg, "debug", debugDefault, "")
+	flag.BoolVar(&debugArg, "d", debugDefault, "")
+	// Help
+	flag.BoolVar(&helpArg, "help", helpDefault, "")
+	flag.BoolVar(&helpArg, "h", helpDefault, "")
+	// Verbose
+	flag.BoolVar(&verboseArg, "verbose", verboseDefault, "")
+	flag.BoolVar(&verboseArg, "v", verboseDefault, "")
+	// Version
+	flag.BoolVar(&versionArg, "version", versionDefault, "")
+	flag.BoolVar(&versionArg, "V", versionDefault, "")
+}
+
 func parseArguments() (string, bool, bool) {
-	// Get the command line args, error if config is missing.
-	helpArg := flag.Bool("help", false, "Displays this help message")
-	configArg := flag.String("config", filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml"), "Path to configuration file in yaml format")
-	verboseArg := flag.Bool("verbose", false, "Enable verbose output")
-	debugArg := flag.Bool("debug", false, "Enable debug output")
-	versionArg := flag.Bool("version", false, "Display version number")
-	aboutArg := flag.Bool("about", false, "Display version number and other build info")
+	// Get the command line args
 	flag.Parse()
-	if *helpArg {
+	if helpArg {
 		version.Print()
-		flag.PrintDefaults()
+		fmt.Print(usage)
 		os.Exit(0)
 	}
-	if *versionArg {
+	if versionArg {
 		version.Print()
 		os.Exit(0)
 	}
-	if *aboutArg {
+	if aboutArg {
 		version.PrintFull()
 		os.Exit(0)
 	}
 
-	return *configArg, *verboseArg, *debugArg
+	return configArg, verboseArg, debugArg
 }
 
 // Get retrieves and then stores the local configuration

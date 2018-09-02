@@ -47,8 +47,8 @@ tls_server_cert: c:/certs/server.pem
 * `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`.
 
 ##### Basic Auth
-* `authuser` is an optional username for http basic auth.
-* `authpass` is an option password for http basic auth.
+* `auth_user` is an optional username for http basic auth.
+* `auth_pass` is an option password for http basic auth.
 
 ##### TLS Auth
 * `tls_auth` must be true if you are using TLS mutual authentication.

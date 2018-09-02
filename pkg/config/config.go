@@ -30,18 +30,30 @@ var (
 	AuthUser string
 	// AuthPass is the password we will use for basic http auth
 	AuthPass string
+	// TLSAuth determines if we should use TLS mutual auth
+	TLSAuth bool
+	// TLSClientCert is the path to the client cert we will use for TLS auth
+	TLSClientCert string
+	// TLSClientKey is the path to the client key we will use for TLS auth
+	TLSClientKey string
+	// TLSServerCert is the path to the server cert we will use for TLS auth
+	TLSServerCert string
 )
 
 // Object to store our configuration
 type Object struct {
-	URL       string `yaml:"url"`
-	Manifest  string `yaml:"manifest"`
-	Catalog   string `yaml:"catalog"`
-	CachePath string `yaml:"cachepath"`
-	Verbose   bool   `yaml:"verbose,omitempty"`
-	Debug     bool   `yaml:"debug,omitempty"`
-	AuthUser  string `yaml:"authuser,omitempty"`
-	AuthPass  string `yaml:"authpass,omitempty"`
+	URL           string `yaml:"url"`
+	Manifest      string `yaml:"manifest"`
+	Catalog       string `yaml:"catalog"`
+	CachePath     string `yaml:"cachepath"`
+	Verbose       bool   `yaml:"verbose,omitempty"`
+	Debug         bool   `yaml:"debug,omitempty"`
+	AuthUser      string `yaml:"authuser,omitempty"`
+	AuthPass      string `yaml:"authpass,omitempty"`
+	TLSAuth       bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey  string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert string `yaml:"tls_server_cert,omitempty"`
 }
 
 func parseArguments() (string, bool, bool) {
@@ -120,6 +132,10 @@ func Get() {
 	Debug = configuration.Debug
 	AuthUser = configuration.AuthUser
 	AuthPass = configuration.AuthPass
+	TLSAuth = configuration.TLSAuth
+	TLSClientCert = configuration.TLSClientCert
+	TLSClientKey = configuration.TLSClientKey
+	TLSServerCert = configuration.TLSServerCert
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = Manifest

@@ -36,7 +36,7 @@ func File(file string, url string) error {
 	}
 	defer out.Close()
 
-	// Init the http client
+	// Declare the http client
 	var client *http.Client
 
 	// If TLSAuth is true, configure server and client certs
@@ -59,6 +59,8 @@ func File(file string, url string) error {
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{clientCert},
 			RootCAs:      caCertPool,
+			// Insecure, but might need to be an option for odd configurations in the future
+			// Renegotiation: tls.RenegotiateFreelyAsClient,
 		}
 		tlsConfig.BuildNameToCertificate()
 

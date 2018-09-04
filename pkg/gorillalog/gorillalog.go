@@ -16,7 +16,8 @@ import (
 
 // NewLog creates a file and points a new logging instance at it
 func NewLog() {
-	logPath := filepath.Join(os.Getenv("ProgramData"), "gorilla/gorilla.log")
+	logPath := filepath.Join(config.GorillaData, "/gorilla.log")
+	err := os.MkdirAll(filepath.Dir(logPath), 0755)
 	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
@@ -48,7 +49,7 @@ func Info(logStrings ...interface{}) {
 // Warn logs a string as WARN
 // We print to stdout and write to disk
 func Warn(logStrings ...interface{}) {
-	log.SetPrefix("INFO: ")
+	log.SetPrefix("WARN: ")
 	fmt.Println(logStrings...)
 	log.Println(logStrings...)
 }

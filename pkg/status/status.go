@@ -12,8 +12,8 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/hashicorp/go-version"
-	"golang.org/x/sys/windows/registry"
+	version "github.com/hashicorp/go-version"
+	registry "golang.org/x/sys/windows/registry"
 )
 
 // Application Contiains attributes for an installed application

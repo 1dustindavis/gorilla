@@ -20,6 +20,15 @@ var (
 	origProgramData = config.GorillaData
 )
 
+func restoreVerbose() {
+	config.Verbose = origVerbose
+}
+
+func restoreDebug() {
+	config.Verbose = origVerbose
+}
+
+// TestNewLog tests the creation of the log and it's directory
 func TestNewLog(t *testing.T) {
 	// Set up a place for test data
 	tmpDir := filepath.Join(os.Getenv("TMPDIR"), "gorillalog")
@@ -47,12 +56,14 @@ func TestNewLog(t *testing.T) {
 	}
 }
 
+// TestDebug tests that debug logs properly
 func TestDebug(t *testing.T) {
 	// Set the output
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 	defer func() {
 		log.SetOutput(os.Stderr)
+		restoreDebug()
 	}()
 
 	// Set up what we want
@@ -64,7 +75,6 @@ func TestDebug(t *testing.T) {
 	// Run the function
 	config.Debug = true
 	Debug(logString)
-	config.Debug = origDebug
 
 	result := strings.TrimSpace(buf.String())
 
@@ -80,8 +90,8 @@ func ExampleDebugOff() {
 
 	// Run the function without debug
 	config.Debug = false
+	defer restoreDebug()
 	Debug(logString)
-	config.Debug = origDebug
 	// Output:
 }
 
@@ -91,8 +101,9 @@ func ExampleDebugOn() {
 
 	// Run the function with debug
 	config.Debug = true
+	defer restoreDebug()
+
 	Debug(logString)
-	config.Debug = origDebug
 	// Output:
 	// Debug String!
 }
@@ -128,8 +139,9 @@ func ExampleInfoVerboseOff() {
 
 	// Run the function without verbose
 	config.Verbose = false
+	defer restoreVerbose()
+
 	Info(logString)
-	config.Verbose = origVerbose
 	// Output:
 }
 
@@ -139,8 +151,9 @@ func ExampleInfoVerboseOn() {
 
 	// Run the function with verbose
 	config.Verbose = true
+	defer restoreVerbose()
+
 	Info(logString)
-	config.Verbose = origVerbose
 	// Output:
 	// Info String!
 }
@@ -184,8 +197,12 @@ func TestError(t *testing.T) {
 	// Set the output
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
+	// Prepare to recover from a panic
 	defer func() {
 		log.SetOutput(os.Stderr)
+		if r := recover(); r == nil {
+			t.Errorf("Error didnt panic")
+		}
 	}()
 
 	// Set up what we want
@@ -193,13 +210,6 @@ func TestError(t *testing.T) {
 	now := time.Now().Format("2006/01/02 15:04:05 ")
 	logString := "Error String!"
 	expected := fmt.Sprint(prefix, now, logString)
-
-	// Prepare to recover from a panic
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Error didnt panic")
-		}
-	}()
 
 	// Run the function
 	Error(logString)

@@ -38,6 +38,8 @@ var (
 	TLSClientKey string
 	// TLSServerCert is the path to the server cert we will use for TLS auth
 	TLSServerCert string
+	// GorillaData is the location we store gerneral app data
+	GorillaData = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
 )
 
 // Object to store our configuration

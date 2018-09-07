@@ -84,6 +84,7 @@ func TestDebug(t *testing.T) {
 	}
 }
 
+// ExampleDebugOff tests the output of a log sent to DEBUG while config.Debug is false
 func ExampleDebugOff() {
 	// Set up what we expect
 	logString := "Debug String!"
@@ -95,6 +96,7 @@ func ExampleDebugOff() {
 	// Output:
 }
 
+// ExampleDebugOn tests the output of a log sent to DEBUG while config.Debug is true
 func ExampleDebugOn() {
 	// Set up what we expect
 	logString := "Debug String!"
@@ -108,6 +110,7 @@ func ExampleDebugOn() {
 	// Debug String!
 }
 
+// TestInfo tests the formatting of a log sent to INFO
 func TestInfo(t *testing.T) {
 	// Set the output
 	var buf bytes.Buffer
@@ -133,6 +136,7 @@ func TestInfo(t *testing.T) {
 	}
 }
 
+// ExampleInfoVerboseOff tests the output of a log sent to INFO while config.Verbose is false
 func ExampleInfoVerboseOff() {
 	// Set up what we expect
 	logString := "Info String!"
@@ -145,6 +149,7 @@ func ExampleInfoVerboseOff() {
 	// Output:
 }
 
+// ExampleInfoVerboseOn tests the output of a log sent to INFO while config.Verbose is true
 func ExampleInfoVerboseOn() {
 	// Set up what we expect
 	logString := "Info String!"
@@ -158,6 +163,7 @@ func ExampleInfoVerboseOn() {
 	// Info String!
 }
 
+// TestWarn tests the formatting of a log sent to WARN
 func TestWarn(t *testing.T) {
 	// Set the output
 	var buf bytes.Buffer
@@ -183,16 +189,18 @@ func TestWarn(t *testing.T) {
 	}
 }
 
+// ExampleWarn tests the output of a log sent to WARN
 func ExampleWarn() {
 	// Set up what we expect
 	logString := "Warn String!"
 
-	// Run the function without verbose
+	// Run the function
 	Warn(logString)
 	// Output:
 	// Warn String!
 }
 
+// TestError tests the formatting of a log sent to ERROR
 func TestError(t *testing.T) {
 	// Set the output
 	var buf bytes.Buffer
@@ -222,6 +230,7 @@ func TestError(t *testing.T) {
 	}
 }
 
+// ExampleError tests the output of a log sent to ERROR
 func ExampleError() {
 	// Set up what we expect
 	logString := "Error String!"
@@ -231,7 +240,7 @@ func ExampleError() {
 		recover()
 	}()
 
-	// Run the function without verbose
+	// Run the function
 	Error(logString)
 	// Output:
 }

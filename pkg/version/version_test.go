@@ -25,6 +25,7 @@ import (
 	"time"
 )
 
+// TestVersion verifies that the corect build date and version string is returned
 func TestVersion(t *testing.T) {
 	now := time.Now().String()
 	version = "test"

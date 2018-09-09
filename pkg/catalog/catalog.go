@@ -25,13 +25,15 @@ type Item struct {
 	Version                string   `yaml:"version"`
 }
 
+var downloadFile = download.File
+
 // Get returns a map of `Item` from the catalog
 func Get() map[string]Item {
 
 	// Download the catalog
 	catalogURL := config.URL + "catalogs/" + config.Catalog + ".yaml"
 	gorillalog.Info("Catalog Url:", catalogURL)
-	err := download.File(config.CachePath, catalogURL)
+	err := downloadFile(config.CachePath, catalogURL)
 	if err != nil {
 		gorillalog.Error("Unable to retrieve catalog:", config.Catalog, err)
 	}

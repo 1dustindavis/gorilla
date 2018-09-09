@@ -25,10 +25,13 @@ import (
 	"time"
 )
 
-// TestVersion verifies that the corect build date and version string is returned
+// TestVersion verifies that the corect strings are returned
 func TestVersion(t *testing.T) {
 	now := time.Now().String()
-	version = "test"
+	version = "5.5.1"
+	branch = "testing_feature_branch"
+	revision = "0b4ecc2143f34e5e38f2ea9d2e936a7cfa71bb18"
+	goVersion = "go2.43"
 	buildDate = now
 
 	info := Version()
@@ -37,7 +40,51 @@ func TestVersion(t *testing.T) {
 		t.Errorf("have %s, want %s", have, want)
 	}
 
-	if have, want := info.BuildDate, now; have != want {
+	if have, want := info.Branch, branch; have != want {
 		t.Errorf("have %s, want %s", have, want)
 	}
+
+	if have, want := info.Revision, revision; have != want {
+		t.Errorf("have %s, want %s", have, want)
+	}
+
+	if have, want := info.GoVersion, goVersion; have != want {
+		t.Errorf("have %s, want %s", have, want)
+	}
+
+	if have, want := info.BuildDate, buildDate; have != want {
+		t.Errorf("have %s, want %s", have, want)
+	}
+}
+
+// ExamplePrint tests the output of Print()
+func ExamplePrint() {
+	// Set up what we expect
+	appName = "CoolAppplication"
+	version = "v9.4.2.7-beta324"
+
+	// Run the function
+	Print()
+	// Output:
+	// CoolAppplication v9.4.2.7-beta324
+}
+
+// ExamplePrintFull tests the output of PrintFull()
+func ExamplePrintFull() {
+	// Set up what we expect
+	appName = "OkayAppplication"
+	version = "ver12.0"
+	branch = "branch_branch"
+	revision = "0a7aca6523e34c5a38f2da9d2a975a7cfa21ba42"
+	buildDate = "2018-09-07 07:30:50.390193 -0700 PDT m=+0.003381227"
+	goVersion = "go0.2"
+
+	// Run the function
+	PrintFull()
+	// Output:
+	// OkayAppplication ver12.0
+	//   branch: 	branch_branch
+	//   revision: 	0a7aca6523e34c5a38f2da9d2a975a7cfa21ba42
+	//   build date: 	2018-09-07 07:30:50.390193 -0700 PDT m=+0.003381227
+	//   go version: 	go0.2
 }

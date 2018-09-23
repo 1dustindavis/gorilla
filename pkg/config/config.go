@@ -133,6 +133,9 @@ func parseArguments() (string, bool, bool) {
 	return configArg, verboseArg, debugArg
 }
 
+// Config is a global struct to store our configuration in
+var Config Object
+
 // Get retrieves and then stores the local configuration
 func Get() {
 
@@ -144,49 +147,48 @@ func Get() {
 		fmt.Println("Unable to read configuration file: ", err)
 		os.Exit(1)
 	}
-	var configuration Object
-	err = yaml.Unmarshal(configFile, &configuration)
+	err = yaml.Unmarshal(configFile, &Config)
 	if err != nil {
 		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
 	// If URL wasnt provided, exit
-	if configuration.URL == "" {
+	if Config.URL == "" {
 		fmt.Println("Invalid configuration - URL: ", err)
 		os.Exit(1)
 	}
 	// If Manifest wasnt provided, exit
-	if configuration.Manifest == "" {
+	if Config.Manifest == "" {
 		fmt.Println("Invalid configuration - Manifest: ", err)
 		os.Exit(1)
 	}
 	// If CachePath wasn't provided, configure a default
-	if configuration.CachePath == "" {
-		configuration.CachePath = filepath.Join(os.Getenv("ProgramData"), "gorilla/cache")
+	if Config.CachePath == "" {
+		Config.CachePath = filepath.Join(os.Getenv("ProgramData"), "gorilla/cache")
 	}
 	// Set the verbosity
-	if verbose == true && !configuration.Verbose {
-		configuration.Verbose = true
+	if verbose == true && !Config.Verbose {
+		Config.Verbose = true
 	}
 	// Set the debug and verbose
-	if debug == true && !configuration.Debug {
-		configuration.Debug = true
-		configuration.Verbose = true
+	if debug == true && !Config.Debug {
+		Config.Debug = true
+		Config.Verbose = true
 	}
 
 	// Set global variables
-	URL = configuration.URL
-	Manifest = configuration.Manifest
-	Catalog = configuration.Catalog
-	CachePath = configuration.CachePath
-	Verbose = configuration.Verbose
-	Debug = configuration.Debug
-	AuthUser = configuration.AuthUser
-	AuthPass = configuration.AuthPass
-	TLSAuth = configuration.TLSAuth
-	TLSClientCert = configuration.TLSClientCert
-	TLSClientKey = configuration.TLSClientKey
-	TLSServerCert = configuration.TLSServerCert
+	URL = Config.URL
+	Manifest = Config.Manifest
+	Catalog = Config.Catalog
+	CachePath = Config.CachePath
+	Verbose = Config.Verbose
+	Debug = Config.Debug
+	AuthUser = Config.AuthUser
+	AuthPass = Config.AuthPass
+	TLSAuth = Config.TLSAuth
+	TLSClientCert = Config.TLSClientCert
+	TLSClientKey = Config.TLSClientKey
+	TLSServerCert = Config.TLSServerCert
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = Manifest

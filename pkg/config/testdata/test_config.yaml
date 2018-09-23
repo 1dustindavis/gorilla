@@ -1,0 +1,7 @@
+---
+url: https://example.com/gorilla/
+manifest: example_manifest
+catalog: example_catalog
+cachepath: c:/cpe/gorilla/cache
+auth_user: johnny
+auth_pass: pizza

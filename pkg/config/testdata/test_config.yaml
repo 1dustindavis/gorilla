@@ -5,3 +5,5 @@ catalog: example_catalog
 cachepath: c:/cpe/gorilla/cache
 auth_user: johnny
 auth_pass: pizza
+verbose: true
+debug: true

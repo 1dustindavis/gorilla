@@ -89,7 +89,7 @@ endif
 	mv release/*.exe release/gorilla.exe
 
 test:
-	gotest -cover -race -v $(shell go list ./... | grep -v /vendor/)
+	gotest -cover -race $(shell go list ./... | grep -v /vendor/)
 
 lint:
 	@if gofmt -l . | egrep -v ^vendor/ | grep .go; then \

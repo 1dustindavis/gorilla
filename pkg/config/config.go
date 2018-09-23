@@ -113,21 +113,24 @@ func init() {
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
 }
 
+// Use a fake function so we can override when testing
+var osExit = os.Exit
+
 func parseArguments() (string, bool, bool) {
 	// Get the command line args
 	flag.Parse()
 	if helpArg {
 		version.Print()
 		fmt.Print(usage)
-		os.Exit(0)
+		osExit(0)
 	}
 	if versionArg {
 		version.Print()
-		os.Exit(0)
+		osExit(0)
 	}
 	if aboutArg {
 		version.PrintFull()
-		os.Exit(0)
+		osExit(0)
 	}
 
 	return configArg, verboseArg, debugArg

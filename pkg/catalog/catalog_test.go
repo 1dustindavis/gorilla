@@ -41,8 +41,8 @@ If ($upToDate) {
 		Version:                `68.0.3440.106`,
 	}
 
-	config.URL = "http://example.com/"
-	config.Catalog = "test_catalog"
+	config.Current.URL = "http://example.com/"
+	config.Current.Catalog = "test_catalog"
 	config.CachePath = "testdata/"
 	downloadFile = fakeDownload
 	testCatalog := Get()

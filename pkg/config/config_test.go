@@ -10,14 +10,14 @@ import (
 func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
 	expected := Object{
-		URL:       "https://example.com/gorilla/",
-		Manifest:  "example_manifest",
-		Catalog:   "example_catalog",
-		CachePath: "c:/cpe/gorilla/cache",
-		Verbose:   true,
-		Debug:     true,
-		AuthUser:  "johnny",
-		AuthPass:  "pizza",
+		URL:         "https://example.com/gorilla/",
+		Manifest:    "example_manifest",
+		Catalog:     "example_catalog",
+		AppDataPath: "c:/cpe/gorilla/",
+		Verbose:     true,
+		Debug:       true,
+		AuthUser:    "johnny",
+		AuthPass:    "pizza",
 	}
 
 	// Save the original arguments
@@ -31,10 +31,10 @@ func TestGet(t *testing.T) {
 	Get()
 
 	// Compare the result with our expectations
-	structsMatch := reflect.DeepEqual(expected, Config)
+	structsMatch := reflect.DeepEqual(expected, Current)
 
 	if !structsMatch {
-		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, Config)
+		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n%#v", expected, Current)
 	}
 }
 

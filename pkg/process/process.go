@@ -111,8 +111,10 @@ func fileOld(info os.FileInfo) bool {
 // CleanUp checks the age of items in the cache and removes if older than 10 days
 func CleanUp() {
 
+	cachePath := filepath.Join(config.Current.AppDataPath, "cache")
+
 	// Clean up old files
-	err := filepath.Walk(config.CachePath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			gorillalog.Warn("Failed to access path:", path, err)
 			return err
@@ -126,12 +128,12 @@ func CleanUp() {
 		return nil
 	})
 	if err != nil {
-		gorillalog.Warn("error walking path:", config.CachePath, err)
+		gorillalog.Warn("error walking path:", cachePath, err)
 		return
 	}
 
 	// Clean up empty directories
-	err = filepath.Walk(config.CachePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			gorillalog.Warn("Failed to access path:", path, err)
 			return err
@@ -147,7 +149,7 @@ func CleanUp() {
 		return nil
 	})
 	if err != nil {
-		gorillalog.Warn("error walking path:", config.CachePath, err)
+		gorillalog.Warn("error walking path:", cachePath, err)
 		return
 	}
 }

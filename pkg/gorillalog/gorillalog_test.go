@@ -15,29 +15,29 @@ import (
 
 // Store the original values, before we override
 var (
-	origVerbose     = config.Verbose
-	origDebug       = config.Debug
-	origProgramData = config.GorillaData
+	origVerbose     = config.Current.Verbose
+	origDebug       = config.Current.Debug
+	origProgramData = config.Current.AppDataPath
 )
 
 func restoreVerbose() {
-	config.Verbose = origVerbose
+	config.Current.Verbose = origVerbose
 }
 
 func restoreDebug() {
-	config.Verbose = origVerbose
+	config.Current.Verbose = origVerbose
 }
 
 // TestNewLog tests the creation of the log and it's directory
 func TestNewLog(t *testing.T) {
 	// Set up a place for test data
 	tmpDir := filepath.Join(os.Getenv("TMPDIR"), "gorillalog")
-	config.GorillaData = tmpDir
+	config.Current.AppDataPath = tmpDir
 
 	// Clean up when we are done
 	defer func() {
 		// Clean up
-		config.GorillaData = origProgramData
+		config.Current.AppDataPath = origProgramData
 		os.RemoveAll(tmpDir)
 	}()
 
@@ -73,7 +73,7 @@ func TestDebug(t *testing.T) {
 	expected := fmt.Sprint(prefix, now, logString)
 
 	// Run the function
-	config.Debug = true
+	config.Current.Debug = true
 	Debug(logString)
 
 	result := strings.TrimSpace(buf.String())
@@ -90,7 +90,7 @@ func ExampleDebugOff() {
 	logString := "Debug String!"
 
 	// Run the function without debug
-	config.Debug = false
+	config.Current.Debug = false
 	defer restoreDebug()
 	Debug(logString)
 	// Output:
@@ -102,7 +102,7 @@ func ExampleDebugOn() {
 	logString := "Debug String!"
 
 	// Run the function with debug
-	config.Debug = true
+	config.Current.Debug = true
 	defer restoreDebug()
 
 	Debug(logString)
@@ -142,7 +142,7 @@ func ExampleInfoVerboseOff() {
 	logString := "Info String!"
 
 	// Run the function without verbose
-	config.Verbose = false
+	config.Current.Verbose = false
 	defer restoreVerbose()
 
 	Info(logString)
@@ -155,7 +155,7 @@ func ExampleInfoVerboseOn() {
 	logString := "Info String!"
 
 	// Run the function with verbose
-	config.Verbose = true
+	config.Current.Verbose = true
 	defer restoreVerbose()
 
 	Info(logString)

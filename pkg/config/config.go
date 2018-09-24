@@ -14,32 +14,8 @@ import (
 )
 
 var (
-	// URL of the web server with all of our files
-	URL string
-	// Manifest is a yaml file with the packages to manage on this node
-	Manifest string
-	// Catalog is a yaml file with details on the available packages
-	Catalog string
-	// CachePath is a directory we will use for temporary storage
+	// CachePath is the path to a location for temporary storage
 	CachePath string
-	// Verbose is true is we should output more detail than normal
-	Verbose bool
-	// Debug is true is we should output as much as we can
-	Debug bool
-	// AuthUser is the username we will use for basic http auth
-	AuthUser string
-	// AuthPass is the password we will use for basic http auth
-	AuthPass string
-	// TLSAuth determines if we should use TLS mutual auth
-	TLSAuth bool
-	// TLSClientCert is the path to the client cert we will use for TLS auth
-	TLSClientCert string
-	// TLSClientKey is the path to the client key we will use for TLS auth
-	TLSClientKey string
-	// TLSServerCert is the path to the server cert we will use for TLS auth
-	TLSServerCert string
-	// GorillaData is the location we store gerneral app data
-	GorillaData = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
 )
 
 // Object to store our configuration
@@ -47,7 +23,7 @@ type Object struct {
 	URL           string `yaml:"url"`
 	Manifest      string `yaml:"manifest"`
 	Catalog       string `yaml:"catalog"`
-	CachePath     string `yaml:"cachepath"`
+	AppDataPath   string `yaml:"app_data_path"`
 	Verbose       bool   `yaml:"verbose,omitempty"`
 	Debug         bool   `yaml:"debug,omitempty"`
 	AuthUser      string `yaml:"auth_user,omitempty"`
@@ -136,8 +112,8 @@ func parseArguments() (string, bool, bool) {
 	return configArg, verboseArg, debugArg
 }
 
-// Config is a global struct to store our configuration in
-var Config Object
+// Current is a global struct to store our configuration in
+var Current Object
 
 // Get retrieves and then stores the local configuration
 func Get() {
@@ -150,52 +126,41 @@ func Get() {
 		fmt.Println("Unable to read configuration file: ", err)
 		os.Exit(1)
 	}
-	err = yaml.Unmarshal(configFile, &Config)
+	err = yaml.Unmarshal(configFile, &Current)
 	if err != nil {
 		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
 	// If URL wasnt provided, exit
-	if Config.URL == "" {
+	if Current.URL == "" {
 		fmt.Println("Invalid configuration - URL: ", err)
 		os.Exit(1)
 	}
 	// If Manifest wasnt provided, exit
-	if Config.Manifest == "" {
+	if Current.Manifest == "" {
 		fmt.Println("Invalid configuration - Manifest: ", err)
 		os.Exit(1)
 	}
-	// If CachePath wasn't provided, configure a default
-	if Config.CachePath == "" {
-		Config.CachePath = filepath.Join(os.Getenv("ProgramData"), "gorilla/cache")
+	// If AppDataPath wasn't provided, configure a default
+	if Current.AppDataPath == "" {
+		Current.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
 	}
 	// Set the verbosity
-	if verbose == true && !Config.Verbose {
-		Config.Verbose = true
+	if verbose == true && !Current.Verbose {
+		Current.Verbose = true
 	}
 	// Set the debug and verbose
-	if debug == true && !Config.Debug {
-		Config.Debug = true
-		Config.Verbose = true
+	if debug == true && !Current.Debug {
+		Current.Debug = true
+		Current.Verbose = true
 	}
 
-	// Set global variables
-	URL = Config.URL
-	Manifest = Config.Manifest
-	Catalog = Config.Catalog
-	CachePath = Config.CachePath
-	Verbose = Config.Verbose
-	Debug = Config.Debug
-	AuthUser = Config.AuthUser
-	AuthPass = Config.AuthPass
-	TLSAuth = Config.TLSAuth
-	TLSClientCert = Config.TLSClientCert
-	TLSClientKey = Config.TLSClientKey
-	TLSServerCert = Config.TLSServerCert
+	// Set the cache path
+	CachePath = filepath.Join(Current.AppDataPath, "cache")
 
 	// Add to GorillaReport
-	report.Items["Manifest"] = Manifest
-	report.Items["Catalog"] = Catalog
+	report.Items["Manifest"] = Current.Manifest
+	report.Items["Catalog"] = Current.Catalog
 
 	return
 }

@@ -45,7 +45,7 @@ func Get() []Item {
 	var manifestsRemaining = 1
 
 	// Add the top level manifest to the list
-	manifestsList = append(manifestsList, config.Manifest)
+	manifestsList = append(manifestsList, config.Current.Manifest)
 
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
@@ -54,7 +54,7 @@ func Get() []Item {
 		workingList := []string{currentManifest}
 
 		// Download the manifest
-		manifestURL := config.URL + "manifests/" + currentManifest + ".yaml"
+		manifestURL := config.Current.URL + "manifests/" + currentManifest + ".yaml"
 		gorillalog.Info("Manifest Url:", manifestURL)
 		err := download.File(config.CachePath, manifestURL)
 		if err != nil {

@@ -25,7 +25,7 @@ func runCommand(command string, arguments []string) {
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
-	if config.Verbose {
+	if config.Current.Verbose {
 		gorillalog.Debug("command:", command, arguments)
 		go func() {
 			for scanner.Scan() {
@@ -85,7 +85,7 @@ func Install(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
+		installerURL := config.Current.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
@@ -176,7 +176,7 @@ func Uninstall(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
+		installerURL := config.Current.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
@@ -257,7 +257,7 @@ func Update(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
+		installerURL := config.Current.URL + item.InstallerItemLocation
 		err := download.File(absPath, installerURL)
 		if err != nil {
 			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)

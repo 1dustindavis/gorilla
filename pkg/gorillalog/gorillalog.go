@@ -16,7 +16,7 @@ import (
 
 // NewLog creates a file and points a new logging instance at it
 func NewLog() {
-	logPath := filepath.Join(config.GorillaData, "/gorilla.log")
+	logPath := filepath.Join(config.Current.AppDataPath, "/gorilla.log")
 	err := os.MkdirAll(filepath.Dir(logPath), 0755)
 	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -30,7 +30,7 @@ func NewLog() {
 // We write to disk if debug is true
 func Debug(logStrings ...interface{}) {
 	log.SetPrefix("DEBUG: ")
-	if config.Debug {
+	if config.Current.Debug {
 		fmt.Println(logStrings...)
 		log.Println(logStrings...)
 	}
@@ -40,7 +40,7 @@ func Debug(logStrings ...interface{}) {
 // We only print to stdout if verbose is true
 func Info(logStrings ...interface{}) {
 	log.SetPrefix("INFO: ")
-	if config.Verbose {
+	if config.Current.Verbose {
 		fmt.Println(logStrings...)
 	}
 	log.Println(logStrings...)

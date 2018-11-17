@@ -30,8 +30,8 @@ url: https://YourWebServer/gorilla/
 manifest: example
 catalog: production
 cachepath: C:/gorilla/cache
-authuser: GorillaRepoUser
-authpass: pizzaisyummy
+auth_user: GorillaRepoUser
+auth_pass: pizzaisyummy
 tls_auth: true
 tls_client_cert: c:/certs/client.pem
 tls_client_key: c:/certs/client.key

@@ -80,8 +80,8 @@ A catalog contains details on all available packages. Catalogs are in yaml forma
 ---
 GoogleChrome:
   display_name: Google Chrome
-  installer_item_location: packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg
   installer_item_hash: ce9c44417489d6c1f205422a4b9e8d5181d1ac24b6dcae3bd68ec315efdeb18b
+  installer_item_location: packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg
   version: 68.0.3440.106
 
 ColorPrinter:

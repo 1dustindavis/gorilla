@@ -4,6 +4,9 @@
 *.so
 *.dylib
 
+# Include phony packages for running tests
+!pkg/installer/testdata/packages/*/*
+
 # Test binary, build with `go test -c`
 *.test
 

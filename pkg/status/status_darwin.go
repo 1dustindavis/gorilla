@@ -14,6 +14,25 @@ import (
 // CheckStatus determines the method for checking status
 func CheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
 
+	// Catch special names used in tests
+	if catalogItem.DisplayName == "_gorilla_dev_install_noerror_" {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return true, nil
+	} else if catalogItem.DisplayName == "_gorilla_dev_noinstall_noerror_" {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return false, nil
+	} else if catalogItem.DisplayName == "_gorilla_dev_install_error_" {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return true, fmt.Errorf("testing %v", catalogItem.DisplayName)
+	} else if catalogItem.DisplayName == "_gorilla_dev_noinstall_error_" {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return false, fmt.Errorf("testing %v", catalogItem.DisplayName)
+	}
+
 	fmt.Println(catalogItem.DisplayName)
 	fmt.Println(installType)
 

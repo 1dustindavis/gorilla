@@ -31,6 +31,9 @@ func getManifest(manifestName string) Item {
 	return manifest
 }
 
+// This abstraction allows us to override when testing
+var downloadFile = download.File
+
 // Get returns a slice the includes all manifest objects
 func Get() []Item {
 	// Create a slice of all manifest objects
@@ -56,7 +59,7 @@ func Get() []Item {
 		// Download the manifest
 		manifestURL := config.Current.URL + "manifests/" + currentManifest + ".yaml"
 		gorillalog.Info("Manifest Url:", manifestURL)
-		err := download.File(config.CachePath, manifestURL)
+		err := downloadFile(config.CachePath, manifestURL)
 		if err != nil {
 			gorillalog.Error("Unable to retrieve manifest:", currentManifest, err)
 		}

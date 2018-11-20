@@ -20,25 +20,31 @@ import (
 )
 
 var (
-	testFile    = "testdata/hashtest.txt"
-	validHash   = "dca48f4e34541c52d12351479454b3af6d87d8dc23ec48f68962f062d8703de3"
-	invalidHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	testFile       = "testdata/hashtest.txt"
+	validHash      = "dca48f4e34541c52d12351479454b3af6d87d8dc23ec48f68962f062d8703de3"
+	validHashUpper = "DCA48F4E34541C52D12351479454B3AF6D87D8DC23EC48F68962F062D8703DE3"
+	invalidHash    = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
 // TestVerify tests hash comparison
 func TestVerify(t *testing.T) {
 	// Run the code
 	validTest := Verify(testFile, validHash)
+	validUpperTest := Verify(testFile, validHashUpper)
 	invalidTest := Verify(testFile, invalidHash)
 
 	// Compare output
 	if have, want := validTest, true; have != want {
-		t.Errorf("have %v, want %v", have, want)
+		t.Errorf("Valid hash test: have %v, want %v", have, want)
+	}
+
+	if have, want := validUpperTest, true; have != want {
+		t.Errorf("Valid upper hash test: have %v, want %v", have, want)
 	}
 
 	// Compare output
 	if have, want := invalidTest, false; have != want {
-		t.Errorf("have %v, want %v", have, want)
+		t.Errorf("Invalid hash test: have %v, want %v", have, want)
 	}
 }
 

@@ -2,6 +2,8 @@ package installer
 
 import (
 	"bufio"
+	"bytes"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -201,9 +203,14 @@ func Uninstall(item catalog.Item) {
 		uninstallArgs = []string{"uninstall", absFile, "-y", "-r"}
 
 	} else if item.UninstallMethod == "msi" {
-		gorillalog.Info("Unnstalling MSI", item.DisplayName)
+		gorillalog.Info("Uninstalling MSI", item.DisplayName)
 		uninstallCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
+
+	} else if item.UninstallMethod == "script" {
+		gorillalog.Info("Uninstalling using script", item.DisplayName)
+		UninstallScript(catalogItem)
+
 	} else {
 		gorillalog.Warn("Unable to uninstall", item.DisplayName)
 		gorillalog.Warn("Installer type unsupported:", item.UninstallMethod)
@@ -217,6 +224,33 @@ func Uninstall(item catalog.Item) {
 	runCommand(uninstallCmd, uninstallArgs)
 
 	return
+}
+
+// UninstallScript runs the uninstall script if provided in the catalog
+func UninstallScript(catalogItem catalog.Item) {
+
+	// Write UninstallScript to disk as a Powershell file
+	tmpScript := filepath.Join(config.CachePath, "tmpUninstallScript.ps1")
+	ioutil.WriteFile(tmpScript, []byte(catalogItem.UninstallScript), 0755)
+
+	// Build the command to execute the script
+	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+
+	// Execute the script
+	cmd := exec.Command(psCmd, psArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+	// Delete the temporary script
+	os.Remove(tmpScript)
+
+	gorillalog.Debug("Command Error:", err)
+	gorillalog.Debug("stdout:", outStr)
+	gorillalog.Debug("stderr:", errStr)
+
 }
 
 // Update runs the installer if the item is already installed, but not up-to-date

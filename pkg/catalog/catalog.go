@@ -22,6 +22,7 @@ type Item struct {
 	InstallerItemLocation  string   `yaml:"installer_item_location"`
 	InstallerType          string   `yaml:"installer_type"`
 	UninstallMethod        string   `yaml:"uninstall_method"`
+	UninstallScript        string   `yaml:"uninstall_script"`
 	Version                string   `yaml:"version"`
 }
 

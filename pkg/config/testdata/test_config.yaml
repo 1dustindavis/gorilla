@@ -1,0 +1,9 @@
+---
+url: https://example.com/gorilla/
+manifest: example_manifest
+catalog: example_catalog
+app_data_path: c:/cpe/gorilla/
+auth_user: johnny
+auth_pass: pizza
+verbose: true
+debug: true

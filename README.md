@@ -5,7 +5,7 @@ Munki-like Application Management for Windows
 
 ## Overview
 Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
-Gorilla supports `.msi`, `.ps1`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
+Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
 
 All files can be served from any standard web server with a directory stucture like this:
 
@@ -44,7 +44,7 @@ tls_server_cert: c:/certs/server.pem
 * `catalog` is the catalog that is assigned to this machine.
 
 ### Optional Keys
-* `cachepath` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `cachepath` is not provided, it will default to `%ProgramData%/gorilla/cache`.
+* `app_data_path` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `app_data_path` is not provided, it will default to `%ProgramData%/gorilla/`.
 
 Basic Auth
 * `auth_user` is an optional username for http basic auth.

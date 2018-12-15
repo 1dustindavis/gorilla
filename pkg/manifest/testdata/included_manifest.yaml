@@ -1,0 +1,11 @@
+---
+name: included_manifest
+managed_installs:
+  - TestInstall1
+  - TestInstall2
+managed_updates:
+  - TestUpdate1
+  - TestUpdate2
+managed_uninstalls:
+  - TestUninstall1
+  - TestUninstall2

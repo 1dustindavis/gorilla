@@ -22,13 +22,23 @@ var (
 
 	// UpdatedItems contains a list of items we attempted to update
 	UpdatedItems []interface{}
+
+	// fakeTime is used to override currentTime when running tests
+	fakeTime time.Time
 )
 
 // Start adds the data we already know at the begining of a run
 func Start() {
 
-	// Store the start time
+	// Get the current time
 	currentTime := time.Now().UTC()
+
+	// If fakeTime is not zero, we should use it instead
+	if !fakeTime.IsZero() {
+		currentTime = fakeTime
+	}
+
+	// Add the end time to our map
 	Items["StartTime"] = fmt.Sprint(currentTime.Format("2006-01-02 15:04:05 -0700"))
 
 	// Store the current user
@@ -54,8 +64,15 @@ func End() {
 	Items["UninstalledItems"] = UninstalledItems
 	Items["UpdatedItems"] = UpdatedItems
 
-	// Store the end time
+	// Get the current time
 	currentTime := time.Now().UTC()
+
+	// If fakeTime is not zero, we should use it instead
+	if !fakeTime.IsZero() {
+		currentTime = fakeTime
+	}
+
+	// Add the end time to our map
 	Items["EndTime"] = fmt.Sprint(currentTime.Format("2006-01-02 15:04:05 -0700"))
 
 	// Convert it all to json

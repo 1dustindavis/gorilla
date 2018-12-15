@@ -21,11 +21,11 @@ func main() {
 	config.Get()
 
 	// Get the catalog
-	gorillalog.Info("Retrieving catalog:", config.Catalog)
+	gorillalog.Info("Retrieving catalog:", config.Current.Catalog)
 	catalog := catalog.Get()
 
 	// Get the manifests
-	gorillalog.Info("Retrieving manifest:", config.Manifest)
+	gorillalog.Info("Retrieving manifest:", config.Current.Manifest)
 	manifests := manifest.Get()
 
 	// Process the manifests into install type groups

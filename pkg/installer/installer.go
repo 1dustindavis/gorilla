@@ -2,6 +2,8 @@ package installer
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,17 +17,22 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
+// This abstraction allows us to override when testing
+var execCommand = exec.Command
+
 // runCommand executes a command and it's argurments in the CMD enviroment
-func runCommand(command string, arguments []string) {
-	cmd := exec.Command(command, arguments...)
+func runCommand(command string, arguments []string) string {
+	cmd := execCommand(command, arguments...)
+	var cmdOutput bytes.Buffer
 	cmdReader, err := cmd.StdoutPipe()
+	cmd.Stdout = &cmdOutput
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
 		gorillalog.Error("Error creating pipe to stdout", err)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
-	if config.Verbose {
+	if config.Current.Verbose {
 		gorillalog.Debug("command:", command, arguments)
 		go func() {
 			for scanner.Scan() {
@@ -45,21 +52,22 @@ func runCommand(command string, arguments []string) {
 		gorillalog.Warn("command:", command, arguments)
 		gorillalog.Error("Command error:", err)
 	}
-	return
+	return cmdOutput.String()
 }
 
 // Install runs the installer
-func Install(item catalog.Item) {
+func Install(item catalog.Item) string {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "install")
 	if err != nil {
-		gorillalog.Warn("Unable to check status of ", item.DisplayName)
-		return
+		gorillalog.Warn("Unable to check status of", item.DisplayName)
+		return fmt.Sprintf("Unable to check status: %v", err)
 	}
 
 	if !install {
-		return
+		gorillalog.Info("Item does not need to be installed: ", item.DisplayName)
+		return "Install not needed"
 	}
 
 	// Get all the path strings we will need
@@ -73,7 +81,7 @@ func Install(item catalog.Item) {
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
 		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return
+		return ""
 	}
 	// If the file exists, check the hash
 	var verified bool
@@ -85,21 +93,21 @@ func Install(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		if configuration.URLPackages != "" {
-			installerURL := config.URLPackages + item.InstallerItemLocation
+		if config.Current.URLPackages != "" {
+			installerURL := config.Current.URLPackages + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
-			installerURL := config.URL + item.InstallerItemLocation
+		} else {
+			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
+
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
@@ -108,7 +116,7 @@ func Install(item catalog.Item) {
 	// Return if hash verification fails
 	if !verified {
 		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return
+		return ""
 	}
 
 	// Define the command and arguments based on the installer type
@@ -138,30 +146,31 @@ func Install(item catalog.Item) {
 	} else {
 		gorillalog.Warn("Unable to install", fileName)
 		gorillalog.Warn("Installer type unsupported:", fileExt)
-		return
+		return "unsupported installer"
 	}
 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
 
 	// Run the command and arguments
-	runCommand(installCmd, installArgs)
+	installerOut := runCommand(installCmd, installArgs)
 
-	return
+	return installerOut
 }
 
 // Uninstall runs the uninstaller
-func Uninstall(item catalog.Item) {
+func Uninstall(item catalog.Item) string {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "uninstall")
 	if err != nil {
 		gorillalog.Warn("Unable to check status of ", item.DisplayName)
-		return
+		return fmt.Sprintf("Unable to check status: %v", err)
 	}
 
 	if install {
-		return
+		gorillalog.Info("Item does not need to be uninstalled: ", item.DisplayName)
+		return "Uninstall not needed"
 	}
 
 	// Get all the path strings we will need
@@ -174,7 +183,7 @@ func Uninstall(item catalog.Item) {
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
 		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return
+		return ""
 	}
 
 	// If the file exists, check the hash
@@ -187,21 +196,20 @@ func Uninstall(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		if configuration.URLPackages != "" {
-			installerURL := config.URLPackages + item.InstallerItemLocation
+		if config.Current.URLPackages != "" {
+			installerURL := config.Current.URLPackages + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
-			installerURL := config.URL + item.InstallerItemLocation
+		} else {
+			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
@@ -210,7 +218,7 @@ func Uninstall(item catalog.Item) {
 	// Return if hash verification fails
 	if !verified {
 		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return
+		return ""
 	}
 
 	// Define the command and arguments based on the installer type
@@ -229,30 +237,30 @@ func Uninstall(item catalog.Item) {
 	} else {
 		gorillalog.Warn("Unable to uninstall", item.DisplayName)
 		gorillalog.Warn("Installer type unsupported:", item.UninstallMethod)
-		return
+		return "unsupported uninstaller"
 	}
 
 	// Add the item to UninstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)
 
 	// Run the command and arguments
-	runCommand(uninstallCmd, uninstallArgs)
+	installerOut := runCommand(uninstallCmd, uninstallArgs)
 
-	return
+	return installerOut
 }
 
 // Update runs the installer if the item is already installed, but not up-to-date
-func Update(item catalog.Item) {
+func Update(item catalog.Item) string {
 
 	// Check the items current status
 	install, err := status.CheckStatus(item, "update")
 	if err != nil {
 		gorillalog.Warn("Unable to check status of ", item.DisplayName)
-		return
+		return fmt.Sprintf("Unable to check status: %v", err)
 	}
 
 	if !install {
-		return
+		return "Update not needed"
 	}
 
 	// Get all the path strings we will need
@@ -266,7 +274,7 @@ func Update(item catalog.Item) {
 	// Fail if we dont have a hash
 	if item.InstallerItemHash == "" {
 		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return
+		return ""
 	}
 
 	// If the file exists, check the hash
@@ -279,21 +287,20 @@ func Update(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		if configuration.URLPackages != "" {
-			installerURL := config.URLPackages + item.InstallerItemLocation
+		if config.Current.URLPackages != "" {
+			installerURL := config.Current.URLPackages + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
-			installerURL := config.URL + item.InstallerItemLocation
+		} else {
+			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
@@ -302,7 +309,7 @@ func Update(item catalog.Item) {
 	// Return if hash verification fails
 	if !verified {
 		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return
+		return ""
 	}
 
 	// Define the command and arguments based on the installer type
@@ -332,14 +339,14 @@ func Update(item catalog.Item) {
 	} else {
 		gorillalog.Warn("Unable to install:", fileName)
 		gorillalog.Warn("Installer type unsupported:", fileExt)
-		return
+		return "unsupported installer"
 	}
 
 	// Add the item to UpdatedItems in GorillaReport
 	report.UpdatedItems = append(report.UpdatedItems, item)
 
 	// Run the command and arguments
-	runCommand(installCmd, installArgs)
+	installerOut := runCommand(installCmd, installArgs)
 
-	return
+	return installerOut
 }

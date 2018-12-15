@@ -40,15 +40,15 @@ func File(file string, url string) error {
 	var client *http.Client
 
 	// If TLSAuth is true, configure server and client certs
-	if config.TLSAuth {
+	if config.Current.TLSAuth {
 		// Load	the client certificate and private key
-		clientCert, err := tls.LoadX509KeyPair(config.TLSClientCert, config.TLSClientKey)
+		clientCert, err := tls.LoadX509KeyPair(config.Current.TLSClientCert, config.Current.TLSClientKey)
 		if err != nil {
 			return err
 		}
 
 		// Load server certificates
-		serverCert, err := ioutil.ReadFile(config.TLSServerCert)
+		serverCert, err := ioutil.ReadFile(config.Current.TLSServerCert)
 		if err != nil {
 			return err
 		}
@@ -96,8 +96,8 @@ func File(file string, url string) error {
 	req, err := http.NewRequest("GET", url, nil)
 
 	// If we have a user and pass, configure basic auth
-	if config.AuthUser != "" && config.AuthPass != "" {
-		req.SetBasicAuth(config.AuthUser, config.AuthPass)
+	if config.Current.AuthUser != "" && config.Current.AuthPass != "" {
+		req.SetBasicAuth(config.Current.AuthUser, config.Current.AuthPass)
 	}
 
 	// Actually send the request, using the client we setup
@@ -110,7 +110,7 @@ func File(file string, url string) error {
 	defer resp.Body.Close()
 
 	// Check that the request was successful
-	if resp.StatusCode <= 200 && resp.StatusCode >= 299 {
+	if resp.StatusCode != 200 {
 		return fmt.Errorf("%s : Download status code: %d", fileName, resp.StatusCode)
 	}
 

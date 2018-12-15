@@ -183,6 +183,10 @@ func TestCleanUp(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	err = os.Chtimes("testdata/cache/full/file.msi", newTime, newTime)
+	if err != nil {
+		t.Error(err)
+	}
 
 	// Create an empty directory if it doesn't already exist
 	if _, err := os.Stat("testdata/cache/empty"); os.IsNotExist(err) {

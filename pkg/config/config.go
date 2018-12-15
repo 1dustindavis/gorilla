@@ -14,13 +14,22 @@ import (
 )
 
 var (
-	// CachePath is the path to a location for temporary storage
+	// URL of the web server with all of our files
+	URL string
+	// URLPackages is the web server with only package files (if needed)
+	URLPackages string
+	// Manifest is a yaml file with the packages to manage on this node
+	Manifest string
+	// Catalog is a yaml file with details on the available packages
+	Catalog string
+	// CachePath is a directory we will use for temporary storage
 	CachePath string
 )
 
 // Object to store our configuration
 type Object struct {
 	URL           string `yaml:"url"`
+	URLPackages   string `yaml:"url_packages"`
 	Manifest      string `yaml:"manifest"`
 	Catalog       string `yaml:"catalog"`
 	AppDataPath   string `yaml:"app_data_path"`
@@ -155,8 +164,20 @@ func Get() {
 		Current.Verbose = true
 	}
 
-	// Set the cache path
-	CachePath = filepath.Join(Current.AppDataPath, "cache")
+	// Set global variables
+	URL = configuration.URL
+	URLPackages = configuration.URLPackages
+	Manifest = configuration.Manifest
+	Catalog = configuration.Catalog
+	CachePath = configuration.CachePath
+	Verbose = configuration.Verbose
+	Debug = configuration.Debug
+	AuthUser = configuration.AuthUser
+	AuthPass = configuration.AuthPass
+	TLSAuth = configuration.TLSAuth
+	TLSClientCert = configuration.TLSClientCert
+	TLSClientKey = configuration.TLSClientKey
+	TLSServerCert = configuration.TLSServerCert
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = Current.Manifest

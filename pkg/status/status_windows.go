@@ -4,6 +4,7 @@ package status
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -42,8 +43,14 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func getUninstallKeys() map[string]Application {
+func recoverRegKey() {
+	if r := recover(); r != nil {
+		fmt.Println("Recovered from ", r)
+	}
+}
 
+func getUninstallKeys() map[string]Application {
+	defer recoverRegKey()
 	// Get the Uninstall key from HKLM
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
 	if err != nil {

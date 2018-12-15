@@ -93,7 +93,7 @@ func Install(item catalog.Item) string {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		if configuration.URLPackages != "" {
+		if config.Current.URLPackages != "" {
 			installerURL := config.Current.URLPackages + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
@@ -101,13 +101,13 @@ func Install(item catalog.Item) string {
 				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
-			installerURL := config.URL + item.InstallerItemLocation
+		} else {
+			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
+
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
@@ -204,8 +204,7 @@ func Uninstall(item catalog.Item) string {
 				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
+		} else {
 			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
@@ -293,16 +292,15 @@ func Update(item catalog.Item) string {
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-		else {
+		} else {
 			installerURL := config.Current.URL + item.InstallerItemLocation
 			err := download.File(absPath, installerURL)
 			if err != nil {
 				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return
+				return fmt.Sprint(err)
 			}
 			verified = download.Verify(absFile, item.InstallerItemHash)
 		}

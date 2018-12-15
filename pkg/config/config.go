@@ -16,6 +16,8 @@ import (
 var (
 	// URL of the web server with all of our files
 	URL string
+	// URLPackages is the web server with only package files (if needed)
+	URLPackages string
 	// Manifest is a yaml file with the packages to manage on this node
 	Manifest string
 	// Catalog is a yaml file with details on the available packages
@@ -43,6 +45,7 @@ var (
 // Object to store our configuration
 type Object struct {
 	URL           string `yaml:"url"`
+	URLPackages   string `yaml:"url_packages"`
 	Manifest      string `yaml:"manifest"`
 	Catalog       string `yaml:"catalog"`
 	CachePath     string `yaml:"cachepath"`
@@ -174,6 +177,7 @@ func Get() {
 
 	// Set global variables
 	URL = configuration.URL
+	URLPackages = configuration.URLPackages
 	Manifest = configuration.Manifest
 	Catalog = configuration.Catalog
 	CachePath = configuration.CachePath

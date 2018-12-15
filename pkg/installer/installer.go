@@ -85,13 +85,24 @@ func Install(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
-		err := download.File(absPath, installerURL)
-		if err != nil {
-			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-			return
+		if configuration.URLPackages != "" {
+			installerURL := config.URLPackages + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
-		verified = download.Verify(absFile, item.InstallerItemHash)
+		else {
+			installerURL := config.URL + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
+		}
 	}
 
 	// Return if hash verification fails
@@ -176,13 +187,24 @@ func Uninstall(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
-		err := download.File(absPath, installerURL)
-		if err != nil {
-			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-			return
+		if configuration.URLPackages != "" {
+			installerURL := config.URLPackages + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
-		verified = download.Verify(absFile, item.InstallerItemHash)
+		else {
+			installerURL := config.URL + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
+		}
 	}
 
 	// Return if hash verification fails
@@ -257,13 +279,24 @@ func Update(item catalog.Item) {
 	if !verified {
 		gorillalog.Info("Downloading", item.DisplayName)
 		// Download the installer
-		installerURL := config.URL + item.InstallerItemLocation
-		err := download.File(absPath, installerURL)
-		if err != nil {
-			gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-			return
+		if configuration.URLPackages != "" {
+			installerURL := config.URLPackages + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
 		}
-		verified = download.Verify(absFile, item.InstallerItemHash)
+		else {
+			installerURL := config.URL + item.InstallerItemLocation
+			err := download.File(absPath, installerURL)
+			if err != nil {
+				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
+				return
+			}
+			verified = download.Verify(absFile, item.InstallerItemHash)
+		}
 	}
 
 	// Return if hash verification fails

@@ -14,8 +14,6 @@ import (
 var (
 	// store original data to restore after each test
 	origInstall     = installerInstall
-	origUninstall   = installerUninstall
-	origUpdate      = installerUpdate
 	origAppDataPath = config.Current.AppDataPath
 	origOsRemove    = osRemove
 
@@ -25,13 +23,13 @@ var (
 		"GoogleChrome":   catalog.Item{DisplayName: "GoogleChrome", InstallerItemLocation: "GoogleChrome.msi"},
 		"TestInstall1":   catalog.Item{DisplayName: "TestInstall1", InstallerItemLocation: "TestInstall1.msi"},
 		"TestInstall2":   catalog.Item{DisplayName: "TestInstall2", InstallerItemLocation: "TestInstall2.msi"},
-		"AdobeFlash":     catalog.Item{DisplayName: "AdobeFlash"},
-		"Chef Client":    catalog.Item{DisplayName: "Chef Client"},
-		"CanonDrivers":   catalog.Item{DisplayName: "CanonDrivers"},
-		"TestUninstall1": catalog.Item{DisplayName: "TestUninstall1"},
-		"TestUninstall2": catalog.Item{DisplayName: "TestUninstall2"},
-		"TestUpdate1":    catalog.Item{DisplayName: "TestUpdate1"},
-		"TestUpdate2":    catalog.Item{DisplayName: "TestUpdate2"},
+		"AdobeFlash":     catalog.Item{DisplayName: "AdobeFlash", UninstallerItemLocation: "AdobeUninst.msi"},
+		"Chef Client":    catalog.Item{DisplayName: "Chef Client", InstallerItemLocation: "chef.msi"},
+		"CanonDrivers":   catalog.Item{DisplayName: "CanonDrivers", InstallerItemLocation: "TestInstall1.msi"},
+		"TestUninstall1": catalog.Item{DisplayName: "TestUninstall1", UninstallerItemLocation: "TestUninst2.ps1"},
+		"TestUninstall2": catalog.Item{DisplayName: "TestUninstall2", UninstallerItemLocation: "TestUninst2.exe"},
+		"TestUpdate1":    catalog.Item{DisplayName: "TestUpdate1", InstallerItemLocation: "TestUpdate1.nupkg"},
+		"TestUpdate2":    catalog.Item{DisplayName: "TestUpdate2", InstallerItemLocation: "TestUpdate2.ps1"},
 	}
 
 	// Arrays of the test items
@@ -82,13 +80,13 @@ func TestManifests(t *testing.T) {
 
 	// Fail if we dont match
 	if !matchInstalls {
-		t.Errorf("\nExpected: %#v\nActual: %#v", expectedInstalls, actualInstalls)
+		t.Errorf("Manifest Installs\nExpected: %#v\nActual: %#v", expectedInstalls, actualInstalls)
 	}
 	if !matchUninstalls {
-		t.Errorf("\nExpected: %#v\nActual: %#v", expectedUninstalls, actualUninstalls)
+		t.Errorf("Manifest Uninstalls\nExpected: %#v\nActual: %#v", expectedUninstalls, actualUninstalls)
 	}
 	if !matchUpdates {
-		t.Errorf("\nExpected: %#v\nActual: %#v", expectedUpdates, actualUpdates)
+		t.Errorf("Manifest Updates\nExpected: %#v\nActual: %#v", expectedUpdates, actualUpdates)
 	}
 }
 
@@ -118,9 +116,9 @@ func TestInstalls(t *testing.T) {
 // TestUninstalls tests if uninstall items are processed correctly
 func TestUninstalls(t *testing.T) {
 
-	// Override the uninstall function to use our fake function
-	installerUninstall = fakeUninstall
-	defer func() { installerUninstall = origUninstall }()
+	// Override the install function to use our fake function
+	installerInstall = fakeUninstall
+	defer func() { installerInstall = origInstall }()
 
 	// Run `Uninstalls` with test data
 	Uninstalls(testUninstalls, testCatalog)
@@ -140,9 +138,9 @@ func TestUninstalls(t *testing.T) {
 // TestUpdates tests if update items are processed correctly
 func TestUpdates(t *testing.T) {
 
-	// Override the update function to use our fake function
-	installerUpdate = fakeUpdate
-	defer func() { installerUpdate = origUpdate }()
+	// Override the install function to use our fake function
+	installerInstall = fakeUpdate
+	defer func() { installerInstall = origInstall }()
 
 	// Run `Updates` with test data
 	Updates(testUpdates, testCatalog)
@@ -209,22 +207,22 @@ func TestCleanUp(t *testing.T) {
 	}
 }
 
-// Mocks the actual `installer.Install` function
-func fakeInstall(item catalog.Item) string {
+// Mocks the actual `installer.Install` function and saves what it receives to `actualInstalledItems`
+func fakeInstall(item catalog.Item, installerType string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualInstalledItems = append(actualInstalledItems, item.DisplayName)
 	return ""
 }
 
-// Mocks the actual `installer.Uninstall` function
-func fakeUninstall(item catalog.Item) string {
+// Mocks the actual `installer.Install` function and saves what it receives to `actualUninstalledItems`
+func fakeUninstall(item catalog.Item, installerType string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUninstalledItems = append(actualUninstalledItems, item.DisplayName)
 	return ""
 }
 
-// Mocks the actual `installer.Update` function
-func fakeUpdate(item catalog.Item) string {
+// Mocks the actual `installer.Install` function and saves what it receives to `actualUpdatedItems`
+func fakeUpdate(item catalog.Item, installerType string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUpdatedItems = append(actualUpdatedItems, item.DisplayName)
 	return ""

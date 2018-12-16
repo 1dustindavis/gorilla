@@ -279,3 +279,15 @@ func TestFileTLS(t *testing.T) {
 	}
 
 }
+
+// TestIfNeeded tests that the file is only downloaded if it is needed
+func TestIfNeeded(t *testing.T) {
+
+	// Not needed
+
+	// Needed
+
+	// Check url
+
+	// Check filepath
+}

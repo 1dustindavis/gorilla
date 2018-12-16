@@ -20,9 +20,6 @@ var (
 	// UninstalledItems contains a list of items we attempted to uninstall
 	UninstalledItems []interface{}
 
-	// UpdatedItems contains a list of items we attempted to update
-	UpdatedItems []interface{}
-
 	// fakeTime is used to override currentTime when running tests
 	fakeTime time.Time
 )
@@ -62,7 +59,6 @@ func End() {
 	// Compile everything
 	Items["InstalledItems"] = InstalledItems
 	Items["UninstalledItems"] = UninstalledItems
-	Items["UpdatedItems"] = UpdatedItems
 
 	// Get the current time
 	currentTime := time.Now().UTC()

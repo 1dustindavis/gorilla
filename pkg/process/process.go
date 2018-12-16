@@ -25,13 +25,13 @@ func Manifests(manifests []manifest.Item, catalog map[string]catalog.Item) (inst
 		}
 		// Uninstalls
 		for _, item := range manifestItem.Uninstalls {
-			if item != "" {
+			if item != "" && catalog[item].UninstallerItemLocation != "" {
 				uninstalls = append(uninstalls, item)
 			}
 		}
 		// Updates
 		for _, item := range manifestItem.Updates {
-			if item != "" {
+			if item != "" && catalog[item].InstallerItemLocation != "" {
 				updates = append(updates, item)
 			}
 		}
@@ -49,35 +49,29 @@ func Installs(installs []string, catalog map[string]catalog.Item) {
 		// Check for dependencies and install if found
 		if len(catalog[item].Dependencies) > 0 {
 			for _, dependency := range catalog[item].Dependencies {
-				installerInstall(catalog[dependency])
+				installerInstall(catalog[dependency], "install")
 			}
 		}
 		// Install the item
-		installerInstall(catalog[item])
+		installerInstall(catalog[item], "install")
 	}
 }
-
-// This abstraction allows us to override when testing
-var installerUninstall = installer.Uninstall
 
 // Uninstalls prepares and then installs and array of items
 func Uninstalls(uninstalls []string, catalog map[string]catalog.Item) {
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Uninstall the item
-		installerUninstall(catalog[item])
+		installerInstall(catalog[item], "uninstall")
 	}
 }
-
-// This abstraction allows us to override when testing
-var installerUpdate = installer.Update
 
 // Updates prepares and then installs and array of items
 func Updates(updates []string, catalog map[string]catalog.Item) {
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Update the item
-		installerUpdate(catalog[item])
+		installerInstall(catalog[item], "update")
 	}
 }
 

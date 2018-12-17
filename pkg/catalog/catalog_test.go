@@ -36,7 +36,7 @@ If ($upToDate) {
 		InstallerItemArguments: []string{`/L=1033`, `/S`},
 		InstallerItemHash:      `f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d`,
 		InstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
-		UninstallMethod:        `msi`,
+		UninstallerType:        `msi`,
 		Version:                `68.0.3440.106`,
 	}
 

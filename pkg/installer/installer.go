@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
@@ -17,8 +17,19 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
-// This abstraction allows us to override when testing
-var execCommand = exec.Command
+var (
+	// Base command for each installer type
+	commandNupkg = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
+	commandMsi   = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
+	commandPs1   = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+
+	// This abstraction allows us to override when testing
+	execCommand = exec.Command
+
+	// Stores url where we will download an item
+	installerURL   string
+	uninstallerURL string
+)
 
 // runCommand executes a command and it's argurments in the CMD enviroment
 func runCommand(command string, arguments []string) string {
@@ -55,298 +66,142 @@ func runCommand(command string, arguments []string) string {
 	return cmdOutput.String()
 }
 
-// Install runs the installer
-func Install(item catalog.Item) string {
+func installItem(item catalog.Item) string {
 
-	// Check the items current status
-	install, err := status.CheckStatus(item, "install")
-	if err != nil {
-		gorillalog.Warn("Unable to check status of", item.DisplayName)
-		return fmt.Sprintf("Unable to check status: %v", err)
-	}
-
-	if !install {
-		gorillalog.Info("Item does not need to be installed: ", item.DisplayName)
-		return "Install not needed"
-	}
-
-	// Get all the path strings we will need
-	tokens := strings.Split(item.InstallerItemLocation, "/")
-	fileName := tokens[len(tokens)-1]
-	relPath := strings.Join(tokens[:len(tokens)-1], "/")
+	// Determine the paths needed for download and install
+	relPath, fileName := path.Split(item.InstallerItemLocation)
 	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
-	fileExt := strings.ToLower(filepath.Ext(absFile))
-
-	// Fail if we dont have a hash
-	if item.InstallerItemHash == "" {
-		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return ""
-	}
-	// If the file exists, check the hash
-	var verified bool
-	if _, err := os.Stat(absFile); err == nil {
-		verified = download.Verify(absFile, item.InstallerItemHash)
+	if config.Current.URLPackages != "" {
+		installerURL = config.Current.URLPackages + item.InstallerItemLocation
+	} else {
+		installerURL = config.Current.URL + item.InstallerItemLocation
 	}
 
-	// If hash failed, download the installer
-	if !verified {
-		gorillalog.Info("Downloading", item.DisplayName)
-		// Download the installer
-		if config.Current.URLPackages != "" {
-			installerURL := config.Current.URLPackages + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		} else {
-			installerURL := config.Current.URL + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-	}
-
-	// Return if hash verification fails
-	if !verified {
-		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return ""
-	}
-
-	// Define the command and arguments based on the installer type
+	// Determine the install type and build the command
 	var installCmd string
 	var installArgs []string
-
-	if fileExt == ".nupkg" {
-		gorillalog.Info("Installing nupkg:", fileName)
-		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-		installArgs = []string{"install", absFile, "-y", "-r"}
-
-	} else if fileExt == ".msi" {
-		gorillalog.Info("Installing MSI installer:", fileName)
-		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
+	if item.InstallerType == "nupkg" {
+		gorillalog.Info("Installing nupkg for", item.DisplayName)
+		installCmd = commandNupkg
+		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
+	} else if item.InstallerType == "msi" {
+		gorillalog.Info("Installing msi for", item.DisplayName)
+		installCmd = commandMsi
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
-
-	} else if fileExt == ".exe" {
-		gorillalog.Info("Installing exe installer:", fileName)
+	} else if item.InstallerType == "exe" {
+		gorillalog.Info("Installing exe for", item.DisplayName)
 		installCmd = absFile
 		installArgs = item.InstallerItemArguments
-
-	} else if fileExt == ".ps1" {
-		gorillalog.Info("Installing Powershell script:", fileName)
-		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	} else if item.InstallerType == "ps1" {
+		gorillalog.Info("Installing ps1 for", item.DisplayName)
+		installCmd = commandPs1
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
-		gorillalog.Warn("Unable to install", fileName)
-		gorillalog.Warn("Installer type unsupported:", fileExt)
-		return "unsupported installer"
+		msg := fmt.Sprint("Unsupported installer type", item.InstallerType)
+		gorillalog.Warn(msg)
+		return msg
 	}
+
+	// Download the item if it is needed
+	valid := download.IfNeeded(absFile, installerURL, item.InstallerItemHash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
+		gorillalog.Warn(msg)
+		return msg
+	}
+
+	// Run the command
+	installerOut := runCommand(installCmd, installArgs)
 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
 
-	// Run the command and arguments
-	installerOut := runCommand(installCmd, installArgs)
-
 	return installerOut
 }
 
-// Uninstall runs the uninstaller
-func Uninstall(item catalog.Item) string {
+func uninstallItem(item catalog.Item) string {
 
-	// Check the items current status
-	install, err := status.CheckStatus(item, "uninstall")
-	if err != nil {
-		gorillalog.Warn("Unable to check status of ", item.DisplayName)
-		return fmt.Sprintf("Unable to check status: %v", err)
-	}
-
-	if install {
-		gorillalog.Info("Item does not need to be uninstalled: ", item.DisplayName)
-		return "Uninstall not needed"
-	}
-
-	// Get all the path strings we will need
-	tokens := strings.Split(item.InstallerItemLocation, "/")
-	fileName := tokens[len(tokens)-1]
-	relPath := strings.Join(tokens[:len(tokens)-1], "/")
+	// Determine the paths needed for download and uinstall
+	relPath, fileName := path.Split(item.UninstallerItemLocation)
 	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
-
-	// Fail if we dont have a hash
-	if item.InstallerItemHash == "" {
-		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return ""
+	if config.Current.URLPackages != "" {
+		uninstallerURL = config.Current.URLPackages + item.UninstallerItemLocation
+	} else {
+		uninstallerURL = config.Current.URL + item.UninstallerItemLocation
 	}
 
-	// If the file exists, check the hash
-	var verified bool
-	if _, err := os.Stat(absFile); err == nil {
-		verified = download.Verify(absFile, item.InstallerItemHash)
-	}
-
-	// If hash failed, download the installer
-	if !verified {
-		gorillalog.Info("Downloading", item.DisplayName)
-		// Download the installer
-		if config.Current.URLPackages != "" {
-			installerURL := config.Current.URLPackages + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		} else {
-			installerURL := config.Current.URL + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-	}
-
-	// Return if hash verification fails
-	if !verified {
-		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return ""
-	}
-
-	// Define the command and arguments based on the installer type
+	// Determine the uninstall type and build the command
 	var uninstallCmd string
 	var uninstallArgs []string
-
-	if item.UninstallMethod == "choco" {
-		gorillalog.Info("Uninstalling nupkg:", item.DisplayName)
-		uninstallCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-		uninstallArgs = []string{"uninstall", absFile, "-y", "-r"}
-
-	} else if item.UninstallMethod == "msi" {
-		gorillalog.Info("Unnstalling MSI", item.DisplayName)
-		uninstallCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
+	if item.UninstallerType == "nupkg" {
+		gorillalog.Info("Installing nupkg for", item.DisplayName)
+		uninstallCmd = commandNupkg
+		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
+	} else if item.UninstallerType == "msi" {
+		gorillalog.Info("Installing msi for", item.DisplayName)
+		uninstallCmd = commandMsi
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
+	} else if item.UninstallerType == "exe" {
+		gorillalog.Info("Installing exe for", item.DisplayName)
+		uninstallCmd = absFile
+		uninstallArgs = item.UninstallerItemArguments
+	} else if item.UninstallerType == "ps1" {
+		gorillalog.Info("Installing ps1 for", item.DisplayName)
+		uninstallCmd = commandPs1
+		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
 	} else {
-		gorillalog.Warn("Unable to uninstall", item.DisplayName)
-		gorillalog.Warn("Installer type unsupported:", item.UninstallMethod)
-		return "unsupported uninstaller"
+		msg := fmt.Sprint("Unsupported uninstaller type", item.UninstallerType)
+		gorillalog.Warn(msg)
+		return msg
 	}
 
-	// Add the item to UninstalledItems in GorillaReport
+	// Download the item if it is needed
+	valid := download.IfNeeded(absFile, uninstallerURL, item.UninstallerItemHash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
+		gorillalog.Warn(msg)
+		return msg
+	}
+
+	// Run the command
+	uninstallerOut := runCommand(uninstallCmd, uninstallArgs)
+
+	// Add the item to InstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)
 
-	// Run the command and arguments
-	installerOut := runCommand(uninstallCmd, uninstallArgs)
-
-	return installerOut
+	return uninstallerOut
 }
 
-// Update runs the installer if the item is already installed, but not up-to-date
-func Update(item catalog.Item) string {
-
-	// Check the items current status
-	install, err := status.CheckStatus(item, "update")
+// Install determines if action needs to be taken on a item and then
+// calls the appropriate function to install or uninstall
+func Install(item catalog.Item, installerType string) string {
+	// Check the status and determine if any action is needed for this item
+	actionNeeded, err := status.CheckStatus(item, installerType)
 	if err != nil {
-		gorillalog.Warn("Unable to check status of ", item.DisplayName)
-		return fmt.Sprintf("Unable to check status: %v", err)
+		msg := fmt.Sprint("Unable to check status: ", err)
+		gorillalog.Warn(msg)
+		return msg
 	}
 
-	if !install {
-		return "Update not needed"
+	// If no action is needed, return
+	if !actionNeeded {
+		return "Item not needed"
 	}
 
-	// Get all the path strings we will need
-	tokens := strings.Split(item.InstallerItemLocation, "/")
-	fileName := tokens[len(tokens)-1]
-	relPath := strings.Join(tokens[:len(tokens)-1], "/")
-	absPath := filepath.Join(config.CachePath, relPath)
-	absFile := filepath.Join(absPath, fileName)
-	fileExt := strings.ToLower(filepath.Ext(absFile))
-
-	// Fail if we dont have a hash
-	if item.InstallerItemHash == "" {
-		gorillalog.Warn("Installer hash missing for item:", item.DisplayName)
-		return ""
-	}
-
-	// If the file exists, check the hash
-	var verified bool
-	if _, err := os.Stat(absFile); err == nil {
-		verified = download.Verify(absFile, item.InstallerItemHash)
-	}
-
-	// If hash failed, download the installer
-	if !verified {
-		gorillalog.Info("Downloading", item.DisplayName)
-		// Download the installer
-		if config.Current.URLPackages != "" {
-			installerURL := config.Current.URLPackages + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		} else {
-			installerURL := config.Current.URL + item.InstallerItemLocation
-			err := download.File(absPath, installerURL)
-			if err != nil {
-				gorillalog.Warn("Unable to retrieve package:", item.InstallerItemLocation, err)
-				return fmt.Sprint(err)
-			}
-			verified = download.Verify(absFile, item.InstallerItemHash)
-		}
-	}
-
-	// Return if hash verification fails
-	if !verified {
-		gorillalog.Warn("Hash mismatch:", item.DisplayName)
-		return ""
-	}
-
-	// Define the command and arguments based on the installer type
-	var installCmd string
-	var installArgs []string
-
-	if fileExt == ".nupkg" {
-		gorillalog.Info("Installing nupkg:", fileName)
-		installCmd = filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-		installArgs = []string{"install", absFile, "-y", "-r"}
-
-	} else if fileExt == ".msi" {
-		gorillalog.Info("Installing MSI:", fileName)
-		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
-		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
-
-	} else if fileExt == ".exe" {
-		gorillalog.Info("Installing exe installer:", fileName)
-		installCmd = absFile
-		installArgs = item.InstallerItemArguments
-
-	} else if fileExt == ".ps1" {
-		gorillalog.Info("Installing Powershell script:", fileName)
-		installCmd = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
-		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
-
+	// Install or uninstall the item
+	if installerType == "install" || installerType == "update" {
+		installItem(item)
+	} else if installerType == "uninstall" {
+		uninstallItem(item)
 	} else {
-		gorillalog.Warn("Unable to install:", fileName)
-		gorillalog.Warn("Installer type unsupported:", fileExt)
-		return "unsupported installer"
+		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
+		return "Unsupported item type"
+
 	}
 
-	// Add the item to UpdatedItems in GorillaReport
-	report.UpdatedItems = append(report.UpdatedItems, item)
-
-	// Run the command and arguments
-	installerOut := runCommand(installCmd, installArgs)
-
-	return installerOut
+	return ""
 }

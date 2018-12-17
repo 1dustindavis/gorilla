@@ -99,7 +99,7 @@ func getUninstallKeys() map[string]Application {
 	return installedItems
 }
 
-func checkScript(catalogItem catalog.Item) (install bool, checkErr error) {
+func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(config.CachePath, "tmpCheckScript.ps1")
@@ -125,15 +125,15 @@ func checkScript(catalogItem catalog.Item) (install bool, checkErr error) {
 
 	// Dont't install if stderr is zero
 	if errStr == "" {
-		install = false
+		actionNeeded = false
 	} else {
-		install = true
+		actionNeeded = true
 	}
 
-	return install, checkErr
+	return actionNeeded, checkErr
 }
 
-func checkPath(catalogItem catalog.Item) (install bool, checkErr error) {
+func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	path := filepath.Clean(catalogItem.InstallCheckPath)
 	hash := catalogItem.InstallCheckPathHash
 	gorillalog.Debug("Check Path", path)
@@ -141,21 +141,21 @@ func checkPath(catalogItem catalog.Item) (install bool, checkErr error) {
 	// Confirm that path exists
 	// Install if we get an error
 	if _, checkErr := os.Stat(path); checkErr != nil {
-		install = true
+		actionNeeded = true
 	} else {
-		install = false
+		actionNeeded = false
 	}
 
 	// If a hash is configured, verify it matches
-	if !install && hash != "" {
-		install = download.Verify(path, hash)
+	if !actionNeeded && hash != "" {
+		actionNeeded = download.Verify(path, hash)
 	}
 
-	return install, checkErr
+	return actionNeeded, checkErr
 }
 
 // checkRegistry iterates through the local registry and compiles all installed software
-func checkRegistry(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
+func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
 	// Iterate through the reg keys to compare with the catalog
 	catalogVersion, err := version.NewVersion(catalogItem.Version)
 	if err != nil {
@@ -188,21 +188,21 @@ func checkRegistry(catalogItem catalog.Item, installType string) (install bool, 
 	}
 
 	if installType == "update" && !installed {
-		install = false
+		actionNeeded = false
 	} else if installType == "uninstall" && installed {
-		install = false
+		actionNeeded = true
 	} else if installed && versionMatch {
-		install = false
+		actionNeeded = false
 	} else {
-		install = true
+		actionNeeded = true
 	}
 
-	return install, checkErr
+	return actionNeeded, checkErr
 
 }
 
 // CheckStatus determines the method for checking status
-func CheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
+func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
 
 	if catalogItem.InstallCheckScript != "" {
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)

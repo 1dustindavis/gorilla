@@ -15,19 +15,19 @@ import (
 func CheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
 
 	// Catch special names used in tests
-	if catalogItem.DisplayName == "_gorilla_dev_install_noerror_" {
+	if catalogItem.DisplayName == "_gorilla_dev_action_noerror_" {
 		gorillalog.Warn("Running Development Tests!")
 		gorillalog.Warn(catalogItem.DisplayName)
 		return true, nil
-	} else if catalogItem.DisplayName == "_gorilla_dev_noinstall_noerror_" {
+	} else if catalogItem.DisplayName == "_gorilla_dev_noaction_noerror_" {
 		gorillalog.Warn("Running Development Tests!")
 		gorillalog.Warn(catalogItem.DisplayName)
 		return false, nil
-	} else if catalogItem.DisplayName == "_gorilla_dev_install_error_" {
+	} else if catalogItem.DisplayName == "_gorilla_dev_action_error_" {
 		gorillalog.Warn("Running Development Tests!")
 		gorillalog.Warn(catalogItem.DisplayName)
 		return true, fmt.Errorf("testing %v", catalogItem.DisplayName)
-	} else if catalogItem.DisplayName == "_gorilla_dev_noinstall_error_" {
+	} else if catalogItem.DisplayName == "_gorilla_dev_noaction_error_" {
 		gorillalog.Warn("Running Development Tests!")
 		gorillalog.Warn(catalogItem.DisplayName)
 		return false, fmt.Errorf("testing %v", catalogItem.DisplayName)

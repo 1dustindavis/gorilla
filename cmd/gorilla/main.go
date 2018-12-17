@@ -11,14 +11,14 @@ import (
 
 func main() {
 
+	// Get our configuration
+	config.Get()
+
 	// Create a new logger object
 	gorillalog.NewLog()
 
 	// Start creating GorillaReport
 	report.Start()
-
-	// Get our configuration
-	config.Get()
 
 	// Get the catalog
 	gorillalog.Info("Retrieving catalog:", config.Current.Catalog)

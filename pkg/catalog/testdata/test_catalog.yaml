@@ -21,4 +21,4 @@ ChefClient:
      - /L=1033
      - /S
   version: 68.0.3440.106
-  uninstall_method: msi
+  uninstaller_type: msi

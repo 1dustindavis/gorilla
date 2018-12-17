@@ -58,18 +58,15 @@ func TestEnd(t *testing.T) {
 	expectedTime := fakeTime.Format("2006-01-02 15:04:05 -0700")
 	expectedInstalls := []interface{}{"test Installs 1", "test Installs 2", "test Installs 3", "test Installs 4"}
 	expectedUninstalls := []interface{}{"test Uninstalls 1", "test Uninstalls 2", "test Uninstalls 3", "test Uninstalls 4"}
-	expectedUpdates := []interface{}{"test Updates 1", "test Updates 2", "test Updates 3", "test Updates 4"}
 
 	// Apend everything tp the correct lists
 	InstalledItems = append(InstalledItems, expectedInstalls...)
 	UninstalledItems = append(UninstalledItems, expectedUninstalls...)
-	UpdatedItems = append(UpdatedItems, expectedUpdates...)
 
 	// Update the existing map for comparison
 	expectedItems["EndTime"] = fmt.Sprint(expectedTime)
 	expectedItems["InstalledItems"] = InstalledItems
 	expectedItems["UninstalledItems"] = UninstalledItems
-	expectedItems["UpdatedItems"] = UpdatedItems
 
 	// Run the `End` function
 	End()

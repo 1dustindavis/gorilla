@@ -279,3 +279,124 @@ func TestFileTLS(t *testing.T) {
 	}
 
 }
+
+func copy(src, dst string) error {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("%s could not be opened: %s", src, err)
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("%s could not be created: %s", dst, err)
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
+}
+
+// TestIfNeededValid confirms that a file is not downloaded when a valid copy exists
+func TestIfNeededValid(t *testing.T) {
+
+	// Create a temporary directory
+	dir, err := ioutil.TempDir("", "gorilla_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// defer os.RemoveAll(dir)
+
+	// Copy the test file to our temp directory
+	tempFile := filepath.Join(dir, "/hashtest.txt")
+	err = copy(testFile, tempFile)
+	if err != nil {
+		t.Error("copy failed: ", err)
+	}
+
+	fmt.Println("timestamps")
+	// Set the timestamps on our test file, so we can see if it was updated
+	testTime := time.Now().Add(-240 * time.Hour) // 10 days
+	err = os.Chtimes(tempFile, testTime, testTime)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create a test server
+	ts := httptest.NewServer(router())
+	defer ts.Close()
+
+	// Run the function with our test data and a validHash
+	valid := IfNeeded(tempFile, ts.URL+"/hashtest.txt", validHash)
+	if !valid {
+		t.Error("Unable to download valid file: ", ts.URL+"/hashtest.txt")
+	}
+
+	// Get the test file's modification time to see if it was redownloaded
+	fileInfo, err := os.Stat(tempFile)
+	if err != nil {
+		t.Error(err)
+	}
+	modTime := fileInfo.ModTime()
+
+	if !modTime.Equal(testTime) {
+		t.Error("IfNeeded() downloaded a file that *was not* needed!")
+	}
+
+}
+
+// TestIfNeededInvalid confirms that a file *is* downloaded when an invalid copy exists
+func TestIfNeededInvalid(t *testing.T) {
+
+	// Create a temporary directory
+	dir, err := ioutil.TempDir("", "gorilla_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// defer os.RemoveAll(dir)
+
+	// Copy a file with a different hash to our temp directory
+	tempFile := filepath.Join(dir, "/hashtest.txt")
+	err = copy("testdata/client.pem", tempFile)
+	if err != nil {
+		t.Error("copy failed: ", err)
+	}
+
+	// Set the timestamps on our test file, so we can see if it was updated
+	testTime := time.Now().Add(-240 * time.Hour) // 10 days
+	err = os.Chtimes(tempFile, testTime, testTime)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Create a test server
+	ts := httptest.NewServer(router())
+	defer ts.Close()
+
+	// Run the function with our test data and a validHash
+	valid := IfNeeded(tempFile, ts.URL+"/hashtest.txt", validHash)
+	if !valid {
+		t.Error("Unable to download valid file: ", ts.URL+"/hashtest.txt")
+	}
+
+	// Get the test file's modification time to see if it was redownloaded
+	fileInfo, err := os.Stat(tempFile)
+	if err != nil {
+		t.Error(err)
+	}
+	modTime := fileInfo.ModTime()
+
+	if modTime.Equal(testTime) {
+		t.Error("IfNeeded() did *not* download a file when it *was* needed!")
+	}
+
+}

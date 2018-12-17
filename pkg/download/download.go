@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,8 +25,7 @@ import (
 // Will only write to disk if http status code is 2XX
 func File(file string, url string) error {
 	// Get the absolute file path
-	tokens := strings.Split(url, "/")
-	fileName := tokens[len(tokens)-1]
+	_, fileName := path.Split(url)
 	absPath := filepath.Join(file, fileName)
 
 	// Create the dir and file
@@ -142,4 +142,32 @@ func Verify(file string, sha string) bool {
 		return false
 	}
 	return true
+}
+
+// IfNeeded takes the same values as Download plus a hash as a string
+// It will check if the file already exists, by comparing the hash
+// If the hash does not match, it will attempt to download the file
+// Once downloaded it will attempt to verify the hash again
+func IfNeeded(absFile string, url string, hash string) bool {
+	// If the file exists, check the hash
+	var verified = false
+	if _, err := os.Stat(absFile); err == nil {
+		verified = Verify(absFile, hash)
+	}
+
+	// If hash failed, download the installer
+	if !verified {
+		absPath, _ := filepath.Split(absFile)
+		gorillalog.Info("Downloading", url, "to", absPath)
+		// Download the installer
+		err := File(absPath, url)
+		if err != nil {
+			gorillalog.Warn("Unable to retrieve package:", url, err)
+			return verified
+		}
+		verified = Verify(absFile, hash)
+	}
+
+	// return the status of verified
+	return verified
 }

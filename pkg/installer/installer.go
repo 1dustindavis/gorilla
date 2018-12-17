@@ -105,7 +105,12 @@ func installItem(item catalog.Item) string {
 	}
 
 	// Download the item if it is needed
-	download.IfNeeded(absFile, installerURL, item.InstallerItemHash)
+	valid := download.IfNeeded(absFile, installerURL, item.InstallerItemHash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
+		gorillalog.Warn(msg)
+		return msg
+	}
 
 	// Run the command
 	installerOut := runCommand(installCmd, installArgs)
@@ -155,7 +160,12 @@ func uninstallItem(item catalog.Item) string {
 	}
 
 	// Download the item if it is needed
-	download.IfNeeded(absFile, uninstallerURL, item.UninstallerItemHash)
+	valid := download.IfNeeded(absFile, uninstallerURL, item.UninstallerItemHash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
+		gorillalog.Warn(msg)
+		return msg
+	}
 
 	// Run the command
 	uninstallerOut := runCommand(uninstallCmd, uninstallArgs)

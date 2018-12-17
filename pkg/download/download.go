@@ -168,6 +168,6 @@ func IfNeeded(absFile string, url string, hash string) bool {
 		verified = Verify(absFile, hash)
 	}
 
-	// return the status of verified and
+	// return the status of verified
 	return verified
 }

@@ -20,13 +20,13 @@ func main() {
 	// Start creating GorillaReport
 	report.Start()
 
-	// Get the catalog
-	gorillalog.Info("Retrieving catalog:", config.Current.Catalog)
-	catalog := catalog.Get()
-
 	// Get the manifests
 	gorillalog.Info("Retrieving manifest:", config.Current.Manifest)
 	manifests := manifest.Get()
+
+	// Get the catalog
+	gorillalog.Info("Retrieving catalog:", config.Current.Catalogs)
+	catalog := catalog.Get()
 
 	// Process the manifests into install type groups
 	gorillalog.Info("Processing manifest...")

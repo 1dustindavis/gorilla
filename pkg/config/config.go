@@ -20,19 +20,19 @@ var (
 
 // Object to store our configuration
 type Object struct {
-	URL           string `yaml:"url"`
-	URLPackages   string `yaml:"url_packages"`
-	Manifest      string `yaml:"manifest"`
-	Catalog       string `yaml:"catalog"`
-	AppDataPath   string `yaml:"app_data_path"`
-	Verbose       bool   `yaml:"verbose,omitempty"`
-	Debug         bool   `yaml:"debug,omitempty"`
-	AuthUser      string `yaml:"auth_user,omitempty"`
-	AuthPass      string `yaml:"auth_pass,omitempty"`
-	TLSAuth       bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey  string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert string `yaml:"tls_server_cert,omitempty"`
+	URL           string   `yaml:"url"`
+	URLPackages   string   `yaml:"url_packages"`
+	Manifest      string   `yaml:"manifest"`
+	Catalogs      []string `yaml:"catalogs"`
+	AppDataPath   string   `yaml:"app_data_path"`
+	Verbose       bool     `yaml:"verbose,omitempty"`
+	Debug         bool     `yaml:"debug,omitempty"`
+	AuthUser      string   `yaml:"auth_user,omitempty"`
+	AuthPass      string   `yaml:"auth_pass,omitempty"`
+	TLSAuth       bool     `yaml:"tls_auth,omitempty"`
+	TLSClientCert string   `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey  string   `yaml:"tls_client_key,omitempty"`
+	TLSServerCert string   `yaml:"tls_server_cert,omitempty"`
 }
 
 // Define flag defaults
@@ -161,7 +161,7 @@ func Get() {
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = Current.Manifest
-	report.Items["Catalog"] = Current.Catalog
+	report.Items["Catalog"] = Current.Catalogs
 
 	return
 }

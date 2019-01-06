@@ -18,19 +18,19 @@ var (
 	origOsRemove    = osRemove
 
 	// Setup a test catalog
-	testCatalog = map[string]catalog.Item{
-		"Chocolatey":     catalog.Item{DisplayName: "Chocolatey", InstallerItemLocation: "Chocolatey.msi", Dependencies: []string{`TestUpdate1`}},
-		"GoogleChrome":   catalog.Item{DisplayName: "GoogleChrome", InstallerItemLocation: "GoogleChrome.msi"},
-		"TestInstall1":   catalog.Item{DisplayName: "TestInstall1", InstallerItemLocation: "TestInstall1.msi"},
-		"TestInstall2":   catalog.Item{DisplayName: "TestInstall2", InstallerItemLocation: "TestInstall2.msi"},
-		"AdobeFlash":     catalog.Item{DisplayName: "AdobeFlash", UninstallerItemLocation: "AdobeUninst.msi"},
-		"Chef Client":    catalog.Item{DisplayName: "Chef Client", InstallerItemLocation: "chef.msi"},
-		"CanonDrivers":   catalog.Item{DisplayName: "CanonDrivers", InstallerItemLocation: "TestInstall1.msi"},
-		"TestUninstall1": catalog.Item{DisplayName: "TestUninstall1", UninstallerItemLocation: "TestUninst2.ps1"},
-		"TestUninstall2": catalog.Item{DisplayName: "TestUninstall2", UninstallerItemLocation: "TestUninst2.exe"},
-		"TestUpdate1":    catalog.Item{DisplayName: "TestUpdate1", InstallerItemLocation: "TestUpdate1.nupkg"},
-		"TestUpdate2":    catalog.Item{DisplayName: "TestUpdate2", InstallerItemLocation: "TestUpdate2.ps1"},
-	}
+	testCatalogs = map[int]map[string]catalog.Item{1: {
+		"Chocolatey":     catalog.Item{DisplayName: "Chocolatey", InstallerType: "msi", InstallerItemLocation: "Chocolatey.msi", Dependencies: []string{`TestUpdate1`}},
+		"GoogleChrome":   catalog.Item{DisplayName: "GoogleChrome", InstallerType: "msi", InstallerItemLocation: "GoogleChrome.msi"},
+		"TestInstall1":   catalog.Item{DisplayName: "TestInstall1", InstallerType: "msi", InstallerItemLocation: "TestInstall1.msi"},
+		"TestInstall2":   catalog.Item{DisplayName: "TestInstall2", InstallerType: "msi", InstallerItemLocation: "TestInstall2.msi"},
+		"AdobeFlash":     catalog.Item{DisplayName: "AdobeFlash", UninstallerType: "msi", UninstallerItemLocation: "AdobeUninst.msi"},
+		"Chef Client":    catalog.Item{DisplayName: "Chef Client", InstallerType: "msi", InstallerItemLocation: "chef.msi"},
+		"CanonDrivers":   catalog.Item{DisplayName: "CanonDrivers", InstallerType: "msi", InstallerItemLocation: "TestInstall1.msi"},
+		"TestUninstall1": catalog.Item{DisplayName: "TestUninstall1", UninstallerType: "ps1", UninstallerItemLocation: "TestUninst2.ps1"},
+		"TestUninstall2": catalog.Item{DisplayName: "TestUninstall2", UninstallerType: "exe", UninstallerItemLocation: "TestUninst2.exe"},
+		"TestUpdate1":    catalog.Item{DisplayName: "TestUpdate1", InstallerType: "nupkg", InstallerItemLocation: "TestUpdate1.nupkg"},
+		"TestUpdate2":    catalog.Item{DisplayName: "TestUpdate2", InstallerType: "ps1", InstallerItemLocation: "TestUpdate2.ps1"},
+	}}
 
 	// Arrays of the test items
 	testInstalls   = []string{"Chocolatey", "GoogleChrome", "TestInstall1", "TestInstall2"}
@@ -66,7 +66,7 @@ func TestManifests(t *testing.T) {
 	}
 
 	// Store the actual results of running `Manifests`
-	actualInstalls, actualUninstalls, actualUpdates := Manifests(testManifests, testCatalog)
+	actualInstalls, actualUninstalls, actualUpdates := Manifests(testManifests, testCatalogs)
 
 	// Define what we expect it to return
 	expectedInstalls := testInstalls
@@ -98,7 +98,7 @@ func TestInstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Installs` with test data
-	Installs(testInstalls, testCatalog)
+	Installs(testInstalls, testCatalogs)
 
 	// Define what we expect to be in the list of installed items
 	// This ends up being the testInstalls slice *PLUS any dependencies*
@@ -121,7 +121,7 @@ func TestUninstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Uninstalls` with test data
-	Uninstalls(testUninstalls, testCatalog)
+	Uninstalls(testUninstalls, testCatalogs)
 
 	// Define what we expect to be in the list of uninstalled items
 	expectedItems := testUninstalls
@@ -143,7 +143,7 @@ func TestUpdates(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Updates` with test data
-	Updates(testUpdates, testCatalog)
+	Updates(testUpdates, testCatalogs)
 
 	// Define what we expect to be in the list of updated items
 	expectedItems := testUpdates

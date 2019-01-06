@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
@@ -31,24 +32,47 @@ type Item struct {
 var downloadFile = download.File
 
 // Get returns a map of `Item` from the catalog
-func Get() map[string]Item {
+func Get() map[int]map[string]Item {
 
-	// Download the catalog
-	catalogURL := config.Current.URL + "catalogs/" + config.Current.Catalog + ".yaml"
-	gorillalog.Info("Catalog Url:", catalogURL)
-	err := downloadFile(config.CachePath, catalogURL)
-	if err != nil {
-		gorillalog.Error("Unable to retrieve catalog:", config.Current.Catalog, err)
+	// catalogMap is an map of parsed catalogs
+	var catalogMap map[int]map[string]Item
+	catalogMap = make(map[int]map[string]Item)
+
+	// catalogCount allows us to be sure we are processing catalogs in order
+	var catalogCount = 0
+
+	// Error if dont have at least one catalog
+	if len(config.Current.Catalogs) < 1 {
+		gorillalog.Warn("Unable to continue, no catalogs assigned: ", config.Current.Catalogs)
+		os.Exit(1)
 	}
 
-	// Parse the catalog
-	yamlPath := filepath.Join(config.CachePath, config.Current.Catalog) + ".yaml"
-	gorillalog.Debug("Catalog file path:", yamlPath)
-	yamlFile, err := ioutil.ReadFile(yamlPath)
-	var catalog map[string]Item
-	err = yaml.Unmarshal(yamlFile, &catalog)
-	if err != nil {
-		gorillalog.Error("Unable to parse yaml catalog:", yamlPath, err)
+	// Loop through the catalogs and get each one in order
+	for _, catalog := range config.Current.Catalogs {
+
+		catalogCount++
+
+		// Download the catalog
+		catalogURL := config.Current.URL + "catalogs/" + catalog + ".yaml"
+		gorillalog.Info("Catalog Url:", catalogURL)
+		err := downloadFile(config.CachePath, catalogURL)
+		if err != nil {
+			gorillalog.Error("Unable to retrieve catalog:", catalog, err)
+		}
+
+		// Parse the catalog
+		yamlPath := filepath.Join(config.CachePath, catalog) + ".yaml"
+		gorillalog.Debug("Catalog file path:", yamlPath)
+		yamlFile, err := ioutil.ReadFile(yamlPath)
+		var catalogItems map[string]Item
+		err = yaml.Unmarshal(yamlFile, &catalogItems)
+		if err != nil {
+			gorillalog.Error("Unable to parse yaml catalog:", yamlPath, err)
+		}
+
+		// Add the new parsed catalog items to the catalogMap
+		catalogMap[catalogCount] = catalogItems
 	}
-	return catalog
+
+	return catalogMap
 }

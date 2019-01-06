@@ -1,5 +1,7 @@
 ---
 name: example_manifest
+catalogs:
+  - test_catalog2
 managed_installs:
   - Chocolatey
   - GoogleChrome

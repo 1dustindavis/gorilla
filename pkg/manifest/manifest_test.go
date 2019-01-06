@@ -14,6 +14,7 @@ var (
 	origManifest     = config.Current.Manifest
 	origURL          = config.Current.URL
 	origDownloadFile = downloadFile
+	origCatalogs     = config.Current.Catalogs
 )
 
 // TestGetManifest verifies a single manifest is processed correctly
@@ -83,6 +84,36 @@ func TestGet(t *testing.T) {
 
 	if !structsMatch {
 		t.Errorf("\nExpected: %#v\nActual: %#v", expectedManifests, actualManifests)
+	}
+}
+
+// TestGetCatalogs verifies that catalogs included in a manifest get added to the config
+func TestGetCatalogs(t *testing.T) {
+	// Override the cachepath, manifest, and catalogs
+	config.Current.Catalogs = []string{"alpha", "beta"}
+	config.CachePath = "testdata/"
+	config.Current.Manifest = "example_manifest_catalogs"
+	config.Current.URL = "http://example.com/"
+	downloadFile = fakeDownload
+	defer func() {
+		config.Current.Catalogs = origCatalogs
+		config.CachePath = origCachePath
+		config.Current.Manifest = origManifest
+		config.Current.URL = origURL
+		downloadFile = origDownloadFile
+	}()
+
+	// Run Get() to process the manifests and (hopefully) append the catalogs
+	Get()
+
+	// Define our expected catalogs
+	expectedCatalogs := []string{"alpha", "beta", "production1", "production2"}
+
+	// Compare our expectations to the actual catalogs
+	slicesMatch := reflect.DeepEqual(expectedCatalogs, config.Current.Catalogs)
+
+	if !slicesMatch {
+		t.Errorf("\nExpected: %#v\nActual: %#v", expectedCatalogs, config.Current.Catalogs)
 	}
 }
 

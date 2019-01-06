@@ -12,7 +12,7 @@ func TestGet(t *testing.T) {
 	expected := Object{
 		URL:         "https://example.com/gorilla/",
 		Manifest:    "example_manifest",
-		Catalog:     "example_catalog",
+		Catalogs:    []string{"example_catalog"},
 		AppDataPath: "c:/cpe/gorilla/",
 		Verbose:     true,
 		Debug:       true,

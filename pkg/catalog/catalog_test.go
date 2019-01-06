@@ -41,12 +41,12 @@ If ($upToDate) {
 	}
 
 	config.Current.URL = "http://example.com/"
-	config.Current.Catalog = "test_catalog"
+	config.Current.Catalogs = []string{"test_catalog"}
 	config.CachePath = "testdata/"
 	downloadFile = fakeDownload
 	testCatalog := Get()
 
-	mapsMatch := reflect.DeepEqual(expected, testCatalog)
+	mapsMatch := reflect.DeepEqual(expected, testCatalog[1])
 
 	if !mapsMatch {
 		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, testCatalog)

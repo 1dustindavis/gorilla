@@ -8,6 +8,9 @@ environment:
 
 stack: go 1.11
 
+install:
+  - cinst make
+
 before_test:
   - make lint
 

@@ -10,6 +10,7 @@ stack: go 1.11
 
 install:
   - cinst make
+  - cinst grep
 
 before_test:
   - make lint

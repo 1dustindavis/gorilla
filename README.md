@@ -29,7 +29,9 @@ The configuration file is in yaml format and defaults to `%ProgramData%/gorilla/
 ---
 url: https://YourWebServer/gorilla/
 manifest: example
-catalog: production
+catalogs: 
+  - alpha
+  - beta
 cachepath: C:/gorilla/cache
 auth_user: GorillaRepoUser
 auth_pass: pizzaisyummy
@@ -42,9 +44,9 @@ tls_server_cert: c:/certs/server.pem
 ### Required Keys
 * `url` is the path on your server that contains the directories for manifests, catalogs, and packages.
 * `manifest` is the primary manifest that is assigned to this machine.
-* `catalog` is the catalog that is assigned to this machine.
 
 ### Optional Keys
+* `catalogs` is an array of catalogs that are assigned to this machine. If you do not provide a catalog in the config, you must have one in a manifest.
 * `app_data_path` is Gorilla's working directory, and may store copies of manifests, catalogs, or packages. If `app_data_path` is not provided, it will default to `%ProgramData%/gorilla/`.
 * `url_packages` is an optional base url to be used instead of `url` when downloading packages.
 
@@ -59,7 +61,7 @@ TLS Auth
 * `tls_server_cert` is the absolute path to your server's CA cert in PEM format.
 
 ## Manifests
-A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Manifests are in yaml format and must include the name of the manifest:
+A manifest can include managed_installs, managed_uninstalls, managed_updates, or additional manifests. Catalogs can also be assigned via manifests. Manifests are in yaml format and must include the name of the manifest:
 
 ```yaml
 ---
@@ -74,6 +76,8 @@ managed_updates:
 included_manifests:
   - printers
   - internal
+catalogs:
+  - production
 ```
 ## Catalogs
 A catalog contains details on all available packages. Catalogs are in yaml format with each package reperesented by the package name with a nested object containing the package details:

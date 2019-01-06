@@ -17,10 +17,11 @@ type Item struct {
 	Installs   []string `yaml:"managed_installs"`
 	Uninstalls []string `yaml:"managed_uninstalls"`
 	Updates    []string `yaml:"managed_updates"`
+	Catalogs   []string `yaml:"catalogs"`
 }
 
 func getManifest(manifestName string) Item {
-	// Get the yaml file and look for included_manifests
+	// Unmarshal the yaml file
 	yamlPath := filepath.Join(config.CachePath, manifestName) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)
 	var manifest Item
@@ -42,7 +43,7 @@ func Get() []Item {
 	// This is so we can track them before we get the data
 	var manifestsList []string
 
-	// Setup interation tracking for manifests
+	// Setup iteration tracking for manifests
 	var manifestsTotal = len(manifestsList)
 	var manifestsProcessed = 0
 	var manifestsRemaining = 1
@@ -99,6 +100,21 @@ func Get() []Item {
 		if uniqueInManifests {
 			// manifests = append([]Item{newManifest}, manifests...)
 			manifests = append(manifests, newManifest)
+		}
+
+		// If any catalogs are in the manifest, append them to the end of the list
+		for _, newCatalog := range newManifest.Catalogs {
+			// Before adding it, check if it is already on the list
+			var match bool
+			for _, oldCatalog := range config.Current.Catalogs {
+				if oldCatalog == newCatalog {
+					match = true
+				}
+			}
+			// If "match" is still false, it is not already on the list
+			if match == false {
+				config.Current.Catalogs = append(config.Current.Catalogs, newCatalog)
+			}
 		}
 
 		// Increment counters

@@ -115,20 +115,19 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
+	cmdSuccess := cmd.ProcessState.Success()
 	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+
 	// Delete the temporary script
 	os.Remove(tmpScript)
 
+	// Log results
 	gorillalog.Debug("Command Error:", err)
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
 
-	// Dont't install if stderr is zero
-	if errStr == "" {
-		actionNeeded = false
-	} else {
-		actionNeeded = true
-	}
+	// Install if exit 0
+	actionNeeded = cmdSuccess
 
 	return actionNeeded, checkErr
 }

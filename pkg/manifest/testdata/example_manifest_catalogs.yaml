@@ -1,0 +1,15 @@
+---
+name: example_manifest
+managed_installs:
+  - Chocolatey
+  - GoogleChrome
+managed_updates:
+  - ChefClient
+  - CanonDrivers
+managed_uninstalls:
+  - AdobeFlash
+included_manifests:
+  - included_manifest
+catalogs:
+  - production1
+  - production2

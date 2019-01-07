@@ -92,7 +92,7 @@ test:
 	gotest -cover -race $(shell go list ./... | grep -v /vendor/)
 
 lint:
-	@if gofmt -l . | egrep -v ^vendor/ | grep .go; then \
+	@if gofmt -l ./cmd/ ./pkg/ | grep .go; then \
 	  echo "^- Repo contains improperly formatted go files; run gofmt -w *.go" && exit 1; \
 	  else echo "All .go files formatted correctly"; fi
 	GOOS=windows GOARCH=amd64 go vet ./...

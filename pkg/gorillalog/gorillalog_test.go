@@ -84,8 +84,8 @@ func TestDebug(t *testing.T) {
 	}
 }
 
-// ExampleDebugOff tests the output of a log sent to DEBUG while config.Debug is false
-func ExampleDebugOff() {
+// ExampleDebug_off tests the output of a log sent to DEBUG while config.Debug is false
+func ExampleDebug_off() {
 	// Set up what we expect
 	logString := "Debug String!"
 
@@ -96,8 +96,8 @@ func ExampleDebugOff() {
 	// Output:
 }
 
-// ExampleDebugOn tests the output of a log sent to DEBUG while config.Debug is true
-func ExampleDebugOn() {
+// ExampleDebug_on tests the output of a log sent to DEBUG while config.Debug is true
+func ExampleDebug_on() {
 	// Set up what we expect
 	logString := "Debug String!"
 
@@ -136,8 +136,8 @@ func TestInfo(t *testing.T) {
 	}
 }
 
-// ExampleInfoVerboseOff tests the output of a log sent to INFO while config.Verbose is false
-func ExampleInfoVerboseOff() {
+// ExampleInfo_verbose_off tests the output of a log sent to INFO while config.Verbose is false
+func ExampleInfo_verbose_off() {
 	// Set up what we expect
 	logString := "Info String!"
 
@@ -150,7 +150,7 @@ func ExampleInfoVerboseOff() {
 }
 
 // ExampleInfoVerboseOn tests the output of a log sent to INFO while config.Verbose is true
-func ExampleInfoVerboseOn() {
+func ExampleInfo_verbose_on() {
 	// Set up what we expect
 	logString := "Info String!"
 

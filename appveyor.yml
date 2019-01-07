@@ -8,13 +8,19 @@ environment:
 
 stack: go 1.11
 
-install:
-  - cinst make
-  - cinst grep
-
 before_test:
-  - make deps
-  - make lint
+  # Resolve all of our dependencies
+  - go get -u github.com/golang/dep/...
+  - go get -u github.com/golang/lint/golint
+  - dep ensure -vendor-only -v
+  # Run linters
+  - ps: |
+    if (gofmt -l ./cmd/ ./pkg/)
+    {
+      Write-Error "Repo contains improperly formatted go files; run gofmt -w *.go"
+    }
+  - go vet ./...
+  - golint ./cmd/ ./pkg/
 
 test_script:
-  - make test
+  - gotest -cover -race ./...

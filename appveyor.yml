@@ -1,0 +1,61 @@
+version: 1.0.{build}
+clone_folder: c:\gopath\src\github.com\1dustindavis\gorilla
+environment:
+  GOPATH: c:\gopath
+install:
+- ps: >-
+    $env:Path += ";c:\gopath\bin"
+
+    go get -u github.com/golang/dep/...
+
+    go get -u github.com/golang/lint/golint
+
+    dep ensure
+build_script:
+- ps: >-
+    # Define our version info
+
+    $VERSION = git describe --tags --always --dirty
+
+    $BRANCH = git rev-parse --abbrev-ref HEAD
+
+    $REVISION = git rev-parse HEAD
+
+    $REVSHORT = git rev-parse --short HEAD
+
+    $APP_NAME = "gorilla"
+
+
+    $BUILD_VERSION = "-X github.com/1dustindavis/gorilla/pkg/version.appName=$APP_NAME " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.version=$VERSION " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.branch=$BRANCH " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.buildDate=$NOW " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.revision=$REVISION " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.goVersion=$GOVERSION"
+
+    # Make our build directory and run the build command
+
+    mkdir build > $null
+
+    go build -i -o build/gorilla.exe -ldflags $BUILD_VERSION ./cmd/gorilla
+test_script:
+- ps: >-
+    # Add the go bin directory to the path
+
+    $env:Path += ";c:\gopath\bin"
+
+
+    # Error if gofmt returns anything
+
+    If (gofmt -l ./cmd/ ./pkg/) {
+        Write-Error "Repo contains improperly formatted go files; run gofmt -w *.go"
+    }
+
+
+    # Run go vet and go lint
+
+    go vet ./...
+
+    golint ./cmd/ ./pkg/
+artifacts:
+- path: build/gorilla.exe

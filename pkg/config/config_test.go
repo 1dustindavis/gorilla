@@ -72,8 +72,8 @@ func TestParseArguments(t *testing.T) {
 	}
 }
 
-// ExampleHelp tests if help is is parsed properly
-func ExampleHelp() {
+// Example tests if help is is parsed properly
+func Example() {
 
 	// Save the original osExit
 	origExit := osExit

@@ -15,8 +15,7 @@ before_test:
   - dep ensure -vendor-only -v
   # Run linters
   - ps: |
-    if (gofmt -l ./cmd/ ./pkg/)
-    {
+    If (gofmt -l ./cmd/ ./pkg/) {
       Write-Error "Repo contains improperly formatted go files; run gofmt -w *.go"
     }
   - go vet ./...

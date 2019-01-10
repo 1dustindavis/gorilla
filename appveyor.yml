@@ -42,7 +42,7 @@ test_script:
 - ps: >-
     # Add the go bin directory to the path
 
-    $env:Path += ";c:\gopath\bin"
+    $env:Path += ";c:\gopath\bin;C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0\mingw64\bin"
 
 
     # Error if gofmt returns anything
@@ -57,5 +57,10 @@ test_script:
     go vet ./...
 
     golint ./cmd/ ./pkg/
+
+
+    # Run tests
+
+    go test -cover -race ./...
 artifacts:
 - path: build/gorilla.exe

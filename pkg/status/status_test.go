@@ -1,7 +1,3 @@
-// Without a darwin specific build, tests will try to include Windows libraries and fail
-
-// +build !windows
-
 package status
 
 import (
@@ -11,8 +7,8 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
-// CheckStatus determines the method for checking status
-func CheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
+// TODO: make this logic as part of a test abstraction
+func checkStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
 
 	// Catch special names used in tests
 	if catalogItem.DisplayName == "_gorilla_dev_action_noerror_" {

@@ -138,7 +138,7 @@ func Verify(file string, sha string) bool {
 	}
 	shaHash := hex.EncodeToString(h.Sum(nil))
 	if shaHash != strings.ToLower(sha) {
-		gorillalog.Warn("Downloaded file hash does not match catalog hash")
+		gorillalog.Debug("File hash does not match expected value:", file)
 		return false
 	}
 	return true

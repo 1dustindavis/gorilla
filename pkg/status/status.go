@@ -76,6 +76,7 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	// if we get an error, we need to install
 	_, checkErr = os.Stat(path)
 	if checkErr != nil {
+		gorillalog.Debug("Path check failed for ", path)
 		actionNeeded = true
 		return
 	}
@@ -83,6 +84,7 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	// If a hash is not blank, verify it matches the file
 	// if the hash does not match, we need to install
 	if hash != "" {
+		gorillalog.Debug("Check Hash", hash)
 		hashMatch := download.Verify(path, hash)
 		if !hashMatch {
 			actionNeeded = true

@@ -23,8 +23,9 @@ var (
 	commandMsi   = filepath.Join(os.Getenv("WINDIR"), "system32/", "msiexec.exe")
 	commandPs1   = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
 
-	// This abstraction allows us to override when testing
-	execCommand = exec.Command
+	// These abstractions allows us to override when testing
+	execCommand       = exec.Command
+	statusCheckStatus = status.CheckStatus
 
 	// Stores url where we will download an item
 	installerURL   string
@@ -180,7 +181,7 @@ func uninstallItem(item catalog.Item) string {
 // calls the appropriate function to install or uninstall
 func Install(item catalog.Item, installerType string) string {
 	// Check the status and determine if any action is needed for this item
-	actionNeeded, err := status.CheckStatus(item, installerType)
+	actionNeeded, err := statusCheckStatus(item, installerType)
 	if err != nil {
 		msg := fmt.Sprint("Unable to check status: ", err)
 		gorillalog.Warn(msg)

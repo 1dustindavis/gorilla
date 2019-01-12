@@ -9,6 +9,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
 )
 
@@ -17,6 +18,7 @@ import (
 var (
 	// store original data to restore after each test
 	origExec            = execCommand
+	origCheckStatus     = statusCheckStatus
 	origCachePath       = config.CachePath
 	origURLPackages     = config.Current.URLPackages
 	origURL             = config.Current.URL
@@ -64,10 +66,10 @@ var (
 		UninstallerType:          `ps1`,
 	}
 
-	// Define different DisplayName options to bypass status checks
+	// Define different options to bypass status checks during tests
 	statusActionNoError   = `_gorilla_dev_action_noerror_`
-	statusActionError     = `_gorilla_dev_action_error_`
 	statusNoActionNoError = `_gorilla_dev_noaction_noerror_`
+	statusActionError     = `_gorilla_dev_action_error_`
 	statusNoActionError   = `_gorilla_dev_noaction_error_`
 )
 
@@ -89,6 +91,32 @@ func TestHelperProcess(t *testing.T) {
 	// print the command we received
 	fmt.Print(os.Args[3:])
 	os.Exit(0)
+}
+
+func fakeCheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
+
+	// Catch special names used in tests
+	if catalogItem.DisplayName == statusActionNoError {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return true, nil
+	} else if catalogItem.DisplayName == statusNoActionNoError {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return false, nil
+	} else if catalogItem.DisplayName == statusActionError {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return true, fmt.Errorf("testing %v", catalogItem.DisplayName)
+	} else if catalogItem.DisplayName == statusNoActionError {
+		gorillalog.Warn("Running Development Tests!")
+		gorillalog.Warn(catalogItem.DisplayName)
+		return false, fmt.Errorf("testing %v", catalogItem.DisplayName)
+	}
+
+	fmt.Println(catalogItem.DisplayName)
+	fmt.Println(installType)
+	return false, nil
 }
 
 // TestRunCommand verifies that the command and it's arguments are processed correctly
@@ -116,12 +144,14 @@ func TestRunCommand(t *testing.T) {
 // TestInstallItem validate the command that is passed to
 // exec.Command for each installer type
 func TestInstallItem(t *testing.T) {
-	// Override execCommand with our fake version
+	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
 	// Override the cachepath to use our test directory
 	config.CachePath = "testdata/"
 	defer func() {
 		execCommand = origExec
+		statusCheckStatus = origCheckStatus
 		config.CachePath = origCachePath
 	}()
 
@@ -177,6 +207,11 @@ func TestInstallItem(t *testing.T) {
 
 // TestInstallStatusError verifies that Install returns if status check fails
 func TestInstallStatusError(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi installer with this status bypass to trigger an error
 	msiItem.DisplayName = statusActionError
@@ -192,6 +227,11 @@ func TestInstallStatusError(t *testing.T) {
 
 // TestInstallStatusFalse verifies that Install returns if status check is false
 func TestInstallStatusFalse(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi installer with this status bypass to make status return false
 	msiItem.DisplayName = statusNoActionNoError
@@ -208,12 +248,14 @@ func TestInstallStatusFalse(t *testing.T) {
 // TestUninstallItem validate the command that is passed to
 // exec.Command for each installer type
 func TestUninstallItem(t *testing.T) {
-	// Override execCommand with our fake version
+	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
 	// Override the cachepath to use our test directory
 	config.CachePath = "testdata/"
 	defer func() {
 		execCommand = origExec
+		statusCheckStatus = origCheckStatus
 		config.CachePath = origCachePath
 	}()
 
@@ -269,6 +311,11 @@ func TestUninstallItem(t *testing.T) {
 
 // TestUninstallStatusError verifies that Uninstall returns if status check fails
 func TestUninstallStatusError(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi uninstaller with this status bypass to trigger an error
 	msiItem.DisplayName = statusNoActionError
@@ -284,6 +331,11 @@ func TestUninstallStatusError(t *testing.T) {
 
 // TestUninstallStatusTrue verifies that Uninstall returns if status check is true
 func TestUninstallStatusTrue(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi uninstaller with this status bypass to make status return true
 	msiItem.DisplayName = statusNoActionNoError
@@ -299,6 +351,11 @@ func TestUninstallStatusTrue(t *testing.T) {
 
 // TestUpdateStatusError verifies that Update returns if status check fails
 func TestUpdateStatusError(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi installer with this status bypass to trigger an error
 	msiItem.DisplayName = statusActionError
@@ -314,6 +371,11 @@ func TestUpdateStatusError(t *testing.T) {
 
 // TestUpdateStatusFalse verifies that Update returns if status check is false
 func TestUpdateStatusFalse(t *testing.T) {
+	// Override checkStatus with our fake version
+	statusCheckStatus = fakeCheckStatus
+	defer func() {
+		statusCheckStatus = origCheckStatus
+	}()
 
 	// Run the msi installer with this status bypass to make status return dalse
 	msiItem.DisplayName = statusNoActionNoError

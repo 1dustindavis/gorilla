@@ -26,6 +26,9 @@ type Application struct {
 var (
 	// RegistryItems contains the status of all of the applications in the registry
 	RegistryItems map[string]Application
+
+	// Abstracted functions so we can override these in unit tests
+	execCommand = exec.Command
 )
 
 func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
@@ -39,7 +42,7 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
 
 	// Execute the script
-	cmd := exec.Command(psCmd, psArgs...)
+	cmd := execCommand(psCmd, psArgs...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -66,17 +69,25 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	hash := catalogItem.InstallCheckPathHash
 	gorillalog.Debug("Check Path", path)
 
+	// Default to no action needed
+	actionNeeded = false
+
 	// Confirm that path exists
-	// Install if we get an error
-	if _, checkErr := os.Stat(path); checkErr != nil {
+	// if we get an error, we need to install
+	_, checkErr = os.Stat(path)
+	if checkErr != nil {
 		actionNeeded = true
-	} else {
-		actionNeeded = false
+		return
 	}
 
-	// If a hash is configured, verify it matches
-	if !actionNeeded && hash != "" {
-		actionNeeded = download.Verify(path, hash)
+	// If a hash is not blank, verify it matches the file
+	// if the hash does not match, we need to install
+	if hash != "" {
+		hashMatch := download.Verify(path, hash)
+		if !hashMatch {
+			actionNeeded = true
+			return
+		}
 	}
 
 	return actionNeeded, checkErr

@@ -177,7 +177,7 @@ func TestInstallItem(t *testing.T) {
 	// Run Install
 	actualMsi := installItem(msiItem)
 	// Check the result
-	msiCmd := filepath.Join(os.Getenv("ProgramData"), "system32/msiexec.exe")
+	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.msi")
 	expectedMsi := "[" + msiCmd + " /i " + msiPath + " /qn /norestart]"
 	if have, want := actualMsi, expectedMsi; have != want {
@@ -204,7 +204,7 @@ func TestInstallItem(t *testing.T) {
 	// Run Install
 	actualPs1 := installItem(ps1Item)
 	// Check the result
-	ps1Cmd := filepath.Join(os.Getenv("ProgramData"), "system32/WindowsPowershell/v1.0/powershell.exe")
+	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.ps1")
 	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1Path + "]"
 	if have, want := actualPs1, expectedPs1; have != want {
@@ -288,7 +288,7 @@ func TestUninstallItem(t *testing.T) {
 	// Run Uninstall
 	actualMsi := uninstallItem(msiItem)
 	// Check the result
-	msiCmd := filepath.Join(os.Getenv("ProgramData"), "system32/msiexec.exe")
+	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.msi")
 	expectedMsi := "[" + msiCmd + " /x " + msiPath + " /qn /norestart]"
 	if have, want := actualMsi, expectedMsi; have != want {
@@ -315,7 +315,7 @@ func TestUninstallItem(t *testing.T) {
 	// Run Uninstall
 	actualPs1 := uninstallItem(ps1Item)
 	// Check the result
-	ps1Cmd := filepath.Join(os.Getenv("ProgramData"), "system32/WindowsPowershell/v1.0/powershell.exe")
+	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")
 	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1Path + "]"
 	if have, want := actualPs1, expectedPs1; have != want {

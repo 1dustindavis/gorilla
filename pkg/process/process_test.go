@@ -2,6 +2,7 @@ package process
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -172,31 +173,37 @@ func TestCleanUp(t *testing.T) {
 	newTime := time.Now().Add(-24 * time.Hour)  // 1 day
 	oldTime := time.Now().Add(-240 * time.Hour) // 10 days
 
+	// Define the various file paths we will user
+	emptyDir := filepath.Clean("testdata/cache/empty")
+	oldFile := filepath.Clean("testdata/cache/old.msi")
+	newFile := filepath.Clean("testdata/cache/new.msi")
+	childFile := filepath.Clean("testdata/cache/full/file.msi")
+
 	// Set the timestamps on each test file
-	err := os.Chtimes("testdata/cache/old.msi", oldTime, oldTime)
+	err := os.Chtimes(oldFile, oldTime, oldTime)
 	if err != nil {
 		t.Error(err)
 	}
-	err = os.Chtimes("testdata/cache/new.msi", newTime, newTime)
+	err = os.Chtimes(newFile, newTime, newTime)
 	if err != nil {
 		t.Error(err)
 	}
-	err = os.Chtimes("testdata/cache/full/file.msi", newTime, newTime)
+	err = os.Chtimes(childFile, newTime, newTime)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// Create an empty directory if it doesn't already exist
-	if _, err := os.Stat("testdata/cache/empty"); os.IsNotExist(err) {
+	if _, err := os.Stat(emptyDir); os.IsNotExist(err) {
 		// Directory does not exist
-		os.Mkdir("testdata/cache/empty", os.ModePerm)
+		os.Mkdir(emptyDir, os.ModePerm)
 	}
 
 	// Run `CleanUp`
 	CleanUp()
 
 	// Define the files and directories we expect to be deleted
-	expectedFiles := []string{"testdata/cache/old.msi", "testdata/cache/empty"}
+	expectedFiles := []string{oldFile, emptyDir}
 
 	// Compare our expectaions with the actual results
 	matchItems := reflect.DeepEqual(expectedFiles, actualRemovedFiles)

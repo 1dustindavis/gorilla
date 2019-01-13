@@ -35,8 +35,7 @@ var downloadFile = download.File
 func Get() map[int]map[string]Item {
 
 	// catalogMap is an map of parsed catalogs
-	var catalogMap map[int]map[string]Item
-	catalogMap = make(map[int]map[string]Item)
+	var catalogMap = make(map[int]map[string]Item)
 
 	// catalogCount allows us to be sure we are processing catalogs in order
 	var catalogCount = 0
@@ -60,10 +59,15 @@ func Get() map[int]map[string]Item {
 			gorillalog.Error("Unable to retrieve catalog:", catalog, err)
 		}
 
-		// Parse the catalog
+		// Open the catalog file
 		yamlPath := filepath.Join(config.CachePath, catalog) + ".yaml"
 		gorillalog.Debug("Catalog file path:", yamlPath)
 		yamlFile, err := ioutil.ReadFile(yamlPath)
+		if err != nil {
+			gorillalog.Error("Unable to open the catalog file:", yamlPath, err)
+		}
+
+		// Parse the catalog
 		var catalogItems map[string]Item
 		err = yaml.Unmarshal(yamlFile, &catalogItems)
 		if err != nil {

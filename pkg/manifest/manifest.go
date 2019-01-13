@@ -24,6 +24,9 @@ func getManifest(manifestName string) Item {
 	// Unmarshal the yaml file
 	yamlPath := filepath.Join(config.CachePath, manifestName) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		gorillalog.Error("Unable to read manifest:", yamlFile, err)
+	}
 	var manifest Item
 	err = yaml.Unmarshal(yamlFile, &manifest)
 	if err != nil {
@@ -69,9 +72,7 @@ func Get() []Item {
 		newManifest := getManifest(currentManifest)
 
 		// Add any includes to our working list
-		for _, item := range newManifest.Includes {
-			workingList = append(workingList, item)
-		}
+		workingList = append(workingList, newManifest.Includes...)
 
 		// Get workingList unique items, and add to the real list
 		for _, item := range workingList {
@@ -112,7 +113,7 @@ func Get() []Item {
 				}
 			}
 			// If "match" is still false, it is not already on the list
-			if match == false {
+			if !match {
 				config.Current.Catalogs = append(config.Current.Catalogs, newCatalog)
 			}
 		}

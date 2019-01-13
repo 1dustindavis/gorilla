@@ -43,9 +43,7 @@ Available values and defaults to use with ldflags:
 package version
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 )
 
 // These values are private which ensures they can only be set with the build flags.
@@ -92,15 +90,4 @@ func PrintFull() {
 	fmt.Printf("  revision: \t%s\n", v.Revision)
 	fmt.Printf("  build date: \t%s\n", v.BuildDate)
 	fmt.Printf("  go version: \t%s\n", v.GoVersion)
-}
-
-// Handler returns an HTTP Handler which returns JSON formatted version information.
-func Handler() http.Handler {
-	v := Version()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		enc.Encode(v)
-	})
 }

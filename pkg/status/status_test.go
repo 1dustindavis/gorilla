@@ -32,16 +32,10 @@ var (
 		InstallerType: `ps1`,
 		DisplayName:   `testScript`,
 	}
-	scriptTestItem = catalog.Item{
-		InstallerType: `ps1`,
-		DisplayName:   `scriptTestItem`,
-	}
 
 	// Define different options to bypass status checks during tests
 	statusActionNoError   = `_gorilla_dev_action_noerror_`
-	statusActionError     = `_gorilla_dev_action_error_`
 	statusNoActionNoError = `_gorilla_dev_noaction_noerror_`
-	statusNoActionError   = `_gorilla_dev_noaction_error_`
 )
 
 // check if a slice contains a string

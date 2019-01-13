@@ -17,8 +17,7 @@ func fakeDownload(string1 string, string2 string) error {
 // TestGet verifies that a valid catlog is parsed correctly and returns the expected map
 func TestGet(t *testing.T) {
 	// Set what we expect Get() to return
-	var expected map[string]Item
-	expected = make(map[string]Item)
+	var expected = make(map[string]Item)
 	expected[`ChefClient`] = Item{
 		Dependencies:     []string{`ruby`},
 		DisplayName:      "Chef Client",

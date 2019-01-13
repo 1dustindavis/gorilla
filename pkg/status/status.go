@@ -48,7 +48,7 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	cmdSuccess := cmd.ProcessState.Success()
-	outStr, errStr := string(stdout.Bytes()), string(stderr.Bytes())
+	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
 	os.Remove(tmpScript)

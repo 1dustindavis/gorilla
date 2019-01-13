@@ -39,7 +39,7 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 	}
 
 	// return an empty catalog item if we didnt already find and return a match
-	return catalog.Item{}, fmt.Errorf("Did not find a valid item in any catalog. Item name: %v", itemName)
+	return catalog.Item{}, fmt.Errorf("did not find a valid item in any catalog; Item name: %v", itemName)
 
 }
 
@@ -160,14 +160,11 @@ func dirEmpty(path string) bool {
 	}
 	defer f.Close()
 
-	// read in ONLY one file
+	// Try to get the first item in the directory
 	_, err = f.Readdir(1)
 
-	// and if the file is EOF... well, the dir is empty.
-	if err == io.EOF {
-		return true
-	}
-	return false
+	// If the we recevie an EOF error, the dir is empty
+	return err == io.EOF
 }
 
 // fileOld returns true if the file is older than
@@ -183,12 +180,8 @@ func fileOld(info os.FileInfo) bool {
 	hours := days * 24
 	ageLimit := time.Duration(hours) * time.Hour
 
-	// If the file is older than our limit, delete it
-	if fileAge > ageLimit {
-		return true
-	}
-
-	return false
+	// If the file is older than our limit, return true
+	return fileAge > ageLimit
 }
 
 // This abstraction allows us to override when testing

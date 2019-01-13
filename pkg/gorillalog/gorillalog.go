@@ -16,13 +16,30 @@ import (
 
 // NewLog creates a file and points a new logging instance at it
 func NewLog() {
+	// Setup a defer function to recover from a panic
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic while creating the log file:", r)
+			os.Exit(1)
+		}
+	}()
+
+	// Create the log directory
 	logPath := filepath.Join(config.Current.AppDataPath, "/gorilla.log")
 	err := os.MkdirAll(filepath.Dir(logPath), 0755)
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		msg := fmt.Sprint("Unable to create directory:", logPath, err)
+		panic(msg)
 	}
 
+	// Create the log file
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		msg := fmt.Sprint("Unable to open file:", logFile, err)
+		panic(msg)
+	}
+
+	// Configure the `log` package to use our file
 	log.SetOutput(logFile)
 }
 

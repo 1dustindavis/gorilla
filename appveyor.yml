@@ -84,12 +84,14 @@ test_script:
 artifacts:
 - path: build/gorilla.exe
   name: gorilla_build
+before_deploy:
+- ps: $env:gorilla_version = git describe --tags --always --dirty
 deploy:
-- provider: GitHub
+- provider: Environment
   release: '{gorilla_goversion}'
   auth_token:
     secure: 5ERep9G601aC/F3S4OQIAvC5M06T64Ut70OR4nV4k+l5siKHIYL8XWn4XSgGkGzBgfmihPAjboDuF0EEJqWcEYX49TWREkyJKiexRPLwj2g=
-  artifact: gorilla_build
   draft: true
+  name: GitHub
   on:
     branch: master

@@ -1,6 +1,9 @@
 version: gorilla-appveyor-{build}
 pull_requests:
   do_not_increment_build_number: true
+branches:
+  only:
+  - master
 clone_folder: c:\gopath\src\github.com\1dustindavis\gorilla
 environment:
   GOPATH: c:\gopath

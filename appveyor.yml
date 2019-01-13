@@ -1,9 +1,41 @@
-version: 1.0.{build}
+version: gorilla-appveyor-{build}
+pull_requests:
+  do_not_increment_build_number: true
 clone_folder: c:\gopath\src\github.com\1dustindavis\gorilla
 environment:
   GOPATH: c:\gopath
 install:
 - ps: >-
+    # Define build variables
+
+    $APP_NAME = "gorilla"
+
+    $VERSION = git describe --tags --always --dirty
+
+    $BRANCH = $env:APPVEYOR_REPO_BRANCH
+
+    $NOW = Get-Date -format s
+
+    $REVISION = git rev-parse HEAD
+
+    $GOVERSION = (go version).Split()[2]
+
+
+    Set-AppveyorBuildVariable -Name "gorilla_app_name" -Value $APP_NAME
+
+    Set-AppveyorBuildVariable -Name "gorilla_version" -Value $VERSION
+
+    Set-AppveyorBuildVariable -Name "gorilla_branch" -Value $BRANCH
+
+    Set-AppveyorBuildVariable -Name "gorilla_now" -Value $NOW
+
+    Set-AppveyorBuildVariable -Name "gorilla_revision" -Value $REVISION
+
+    Set-AppveyorBuildVariable -Name "gorilla_goversion" -Value $GOVERSION
+
+
+    # Setup dependencies
+
     $env:Path += ";c:\gopath\bin"
 
     go get -u github.com/golang/dep/...
@@ -13,25 +45,12 @@ install:
     dep ensure
 build_script:
 - ps: >-
-    # Define our version info
-
-    $VERSION = git describe --tags --always --dirty
-
-    $BRANCH = git rev-parse --abbrev-ref HEAD
-
-    $REVISION = git rev-parse HEAD
-
-    $REVSHORT = git rev-parse --short HEAD
-
-    $APP_NAME = "gorilla"
-
-
-    $BUILD_VERSION = "-X github.com/1dustindavis/gorilla/pkg/version.appName=$APP_NAME " +
-                    "-X github.com/1dustindavis/gorilla/pkg/version.version=$VERSION " +
-                    "-X github.com/1dustindavis/gorilla/pkg/version.branch=$BRANCH " +
-                    "-X github.com/1dustindavis/gorilla/pkg/version.buildDate=$NOW " +
-                    "-X github.com/1dustindavis/gorilla/pkg/version.revision=$REVISION " +
-                    "-X github.com/1dustindavis/gorilla/pkg/version.goVersion=$GOVERSION"
+    $BUILD_VERSION = "-X github.com/1dustindavis/gorilla/pkg/version.appName=$env:gorilla_app_name " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.version=$env:gorilla_version " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.branch=$env:gorilla_branch " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.buildDate=$env:gorilla_now " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.revision=$env:gorilla_revision " +
+                    "-X github.com/1dustindavis/gorilla/pkg/version.goVersion=$env:gorilla_goversion"
 
     # Make our build directory and run the build command
 
@@ -42,7 +61,7 @@ test_script:
 - ps: >-
     # Add the go bin directory to the path
 
-    $env:Path += ";c:\gopath\bin"
+    $env:Path += ";c:\gopath\bin;C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0\mingw64\bin"
 
 
     # Error if gofmt returns anything
@@ -57,5 +76,20 @@ test_script:
     go vet ./...
 
     golint ./cmd/ ./pkg/
+
+
+    # Run tests
+
+    go test -cover -race ./...
 artifacts:
 - path: build/gorilla.exe
+  name: gorilla_build
+deploy:
+- provider: GitHub
+  release: '{gorilla_goversion}'
+  auth_token:
+    secure: 5ERep9G601aC/F3S4OQIAvC5M06T64Ut70OR4nV4k+l5siKHIYL8XWn4XSgGkGzBgfmihPAjboDuF0EEJqWcEYX49TWREkyJKiexRPLwj2g=
+  artifact: gorilla_build
+  draft: true
+  on:
+    branch: master

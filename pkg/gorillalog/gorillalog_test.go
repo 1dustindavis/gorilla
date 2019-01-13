@@ -25,7 +25,7 @@ func restoreVerbose() {
 }
 
 func restoreDebug() {
-	config.Current.Verbose = origVerbose
+	config.Current.Debug = origDebug
 }
 
 // TestNewLog tests the creation of the log and it's directory

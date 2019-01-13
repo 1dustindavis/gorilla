@@ -147,11 +147,11 @@ func Get() {
 		Current.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
 	}
 	// Set the verbosity
-	if verbose == true && !Current.Verbose {
+	if verbose && !Current.Verbose {
 		Current.Verbose = true
 	}
 	// Set the debug and verbose
-	if debug == true && !Current.Debug {
+	if debug && !Current.Debug {
 		Current.Debug = true
 		Current.Verbose = true
 	}
@@ -162,6 +162,4 @@ func Get() {
 	// Add to GorillaReport
 	report.Items["Manifest"] = Current.Manifest
 	report.Items["Catalog"] = Current.Catalogs
-
-	return
 }

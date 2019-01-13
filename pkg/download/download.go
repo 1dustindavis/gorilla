@@ -30,6 +30,10 @@ func File(file string, url string) error {
 
 	// Create the dir and file
 	err := os.MkdirAll(filepath.Clean(file), 0755)
+	if err != nil {
+		gorillalog.Warn("Unable to make filepath:", file, err)
+	}
+
 	out, err := os.Create(filepath.Clean(absPath))
 	if err != nil {
 		return err
@@ -94,6 +98,9 @@ func File(file string, url string) error {
 
 	// Build the request
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		gorillalog.Warn("Unable to request url:", url, err)
+	}
 
 	// If we have a user and pass, configure basic auth
 	if config.Current.AuthUser != "" && config.Current.AuthPass != "" {

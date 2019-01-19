@@ -136,8 +136,8 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 
 	// Confirm that path exists
 	// if we get an error, we need to install
-	_, checkErr = os.Stat(path)
-	if checkErr != nil {
+	_, err := os.Stat(path)
+	if err != nil {
 		gorillalog.Debug("Path check failed for ", path)
 		actionNeeded = true
 		return

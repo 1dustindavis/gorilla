@@ -4,6 +4,6 @@
 
 package status
 
-func getUninstallKeys() map[string]Application {
+func getUninstallKeys() map[string]RegistryApplication {
 	return nil
 }

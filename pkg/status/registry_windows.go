@@ -16,7 +16,7 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func getUninstallKeys() map[string]Application {
+func getUninstallKeys() map[string]RegistryApplication {
 
 	// Recover when the registry lookup fails
 	defer func() {
@@ -38,10 +38,10 @@ func getUninstallKeys() map[string]Application {
 		gorillalog.Error("Unable to read registry sub key:", err)
 	}
 
-	installedItems := make(map[string]Application)
+	installedItems := make(map[string]RegistryApplication)
 	// Get the details of each subkey
 	for _, item := range subKeys {
-		var installedItem Application
+		var installedItem RegistryApplication
 		itemKeyName := `Software\Microsoft\Windows\CurrentVersion\Uninstall\` + item
 		itemKey, err := registry.OpenKey(registry.LOCAL_MACHINE, itemKeyName, registry.READ)
 		if err != nil {

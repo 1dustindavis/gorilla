@@ -15,8 +15,8 @@ import (
 	version "github.com/hashicorp/go-version"
 )
 
-// Application Contiains attributes for an installed application
-type Application struct {
+// RegistryApplication contains attributes for an installed application
+type RegistryApplication struct {
 	Key       string
 	Location  string
 	Name      string
@@ -25,8 +25,7 @@ type Application struct {
 	Version   string
 }
 
-// WindowsMetadata contains the  extended metadata provided by the Windows C API:
-// https://docs.microsoft.com/en-us/windows/desktop/api/winver/nf-winver-verqueryvaluea#remarks
+// WindowsMetadata contains extended metadata retreived in the `properties.go`
 type WindowsMetadata struct {
 	productName   string
 	companyName   string
@@ -39,7 +38,7 @@ type WindowsMetadata struct {
 
 var (
 	// RegistryItems contains the status of all of the applications in the registry
-	RegistryItems map[string]Application
+	RegistryItems map[string]RegistryApplication
 
 	// Abstracted functions so we can override these in unit tests
 	execCommand = exec.Command

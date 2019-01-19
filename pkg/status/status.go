@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	version "github.com/hashicorp/go-version"
 )
 
 // Application Contiains attributes for an installed application
@@ -23,6 +25,18 @@ type Application struct {
 	Version   string
 }
 
+// WindowsMetadata contains the  extended metadata provided by the Windows C API:
+// https://docs.microsoft.com/en-us/windows/desktop/api/winver/nf-winver-verqueryvaluea#remarks
+type WindowsMetadata struct {
+	productName   string
+	companyName   string
+	versionString string
+	versionMajor  int
+	versionMinor  int
+	versionPatch  int
+	versionBuild  int
+}
+
 var (
 	// RegistryItems contains the status of all of the applications in the registry
 	RegistryItems map[string]Application
@@ -30,6 +44,52 @@ var (
 	// Abstracted functions so we can override these in unit tests
 	execCommand = exec.Command
 )
+
+// checkRegistry iterates through the local registry and compiles all installed software
+func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
+	// Iterate through the reg keys to compare with the catalog
+	catalogVersion, err := version.NewVersion(catalogItem.Version)
+	if err != nil {
+		gorillalog.Warn("Unable to parse new version: ", catalogItem.DisplayName, err)
+	}
+
+	var installed bool
+	var versionMatch bool
+	for _, regItem := range RegistryItems {
+		// Check if the catalog name is in the registry
+		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
+			installed = true
+
+			// Check if the catalog version matches the registry
+			currentVersion, err := version.NewVersion(regItem.Version)
+			if err != nil {
+				gorillalog.Warn("Unable to parse current version", err)
+			}
+			if !currentVersion.LessThan(catalogVersion) {
+				versionMatch = true
+			}
+			break
+		}
+
+	}
+
+	// If we don't have version information, we can't compare
+	if catalogItem.Version == "" {
+		versionMatch = true
+	}
+
+	if installType == "update" && !installed {
+		actionNeeded = false
+	} else if installType == "uninstall" && installed {
+		actionNeeded = true
+	} else if installed && versionMatch {
+		actionNeeded = false
+	} else {
+		actionNeeded = true
+	}
+
+	return actionNeeded, checkErr
+}
 
 func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 
@@ -69,6 +129,9 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	hash := catalogItem.InstallCheckPathHash
 	gorillalog.Debug("Check Path", path)
 
+	// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	gorillalog.Debug(GetFileMetadata(path))
+
 	// Default to no action needed
 	actionNeeded = false
 
@@ -105,7 +168,6 @@ func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded boo
 	} else if catalogItem.InstallCheckPath != "" {
 		gorillalog.Info("Checking status via Path:", catalogItem.DisplayName)
 		return checkPath(catalogItem)
-
 	}
 
 	// If needed, populate applications status from the registry

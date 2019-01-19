@@ -3,11 +3,7 @@
 package status
 
 import (
-	"strings"
-
-	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	version "github.com/hashicorp/go-version"
 	registry "golang.org/x/sys/windows/registry"
 )
 
@@ -75,51 +71,4 @@ func getUninstallKeys() map[string]Application {
 
 	}
 	return installedItems
-}
-
-// checkRegistry iterates through the local registry and compiles all installed software
-func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
-	// Iterate through the reg keys to compare with the catalog
-	catalogVersion, err := version.NewVersion(catalogItem.Version)
-	if err != nil {
-		gorillalog.Warn("Unable to parse new version: ", catalogItem.DisplayName, err)
-	}
-
-	var installed bool
-	var versionMatch bool
-	for _, regItem := range RegistryItems {
-		// Check if the catalog name is in the registry
-		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
-			installed = true
-
-			// Check if the catalog version matches the registry
-			currentVersion, err := version.NewVersion(regItem.Version)
-			if err != nil {
-				gorillalog.Warn("Unable to parse current version", err)
-			}
-			if !currentVersion.LessThan(catalogVersion) {
-				versionMatch = true
-			}
-			break
-		}
-
-	}
-
-	// If we don't have version information, we can't compare
-	if catalogItem.Version == "" {
-		versionMatch = true
-	}
-
-	if installType == "update" && !installed {
-		actionNeeded = false
-	} else if installType == "uninstall" && installed {
-		actionNeeded = true
-	} else if installed && versionMatch {
-		actionNeeded = false
-	} else {
-		actionNeeded = true
-	}
-
-	return actionNeeded, checkErr
-
 }

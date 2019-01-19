@@ -5,7 +5,7 @@ ChefClient2:
     - ruby
   display_name: Chef Client 2
   check:
-    path:
+    file:
       path: C:\opscode\chef\bin\chef-client2.bat
     script: |
       $latest = "2.3.37"

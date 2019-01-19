@@ -31,13 +31,13 @@ type InstallerItem struct {
 
 // InstallCheck holds information about how to check the status of a catalog item
 type InstallCheck struct {
-	Path     PathCheck `yaml:"path"`
+	File     FileCheck `yaml:"file"`
 	Script   string    `yaml:"script"`
 	Registry RegCheck  `yaml:"registry"`
 }
 
-// PathCheck holds information about checking via path
-type PathCheck struct {
+// FileCheck holds information about checking via a file
+type FileCheck struct {
 	Path        string `yaml:"path"`
 	Version     string `yaml:"version"`
 	ProductName string `yaml:"product_name"`

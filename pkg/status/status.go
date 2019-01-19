@@ -124,8 +124,8 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 }
 
 func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
-	path := filepath.Clean(catalogItem.Check.Path.Path)
-	hash := catalogItem.Check.Path.Hash
+	path := filepath.Clean(catalogItem.Check.File.Path)
+	hash := catalogItem.Check.File.Hash
 	gorillalog.Debug("Check Path", path)
 
 	// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -164,8 +164,8 @@ func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded boo
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
 		return checkScript(catalogItem)
 
-	} else if catalogItem.Check.Path.Path != "" {
-		gorillalog.Info("Checking status via Path:", catalogItem.DisplayName)
+	} else if catalogItem.Check.File.Path != "" {
+		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)
 		return checkPath(catalogItem)
 	}
 

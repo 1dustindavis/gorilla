@@ -4,21 +4,25 @@ ChefClient2:
   dependencies:
     - ruby
   display_name: Chef Client 2
-  install_check_path: C:\opscode\chef\bin\chef-client2.bat
-  install_check_script: |
-    $latest = "2.3.37"
-    $current = C:\opscode\chef\bin\chef-client2.bat --version
-    $current = $current.Split(" ")[1]
-    $upToDate = [System.Version]$current -ge [System.Version]$latest
-    If ($upToDate) {
-      exit 1
-    } Else {
-      exit 0
-    }
-  installer_item_location: packages/chef-client/chef-client-2.3.37-1-x64.exe
-  installer_item_hash: 25ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d
-  installer_item_arguments: 
-     - /L=2033
-     - /S
+  check:
+    path:
+      path: C:\opscode\chef\bin\chef-client2.bat
+    script: |
+      $latest = "2.3.37"
+      $current = C:\opscode\chef\bin\chef-client2.bat --version
+      $current = $current.Split(" ")[1]
+      $upToDate = [System.Version]$current -ge [System.Version]$latest
+      If ($upToDate) {
+        exit 1
+      } Else {
+        exit 0
+      }
+  installer:
+    location: packages/chef-client/chef-client-2.3.37-1-x64.exe
+    hash: 25ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d
+    arguments: 
+       - /L=2033
+       - /S
   version: 2.0.3440.106
-  uninstaller_type: exe
+  uninstaller:
+    type: exe

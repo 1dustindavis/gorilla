@@ -13,20 +13,41 @@ import (
 
 // Item contains an individual entry from the catalog
 type Item struct {
-	Dependencies             []string `yaml:"dependencies"`
-	DisplayName              string   `yaml:"display_name"`
-	InstallCheckPath         string   `yaml:"install_check_path"`
-	InstallCheckPathHash     string   `yaml:"install_check_path_hash"`
-	InstallCheckScript       string   `yaml:"install_check_script"`
-	InstallerItemArguments   []string `yaml:"installer_item_arguments"`
-	InstallerItemHash        string   `yaml:"installer_item_hash"`
-	InstallerItemLocation    string   `yaml:"installer_item_location"`
-	InstallerType            string   `yaml:"installer_type"`
-	UninstallerItemArguments []string `yaml:"uninstaller_item_arguments"`
-	UninstallerItemHash      string   `yaml:"uninstaller_item_hash"`
-	UninstallerItemLocation  string   `yaml:"uninstaller_item_location"`
-	UninstallerType          string   `yaml:"uninstaller_type"`
-	Version                  string   `yaml:"version"`
+	Dependencies []string      `yaml:"dependencies"`
+	DisplayName  string        `yaml:"display_name"`
+	Check        InstallCheck  `yaml:"check"`
+	Installer    InstallerItem `yaml:"installer"`
+	Uninstaller  InstallerItem `yaml:"uninstaller"`
+	Version      string        `yaml:"version"`
+}
+
+// InstallerItem holds information about how to install a catalog item
+type InstallerItem struct {
+	Type      string   `yaml:"type"`
+	Location  string   `yaml:"location"`
+	Hash      string   `yaml:"hash"`
+	Arguments []string `yaml:"arguments"`
+}
+
+// InstallCheck holds information about how to check the status of a catalog item
+type InstallCheck struct {
+	Path     PathCheck `yaml:"path"`
+	Script   string    `yaml:"script"`
+	Registry RegCheck  `yaml:"registry"`
+}
+
+// PathCheck holds information about checking via path
+type PathCheck struct {
+	Path        string `yaml:"path"`
+	Version     string `yaml:"version"`
+	ProductName string `yaml:"product_name"`
+	Hash        string `yaml:"hash"`
+}
+
+// RegCheck holds information about checking via registry
+type RegCheck struct {
+	DisplayName    string `yaml:"display_name"`
+	DisplayVersion string `yaml:"display_version"`
 }
 
 var downloadFile = download.File

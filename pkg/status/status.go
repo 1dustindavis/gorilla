@@ -94,7 +94,7 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(config.CachePath, "tmpCheckScript.ps1")
-	ioutil.WriteFile(tmpScript, []byte(catalogItem.InstallCheckScript), 0755)
+	ioutil.WriteFile(tmpScript, []byte(catalogItem.Check.Script), 0755)
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
@@ -124,8 +124,8 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 }
 
 func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
-	path := filepath.Clean(catalogItem.InstallCheckPath)
-	hash := catalogItem.InstallCheckPathHash
+	path := filepath.Clean(catalogItem.Check.Path.Path)
+	hash := catalogItem.Check.Path.Hash
 	gorillalog.Debug("Check Path", path)
 
 	// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -160,11 +160,11 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 // CheckStatus determines the method for checking status
 func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
 
-	if catalogItem.InstallCheckScript != "" {
+	if catalogItem.Check.Script != "" {
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
 		return checkScript(catalogItem)
 
-	} else if catalogItem.InstallCheckPath != "" {
+	} else if catalogItem.Check.Path.Path != "" {
 		gorillalog.Info("Checking status via Path:", catalogItem.DisplayName)
 		return checkPath(catalogItem)
 	}

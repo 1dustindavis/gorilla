@@ -20,17 +20,84 @@ var (
 
 	// Setup a test catalog
 	testCatalogs = map[int]map[string]catalog.Item{1: {
-		"Chocolatey":     catalog.Item{DisplayName: "Chocolatey", InstallerType: "msi", InstallerItemLocation: "Chocolatey.msi", Dependencies: []string{`TestUpdate1`}},
-		"GoogleChrome":   catalog.Item{DisplayName: "GoogleChrome", InstallerType: "msi", InstallerItemLocation: "GoogleChrome.msi"},
-		"TestInstall1":   catalog.Item{DisplayName: "TestInstall1", InstallerType: "msi", InstallerItemLocation: "TestInstall1.msi"},
-		"TestInstall2":   catalog.Item{DisplayName: "TestInstall2", InstallerType: "msi", InstallerItemLocation: "TestInstall2.msi"},
-		"AdobeFlash":     catalog.Item{DisplayName: "AdobeFlash", UninstallerType: "msi", UninstallerItemLocation: "AdobeUninst.msi"},
-		"Chef Client":    catalog.Item{DisplayName: "Chef Client", InstallerType: "msi", InstallerItemLocation: "chef.msi"},
-		"CanonDrivers":   catalog.Item{DisplayName: "CanonDrivers", InstallerType: "msi", InstallerItemLocation: "TestInstall1.msi"},
-		"TestUninstall1": catalog.Item{DisplayName: "TestUninstall1", UninstallerType: "ps1", UninstallerItemLocation: "TestUninst2.ps1"},
-		"TestUninstall2": catalog.Item{DisplayName: "TestUninstall2", UninstallerType: "exe", UninstallerItemLocation: "TestUninst2.exe"},
-		"TestUpdate1":    catalog.Item{DisplayName: "TestUpdate1", InstallerType: "nupkg", InstallerItemLocation: "TestUpdate1.nupkg"},
-		"TestUpdate2":    catalog.Item{DisplayName: "TestUpdate2", InstallerType: "ps1", InstallerItemLocation: "TestUpdate2.ps1"},
+		"Chocolatey": catalog.Item{
+			DisplayName: "Chocolatey",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "Chocolatey.msi",
+			},
+			Dependencies: []string{`TestUpdate1`},
+		},
+		"GoogleChrome": catalog.Item{
+			DisplayName: "GoogleChrome",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "GoogleChrome.msi",
+			},
+		},
+		"TestInstall1": catalog.Item{
+			DisplayName: "TestInstall1",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "TestInstall1.msi",
+			},
+		},
+		"TestInstall2": catalog.Item{
+			DisplayName: "TestInstall2",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "TestInstall2.msi",
+			},
+		},
+		"AdobeFlash": catalog.Item{
+			DisplayName: "AdobeFlash",
+			Uninstaller: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "AdobeUninst.msi",
+			},
+		},
+		"Chef Client": catalog.Item{
+			DisplayName: "Chef Client",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "chef.msi",
+			},
+		},
+		"CanonDrivers": catalog.Item{
+			DisplayName: "CanonDrivers",
+			Installer: catalog.InstallerItem{
+				Type:     "msi",
+				Location: "TestInstall1.msi",
+			},
+		},
+		"TestUninstall1": catalog.Item{
+			DisplayName: "TestUninstall1",
+			Uninstaller: catalog.InstallerItem{
+				Type:     "ps1",
+				Location: "TestUninst2.ps1",
+			},
+		},
+		"TestUninstall2": catalog.Item{
+			DisplayName: "TestUninstall2",
+			Uninstaller: catalog.InstallerItem{
+				Type:     "exe",
+				Location: "TestUninst2.exe",
+			},
+		},
+		"TestUpdate1": catalog.Item{
+			DisplayName: "TestUpdate1",
+			Installer: catalog.InstallerItem{
+				Type:     "nupkg",
+				Location: "TestUpdate1.nupkg",
+			},
+		},
+		"TestUpdate2": catalog.Item{
+			DisplayName: "TestUpdate2",
+			Installer: catalog.InstallerItem{
+				Type:     "ps1",
+				Location: "TestUpdate2.ps1",
+			},
+		},
 	}}
 
 	// Arrays of the test items

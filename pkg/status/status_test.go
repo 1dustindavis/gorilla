@@ -18,19 +18,27 @@ var (
 
 	// These catalog items provide test data for each installer type
 	pathInstalled = catalog.Item{
-		InstallCheckPath:     `testdata/test_checkPath.msi`,
-		InstallCheckPathHash: `cc8f5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59f9`,
+		Check: catalog.InstallCheck{
+			Path: catalog.PathCheck{
+				Path: `testdata/test_checkPath.msi`,
+				Hash: `cc8f5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59f9`,
+			},
+		},
 	}
 	pathNotInstalled = catalog.Item{
-		InstallCheckPath:     `testdata/test_checkPath.msi`,
-		InstallCheckPathHash: `ba7d5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59e8`,
+		Check: catalog.InstallCheck{
+			Path: catalog.PathCheck{
+				Path: `testdata/test_checkPath.msi`,
+				Hash: `ba7d5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59e8`,
+			},
+		},
 	}
 	scriptActionNoError = catalog.Item{
-		InstallerType: `ps1`,
+		Installer: catalog.InstallerItem{Type: `ps1`},
 	}
 	scriptNoActionNoError = catalog.Item{
-		InstallerType: `ps1`,
-		DisplayName:   `testScript`,
+		Installer:   catalog.InstallerItem{Type: `ps1`},
+		DisplayName: `testScript`,
 	}
 
 	// Define different options to bypass status checks during tests

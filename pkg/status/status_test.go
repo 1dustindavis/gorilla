@@ -19,18 +19,18 @@ var (
 	// These catalog items provide test data for each installer type
 	pathInstalled = catalog.Item{
 		Check: catalog.InstallCheck{
-			File: catalog.FileCheck{
+			File: []catalog.FileCheck{{
 				Path: `testdata/test_checkPath.msi`,
 				Hash: `cc8f5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59f9`,
-			},
+			}},
 		},
 	}
 	pathNotInstalled = catalog.Item{
 		Check: catalog.InstallCheck{
-			File: catalog.FileCheck{
+			File: []catalog.FileCheck{{
 				Path: `testdata/test_checkPath.msi`,
 				Hash: `ba7d5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59e8`,
-			},
+			}},
 		},
 	}
 	scriptActionNoError = catalog.Item{

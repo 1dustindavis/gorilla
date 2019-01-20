@@ -31,9 +31,9 @@ type InstallerItem struct {
 
 // InstallCheck holds information about how to check the status of a catalog item
 type InstallCheck struct {
-	File     FileCheck `yaml:"file"`
-	Script   string    `yaml:"script"`
-	Registry RegCheck  `yaml:"registry"`
+	File     []FileCheck `yaml:"file"`
+	Script   string      `yaml:"script"`
+	Registry RegCheck    `yaml:"registry"`
 }
 
 // FileCheck holds information about checking via a file

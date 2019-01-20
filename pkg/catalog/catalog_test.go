@@ -22,7 +22,7 @@ func TestGet(t *testing.T) {
 		Dependencies: []string{`ruby`},
 		DisplayName:  "Chef Client",
 		Check: InstallCheck{
-			File: FileCheck{Path: `C:\opscode\chef\bin\chef-client.bat`},
+			File: []FileCheck{{Path: `C:\opscode\chef\bin\chef-client.bat`}, {Path: `C:\test\path\check\file.exe`, Hash: `abc1234567890def`, Version: `1.2.3.0`}},
 			Script: `$latest = "14.3.37"
 $current = C:\opscode\chef\bin\chef-client.bat --version
 $current = $current.Split(" ")[1]

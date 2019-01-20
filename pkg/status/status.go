@@ -124,33 +124,33 @@ func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 }
 
 func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
-	path := filepath.Clean(catalogItem.Check.File.Path)
-	hash := catalogItem.Check.File.Hash
-	gorillalog.Debug("Check Path", path)
+	// Iterate through all file provided paths
+	for _, checkFile := range catalogItem.Check.File {
+		path := filepath.Clean(checkFile.Path)
+		hash := checkFile.Hash
+		gorillalog.Debug("Check Path", path)
 
-	// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	gorillalog.Debug(GetFileMetadata(path))
+		// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		gorillalog.Debug(GetFileMetadata(path))
 
-	// Default to no action needed
-	actionNeeded = false
-
-	// Confirm that path exists
-	// if we get an error, we need to install
-	_, err := os.Stat(path)
-	if err != nil {
-		gorillalog.Debug("Path check failed for ", path)
-		actionNeeded = true
-		return
-	}
-
-	// If a hash is not blank, verify it matches the file
-	// if the hash does not match, we need to install
-	if hash != "" {
-		gorillalog.Debug("Check Hash", hash)
-		hashMatch := download.Verify(path, hash)
-		if !hashMatch {
+		// Confirm that path exists
+		// if we get an error, we need to install
+		_, err := os.Stat(path)
+		if err != nil {
+			gorillalog.Debug("Path check failed for ", path)
 			actionNeeded = true
 			return
+		}
+
+		// If a hash is not blank, verify it matches the file
+		// if the hash does not match, we need to install
+		if hash != "" {
+			gorillalog.Debug("Check Hash", hash)
+			hashMatch := download.Verify(path, hash)
+			if !hashMatch {
+				actionNeeded = true
+				return
+			}
 		}
 	}
 
@@ -164,7 +164,7 @@ func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded boo
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
 		return checkScript(catalogItem)
 
-	} else if catalogItem.Check.File.Path != "" {
+	} else if catalogItem.Check.File != nil {
 		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)
 		return checkPath(catalogItem)
 	}

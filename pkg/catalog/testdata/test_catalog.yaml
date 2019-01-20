@@ -6,7 +6,10 @@ ChefClient:
   display_name: Chef Client
   check:
     file:
-      path: C:\opscode\chef\bin\chef-client.bat
+      - path: C:\opscode\chef\bin\chef-client.bat
+      - path: C:\test\path\check\file.exe
+        hash: abc1234567890def
+        version: 1.2.3.0
     script: |
       $latest = "14.3.37"
       $current = C:\opscode\chef\bin\chef-client.bat --version

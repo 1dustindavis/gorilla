@@ -6,7 +6,7 @@ ChefClient2:
   display_name: Chef Client 2
   check:
     file:
-      path: C:\opscode\chef\bin\chef-client2.bat
+      - path: C:\opscode\chef\bin\chef-client2.bat
     script: |
       $latest = "2.3.37"
       $current = C:\opscode\chef\bin\chef-client2.bat --version

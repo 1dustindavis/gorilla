@@ -127,31 +127,60 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 	// Iterate through all file provided paths
 	for _, checkFile := range catalogItem.Check.File {
 		path := filepath.Clean(checkFile.Path)
-		hash := checkFile.Hash
-		gorillalog.Debug("Check Path", path)
-
-		// Just for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		gorillalog.Debug(GetFileMetadata(path))
+		gorillalog.Debug("Check File Path", path)
 
 		// Confirm that path exists
 		// if we get an error, we need to install
 		_, err := os.Stat(path)
 		if err != nil {
-			gorillalog.Debug("Path check failed for ", path)
+			gorillalog.Debug("Path check failed:", path, err)
 			actionNeeded = true
 			return
 		}
 
 		// If a hash is not blank, verify it matches the file
 		// if the hash does not match, we need to install
-		if hash != "" {
-			gorillalog.Debug("Check Hash", hash)
-			hashMatch := download.Verify(path, hash)
+		if checkFile.Hash != "" {
+			gorillalog.Debug("Check File Hash:", checkFile.Hash)
+			hashMatch := download.Verify(path, checkFile.Hash)
 			if !hashMatch {
 				actionNeeded = true
 				return
 			}
 		}
+
+		if checkFile.Version != "" {
+			gorillalog.Debug("Check File Version:", checkFile.Version)
+
+			// Get the file metadata, and check that it has a value
+			metadata := GetFileMetadata(path)
+			if metadata.versionString == "" {
+				break
+			}
+			gorillalog.Debug("Current installed version:", metadata.versionString)
+
+			// Convert both strings to a `Version` object
+			versionHave, err := version.NewVersion(metadata.versionString)
+			if err != nil {
+				gorillalog.Warn("Unable to compare version:", metadata.versionString)
+				actionNeeded = true
+				return
+			}
+			versionWant, err := version.NewVersion(checkFile.Version)
+			if err != nil {
+				gorillalog.Warn("Unable to compare version:", checkFile.Version)
+				actionNeeded = true
+				return
+			}
+
+			// Comare the versions
+			outdated := versionHave.LessThan(versionWant)
+			if outdated {
+				actionNeeded = true
+				return
+			}
+		}
+
 	}
 
 	return actionNeeded, checkErr

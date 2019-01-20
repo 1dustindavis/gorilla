@@ -46,8 +46,8 @@ type FileCheck struct {
 
 // RegCheck holds information about checking via registry
 type RegCheck struct {
-	DisplayName    string `yaml:"display_name"`
-	DisplayVersion string `yaml:"display_version"`
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
 }
 
 var downloadFile = download.File

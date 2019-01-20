@@ -47,34 +47,37 @@ var (
 // checkRegistry iterates through the local registry and compiles all installed software
 func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
 	// Iterate through the reg keys to compare with the catalog
-	catalogVersion, err := version.NewVersion(catalogItem.Version)
+	checkReg := catalogItem.Check.Registry
+	catalogVersion, err := version.NewVersion(checkReg.Version)
 	if err != nil {
-		gorillalog.Warn("Unable to parse new version: ", catalogItem.DisplayName, err)
+		gorillalog.Warn("Unable to parse new version: ", checkReg.Version, err)
+	}
+
+	// If needed, populate applications status from the registry
+	if len(RegistryItems) == 0 {
+		RegistryItems = getUninstallKeys()
 	}
 
 	var installed bool
 	var versionMatch bool
 	for _, regItem := range RegistryItems {
 		// Check if the catalog name is in the registry
-		if strings.Contains(regItem.Name, catalogItem.DisplayName) {
+		if strings.Contains(regItem.Name, checkReg.Name) {
 			installed = true
+			gorillalog.Debug("Current installed version:", regItem.Version)
 
 			// Check if the catalog version matches the registry
 			currentVersion, err := version.NewVersion(regItem.Version)
 			if err != nil {
 				gorillalog.Warn("Unable to parse current version", err)
 			}
-			if !currentVersion.LessThan(catalogVersion) {
+			outdated := currentVersion.LessThan(catalogVersion)
+			if !outdated {
 				versionMatch = true
 			}
 			break
 		}
 
-	}
-
-	// If we don't have version information, we can't compare
-	if catalogItem.Version == "" {
-		versionMatch = true
 	}
 
 	if installType == "update" && !installed {
@@ -196,13 +199,13 @@ func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded boo
 	} else if catalogItem.Check.File != nil {
 		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)
 		return checkPath(catalogItem)
+
+	} else if catalogItem.Check.Registry.Version != "" {
+		gorillalog.Info("Checking status via Registry:", catalogItem.DisplayName)
+		return checkRegistry(catalogItem, installType)
 	}
 
-	// If needed, populate applications status from the registry
-	if len(RegistryItems) == 0 {
-		RegistryItems = getUninstallKeys()
-	}
+	gorillalog.Warn("Not enough data to check the current status:", catalogItem.DisplayName)
+	return
 
-	gorillalog.Info("Checking status via Registry:", catalogItem.DisplayName)
-	return checkRegistry(catalogItem, installType)
 }

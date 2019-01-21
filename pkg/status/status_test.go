@@ -15,8 +15,9 @@ var (
 	// store original data to restore after each test
 	origExec      = execCommand
 	origCachePath = config.CachePath
+	origVerbose   = config.Current.Verbose
 
-	// These catalog items provide test data for each installer type
+	// These catalog items provide test data
 	pathInstalled = catalog.Item{
 		Check: catalog.InstallCheck{
 			File: []catalog.FileCheck{{
@@ -38,7 +39,32 @@ var (
 	}
 	scriptNoActionNoError = catalog.Item{
 		Installer:   catalog.InstallerItem{Type: `ps1`},
-		DisplayName: `testScript`,
+		DisplayName: `scriptNoActionNoError`,
+	}
+	scriptCheckItem = catalog.Item{
+		Check: catalog.InstallCheck{
+			Script: `echo "pizza"`,
+		},
+		DisplayName: `scriptCheckItem`,
+	}
+	fileCheckItem = catalog.Item{
+		Check: catalog.InstallCheck{
+			File: []catalog.FileCheck{{
+				Path: `testdata/test_checkPath.msi`,
+			}},
+		},
+		DisplayName: `fileCheckItem`,
+	}
+	registryCheckItem = catalog.Item{
+		Check: catalog.InstallCheck{
+			Registry: catalog.RegCheck{
+				Version: `1.2.3`,
+			},
+		},
+		DisplayName: `registryCheckItem`,
+	}
+	noCheckItem = catalog.Item{
+		DisplayName: `noCheckItem`,
 	}
 
 	// Define different options to bypass status checks during tests
@@ -61,7 +87,6 @@ func sliceContains(s []string, e string) bool {
 func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cs := []string{"-test.run=TestHelperProcess", "--", command}
 	cs = append(cs, args...)
-	fmt.Println(cs[11])
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
@@ -78,9 +103,44 @@ func TestHelperProcess(t *testing.T) {
 	if sliceContains(os.Args[3:], statusNoActionNoError) {
 		os.Exit(1)
 	}
-	// print the command we received
-	fmt.Println(os.Args[3:])
 	os.Exit(0)
+}
+
+// TestCheckRegistry validates that the registry entries are checked properly
+func TestCheckRegistry(t *testing.T) {
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	// Override the cachepath to use our test directory
+	config.CachePath = "testdata/"
+	defer func() {
+		execCommand = origExec
+		config.CachePath = origCachePath
+	}()
+
+	// Run checkPath for pathInstalled
+	// We should expect action needed to be false
+	actionNeeded, err := checkPath(pathInstalled)
+	if err != nil {
+		t.Errorf("checkPath failed: %v", err)
+	}
+
+	// Only error if action needed is true
+	if actionNeeded == true {
+		t.Errorf("actionNeeded: %v; Expected checkPath to return false", actionNeeded)
+	}
+
+	// Run checkPath for pathNotInstalled
+	// We should expect action needed to be true
+	actionNeeded, err = checkPath(pathNotInstalled)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Only error if action needed is false
+	if actionNeeded == false {
+		t.Errorf("actionNeeded: %v; Expected checkPath to return true", actionNeeded)
+	}
+
 }
 
 // TestCheckScript validates that a script is properly written disk, ran, and then deleted
@@ -115,12 +175,9 @@ func TestCheckScript(t *testing.T) {
 
 // TestCheckPath validates that the status of a path is checked correctly
 func TestCheckPath(t *testing.T) {
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
 	// Override the cachepath to use our test directory
 	config.CachePath = "testdata/"
 	defer func() {
-		execCommand = origExec
 		config.CachePath = origCachePath
 	}()
 
@@ -148,4 +205,88 @@ func TestCheckPath(t *testing.T) {
 		t.Errorf("actionNeeded: %v; Expected checkPath to return true", actionNeeded)
 	}
 
+}
+
+// ExampleCheckStatus_script validates that a script check is ran
+func ExampleCheckStatus_script() {
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	// Override the cachepath to use our test directory
+	config.CachePath = "testdata/"
+	// Override the verbose setting
+	config.Current.Verbose = true
+	defer func() {
+		execCommand = origExec
+		config.CachePath = origCachePath
+		config.Current.Verbose = origVerbose
+	}()
+
+	// Run CheckStatus with an item that has a script check
+	CheckStatus(scriptCheckItem, "install")
+
+	// Output:
+	// Checking status via Script: scriptCheckItem
+}
+
+// ExampleCheckStatus_file validates that a file check is ran
+func ExampleCheckStatus_file() {
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	// Override the cachepath to use our test directory
+	config.CachePath = "testdata/"
+	// Override the verbose setting
+	config.Current.Verbose = true
+	defer func() {
+		execCommand = origExec
+		config.CachePath = origCachePath
+		config.Current.Verbose = origVerbose
+	}()
+
+	// Run CheckStatus with an item that has a script check
+	CheckStatus(fileCheckItem, "install")
+
+	// Output:
+	// Checking status via File: fileCheckItem
+}
+
+// ExampleCheckStatus_registry validates that a registry check is ran
+func ExampleCheckStatus_registry() {
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	// Override the cachepath to use our test directory
+	config.CachePath = "testdata/"
+	// Override the verbose setting
+	config.Current.Verbose = true
+	defer func() {
+		execCommand = origExec
+		config.CachePath = origCachePath
+		config.Current.Verbose = origVerbose
+	}()
+
+	// Run CheckStatus with an item that has a script check
+	CheckStatus(registryCheckItem, "install")
+
+	// Output:
+	// Checking status via Registry: registryCheckItem
+}
+
+// ExampleCheckStatus_none validates that no check is ran
+func ExampleCheckStatus_none() {
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	// Override the cachepath to use our test directory
+	config.CachePath = "testdata/"
+	// Override the verbose setting
+	config.Current.Verbose = false
+	defer func() {
+		execCommand = origExec
+		config.CachePath = origCachePath
+		config.Current.Verbose = origVerbose
+	}()
+
+	// Run CheckStatus with an item that has a script check
+	CheckStatus(noCheckItem, "install")
+
+	// Output:
+	// Not enough data to check the current status: noCheckItem
 }

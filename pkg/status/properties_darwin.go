@@ -1,22 +1,18 @@
 package status
 
 import (
-	"fmt"
-
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
 // GetFileMetadata is just a placeholder on darwin
 func GetFileMetadata(path string) WindowsMetadata {
-	// Create a message we can log and return
-	msg := fmt.Sprintf("GetFileMetadata only supported on Windows: %v", path)
+	// Log a warning since we are not running on windows
+	gorillalog.Warn("GetFileMetadata only supported on Windows:", path)
 
-	// Log the message
-	gorillalog.Warn(msg)
-
-	// Put the message into a struct as the `productName`
+	// Set a fake `productName` and `versionString`
 	var fakeMetadata WindowsMetadata
-	fakeMetadata.productName = msg
+	fakeMetadata.productName = "Gorilla Test"
+	fakeMetadata.versionString = "3.2.0.1"
 
 	// Return the struct that holds our message
 	return fakeMetadata

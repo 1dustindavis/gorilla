@@ -82,8 +82,8 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 
 	if installType == "update" && !installed {
 		actionNeeded = false
-	} else if installType == "uninstall" && installed {
-		actionNeeded = true
+	} else if installType == "uninstall" {
+		actionNeeded = installed
 	} else if installed && versionMatch {
 		actionNeeded = false
 	} else {

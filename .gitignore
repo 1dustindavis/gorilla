@@ -6,6 +6,7 @@
 
 # Include phony packages for running tests
 !pkg/installer/testdata/packages/*/*
+!pkg/status/testdata/*
 
 # Test binary, build with `go test -c`
 *.test

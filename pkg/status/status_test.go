@@ -293,7 +293,7 @@ func TestCheckPath(t *testing.T) {
 		t.Error(err)
 	}
 	if actionNeeded {
-		t.Errorf("actionNeeded: %v; Expected checkPath to return true", actionNeeded)
+		t.Errorf("actionNeeded: %v; Expected checkPath to return false", actionNeeded)
 	}
 
 	// Run checkPath for pathMetadataOutdated

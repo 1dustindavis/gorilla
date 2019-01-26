@@ -7,68 +7,89 @@ import (
 	registry "golang.org/x/sys/windows/registry"
 )
 
-func stringInSlice(a string, list []string) bool {
-	for _, b := range list {
-		if b == a {
-			return true
+// checkValues returns true if all of our desired values exist
+func checkValues(values []string) (valuesExist bool) {
+	var nameExists bool
+	var versionExists bool
+	var uninstallExists bool
+
+	for _, value := range values {
+		if value == "DisplayName" {
+			nameExists = true
+		}
+		if value == "DisplayVersion" {
+			versionExists = true
+		}
+		if value == "UninstallString" {
+			uninstallExists = true
 		}
 	}
-	return false
+
+	return nameExists && versionExists && uninstallExists
 }
 
-func getUninstallKeys() map[string]RegistryApplication {
-
-	// Recover when the registry lookup fails
-	defer func() {
-		if r := recover(); r != nil {
-			gorillalog.Warn("Recovered from error while accessing the registry: ", r)
-		}
-	}()
+func getUninstallKeys() (installedItems map[string]RegistryApplication, checkErr error) {
+	// Initialize the map we will add any values to
+	installedItems = make(map[string]RegistryApplication)
 
 	// Get the Uninstall key from HKLM
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
-	if err != nil {
-		gorillalog.Error("Unable to read registry key", err)
+	key, checkErr := registry.OpenKey(registry.LOCAL_MACHINE, `Software\Microsoft\Windows\CurrentVersion\Uninstall`, registry.READ)
+	if checkErr != nil {
+		gorillalog.Warn("Unable to read registry key:", checkErr)
+		return installedItems, checkErr
 	}
 	defer key.Close()
 
 	// Get all the subkeys under Uninstall
-	subKeys, err := key.ReadSubKeyNames(0)
-	if err != nil {
-		gorillalog.Error("Unable to read registry sub key:", err)
+	subKeys, checkErr := key.ReadSubKeyNames(0)
+	if checkErr != nil {
+		gorillalog.Warn("Unable to read registry sub keys:", checkErr)
+		return installedItems, checkErr
 	}
 
-	installedItems := make(map[string]RegistryApplication)
-	// Get the details of each subkey
+	// Get the details of each subkey and add them to a map of `RegistryApplication`
 	for _, item := range subKeys {
+
+		//  installedItem is the struct we will store each application in
 		var installedItem RegistryApplication
 		itemKeyName := `Software\Microsoft\Windows\CurrentVersion\Uninstall\` + item
-		itemKey, err := registry.OpenKey(registry.LOCAL_MACHINE, itemKeyName, registry.READ)
-		if err != nil {
-			gorillalog.Error("Unable to read registry key", err)
+		itemKey, checkErr := registry.OpenKey(registry.LOCAL_MACHINE, itemKeyName, registry.READ)
+		if checkErr != nil {
+			gorillalog.Warn("Unable to read registry key:", checkErr)
+			return installedItems, checkErr
 		}
-		defer key.Close()
+		defer itemKey.Close()
 
-		itemValues, err := itemKey.ReadValueNames(0)
-		if stringInSlice("DisplayName", itemValues) && stringInSlice("DisplayVersion", itemValues) {
+		// Put the names of all the values in a slice
+		itemValues, checkErr := itemKey.ReadValueNames(0)
+		if checkErr != nil {
+			gorillalog.Warn("Unable to read registry value names:", checkErr)
+			return installedItems, checkErr
+		}
+
+		// If checkValues() returns true, add the values to our struct
+		if checkValues(itemValues) {
 			installedItem.Key = itemKeyName
-			installedItem.Name, _, err = itemKey.GetStringValue("DisplayName")
-			if err != nil {
-				gorillalog.Error("Unable to read DisplayName", err)
+			installedItem.Name, _, checkErr = itemKey.GetStringValue("DisplayName")
+			if checkErr != nil {
+				gorillalog.Warn("Unable to read DisplayName", checkErr)
+				return installedItems, checkErr
 			}
 
-			installedItem.Version, _, err = itemKey.GetStringValue("DisplayVersion")
-			if err != nil {
-				gorillalog.Error("Unable to read DisplayVersion", err)
+			installedItem.Version, _, checkErr = itemKey.GetStringValue("DisplayVersion")
+			if checkErr != nil {
+				gorillalog.Warn("Unable to read DisplayVersion", checkErr)
+				return installedItems, checkErr
 			}
 
-			installedItem.Uninstall, _, err = itemKey.GetStringValue("UninstallString")
-			if err != nil {
-				gorillalog.Error("Unable to read UninstallString", err)
+			installedItem.Uninstall, _, checkErr = itemKey.GetStringValue("UninstallString")
+			if checkErr != nil {
+				gorillalog.Warn("Unable to read UninstallString", checkErr)
+				return installedItems, checkErr
 			}
 			installedItems[installedItem.Name] = installedItem
 		}
 
 	}
-	return installedItems
+	return installedItems, checkErr
 }

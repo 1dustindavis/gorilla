@@ -55,7 +55,7 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 
 	// If needed, populate applications status from the registry
 	if len(RegistryItems) == 0 {
-		RegistryItems = getUninstallKeys()
+		RegistryItems, checkErr = getUninstallKeys()
 	}
 
 	var installed bool

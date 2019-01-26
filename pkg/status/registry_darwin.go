@@ -4,6 +4,6 @@
 
 package status
 
-func getUninstallKeys() map[string]RegistryApplication {
-	return nil
+func getUninstallKeys() (map[string]RegistryApplication, error) {
+	return nil, nil
 }

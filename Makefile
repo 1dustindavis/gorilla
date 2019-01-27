@@ -96,5 +96,4 @@ lint:
 	  echo "^- Repo contains improperly formatted go files; run gofmt -w *.go" && exit 1; \
 	  else echo "All .go files formatted correctly"; fi
 	GOOS=windows GOARCH=amd64 go vet ./...
-	# Bandaid until https://github.com/golang/lint/pull/325 is merged
 	golint -set_exit_status `go list ./... | grep -v /vendor/`

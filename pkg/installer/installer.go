@@ -40,7 +40,7 @@ func runCommand(command string, arguments []string) string {
 	cmd.Stdout = &cmdOutput
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Error creating pipe to stdout", err)
+		gorillalog.Warn("Error creating pipe to stdout", err)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
@@ -56,13 +56,13 @@ func runCommand(command string, arguments []string) string {
 	err = cmd.Start()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Error running command:", err)
+		gorillalog.Warn("Error running command:", err)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Command error:", err)
+		gorillalog.Warn("Command error:", err)
 	}
 	return cmdOutput.String()
 }
@@ -70,43 +70,43 @@ func runCommand(command string, arguments []string) string {
 func installItem(item catalog.Item) string {
 
 	// Determine the paths needed for download and install
-	relPath, fileName := path.Split(item.InstallerItemLocation)
+	relPath, fileName := path.Split(item.Installer.Location)
 	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 	if config.Current.URLPackages != "" {
-		installerURL = config.Current.URLPackages + item.InstallerItemLocation
+		installerURL = config.Current.URLPackages + item.Installer.Location
 	} else {
-		installerURL = config.Current.URL + item.InstallerItemLocation
+		installerURL = config.Current.URL + item.Installer.Location
 	}
 
 	// Determine the install type and build the command
 	var installCmd string
 	var installArgs []string
-	if item.InstallerType == "nupkg" {
+	if item.Installer.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		installCmd = commandNupkg
 		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
-	} else if item.InstallerType == "msi" {
+	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
-	} else if item.InstallerType == "exe" {
+	} else if item.Installer.Type == "exe" {
 		gorillalog.Info("Installing exe for", item.DisplayName)
 		installCmd = absFile
-		installArgs = item.InstallerItemArguments
-	} else if item.InstallerType == "ps1" {
+		installArgs = item.Installer.Arguments
+	} else if item.Installer.Type == "ps1" {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		installCmd = commandPs1
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
-		msg := fmt.Sprint("Unsupported installer type", item.InstallerType)
+		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
 		return msg
 	}
 
 	// Download the item if it is needed
-	valid := download.IfNeeded(absFile, installerURL, item.InstallerItemHash)
+	valid := download.IfNeeded(absFile, installerURL, item.Installer.Hash)
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
 		gorillalog.Warn(msg)
@@ -125,43 +125,43 @@ func installItem(item catalog.Item) string {
 func uninstallItem(item catalog.Item) string {
 
 	// Determine the paths needed for download and uinstall
-	relPath, fileName := path.Split(item.UninstallerItemLocation)
+	relPath, fileName := path.Split(item.Uninstaller.Location)
 	absPath := filepath.Join(config.CachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
 	if config.Current.URLPackages != "" {
-		uninstallerURL = config.Current.URLPackages + item.UninstallerItemLocation
+		uninstallerURL = config.Current.URLPackages + item.Uninstaller.Location
 	} else {
-		uninstallerURL = config.Current.URL + item.UninstallerItemLocation
+		uninstallerURL = config.Current.URL + item.Uninstaller.Location
 	}
 
 	// Determine the uninstall type and build the command
 	var uninstallCmd string
 	var uninstallArgs []string
-	if item.UninstallerType == "nupkg" {
+	if item.Uninstaller.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		uninstallCmd = commandNupkg
 		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
-	} else if item.UninstallerType == "msi" {
+	} else if item.Uninstaller.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		uninstallCmd = commandMsi
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
-	} else if item.UninstallerType == "exe" {
+	} else if item.Uninstaller.Type == "exe" {
 		gorillalog.Info("Installing exe for", item.DisplayName)
 		uninstallCmd = absFile
-		uninstallArgs = item.UninstallerItemArguments
-	} else if item.UninstallerType == "ps1" {
+		uninstallArgs = item.Uninstaller.Arguments
+	} else if item.Uninstaller.Type == "ps1" {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		uninstallCmd = commandPs1
 		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
-		msg := fmt.Sprint("Unsupported uninstaller type", item.UninstallerType)
+		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
 		gorillalog.Warn(msg)
 		return msg
 	}
 
 	// Download the item if it is needed
-	valid := download.IfNeeded(absFile, uninstallerURL, item.UninstallerItemHash)
+	valid := download.IfNeeded(absFile, uninstallerURL, item.Uninstaller.Hash)
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
 		gorillalog.Warn(msg)

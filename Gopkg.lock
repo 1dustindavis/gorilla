@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:732d725e38a66314507710b927152b0a73371064c48588ed7e1bbf4fe24efc7f"
+  name = "github.com/gonutz/w32"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "1effbc37d65a161d9992626ecf9c57d62a9daa65"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:77395dd3847dac9c45118c668f5dab85aedf0163dc3b38aea6578c5cf0d502f9"
   name = "github.com/hashicorp/go-version"
   packages = ["."]
@@ -32,6 +40,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/gonutz/w32",
     "github.com/hashicorp/go-version",
     "golang.org/x/sys/windows/registry",
     "gopkg.in/yaml.v2",

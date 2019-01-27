@@ -27,44 +27,60 @@ var (
 
 	// These catalog items provide test data for each installer type
 	nupkgItem = catalog.Item{
-		InstallerItemArguments:   []string{`/L=1033`, `/S`},
-		InstallerItemHash:        `f441893d760c411c25420a0cb4ba3a2c708fa69d7ed455818bef1a5fd4ae7577`,
-		InstallerItemLocation:    `packages/chef-client/chef-client-14.3.37-1-x64.nupkg`,
-		InstallerType:            `nupkg`,
-		UninstallerItemArguments: []string{`/U=1033`, `/S`},
-		UninstallerItemHash:      `a3fb64e1cadce0fd5bd08a7b01ce991c8c8bfb5618fa7e0975b6a7387dc26cba`,
-		UninstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg`,
-		UninstallerType:          `nupkg`,
+		Installer: catalog.InstallerItem{
+			Arguments: []string{`/L=1033`, `/S`},
+			Hash:      `f441893d760c411c25420a0cb4ba3a2c708fa69d7ed455818bef1a5fd4ae7577`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.nupkg`,
+			Type:      `nupkg`,
+		},
+		Uninstaller: catalog.InstallerItem{
+			Arguments: []string{`/U=1033`, `/S`},
+			Hash:      `a3fb64e1cadce0fd5bd08a7b01ce991c8c8bfb5618fa7e0975b6a7387dc26cba`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg`,
+			Type:      `nupkg`,
+		},
 	}
 	msiItem = catalog.Item{
-		InstallerItemArguments:   []string{`/L=1033`, `/S`},
-		InstallerItemHash:        `a1d4982abbb2bd2ccc238372ae688c790659c2c120efcee329fcca49c7c8fa9a`,
-		InstallerItemLocation:    `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
-		InstallerType:            `msi`,
-		UninstallerItemArguments: []string{`/U=1033`, `/S`},
-		UninstallerItemHash:      `069068fea26346a7c006f39f8d84ced2ebb6b874a35143f52ed979d29f11ef3d`,
-		UninstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.msi`,
-		UninstallerType:          `msi`,
+		Installer: catalog.InstallerItem{
+			Arguments: []string{`/L=1033`, `/S`},
+			Hash:      `a1d4982abbb2bd2ccc238372ae688c790659c2c120efcee329fcca49c7c8fa9a`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
+			Type:      `msi`,
+		},
+		Uninstaller: catalog.InstallerItem{
+			Arguments: []string{`/U=1033`, `/S`},
+			Hash:      `069068fea26346a7c006f39f8d84ced2ebb6b874a35143f52ed979d29f11ef3d`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.msi`,
+			Type:      `msi`,
+		},
 	}
 	exeItem = catalog.Item{
-		InstallerItemArguments:   []string{`/L=1033`, `/S`},
-		InstallerItemHash:        `7235428c924193a353db253c59cfbf1501299df6fefcb23fa577ea96612473da`,
-		InstallerItemLocation:    `packages/chef-client/chef-client-14.3.37-1-x64.exe`,
-		InstallerType:            `exe`,
-		UninstallerItemArguments: []string{`/U=1033`, `/S`},
-		UninstallerItemHash:      `9dc6a2c1c1ae2c3f399d7ac3c01eb5ac2976e55e8bedb842755eebe3b9add9e7`,
-		UninstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.exe`,
-		UninstallerType:          `exe`,
+		Installer: catalog.InstallerItem{
+			Arguments: []string{`/L=1033`, `/S`},
+			Hash:      `7235428c924193a353db253c59cfbf1501299df6fefcb23fa577ea96612473da`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.exe`,
+			Type:      `exe`,
+		},
+		Uninstaller: catalog.InstallerItem{
+			Arguments: []string{`/U=1033`, `/S`},
+			Hash:      `9dc6a2c1c1ae2c3f399d7ac3c01eb5ac2976e55e8bedb842755eebe3b9add9e7`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.exe`,
+			Type:      `exe`,
+		},
 	}
 	ps1Item = catalog.Item{
-		InstallerItemArguments:   []string{`/L=1033`, `/S`},
-		InstallerItemHash:        `195f5d4d521ca39f96b7d8fd5edd96d1f129493ddb56ae1c5c6db6cefe2167ee`,
-		InstallerItemLocation:    `packages/chef-client/chef-client-14.3.37-1-x64.ps1`,
-		InstallerType:            `ps1`,
-		UninstallerItemArguments: []string{`/U=1033`, `/S`},
-		UninstallerItemHash:      `0c6f40ae30bcf5e3658bef5122037c927b72bc5a6e0bbf48d7294a0e453d620e`,
-		UninstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1`,
-		UninstallerType:          `ps1`,
+		Installer: catalog.InstallerItem{
+			Arguments: []string{`/L=1033`, `/S`},
+			Hash:      `195f5d4d521ca39f96b7d8fd5edd96d1f129493ddb56ae1c5c6db6cefe2167ee`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.ps1`,
+			Type:      `ps1`,
+		},
+		Uninstaller: catalog.InstallerItem{
+			Arguments: []string{`/U=1033`, `/S`},
+			Hash:      `0c6f40ae30bcf5e3658bef5122037c927b72bc5a6e0bbf48d7294a0e453d620e`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1`,
+			Type:      `ps1`,
+		},
 	}
 
 	// Define different options to bypass status checks during tests

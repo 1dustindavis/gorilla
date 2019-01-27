@@ -19,10 +19,11 @@ func TestGet(t *testing.T) {
 	// Set what we expect Get() to return
 	var expected = make(map[string]Item)
 	expected[`ChefClient`] = Item{
-		Dependencies:     []string{`ruby`},
-		DisplayName:      "Chef Client",
-		InstallCheckPath: `C:\opscode\chef\bin\chef-client.bat`,
-		InstallCheckScript: `$latest = "14.3.37"
+		Dependencies: []string{`ruby`},
+		DisplayName:  "Chef Client",
+		Check: InstallCheck{
+			File: []FileCheck{{Path: `C:\opscode\chef\bin\chef-client.bat`}, {Path: `C:\test\path\check\file.exe`, Hash: `abc1234567890def`, Version: `1.2.3.0`}},
+			Script: `$latest = "14.3.37"
 $current = C:\opscode\chef\bin\chef-client.bat --version
 $current = $current.Split(" ")[1]
 $upToDate = [System.Version]$current -ge [System.Version]$latest
@@ -31,12 +32,14 @@ If ($upToDate) {
 } Else {
   exit 0
 }
-`,
-		InstallerItemArguments: []string{`/L=1033`, `/S`},
-		InstallerItemHash:      `f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d`,
-		InstallerItemLocation:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
-		UninstallerType:        `msi`,
-		Version:                `68.0.3440.106`,
+`},
+		Installer: InstallerItem{
+			Arguments: []string{`/L=1033`, `/S`},
+			Hash:      `f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d`,
+			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
+		},
+		Uninstaller: InstallerItem{Type: `msi`},
+		Version:     `68.0.3440.106`,
 	}
 
 	config.Current.URL = "http://example.com/"

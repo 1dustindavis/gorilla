@@ -40,7 +40,7 @@ func runCommand(command string, arguments []string) string {
 	cmd.Stdout = &cmdOutput
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Error creating pipe to stdout", err)
+		gorillalog.Warn("Error creating pipe to stdout", err)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
@@ -56,13 +56,13 @@ func runCommand(command string, arguments []string) string {
 	err = cmd.Start()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Error running command:", err)
+		gorillalog.Warn("Error running command:", err)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Error("Command error:", err)
+		gorillalog.Warn("Command error:", err)
 	}
 	return cmdOutput.String()
 }

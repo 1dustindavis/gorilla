@@ -48,7 +48,7 @@ func TestVerify(t *testing.T) {
 	}
 }
 
-// serveTestFile writes the contents of `testFile` to the http repsonse
+// serveTestFile writes the contents of `testFile` to the http response
 func serveTestFile(w http.ResponseWriter, r *http.Request) {
 	// Open are test file
 	testSource, err := os.Open(testFile)
@@ -198,7 +198,7 @@ func TestFileBasicAuth(t *testing.T) {
 	ts := httptest.NewServer(router())
 	defer ts.Close()
 
-	// Save the orginal config
+	// Save the original config
 	origConfig := config.Current
 	defer func() { config.Current = origConfig }()
 
@@ -225,7 +225,7 @@ func TestFileTLS(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	// Save the orginal config
+	// Save the original config
 	origConfig := config.Current
 	defer func() { config.Current = origConfig }()
 

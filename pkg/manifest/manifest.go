@@ -47,7 +47,7 @@ func Get() []Item {
 	var manifestsList []string
 
 	// Setup iteration tracking for manifests
-	var manifestsTotal = len(manifestsList)
+	var manifestsTotal int
 	var manifestsProcessed = 0
 	var manifestsRemaining = 1
 

@@ -20,11 +20,11 @@ var (
 
 	// fakeRegistryItems provides fake items for testing checkRegistry
 	fakeRegistryItems = map[string]RegistryApplication{
-		`registryCheckItem`: RegistryApplication{
+		`registryCheckItem`: {
 			Name:    `Registry Check Item`,
 			Version: `1.2.0.3`,
 		},
-		`registryCheckItemOutdated`: RegistryApplication{
+		`registryCheckItemOutdated`: {
 			Name:    `Outdated`,
 			Version: `33.6.3`,
 		},

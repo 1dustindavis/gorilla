@@ -31,7 +31,7 @@ func TestStart(t *testing.T) {
 		fmt.Println("Unable to determine current time", hostErr)
 	}
 
-	// Put our expectations in a map for comparisions
+	// Put our expectations in a map for comparison
 	expectedItems["StartTime"] = fmt.Sprint(expectedTime)
 
 	expectedItems["CurrentUser"] = fmt.Sprint(expectedUser.Username)

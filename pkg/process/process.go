@@ -15,7 +15,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
-// firstItem returns the first occurance of an item in a map of catalogs
+// firstItem returns the first occurrence of an item in a map of catalogs
 func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, error) {
 	// Get the keys in the map and sort them so we can loop over them in order
 	keys := make([]int, 0)

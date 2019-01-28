@@ -24,7 +24,7 @@ var (
 	fakeTime time.Time
 )
 
-// Start adds the data we already know at the begining of a run
+// Start adds the data we already know at the beginning of a run
 func Start() {
 
 	// Get the current time

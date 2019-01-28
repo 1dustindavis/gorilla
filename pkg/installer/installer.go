@@ -32,7 +32,7 @@ var (
 	uninstallerURL string
 )
 
-// runCommand executes a command and it's argurments in the CMD enviroment
+// runCommand executes a command and it's argurments in the CMD environment
 func runCommand(command string, arguments []string) string {
 	cmd := execCommand(command, arguments...)
 	var cmdOutput bytes.Buffer

@@ -11,6 +11,8 @@ Information related to installing and configuring Gorilla can be found on the [W
 
 ## Building
 
+If you just want the latest version, get it here: https://github.com/1dustindavis/gorilla/releases
+
 Building from source requires the golang tools: https://golang.org/doc/install
 
 #### macOS
@@ -19,9 +21,8 @@ After cloning this repo, run `make deps` and then `make build`. A new binary wil
 #### Windows
 1. Clone this repo
 2. Install dep: `go get -u github.com/golang/dep/...`
-3. Install golint: `go get -u github.com/golang/lint/golint`
-4. Install dependencies: `dep ensure -vendor-only -v`
-5. Build gorilla: `go build -i ./cmd/gorilla`
+3. Install dependencies: `dep ensure -vendor-only -v`
+4. Build gorilla: `go build -i ./cmd/gorilla`
 
 ## Contributing
 Pull Requests are always welcome. Before submitting, check if the linter or tests fail:

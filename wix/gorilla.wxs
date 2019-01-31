@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+   <Product Id="*" UpgradeCode="d61005bf-a182-4583-810d-8c33b056b8be" 
+            Name="Gorilla"
+            Version="1.0.0"
+            Manufacturer="Gorilla"
+            Language="1033">
+      <Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package"/>
+      <Media Id="1" Cabinet="product.cab" EmbedCab="yes"/>
+
+      <Directory Id="TARGETDIR" Name="SourceDir">
+         <Directory Id="CommonAppDataFolder">
+            <Directory Id="INSTALLDIR" Name="gorilla">
+               <Component Id="Config" Guid="4882d10a-47bf-48ae-8d00-50ea2c9897ec">
+                  <File Id="ConfigFile" Source="config_template.yaml"/>
+               </Component>
+               <Directory Id="BINDIR" Name="bin">
+                  <Component Id="Binary" Guid="47855ccd-7eab-464c-a795-26091de8b83a">
+                     <File Id="BinaryFile" Source="gorilla.exe"/>
+                     <Environment Id="PATH" Name="PATH" Value="[BINDIR]" Permanent="no" Part="last" Action="set" System="yes" />
+                  </Component>
+               </Directory>
+            </Directory>
+         </Directory>
+      </Directory>
+
+
+      <InstallExecuteSequence>
+         <Custom Action="CreateScheduledTask_Cmd" Before="CreateScheduledTask">NOT Installed or REINSTALL</Custom>
+         <Custom Action="CreateScheduledTask" After="InstallFiles">NOT Installed or REINSTALL</Custom>
+         <Custom Action="DeleteScheduledTask_Cmd" Before="DeleteScheduledTask">Installed</Custom>
+         <Custom Action="DeleteScheduledTask" After="RemoveFiles">Installed</Custom>
+      </InstallExecuteSequence>
+
+      <CustomAction Id="CreateScheduledTask_Cmd" Property="CreateScheduledTask" Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /CREATE /SC MINUTE /MO 60 /TN &quot;Gorilla&quot; /TR &quot;&quot;[BINDIR]gorilla.exe&quot;&quot; /RU &quot;NT Authority\System&quot; /RP /RL HIGHEST"/>
+      <CustomAction Id="CreateScheduledTask" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no"/>
+
+      <CustomAction Id="DeleteScheduledTask_Cmd" Property="DeleteScheduledTask" Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /DELETE /f /TN &quot;Gorilla&quot;"/>
+      <CustomAction Id="DeleteScheduledTask" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+
+      <Feature Id="DefaultFeature" Level="1">
+         <ComponentRef Id="Binary"/>
+         <ComponentRef Id="Config"/>
+      </Feature>
+   </Product>
+</Wix>

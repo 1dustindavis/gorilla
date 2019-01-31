@@ -1,0 +1,23 @@
+---
+##
+## Gorilla configuration template
+## Only `url` and `manifest` are required
+## More details at https://github.com/1dustindavis/gorilla/wiki/Client-Configuration
+##
+
+## `url` is the path on your server that contains the directories for
+## manifests, catalogs, and packages.
+url: https://example.com/gorilla/
+
+## `manifest` is the primary manifest that is assigned to this machine.
+manifest: employee
+
+## `catalogs` is an *optional* array of catalogs that are assigned to this machine.
+## If you do not provide a catalog in the config, you must have one in a manifest.
+# catalogs: 
+#   - beta
+
+## `app_data_path` is Gorilla's working directory, and may store copies of
+## manifests, catalogs, or packages. If `app_data_path` is not provided,
+## it will default to `%ProgramData%/gorilla/`
+# app_data_path: C:/gorilla/cache

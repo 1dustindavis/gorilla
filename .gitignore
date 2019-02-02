@@ -3,6 +3,7 @@
 *.dll
 *.so
 *.dylib
+*.msi
 
 # Include phony packages for running tests
 !pkg/installer/testdata/packages/*/*
@@ -20,6 +21,10 @@
 # OS files
 *.DS_Store
 
-#Misc files used in dev
+# Misc files used in dev
 config.json
 config.yaml
+
+# WIX files
+*.wixpdb
+*.wixobj

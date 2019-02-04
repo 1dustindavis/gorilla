@@ -82,18 +82,23 @@ func File(file string, url string) error {
 			},
 		}
 	} else {
-		// Setup our http client without
-		client = &http.Client{
-			Transport: &http.Transport{
-				Dial: (&net.Dialer{
-					Timeout:   10 * time.Second,
-					KeepAlive: 10 * time.Second,
-				}).Dial,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ResponseHeaderTimeout: 10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-			},
+		// Setup our http client without tls auth
+		// Defining the transport separately so we can add a `file://` protocol
+		transport := &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   10 * time.Second,
+				KeepAlive: 10 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
 		}
+
+		// Register a file handler so `file://` works
+		transport.RegisterProtocol("file", http.NewFileTransport(http.Dir("/")))
+
+		// Create the client using our custom transport
+		client = &http.Client{Transport: transport}
 	}
 
 	// Build the request

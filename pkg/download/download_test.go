@@ -50,7 +50,7 @@ func TestVerify(t *testing.T) {
 
 // serveTestFile writes the contents of `testFile` to the http response
 func serveTestFile(w http.ResponseWriter, r *http.Request) {
-	// Open are test file
+	// Open our test file
 	testSource, err := os.Open(testFile)
 	if err != nil {
 		log.Fatal(err)
@@ -120,6 +120,34 @@ func TestFileHash(t *testing.T) {
 	// Validate the hash to confirm it was downloaded properly
 	if !Verify(filepath.Join(dir, "hashtest.txt"), validHash) {
 		t.Errorf("Hash does not match downloaded test file!")
+	}
+
+}
+
+// TestFileHashLocal verifies that a *local* file is downloaded properly
+func TestFileHashLocal(t *testing.T) {
+	// Create a temporary directory
+	dir, err := ioutil.TempDir("", "gorilla_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Get the absolute path of our test file
+	testPath, err := filepath.Abs("testdata/hashtest.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Convert the path seperators to slashes
+	testPath = filepath.ToSlash(testPath)
+
+	// Run the code
+	fmt.Println("Downloading from local path:", testPath)
+	File(dir, "file://"+testPath)
+
+	// Validate the hash to confirm it was downloaded properly
+	if !Verify(filepath.Join(dir, "hashtest.txt"), validHash) {
+		t.Errorf("Hash does not match downloaded test file from a local url!")
 	}
 
 }

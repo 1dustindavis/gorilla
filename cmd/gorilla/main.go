@@ -15,7 +15,7 @@ func main() {
 	cfg := config.Get()
 
 	// Create a new logger object
-	gorillalog.NewLog()
+	gorillalog.NewLog(cfg)
 
 	// Start creating GorillaReport
 	report.Start()

@@ -30,6 +30,9 @@ var (
 	verboseDefault = false
 	versionArg     bool
 	versionDefault = false
+
+	// Use a fake function so we can override when testing
+	osExit = os.Exit
 )
 
 const usage = `

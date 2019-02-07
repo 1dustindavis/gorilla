@@ -9,7 +9,7 @@ import (
 // TestGet tests that the configuration is retrieved and parsed properly
 func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
-	expected := Object{
+	expected := Configuration{
 		URL:         "https://example.com/gorilla/",
 		Manifest:    "example_manifest",
 		Catalogs:    []string{"example_catalog"},
@@ -18,6 +18,7 @@ func TestGet(t *testing.T) {
 		Debug:       true,
 		AuthUser:    "johnny",
 		AuthPass:    "pizza",
+		CachePath:   "c:/cpe/gorilla/cache",
 	}
 
 	// Save the original arguments
@@ -28,13 +29,13 @@ func TestGet(t *testing.T) {
 	os.Args = []string{"gorilla.exe", "-config", "testdata/test_config.yaml"}
 
 	// Run the actual code
-	Get()
+	cfg := Get()
 
 	// Compare the result with our expectations
-	structsMatch := reflect.DeepEqual(expected, Current)
+	structsMatch := reflect.DeepEqual(expected, cfg)
 
 	if !structsMatch {
-		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n%#v", expected, Current)
+		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n%#v", expected, cfg)
 	}
 }
 

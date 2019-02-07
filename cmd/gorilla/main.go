@@ -12,7 +12,7 @@ import (
 func main() {
 
 	// Get our configuration
-	config.Get()
+	cfg := config.Get()
 
 	// Create a new logger object
 	gorillalog.NewLog()
@@ -21,11 +21,11 @@ func main() {
 	report.Start()
 
 	// Get the manifests
-	gorillalog.Info("Retrieving manifest:", config.Current.Manifest)
+	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
 	manifests := manifest.Get()
 
 	// Get the catalog
-	gorillalog.Info("Retrieving catalog:", config.Current.Catalogs)
+	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
 	catalog := catalog.Get()
 
 	// Process the manifests into install type groups

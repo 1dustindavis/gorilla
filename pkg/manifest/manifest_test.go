@@ -9,22 +9,15 @@ import (
 )
 
 var (
-	// store original data to restore after each test
-	origCachePath    = config.CachePath
-	origManifest     = config.Current.Manifest
-	origURL          = config.Current.URL
+	// store the current downloadFile function in order to restore later
 	origDownloadFile = downloadFile
-	origCatalogs     = config.Current.Catalogs
 )
 
 // TestGetManifest verifies a single manifest is processed correctly
 func TestGetManifest(t *testing.T) {
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
-	defer func() { config.CachePath = origCachePath }()
 
 	// Store the actual result of `getManifest`
-	actualManifest := getManifest("example_manifest")
+	actualManifest := getManifest("testdata/", "example_manifest")
 
 	// Define what we expect it to return
 	expectedManifest := Item{
@@ -46,20 +39,21 @@ func TestGetManifest(t *testing.T) {
 // TestGet verifies that multiple manifests are processed correctly
 func TestGet(t *testing.T) {
 
-	// Override the cachepath and top manifest to use our test directory
-	config.CachePath = "testdata/"
-	config.Current.Manifest = "example_manifest"
-	config.Current.URL = "http://example.com/"
+	// Define a Configuration struct to pass to `Get`
+	cfg := config.Configuration{
+		URL:       "https://example.com/",
+		Manifest:  "example_manifest",
+		CachePath: "testdata/",
+	}
+
+	// Override the download function, but restore it when we're done
 	downloadFile = fakeDownload
 	defer func() {
-		config.CachePath = origCachePath
-		config.Current.Manifest = origManifest
-		config.Current.URL = origURL
 		downloadFile = origDownloadFile
 	}()
 
-	// Store the actual slice of manifest items from `Get`
-	actualManifests := Get()
+	// Store the actual slice of manifest items that `Get` returns
+	actualManifests, _ := Get(cfg)
 
 	// Define the slice of manifest items we expect it to return
 	expectedManifests := []Item{
@@ -89,31 +83,32 @@ func TestGet(t *testing.T) {
 
 // TestGetCatalogs verifies that catalogs included in a manifest get added to the config
 func TestGetCatalogs(t *testing.T) {
-	// Override the cachepath, manifest, and catalogs
-	config.Current.Catalogs = []string{"alpha", "beta"}
-	config.CachePath = "testdata/"
-	config.Current.Manifest = "example_manifest_catalogs"
-	config.Current.URL = "http://example.com/"
+
+	// Define a Configuration struct to pass to `Get`
+	cfg := config.Configuration{
+		URL:       "https://example.com/",
+		Manifest:  "example_manifest_catalogs",
+		CachePath: "testdata/",
+		Catalogs:  []string{"alpha", "beta"},
+	}
+
+	// Override the download function, but restore it when we're done
 	downloadFile = fakeDownload
 	defer func() {
-		config.Current.Catalogs = origCatalogs
-		config.CachePath = origCachePath
-		config.Current.Manifest = origManifest
-		config.Current.URL = origURL
 		downloadFile = origDownloadFile
 	}()
 
 	// Run Get() to process the manifests and (hopefully) append the catalogs
-	Get()
+	_, newCatalogs := Get(cfg)
 
 	// Define our expected catalogs
-	expectedCatalogs := []string{"alpha", "beta", "production1", "production2"}
+	expectedCatalogs := []string{"production1", "production2"}
 
 	// Compare our expectations to the actual catalogs
-	slicesMatch := reflect.DeepEqual(expectedCatalogs, config.Current.Catalogs)
+	slicesMatch := reflect.DeepEqual(expectedCatalogs, newCatalogs)
 
 	if !slicesMatch {
-		t.Errorf("\nExpected: %#v\nActual: %#v", expectedCatalogs, config.Current.Catalogs)
+		t.Errorf("\nExpected: %#v\nActual: %#v", expectedCatalogs, newCatalogs)
 	}
 }
 

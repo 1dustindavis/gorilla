@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
@@ -20,29 +21,37 @@ func main() {
 	// Start creating GorillaReport
 	report.Start()
 
+	// Set the configuration that `download` will use
+	download.Config = cfg
+
 	// Get the manifests
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
-	manifests := manifest.Get()
+	manifests, newCatalogs := manifest.Get(cfg)
 
-	// Get the catalog
+	// If we have newCatalogs, add them to the configuration
+	if newCatalogs != nil {
+		cfg.Catalogs.append(cfg.Catalogs, newCatalogs)
+	}
+
+	// Get the catalogs
 	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
-	catalog := catalog.Get()
+	catalogs := catalog.Get(cfg)
 
 	// Process the manifests into install type groups
 	gorillalog.Info("Processing manifest...")
-	installs, uninstalls, updates := process.Manifests(manifests, catalog)
+	installs, uninstalls, updates := process.Manifests(manifests, catalogs)
 
 	// Prepare and install
 	gorillalog.Info("Processing managed installs...")
-	process.Installs(installs, catalog)
+	process.Installs(installs, catalogs)
 
 	// Prepare and uninstall
 	gorillalog.Info("Processing managed uninstalls...")
-	process.Uninstalls(uninstalls, catalog)
+	process.Uninstalls(uninstalls, catalogs)
 
 	// Prepare and update
 	gorillalog.Info("Processing managed updates...")
-	process.Updates(updates, catalog)
+	process.Updates(updates, catalogs)
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillReport.json...")

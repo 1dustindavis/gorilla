@@ -20,6 +20,11 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
+var (
+	// Config is a global variable that the allows another package to set the config for `download`
+	Config config.Configuration
+)
+
 // File downloads a provided url to the file path specified.
 // Timeout is 10 seconds
 // Will only write to disk if http status code is 2XX
@@ -44,15 +49,15 @@ func File(file string, url string) error {
 	var client *http.Client
 
 	// If TLSAuth is true, configure server and client certs
-	if config.Current.TLSAuth {
+	if Config.TLSAuth {
 		// Load	the client certificate and private key
-		clientCert, err := tls.LoadX509KeyPair(config.Current.TLSClientCert, config.Current.TLSClientKey)
+		clientCert, err := tls.LoadX509KeyPair(Config.TLSClientCert, Config.TLSClientKey)
 		if err != nil {
 			return err
 		}
 
 		// Load server certificates
-		serverCert, err := ioutil.ReadFile(config.Current.TLSServerCert)
+		serverCert, err := ioutil.ReadFile(Config.TLSServerCert)
 		if err != nil {
 			return err
 		}
@@ -108,8 +113,8 @@ func File(file string, url string) error {
 	}
 
 	// If we have a user and pass, configure basic auth
-	if config.Current.AuthUser != "" && config.Current.AuthPass != "" {
-		req.SetBasicAuth(config.Current.AuthUser, config.Current.AuthPass)
+	if Config.AuthUser != "" && Config.AuthPass != "" {
+		req.SetBasicAuth(Config.AuthUser, Config.AuthPass)
 	}
 
 	// Actually send the request, using the client we setup

@@ -53,7 +53,7 @@ type RegCheck struct {
 var downloadFile = download.File
 
 // Get returns a map of `Item` from the catalog
-func Get() map[int]map[string]Item {
+func Get(cfg config.Configuration) map[int]map[string]Item {
 
 	// catalogMap is an map of parsed catalogs
 	var catalogMap = make(map[int]map[string]Item)
@@ -62,26 +62,26 @@ func Get() map[int]map[string]Item {
 	var catalogCount = 0
 
 	// Error if dont have at least one catalog
-	if len(config.Current.Catalogs) < 1 {
-		gorillalog.Warn("Unable to continue, no catalogs assigned: ", config.Current.Catalogs)
+	if len(cfg.Catalogs) < 1 {
+		gorillalog.Warn("Unable to continue, no catalogs assigned: ", cfg.Catalogs)
 		os.Exit(1)
 	}
 
 	// Loop through the catalogs and get each one in order
-	for _, catalog := range config.Current.Catalogs {
+	for _, catalog := range cfg.Catalogs {
 
 		catalogCount++
 
 		// Download the catalog
-		catalogURL := config.Current.URL + "catalogs/" + catalog + ".yaml"
+		catalogURL := cfg.URL + "catalogs/" + catalog + ".yaml"
 		gorillalog.Info("Catalog Url:", catalogURL)
-		err := downloadFile(config.CachePath, catalogURL)
+		err := downloadFile(cfg.CachePath, catalogURL)
 		if err != nil {
 			gorillalog.Error("Unable to retrieve catalog:", catalog, err)
 		}
 
 		// Open the catalog file
-		yamlPath := filepath.Join(config.CachePath, catalog) + ".yaml"
+		yamlPath := filepath.Join(cfg.CachePath, catalog) + ".yaml"
 		gorillalog.Debug("Catalog file path:", yamlPath)
 		yamlFile, err := ioutil.ReadFile(yamlPath)
 		if err != nil {

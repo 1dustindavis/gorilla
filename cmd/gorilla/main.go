@@ -45,7 +45,7 @@ func main() {
 	process.Updates(updates, catalog)
 
 	// Save GorillaReport to disk
-	gorillalog.Info("Saving GorillReport.json...")
+	gorillalog.Info("Saving GorillaReport.json...")
 	report.End()
 
 	// Run CleanUp to delete old cached items and empty directories

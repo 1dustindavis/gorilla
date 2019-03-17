@@ -229,7 +229,7 @@ func TestCheckRegistry(t *testing.T) {
 }
 
 // TestCheckScript validates that a script is properly written disk, ran, and then deleted
-// and the status is retreived properly.
+// and the status is retrieved properly.
 func TestCheckScript(t *testing.T) {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand

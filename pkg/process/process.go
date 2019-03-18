@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/installer"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
@@ -93,8 +92,8 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 // This abstraction allows us to override when testing
 var installerInstall = installer.Install
 
-// Installs prepares and then installs and array of items
-func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item) {
+// Installs prepares and then installs an array of items
+func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the installs array, install dependencies, and then the item itself
 	for _, item := range installs {
 		// Get the first valid item from our catalogs
@@ -112,16 +111,16 @@ func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item) {
 					gorillalog.Warn(err)
 					continue
 				}
-				installerInstall(validDependency, "install")
+				installerInstall(validDependency, "install", urlPackages, cachePath)
 			}
 		}
 		// Install the item
-		installerInstall(validItem, "install")
+		installerInstall(validItem, "install", urlPackages, cachePath)
 	}
 }
 
-// Uninstalls prepares and then installs and array of items
-func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item) {
+// Uninstalls prepares and then installs an array of items
+func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Get the first valid item from our catalogs
@@ -132,12 +131,12 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 			continue
 		}
 		// Uninstall the item
-		installerInstall(validItem, "uninstall")
+		installerInstall(validItem, "uninstall", urlPackages, cachePath)
 	}
 }
 
-// Updates prepares and then installs and array of items
-func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item) {
+// Updates prepares and then installs an array of items
+func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Get the first valid item from our catalogs
@@ -148,7 +147,7 @@ func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item) {
 			continue
 		}
 		// Update the item
-		installerInstall(validItem, "update")
+		installerInstall(validItem, "update", urlPackages, cachePath)
 	}
 }
 
@@ -188,9 +187,7 @@ func fileOld(info os.FileInfo) bool {
 var osRemove = os.Remove
 
 // CleanUp checks the age of items in the cache and removes if older than 10 days
-func CleanUp() {
-
-	cachePath := filepath.Join(config.Current.AppDataPath, "cache")
+func CleanUp(cachePath string) {
 
 	// Clean up old files
 	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {

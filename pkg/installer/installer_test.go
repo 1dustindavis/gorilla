@@ -10,6 +10,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
 )
@@ -20,10 +21,12 @@ var (
 	// store original data to restore after each test
 	origExec            = execCommand
 	origCheckStatus     = statusCheckStatus
-	origCachePath       = config.CachePath
-	origURLPackages     = config.Current.URLPackages
-	origURL             = config.Current.URL
 	origReportInstalled = report.InstalledItems
+
+	// Define a testing config for `download`
+	downloadCfg = config.Configuration{
+		CachePath: "testdata/",
+	}
 
 	// These catalog items provide test data for each installer type
 	nupkgItem = catalog.Item{
@@ -110,7 +113,7 @@ func TestHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func fakeCheckStatus(catalogItem catalog.Item, installType string) (install bool, checkErr error) {
+func fakeCheckStatus(catalogItem catalog.Item, installType string, cachePath string) (install bool, checkErr error) {
 
 	// Catch special names used in tests
 	if catalogItem.DisplayName == statusActionNoError {
@@ -164,24 +167,30 @@ func TestInstallItem(t *testing.T) {
 	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	defer func() {
 		execCommand = origExec
 		statusCheckStatus = origCheckStatus
-		config.CachePath = origCachePath
 	}()
+
+	// Set shared testing variables
+	cachePath := "testdata/"
+	pkgCache := "testdata/packages/"
+	urlPackages := "https://example.com/"
 
 	//
 	// Nupkg
 	//
 	nupkgItem.DisplayName = statusActionNoError
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64.nupkg"
+	nupkgURL := urlPackages + nupkgPath
+
 	// Run Install
-	actualNupkg := installItem(nupkgItem)
+	actualNupkg := installItem(nupkgItem, nupkgURL, cachePath)
+
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-	nupkgPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.nupkg")
-	expectedNupkg := "[" + nupkgCmd + " install " + nupkgPath + " -f -y -r]"
+	nupkgFile := filepath.Join(pkgCache, nupkgPath)
+	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y -r]"
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -190,12 +199,16 @@ func TestInstallItem(t *testing.T) {
 	// Msi
 	//
 	msiItem.DisplayName = statusActionNoError
+	msiPath := "chef-client/chef-client-14.3.37-1-x64.msi"
+	msiURL := urlPackages + msiPath
+
 	// Run Install
-	actualMsi := installItem(msiItem)
+	actualMsi := installItem(msiItem, msiURL, cachePath)
+
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
-	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.msi")
-	expectedMsi := "[" + msiCmd + " /i " + msiPath + " /qn /norestart]"
+	msiFile := filepath.Join(pkgCache, msiPath)
+	expectedMsi := "[" + msiCmd + " /i " + msiFile + " /qn /norestart]"
 	if have, want := actualMsi, expectedMsi; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -204,11 +217,15 @@ func TestInstallItem(t *testing.T) {
 	// Exe
 	//
 	exeItem.DisplayName = statusActionNoError
+	exePath := "chef-client/chef-client-14.3.37-1-x64.exe"
+	exeURL := urlPackages + exePath
+
 	// Run Install
-	actualExe := installItem(exeItem)
+	actualExe := installItem(exeItem, exeURL, cachePath)
+
 	// Check the result
-	exePath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.exe")
-	expectedExe := "[" + exePath + " /L=1033 /S]"
+	exeFile := filepath.Join(pkgCache, exePath)
+	expectedExe := "[" + exeFile + " /L=1033 /S]"
 	if have, want := actualExe, expectedExe; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -217,12 +234,16 @@ func TestInstallItem(t *testing.T) {
 	// Ps1
 	//
 	ps1Item.DisplayName = statusActionNoError
+	ps1Path := "chef-client/chef-client-14.3.37-1-x64.ps1"
+	ps1URL := urlPackages + ps1Path
+
 	// Run Install
-	actualPs1 := installItem(ps1Item)
+	actualPs1 := installItem(ps1Item, ps1URL, cachePath)
+
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
-	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64.ps1")
-	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1Path + "]"
+	ps1File := filepath.Join(pkgCache, ps1Path)
+	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1File + "]"
 	if have, want := actualPs1, expectedPs1; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -240,7 +261,7 @@ func TestInstallStatusError(t *testing.T) {
 	// Run the msi installer with this status bypass to trigger an error
 	msiItem.DisplayName = statusActionError
 	// Run Install
-	actualOutput := Install(msiItem, "install")
+	actualOutput := Install(msiItem, "install", "https://example.com", "testdata/")
 	// Check the result
 	expectedOutput := "Unable to check status: testing _gorilla_dev_action_error_"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -260,7 +281,7 @@ func TestInstallStatusFalse(t *testing.T) {
 	// Run the msi installer with this status bypass to make status return false
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Install
-	actualOutput := Install(msiItem, "install")
+	actualOutput := Install(msiItem, "install", "https://example.com/", "testdata/")
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -275,12 +296,10 @@ func TestUninstallItem(t *testing.T) {
 	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
+	download.SetConfig(downloadCfg)
 	defer func() {
 		execCommand = origExec
 		statusCheckStatus = origCheckStatus
-		config.CachePath = origCachePath
 	}()
 
 	//
@@ -288,7 +307,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	nupkgItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualNupkg := uninstallItem(nupkgItem)
+	actualNupkg := uninstallItem(nupkgItem, "https://example.com/", "testdata/")
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg")
@@ -302,7 +321,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualMsi := uninstallItem(msiItem)
+	actualMsi := uninstallItem(msiItem, "https://example.com", "testdata/")
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.msi")
@@ -316,7 +335,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	exeItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualExe := uninstallItem(exeItem)
+	actualExe := uninstallItem(exeItem, "https://example.com", "testdata/")
 	// Check the result
 	exePath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.exe")
 	expectedExe := "[" + exePath + " /U=1033 /S]"
@@ -329,7 +348,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	ps1Item.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualPs1 := uninstallItem(ps1Item)
+	actualPs1 := uninstallItem(ps1Item, "https://example.com", "testdata/")
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")
@@ -351,7 +370,7 @@ func TestUninstallStatusError(t *testing.T) {
 	// Run the msi uninstaller with this status bypass to trigger an error
 	msiItem.DisplayName = statusNoActionError
 	// Run Uninstall
-	actualOutput := Install(msiItem, "uninstall")
+	actualOutput := Install(msiItem, "uninstall", "https://example.com", "testdata/")
 	// Check the result
 	expectedOutput := "Unable to check status: testing _gorilla_dev_noaction_error_"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -371,7 +390,7 @@ func TestUninstallStatusTrue(t *testing.T) {
 	// Run the msi uninstaller with this status bypass to make status return true
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualOutput := Install(msiItem, "uninstall")
+	actualOutput := Install(msiItem, "uninstall", "https://example.com", "testdata/")
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -391,7 +410,7 @@ func TestUpdateStatusError(t *testing.T) {
 	// Run the msi installer with this status bypass to trigger an error
 	msiItem.DisplayName = statusActionError
 	// Run Update
-	actualOutput := Install(msiItem, "update")
+	actualOutput := Install(msiItem, "update", "https://example.com", "testdata/")
 	// Check the result
 	expectedOutput := "Unable to check status: testing _gorilla_dev_action_error_"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -411,64 +430,10 @@ func TestUpdateStatusFalse(t *testing.T) {
 	// Run the msi installer with this status bypass to make status return dalse
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Update
-	actualOutput := Install(msiItem, "update")
+	actualOutput := Install(msiItem, "update", "https://example.com", "testdata/")
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
-		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
-	}
-
-}
-
-// TestInstallURL verifies the URL that is generated when URLPackages is not defined
-func TestInstallURL(t *testing.T) {
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
-	// Override the URLPackages to use a test url
-	config.Current.URLPackages = ""
-	// Override the URL to use a test url
-	config.Current.URL = "https://example.com/gorilla/"
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
-	defer func() {
-		config.Current.URLPackages = origURLPackages
-		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.URL = origURL
-	}()
-
-	// Run the installer
-	installItem(msiItem)
-	// Check the result
-	expectedOutput := "https://example.com/gorilla/packages/chef-client/chef-client-14.3.37-1-x64.msi"
-	if have, want := installerURL, expectedOutput; have != want {
-		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
-	}
-
-}
-
-// TestInstallURLPackages verifies the URL that is generated when URLPackages is defined
-func TestInstallURLPackages(t *testing.T) {
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
-	// Override the URLPackages to use a test url
-	config.Current.URLPackages = "https://example.com/pkgurl/"
-	// Override the URL to use a test url
-	config.Current.URL = "https://example.com/gorilla/"
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
-	defer func() {
-		config.Current.URLPackages = origURLPackages
-		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.URL = origURL
-	}()
-
-	// Run the installer
-	installItem(msiItem)
-	// Check the result
-	expectedOutput := "https://example.com/pkgurl/packages/chef-client/chef-client-14.3.37-1-x64.msi"
-	if have, want := installerURL, expectedOutput; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
 
@@ -478,18 +443,15 @@ func TestInstallURLPackages(t *testing.T) {
 func TestInstallReport(t *testing.T) {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	// Override the report.InstalledItems to be empty
 	report.InstalledItems = []interface{}{}
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
 		report.InstalledItems = origReportInstalled
 	}()
 
 	// Run the installer
-	installItem(msiItem)
+	installItem(msiItem, "https://example.com", "testdata/")
 
 	// Check the result
 	expectedReport := []interface{}{msiItem}

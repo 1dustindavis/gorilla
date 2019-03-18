@@ -13,36 +13,24 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 )
 
-// Store the original values, before we override
-var (
-	origVerbose     = config.Current.Verbose
-	origDebug       = config.Current.Debug
-	origProgramData = config.Current.AppDataPath
-)
-
-func restoreVerbose() {
-	config.Current.Verbose = origVerbose
-}
-
-func restoreDebug() {
-	config.Current.Debug = origDebug
-}
-
 // TestNewLog tests the creation of the log and it's directory
 func TestNewLog(t *testing.T) {
 	// Set up a place for test data
 	tmpDir := filepath.Join(os.Getenv("TMPDIR"), "gorillalog")
-	config.Current.AppDataPath = tmpDir
 
-	// Clean up when we are done
+	cfg := config.Configuration{
+		AppDataPath: tmpDir,
+		Debug:       false,
+		Verbose:     false,
+	}
+
 	defer func() {
-		// Clean up
-		config.Current.AppDataPath = origProgramData
+		// Clean up when we are done
 		os.RemoveAll(tmpDir)
 	}()
 
 	// Run the function
-	NewLog()
+	NewLog(cfg)
 
 	// Check values
 	logDir := tmpDir
@@ -63,7 +51,6 @@ func TestDebug(t *testing.T) {
 	log.SetOutput(&buf)
 	defer func() {
 		log.SetOutput(os.Stderr)
-		restoreDebug()
 	}()
 
 	// Set up what we want
@@ -73,7 +60,7 @@ func TestDebug(t *testing.T) {
 	expected := fmt.Sprint(prefix, now, logString)
 
 	// Run the function
-	config.Current.Debug = true
+	debug = true
 	Debug(logString)
 
 	result := strings.TrimSpace(buf.String())
@@ -90,9 +77,9 @@ func ExampleDebug_off() {
 	logString := "Debug String!"
 
 	// Run the function without debug
-	config.Current.Debug = false
-	defer restoreDebug()
+	debug = false
 	Debug(logString)
+
 	// Output:
 }
 
@@ -102,10 +89,9 @@ func ExampleDebug_on() {
 	logString := "Debug String!"
 
 	// Run the function with debug
-	config.Current.Debug = true
-	defer restoreDebug()
-
+	debug = true
 	Debug(logString)
+
 	// Output:
 	// Debug String!
 }
@@ -142,8 +128,7 @@ func ExampleInfo_verbose_off() {
 	logString := "Info String!"
 
 	// Run the function without verbose
-	config.Current.Verbose = false
-	defer restoreVerbose()
+	verbose = false
 
 	Info(logString)
 	// Output:
@@ -155,8 +140,7 @@ func ExampleInfo_verbose_on() {
 	logString := "Info String!"
 
 	// Run the function with verbose
-	config.Current.Verbose = true
-	defer restoreVerbose()
+	verbose = true
 
 	Info(logString)
 	// Output:

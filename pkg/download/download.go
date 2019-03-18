@@ -20,6 +20,16 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
+var (
+	// A package level copy of our config for the `download` package to reference
+	downloadCfg config.Configuration
+)
+
+// SetConfig accepts a configuration struct that all functions in the `download` package will use
+func SetConfig(cfg config.Configuration) {
+	downloadCfg = cfg
+}
+
 // File downloads a provided url to the file path specified.
 // Timeout is 10 seconds
 // Will only write to disk if http status code is 2XX
@@ -44,15 +54,15 @@ func File(file string, url string) error {
 	var client *http.Client
 
 	// If TLSAuth is true, configure server and client certs
-	if config.Current.TLSAuth {
+	if downloadCfg.TLSAuth {
 		// Load	the client certificate and private key
-		clientCert, err := tls.LoadX509KeyPair(config.Current.TLSClientCert, config.Current.TLSClientKey)
+		clientCert, err := tls.LoadX509KeyPair(downloadCfg.TLSClientCert, downloadCfg.TLSClientKey)
 		if err != nil {
 			return err
 		}
 
 		// Load server certificates
-		serverCert, err := ioutil.ReadFile(config.Current.TLSServerCert)
+		serverCert, err := ioutil.ReadFile(downloadCfg.TLSServerCert)
 		if err != nil {
 			return err
 		}
@@ -108,8 +118,8 @@ func File(file string, url string) error {
 	}
 
 	// If we have a user and pass, configure basic auth
-	if config.Current.AuthUser != "" && config.Current.AuthPass != "" {
-		req.SetBasicAuth(config.Current.AuthUser, config.Current.AuthPass)
+	if downloadCfg.AuthUser != "" && downloadCfg.AuthPass != "" {
+		req.SetBasicAuth(downloadCfg.AuthUser, downloadCfg.AuthPass)
 	}
 
 	// Actually send the request, using the client we setup

@@ -15,28 +15,9 @@ import (
 
 var (
 	// CachePath is a directory we will use for temporary storage
-	CachePath string
-)
+	cachePath string
 
-// Object to store our configuration
-type Object struct {
-	URL           string   `yaml:"url"`
-	URLPackages   string   `yaml:"url_packages"`
-	Manifest      string   `yaml:"manifest"`
-	Catalogs      []string `yaml:"catalogs"`
-	AppDataPath   string   `yaml:"app_data_path"`
-	Verbose       bool     `yaml:"verbose,omitempty"`
-	Debug         bool     `yaml:"debug,omitempty"`
-	AuthUser      string   `yaml:"auth_user,omitempty"`
-	AuthPass      string   `yaml:"auth_pass,omitempty"`
-	TLSAuth       bool     `yaml:"tls_auth,omitempty"`
-	TLSClientCert string   `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey  string   `yaml:"tls_client_key,omitempty"`
-	TLSServerCert string   `yaml:"tls_server_cert,omitempty"`
-}
-
-// Define flag defaults
-var (
+	// Define flag defaults
 	aboutArg       bool
 	aboutDefault   = false
 	configArg      string
@@ -49,6 +30,9 @@ var (
 	verboseDefault = false
 	versionArg     bool
 	versionDefault = false
+
+	// Use a fake function so we can override when testing
+	osExit = os.Exit
 )
 
 const usage = `
@@ -66,6 +50,24 @@ Options:
 -h, -help           display this help message
 
 `
+
+// Configuration stores all of the possible parameters a config file could contain
+type Configuration struct {
+	URL           string   `yaml:"url"`
+	URLPackages   string   `yaml:"url_packages"`
+	Manifest      string   `yaml:"manifest"`
+	Catalogs      []string `yaml:"catalogs"`
+	AppDataPath   string   `yaml:"app_data_path"`
+	Verbose       bool     `yaml:"verbose,omitempty"`
+	Debug         bool     `yaml:"debug,omitempty"`
+	AuthUser      string   `yaml:"auth_user,omitempty"`
+	AuthPass      string   `yaml:"auth_pass,omitempty"`
+	TLSAuth       bool     `yaml:"tls_auth,omitempty"`
+	TLSClientCert string   `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey  string   `yaml:"tls_client_key,omitempty"`
+	TLSServerCert string   `yaml:"tls_server_cert,omitempty"`
+	CachePath     string
+}
 
 func init() {
 	// Define flag names and defaults here
@@ -90,9 +92,6 @@ func init() {
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
 }
 
-// Use a fake function so we can override when testing
-var osExit = os.Exit
-
 func parseArguments() (string, bool, bool) {
 	// Get the command line args
 	flag.Parse()
@@ -113,53 +112,68 @@ func parseArguments() (string, bool, bool) {
 	return configArg, verboseArg, debugArg
 }
 
-// Current is a global struct to store our configuration in
-var Current Object
+// Get retrieves and parses the config file and returns a Configuration struct and any errors
+func Get() Configuration {
+	var cfg Configuration
 
-// Get retrieves and then stores the local configuration
-func Get() {
-
+	// Parse any arguments that may have been passed
 	configPath, verbose, debug := parseArguments()
 
-	// Get the config at configpath and return a config.Object
+	// Read the config file
 	configFile, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		fmt.Println("Unable to read configuration file: ", err)
 		os.Exit(1)
 	}
-	err = yaml.Unmarshal(configFile, &Current)
+
+	// Parse the config into a struct
+	err = yaml.Unmarshal(configFile, &cfg)
 	if err != nil {
 		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
-	// If URL wasnt provided, exit
-	if Current.URL == "" {
-		fmt.Println("Invalid configuration - URL: ", err)
-		os.Exit(1)
-	}
+
 	// If Manifest wasnt provided, exit
-	if Current.Manifest == "" {
+	if cfg.Manifest == "" {
 		fmt.Println("Invalid configuration - Manifest: ", err)
 		os.Exit(1)
 	}
+
+	// If URL wasnt provided, exit
+	if cfg.URL == "" {
+		fmt.Println("Invalid configuration - URL: ", err)
+		os.Exit(1)
+	}
+
+	// If URLPackages wasn't provided, use the repo URL
+	if cfg.URLPackages == "" {
+		cfg.URLPackages = cfg.URL
+	}
+
 	// If AppDataPath wasn't provided, configure a default
-	if Current.AppDataPath == "" {
-		Current.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
+	if cfg.AppDataPath == "" {
+		cfg.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
+	} else {
+		cfg.AppDataPath = filepath.Clean(cfg.AppDataPath)
 	}
+
 	// Set the verbosity
-	if verbose && !Current.Verbose {
-		Current.Verbose = true
+	if verbose && !cfg.Verbose {
+		cfg.Verbose = true
 	}
+
 	// Set the debug and verbose
-	if debug && !Current.Debug {
-		Current.Debug = true
-		Current.Verbose = true
+	if debug && !cfg.Debug {
+		cfg.Debug = true
+		cfg.Verbose = true
 	}
 
 	// Set the cache path
-	CachePath = filepath.Join(Current.AppDataPath, "cache")
+	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")
 
 	// Add to GorillaReport
-	report.Items["Manifest"] = Current.Manifest
-	report.Items["Catalog"] = Current.Catalogs
+	report.Items["Manifest"] = cfg.Manifest
+	report.Items["Catalog"] = cfg.Catalogs
+
+	return cfg
 }

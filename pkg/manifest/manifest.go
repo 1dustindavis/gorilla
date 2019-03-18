@@ -20,9 +20,9 @@ type Item struct {
 	Catalogs   []string `yaml:"catalogs"`
 }
 
-func getManifest(manifestName string) Item {
+func getManifest(cachePath, manifestName string) Item {
 	// Unmarshal the yaml file
-	yamlPath := filepath.Join(config.CachePath, manifestName) + ".yaml"
+	yamlPath := filepath.Join(cachePath, manifestName) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
 		gorillalog.Error("Unable to read manifest:", yamlFile, err)
@@ -38,10 +38,10 @@ func getManifest(manifestName string) Item {
 // This abstraction allows us to override when testing
 var downloadFile = download.File
 
-// Get returns a slice the includes all manifest objects
-func Get() []Item {
-	// Create a slice of all manifest objects
-	var manifests []Item
+// Get returns two slices:
+// 1) All manifest objects
+// 2) Aditional catalogs that need to be added to the config
+func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	// Create a slice with the names of all manifests
 	// This is so we can track them before we get the data
 	var manifestsList []string
@@ -52,7 +52,7 @@ func Get() []Item {
 	var manifestsRemaining = 1
 
 	// Add the top level manifest to the list
-	manifestsList = append(manifestsList, config.Current.Manifest)
+	manifestsList = append(manifestsList, cfg.Manifest)
 
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
@@ -61,15 +61,15 @@ func Get() []Item {
 		workingList := []string{currentManifest}
 
 		// Download the manifest
-		manifestURL := config.Current.URL + "manifests/" + currentManifest + ".yaml"
+		manifestURL := cfg.URL + "manifests/" + currentManifest + ".yaml"
 		gorillalog.Info("Manifest Url:", manifestURL)
-		err := downloadFile(config.CachePath, manifestURL)
+		err := downloadFile(cfg.CachePath, manifestURL)
 		if err != nil {
 			gorillalog.Error("Unable to retrieve manifest:", currentManifest, err)
 		}
 
 		// Get new manifest
-		newManifest := getManifest(currentManifest)
+		newManifest := getManifest(cfg.CachePath, currentManifest)
 
 		// Add any includes to our working list
 		workingList = append(workingList, newManifest.Includes...)
@@ -107,14 +107,14 @@ func Get() []Item {
 		for _, newCatalog := range newManifest.Catalogs {
 			// Before adding it, check if it is already on the list
 			var match bool
-			for _, oldCatalog := range config.Current.Catalogs {
+			for _, oldCatalog := range cfg.Catalogs {
 				if oldCatalog == newCatalog {
 					match = true
 				}
 			}
-			// If "match" is still false, it is not already on the list
+			// If "match" is still false, it is not already in the catalog slice
 			if !match {
-				config.Current.Catalogs = append(config.Current.Catalogs, newCatalog)
+				newCatalogs = append(newCatalogs, newCatalog)
 			}
 		}
 
@@ -123,5 +123,5 @@ func Get() []Item {
 		manifestsProcessed++
 		manifestsRemaining = manifestsTotal - manifestsProcessed
 	}
-	return manifests
+	return manifests, newCatalogs
 }

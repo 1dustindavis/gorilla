@@ -8,15 +8,13 @@ import (
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
 var (
 	// store original data to restore after each test
-	origInstall     = installerInstall
-	origAppDataPath = config.Current.AppDataPath
-	origOsRemove    = osRemove
+	origInstall  = installerInstall
+	origOsRemove = osRemove
 
 	// Setup a test catalog
 	testCatalogs = map[int]map[string]catalog.Item{1: {
@@ -166,7 +164,7 @@ func TestInstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Installs` with test data
-	Installs(testInstalls, testCatalogs)
+	Installs(testInstalls, testCatalogs, "URLPackages", "CachePath")
 
 	// Define what we expect to be in the list of installed items
 	// This ends up being the testInstalls slice *PLUS any dependencies*
@@ -189,7 +187,7 @@ func TestUninstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Uninstalls` with test data
-	Uninstalls(testUninstalls, testCatalogs)
+	Uninstalls(testUninstalls, testCatalogs, "URLPackages", "CachePath")
 
 	// Define what we expect to be in the list of uninstalled items
 	expectedItems := testUninstalls
@@ -211,7 +209,7 @@ func TestUpdates(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Updates` with test data
-	Updates(testUpdates, testCatalogs)
+	Updates(testUpdates, testCatalogs, "URLPackages", "CachePath")
 
 	// Define what we expect to be in the list of updated items
 	expectedItems := testUpdates
@@ -228,12 +226,10 @@ func TestUpdates(t *testing.T) {
 // TestCleanUp verifies that only the correct files and directories are removed
 func TestCleanUp(t *testing.T) {
 
-	// Override the cachepath and the os.Remove function
-	config.Current.AppDataPath = "testdata/"
+	// Override the os.Remove function
 	osRemove = fakeOsRemove
 	defer func() {
 		osRemove = origOsRemove
-		config.Current.AppDataPath = origAppDataPath
 	}()
 
 	// Define new and old times
@@ -267,7 +263,7 @@ func TestCleanUp(t *testing.T) {
 	}
 
 	// Run `CleanUp`
-	CleanUp()
+	CleanUp("testdata/")
 
 	// Define the files and directories we expect to be deleted
 	expectedFiles := []string{oldFile, emptyDir}
@@ -282,21 +278,21 @@ func TestCleanUp(t *testing.T) {
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualInstalledItems`
-func fakeInstall(item catalog.Item, installerType string) string {
+func fakeInstall(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualInstalledItems = append(actualInstalledItems, item.DisplayName)
 	return ""
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualUninstalledItems`
-func fakeUninstall(item catalog.Item, installerType string) string {
+func fakeUninstall(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUninstalledItems = append(actualUninstalledItems, item.DisplayName)
 	return ""
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualUpdatedItems`
-func fakeUpdate(item catalog.Item, installerType string) string {
+func fakeUpdate(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUpdatedItems = append(actualUpdatedItems, item.DisplayName)
 	return ""

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
@@ -44,14 +43,12 @@ func runCommand(command string, arguments []string) string {
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
-	if config.Current.Verbose {
-		gorillalog.Debug("command:", command, arguments)
-		go func() {
-			for scanner.Scan() {
-				gorillalog.Debug("Command output | ", scanner.Text())
-			}
-		}()
-	}
+	gorillalog.Debug("command:", command, arguments)
+	go func() {
+		for scanner.Scan() {
+			gorillalog.Debug("Command output | ", scanner.Text())
+		}
+	}()
 
 	err = cmd.Start()
 	if err != nil {
@@ -67,19 +64,22 @@ func runCommand(command string, arguments []string) string {
 	return cmdOutput.String()
 }
 
-func installItem(item catalog.Item) string {
+func installItem(item catalog.Item, itemURL, cachePath string) string {
 
 	// Determine the paths needed for download and install
 	relPath, fileName := path.Split(item.Installer.Location)
-	absPath := filepath.Join(config.CachePath, relPath)
+	absPath := filepath.Join(cachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
-	if config.Current.URLPackages != "" {
-		installerURL = config.Current.URLPackages + item.Installer.Location
-	} else {
-		installerURL = config.Current.URL + item.Installer.Location
+
+	// Download the item if it is needed
+	valid := download.IfNeeded(absFile, itemURL, item.Installer.Hash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
+		gorillalog.Warn(msg)
+		return msg
 	}
 
-	// Determine the install type and build the command
+	// Determine the install type and command to pass
 	var installCmd string
 	var installArgs []string
 	if item.Installer.Type == "nupkg" {
@@ -105,14 +105,6 @@ func installItem(item catalog.Item) string {
 		return msg
 	}
 
-	// Download the item if it is needed
-	valid := download.IfNeeded(absFile, installerURL, item.Installer.Hash)
-	if !valid {
-		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
-		gorillalog.Warn(msg)
-		return msg
-	}
-
 	// Run the command
 	installerOut := runCommand(installCmd, installArgs)
 
@@ -122,16 +114,19 @@ func installItem(item catalog.Item) string {
 	return installerOut
 }
 
-func uninstallItem(item catalog.Item) string {
+func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 
 	// Determine the paths needed for download and uinstall
 	relPath, fileName := path.Split(item.Uninstaller.Location)
-	absPath := filepath.Join(config.CachePath, relPath)
+	absPath := filepath.Join(cachePath, relPath)
 	absFile := filepath.Join(absPath, fileName)
-	if config.Current.URLPackages != "" {
-		uninstallerURL = config.Current.URLPackages + item.Uninstaller.Location
-	} else {
-		uninstallerURL = config.Current.URL + item.Uninstaller.Location
+
+	// Download the item if it is needed
+	valid := download.IfNeeded(absFile, itemURL, item.Uninstaller.Hash)
+	if !valid {
+		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
+		gorillalog.Warn(msg)
+		return msg
 	}
 
 	// Determine the uninstall type and build the command
@@ -160,14 +155,6 @@ func uninstallItem(item catalog.Item) string {
 		return msg
 	}
 
-	// Download the item if it is needed
-	valid := download.IfNeeded(absFile, uninstallerURL, item.Uninstaller.Hash)
-	if !valid {
-		msg := fmt.Sprint("Unable to download valid file: ", installerURL)
-		gorillalog.Warn(msg)
-		return msg
-	}
-
 	// Run the command
 	uninstallerOut := runCommand(uninstallCmd, uninstallArgs)
 
@@ -179,9 +166,9 @@ func uninstallItem(item catalog.Item) string {
 
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
-func Install(item catalog.Item, installerType string) string {
+func Install(item catalog.Item, installerType, urlPackages, cachePath string) string {
 	// Check the status and determine if any action is needed for this item
-	actionNeeded, err := statusCheckStatus(item, installerType)
+	actionNeeded, err := statusCheckStatus(item, installerType, cachePath)
 	if err != nil {
 		msg := fmt.Sprint("Unable to check status: ", err)
 		gorillalog.Warn(msg)
@@ -193,11 +180,14 @@ func Install(item catalog.Item, installerType string) string {
 		return "Item not needed"
 	}
 
+	// Compile the item's URL
+	itemURL := urlPackages + item.Uninstaller.Location
+
 	// Install or uninstall the item
 	if installerType == "install" || installerType == "update" {
-		installItem(item)
+		installItem(item, itemURL, cachePath)
 	} else if installerType == "uninstall" {
-		uninstallItem(item)
+		uninstallItem(item, itemURL, cachePath)
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
 		return "Unsupported item type"

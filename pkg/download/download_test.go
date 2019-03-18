@@ -15,8 +15,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/1dustindavis/gorilla/pkg/config"
 )
 
 var (
@@ -226,13 +224,9 @@ func TestFileBasicAuth(t *testing.T) {
 	ts := httptest.NewServer(router())
 	defer ts.Close()
 
-	// Save the original config
-	origConfig := config.Current
-	defer func() { config.Current = origConfig }()
-
 	// Setup basic auth
-	config.Current.AuthUser = "frank"
-	config.Current.AuthPass = "beans"
+	downloadCfg.AuthUser = "frank"
+	downloadCfg.AuthPass = "beans"
 
 	// Run the code
 	fileErr := File(dir, ts.URL+"/basicauth")
@@ -253,22 +247,18 @@ func TestFileTLS(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	// Save the original config
-	origConfig := config.Current
-	defer func() { config.Current = origConfig }()
-
 	// Setup TLS auth
-	config.Current.TLSAuth = true
-	config.Current.TLSClientCert = "testdata/client.pem"
-	config.Current.TLSClientKey = "testdata/client.key"
-	config.Current.TLSServerCert = "testdata/server.pem"
+	downloadCfg.TLSAuth = true
+	downloadCfg.TLSClientCert = "testdata/client.pem"
+	downloadCfg.TLSClientKey = "testdata/client.key"
+	downloadCfg.TLSServerCert = "testdata/server.pem"
 	serverKeyPath := "testdata/server.key"
 
 	// Create a test server
 	ts := httptest.NewUnstartedServer(router())
 
 	// Prepare ca certs
-	serverCert, _ := ioutil.ReadFile(config.Current.TLSServerCert)
+	serverCert, _ := ioutil.ReadFile(downloadCfg.TLSServerCert)
 	serverKey, _ := ioutil.ReadFile(serverKeyPath)
 
 	certPool := x509.NewCertPool()

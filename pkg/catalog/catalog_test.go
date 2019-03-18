@@ -42,15 +42,23 @@ If ($upToDate) {
 		Version:     `68.0.3440.106`,
 	}
 
-	config.Current.URL = "http://example.com/"
-	config.Current.Catalogs = []string{"test_catalog"}
-	config.CachePath = "testdata/"
+	// Define a Configuration struct to pass to `Get`
+	cfg := config.Configuration{
+		URL:       "https://example.com/",
+		Manifest:  "example_manifest",
+		CachePath: "testdata/",
+		Catalogs:  []string{"test_catalog"},
+	}
+
+	// Override the downloadFile function with our fake function
 	downloadFile = fakeDownload
-	testCatalog := Get()
+
+	// Run `Get`
+	testCatalog := Get(cfg)
 
 	mapsMatch := reflect.DeepEqual(expected, testCatalog[1])
 
 	if !mapsMatch {
-		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, testCatalog)
+		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, testCatalog[1])
 	}
 }

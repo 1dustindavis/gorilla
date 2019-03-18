@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	version "github.com/hashicorp/go-version"
@@ -93,10 +92,10 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 	return actionNeeded, checkErr
 }
 
-func checkScript(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
+func checkScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
 
 	// Write InstallCheckScript to disk as a Powershell file
-	tmpScript := filepath.Join(config.CachePath, "tmpCheckScript.ps1")
+	tmpScript := filepath.Join(cachePath, "tmpCheckScript.ps1")
 	ioutil.WriteFile(tmpScript, []byte(catalogItem.Check.Script), 0755)
 
 	// Build the command to execute the script
@@ -194,11 +193,11 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 }
 
 // CheckStatus determines the method for checking status
-func CheckStatus(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
+func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actionNeeded bool, checkErr error) {
 
 	if catalogItem.Check.Script != "" {
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
-		return checkScript(catalogItem)
+		return checkScript(catalogItem, cachePath)
 
 	} else if catalogItem.Check.File != nil {
 		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)

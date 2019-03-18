@@ -1,0 +1,31 @@
+---
+
+ChefClient:
+  dependencies:
+    - ruby
+  display_name: Chef Client
+  check:
+    file:
+      - path: C:\opscode\chef\bin\chef-client.bat
+      - path: C:\test\path\check\file.exe
+        hash: abc1234567890def
+        version: 1.2.3.0
+    script: |
+      $latest = "14.3.37"
+      $current = C:\opscode\chef\bin\chef-client.bat --version
+      $current = $current.Split(" ")[1]
+      $upToDate = [System.Version]$current -ge [System.Version]$latest
+      If ($upToDate) {
+        exit 1
+      } Else {
+        exit 0
+      }
+  installer:
+    location: packages/chef-client/chef-client-14.3.37-1-x64.msi
+    hash: f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d
+    arguments: 
+       - /L=1033
+       - /S
+  version: 68.0.3440.106
+  uninstaller:
+    type: msi

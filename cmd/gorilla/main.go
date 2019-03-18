@@ -22,7 +22,7 @@ func main() {
 	report.Start()
 
 	// Set the configuration that `download` will use
-	download.Config = cfg
+	download.SetConfig(cfg)
 
 	// Get the manifests
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
@@ -30,7 +30,7 @@ func main() {
 
 	// If we have newCatalogs, add them to the configuration
 	if newCatalogs != nil {
-		cfg.Catalogs.append(cfg.Catalogs, newCatalogs)
+		cfg.Catalogs = append(cfg.Catalogs, newCatalogs...)
 	}
 
 	// Get the catalogs
@@ -43,15 +43,15 @@ func main() {
 
 	// Prepare and install
 	gorillalog.Info("Processing managed installs...")
-	process.Installs(installs, catalogs)
+	process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath)
 
 	// Prepare and uninstall
 	gorillalog.Info("Processing managed uninstalls...")
-	process.Uninstalls(uninstalls, catalogs)
+	process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath)
 
 	// Prepare and update
 	gorillalog.Info("Processing managed updates...")
-	process.Updates(updates, catalogs)
+	process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath)
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillReport.json...")
@@ -59,7 +59,7 @@ func main() {
 
 	// Run CleanUp to delete old cached items and empty directories
 	gorillalog.Info("Cleaning up the cache...")
-	process.CleanUp()
+	process.CleanUp(cfg.CachePath)
 
 	gorillalog.Info("Done!")
 }

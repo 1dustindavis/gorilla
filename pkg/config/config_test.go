@@ -11,6 +11,7 @@ func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
 	expected := Configuration{
 		URL:         "https://example.com/gorilla/",
+		URLPackages: "https://example.com/gorilla/",
 		Manifest:    "example_manifest",
 		Catalogs:    []string{"example_catalog"},
 		AppDataPath: "c:/cpe/gorilla/",

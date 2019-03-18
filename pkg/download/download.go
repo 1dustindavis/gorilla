@@ -21,9 +21,14 @@ import (
 )
 
 var (
-	// Config is a global variable that the allows another package to set the config for `download`
-	Config config.Configuration
+	// A package level copy of our config for the `download` package to reference
+	downloadCfg config.Configuration
 )
+
+// SetConfig accepts a configuration struct that all functions in the `download` package will use
+func SetConfig(cfg config.Configuration) {
+	downloadCfg = cfg
+}
 
 // File downloads a provided url to the file path specified.
 // Timeout is 10 seconds
@@ -49,15 +54,15 @@ func File(file string, url string) error {
 	var client *http.Client
 
 	// If TLSAuth is true, configure server and client certs
-	if Config.TLSAuth {
+	if downloadCfg.TLSAuth {
 		// Load	the client certificate and private key
-		clientCert, err := tls.LoadX509KeyPair(Config.TLSClientCert, Config.TLSClientKey)
+		clientCert, err := tls.LoadX509KeyPair(downloadCfg.TLSClientCert, downloadCfg.TLSClientKey)
 		if err != nil {
 			return err
 		}
 
 		// Load server certificates
-		serverCert, err := ioutil.ReadFile(Config.TLSServerCert)
+		serverCert, err := ioutil.ReadFile(downloadCfg.TLSServerCert)
 		if err != nil {
 			return err
 		}
@@ -113,8 +118,8 @@ func File(file string, url string) error {
 	}
 
 	// If we have a user and pass, configure basic auth
-	if Config.AuthUser != "" && Config.AuthPass != "" {
-		req.SetBasicAuth(Config.AuthUser, Config.AuthPass)
+	if downloadCfg.AuthUser != "" && downloadCfg.AuthPass != "" {
+		req.SetBasicAuth(downloadCfg.AuthUser, downloadCfg.AuthPass)
 	}
 
 	// Actually send the request, using the client we setup

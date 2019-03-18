@@ -50,12 +50,15 @@ If ($upToDate) {
 		Catalogs:  []string{"test_catalog"},
 	}
 
+	// Override the downloadFile function with our fake function
+	downloadFile = fakeDownload
+
 	// Run `Get`
 	testCatalog := Get(cfg)
 
 	mapsMatch := reflect.DeepEqual(expected, testCatalog[1])
 
 	if !mapsMatch {
-		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, testCatalog)
+		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expected, testCatalog[1])
 	}
 }

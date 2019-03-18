@@ -225,8 +225,8 @@ func TestFileBasicAuth(t *testing.T) {
 	defer ts.Close()
 
 	// Setup basic auth
-	Config.AuthUser = "frank"
-	Config.AuthPass = "beans"
+	downloadCfg.AuthUser = "frank"
+	downloadCfg.AuthPass = "beans"
 
 	// Run the code
 	fileErr := File(dir, ts.URL+"/basicauth")
@@ -248,17 +248,17 @@ func TestFileTLS(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// Setup TLS auth
-	Config.TLSAuth = true
-	Config.TLSClientCert = "testdata/client.pem"
-	Config.TLSClientKey = "testdata/client.key"
-	Config.TLSServerCert = "testdata/server.pem"
+	downloadCfg.TLSAuth = true
+	downloadCfg.TLSClientCert = "testdata/client.pem"
+	downloadCfg.TLSClientKey = "testdata/client.key"
+	downloadCfg.TLSServerCert = "testdata/server.pem"
 	serverKeyPath := "testdata/server.key"
 
 	// Create a test server
 	ts := httptest.NewUnstartedServer(router())
 
 	// Prepare ca certs
-	serverCert, _ := ioutil.ReadFile(Config.TLSServerCert)
+	serverCert, _ := ioutil.ReadFile(downloadCfg.TLSServerCert)
 	serverKey, _ := ioutil.ReadFile(serverKeyPath)
 
 	certPool := x509.NewCertPool()

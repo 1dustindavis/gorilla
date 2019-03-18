@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -9,14 +10,23 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
 var (
 	// store original data to restore after each test
 	origExec          = execCommand
-	origCachePath     = config.CachePath
-	origVerbose       = config.Current.Verbose
 	origRegistryItems = RegistryItems
+
+	// Temp directory for logging
+	logTmp, _ = ioutil.TempDir("", "gorilla-status_test")
+
+	// Setup a testing Configuration struct
+	cfgVerbose = config.Configuration{
+		Debug:       false,
+		Verbose:     true,
+		AppDataPath: logTmp,
+	}
 
 	// fakeRegistryItems provides fake items for testing checkRegistry
 	fakeRegistryItems = map[string]RegistryApplication{
@@ -233,24 +243,21 @@ func TestCheckRegistry(t *testing.T) {
 func TestCheckScript(t *testing.T) {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
 	}()
 
 	// Set cachepath and run checkScript for scriptActionNoError
-	config.CachePath = fmt.Sprintf("testdata/%s/", statusActionNoError)
-	actionNeeded, err := checkScript(scriptActionNoError)
+	cachepath := fmt.Sprintf("testdata/%s/", statusActionNoError)
+	actionNeeded, err := checkScript(scriptActionNoError, cachepath)
 	if !actionNeeded || err != nil {
 		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
 		t.Errorf("Expected checkScript to action and no error")
 	}
 
 	// Set cachepath and run checkScript for scriptNoActionNoError
-	config.CachePath = fmt.Sprintf("testdata/%s/", statusNoActionNoError)
-	actionNeeded, err = checkScript(scriptNoActionNoError)
+	cachepath = fmt.Sprintf("testdata/%s/", statusNoActionNoError)
+	actionNeeded, err = checkScript(scriptNoActionNoError, cachepath)
 	if actionNeeded || err != nil {
 		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
 		t.Errorf("Expected checkScript to return no action and no error")
@@ -260,11 +267,6 @@ func TestCheckScript(t *testing.T) {
 
 // TestCheckPath validates that the status of a path is checked correctly
 func TestCheckPath(t *testing.T) {
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
-	defer func() {
-		config.CachePath = origCachePath
-	}()
 
 	// Run checkPath for pathInstalled
 	// We expect action is not needed; Only error if action needed is true
@@ -312,18 +314,14 @@ func TestCheckPath(t *testing.T) {
 func ExampleCheckStatus_script() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	// Override the verbose setting
-	config.Current.Verbose = true
+	gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.Verbose = origVerbose
 	}()
 
 	// Run CheckStatus with an item that has a script check
-	CheckStatus(scriptCheckItem, "install")
+	CheckStatus(scriptCheckItem, "install", "testdata/")
 
 	// Output:
 	// Checking status via Script: scriptCheckItem
@@ -333,18 +331,14 @@ func ExampleCheckStatus_script() {
 func ExampleCheckStatus_file() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	// Override the verbose setting
-	config.Current.Verbose = true
+	gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.Verbose = origVerbose
 	}()
 
 	// Run CheckStatus with an item that has a script check
-	CheckStatus(fileCheckItem, "install")
+	CheckStatus(fileCheckItem, "install", "testdata/")
 
 	// Output:
 	// Checking status via File: fileCheckItem
@@ -354,18 +348,14 @@ func ExampleCheckStatus_file() {
 func ExampleCheckStatus_registry() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	// Override the verbose setting
-	config.Current.Verbose = true
+	gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.Verbose = origVerbose
 	}()
 
 	// Run CheckStatus with an item that has a script check
-	CheckStatus(registryCheckItem, "install")
+	CheckStatus(registryCheckItem, "install", "testdata/")
 
 	// Output:
 	// Checking status via Registry: registryCheckItem
@@ -375,18 +365,14 @@ func ExampleCheckStatus_registry() {
 func ExampleCheckStatus_none() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
-	// Override the cachepath to use our test directory
-	config.CachePath = "testdata/"
 	// Override the verbose setting
-	config.Current.Verbose = false
+	gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
-		config.CachePath = origCachePath
-		config.Current.Verbose = origVerbose
 	}()
 
 	// Run CheckStatus with an item that has a script check
-	CheckStatus(noCheckItem, "install")
+	CheckStatus(noCheckItem, "install", "testdata/")
 
 	// Output:
 	// Not enough data to check the current status: noCheckItem

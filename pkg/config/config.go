@@ -15,7 +15,7 @@ import (
 
 var (
 	// CachePath is a directory we will use for temporary storage
-	CachePath string
+	cachePath string
 
 	// Define flag defaults
 	aboutArg       bool
@@ -132,24 +132,34 @@ func Get() Configuration {
 		fmt.Println("Unable to parse yaml configuration: ", err)
 		os.Exit(1)
 	}
-	// If URL wasnt provided, exit
-	if cfg.URL == "" {
-		fmt.Println("Invalid configuration - URL: ", err)
-		os.Exit(1)
-	}
+
 	// If Manifest wasnt provided, exit
 	if cfg.Manifest == "" {
 		fmt.Println("Invalid configuration - Manifest: ", err)
 		os.Exit(1)
 	}
+
+	// If URL wasnt provided, exit
+	if cfg.URL == "" {
+		fmt.Println("Invalid configuration - URL: ", err)
+		os.Exit(1)
+	}
+
+	// If URLPackages wasn't provided, use the repo URL
+	if cfg.URLPackages == "" {
+		cfg.URLPackages = cfg.URL
+	}
+
 	// If AppDataPath wasn't provided, configure a default
 	if cfg.AppDataPath == "" {
 		cfg.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
 	}
+
 	// Set the verbosity
 	if verbose && !cfg.Verbose {
 		cfg.Verbose = true
 	}
+
 	// Set the debug and verbose
 	if debug && !cfg.Debug {
 		cfg.Debug = true

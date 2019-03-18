@@ -93,7 +93,7 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 var installerInstall = installer.Install
 
 // Installs prepares and then installs an array of items
-func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages string, cachePath string) {
+func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the installs array, install dependencies, and then the item itself
 	for _, item := range installs {
 		// Get the first valid item from our catalogs
@@ -120,7 +120,7 @@ func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, ur
 }
 
 // Uninstalls prepares and then installs an array of items
-func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages string, cachePath string) {
+func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Get the first valid item from our catalogs
@@ -136,7 +136,7 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 }
 
 // Updates prepares and then installs an array of items
-func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages string, cachePath string) {
+func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Get the first valid item from our catalogs

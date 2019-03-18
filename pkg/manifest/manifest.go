@@ -20,7 +20,7 @@ type Item struct {
 	Catalogs   []string `yaml:"catalogs"`
 }
 
-func getManifest(cachePath string, manifestName string) Item {
+func getManifest(cachePath, manifestName string) Item {
 	// Unmarshal the yaml file
 	yamlPath := filepath.Join(cachePath, manifestName) + ".yaml"
 	yamlFile, err := ioutil.ReadFile(yamlPath)

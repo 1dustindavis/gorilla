@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -14,12 +15,12 @@ func TestGet(t *testing.T) {
 		URLPackages: "https://example.com/gorilla/",
 		Manifest:    "example_manifest",
 		Catalogs:    []string{"example_catalog"},
-		AppDataPath: "c:/cpe/gorilla/",
+		AppDataPath: filepath.Clean("c:/cpe/gorilla/"),
 		Verbose:     true,
 		Debug:       true,
 		AuthUser:    "johnny",
 		AuthPass:    "pizza",
-		CachePath:   "c:/cpe/gorilla/cache",
+		CachePath:   filepath.Clean("c:/cpe/gorilla/cache"),
 	}
 
 	// Save the original arguments

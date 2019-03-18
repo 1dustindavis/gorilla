@@ -153,6 +153,8 @@ func Get() Configuration {
 	// If AppDataPath wasn't provided, configure a default
 	if cfg.AppDataPath == "" {
 		cfg.AppDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla/")
+	} else {
+		cfg.AppDataPath = filepath.Clean(cfg.AppDataPath)
 	}
 
 	// Set the verbosity

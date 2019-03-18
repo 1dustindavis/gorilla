@@ -193,7 +193,7 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 }
 
 // CheckStatus determines the method for checking status
-func CheckStatus(catalogItem catalog.Item, installType string, cachePath string) (actionNeeded bool, checkErr error) {
+func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actionNeeded bool, checkErr error) {
 
 	if catalogItem.Check.Script != "" {
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)

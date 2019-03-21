@@ -85,7 +85,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Installer.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		installCmd = commandNupkg
-		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
+		installArgs = []string{"install", absFile, "-f", "-y"}
 	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
@@ -135,7 +135,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Uninstaller.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		uninstallCmd = commandNupkg
-		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
+		uninstallArgs = []string{"uninstall", absFile, "-f", "-y"}
 	} else if item.Uninstaller.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		uninstallCmd = commandMsi

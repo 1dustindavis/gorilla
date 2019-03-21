@@ -180,13 +180,16 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string) st
 		return "Item not needed"
 	}
 
-	// Compile the item's URL
-	itemURL := urlPackages + item.Uninstaller.Location
-
 	// Install or uninstall the item
 	if installerType == "install" || installerType == "update" {
+		// Compile the item's URL
+		itemURL := urlPackages + item.Installer.Location
+		// Run the installer
 		installItem(item, itemURL, cachePath)
 	} else if installerType == "uninstall" {
+		// Compile the item's URL
+		itemURL := urlPackages + item.Uninstaller.Location
+		// Run the installer
 		uninstallItem(item, itemURL, cachePath)
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)

@@ -164,6 +164,12 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	return uninstallerOut
 }
 
+var (
+	// By putting the functions in a variable, we can override later in tests
+	installItemFunc   = installItem
+	uninstallItemFunc = uninstallItem
+)
+
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
 func Install(item catalog.Item, installerType, urlPackages, cachePath string) string {
@@ -185,12 +191,12 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string) st
 		// Compile the item's URL
 		itemURL := urlPackages + item.Installer.Location
 		// Run the installer
-		installItem(item, itemURL, cachePath)
+		installItemFunc(item, itemURL, cachePath)
 	} else if installerType == "uninstall" {
 		// Compile the item's URL
 		itemURL := urlPackages + item.Uninstaller.Location
 		// Run the installer
-		uninstallItem(item, itemURL, cachePath)
+		uninstallItemFunc(item, itemURL, cachePath)
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
 		return "Unsupported item type"

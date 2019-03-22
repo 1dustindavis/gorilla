@@ -22,6 +22,11 @@ var (
 	origExec            = execCommand
 	origCheckStatus     = statusCheckStatus
 	origReportInstalled = report.InstalledItems
+	origInstallItemFunc = installItemFunc
+
+	// These tore the URL that `Install` generates during testing
+	installItemURL   string
+	uninstallItemURL string
 
 	// Define a testing config for `download`
 	downloadCfg = config.Configuration{
@@ -463,4 +468,68 @@ func TestInstallReport(t *testing.T) {
 		t.Errorf("\nExpected: %#v\nReceived: %#v", expectedReport, report.InstalledItems)
 	}
 
+}
+
+func fakeInstallItem(item catalog.Item, itemURL, cachePath string) string {
+	installItemURL = itemURL
+	return ""
+}
+
+// TestInstallURL validates that the url for an installer is properly generated
+func TestInstallURL(t *testing.T) {
+	// Override checkStatus and installItemFunc with our fake versions
+	statusCheckStatus = fakeCheckStatus
+	installItemFunc = fakeInstallItem
+	defer func() {
+		statusCheckStatus = origCheckStatus
+		installItemFunc = origInstallItemFunc
+	}()
+
+	// Make sure the `installItemURL` variable is blank before we start
+	installItemURL = ""
+
+	// Run the msi installer with this status bypass checks
+	msiItem.DisplayName = statusActionNoError
+
+	// Run Install
+	Install(msiItem, "install", "https://example.com/", "testdata/")
+
+	// Check the result
+	expectedURL := "https://example.com/packages/chef-client/chef-client-14.3.37-1-x64.msi"
+
+	if have, want := installItemURL, expectedURL; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+}
+
+func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) string {
+	uninstallItemURL = itemURL
+	return ""
+}
+
+// TestUninstallURL validates that the url for an installer is properly generated
+func TestUninstallURL(t *testing.T) {
+	// Override checkStatus and installItemFunc with our fake versions
+	statusCheckStatus = fakeCheckStatus
+	uninstallItemFunc = fakeUninstallItem
+	defer func() {
+		statusCheckStatus = origCheckStatus
+		installItemFunc = origInstallItemFunc
+	}()
+
+	// Make sure the `installItemURL` variable is blank before we start
+	uninstallItemURL = ""
+
+	// Run the msi installer with this status bypass checks
+	msiItem.DisplayName = statusActionNoError
+
+	// Run Install
+	Install(msiItem, "uninstall", "https://example.com/", "testdata/")
+
+	// Check the result
+	expectedURL := "https://example.com/packages/chef-client/chef-client-14.3.37-1-x64.msi"
+
+	if have, want := installItemURL, expectedURL; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
 }

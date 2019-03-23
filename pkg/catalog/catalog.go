@@ -9,6 +9,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	"github.com/1dustindavis/gorilla/pkg/report"
 	"gopkg.in/yaml.v2"
 )
 
@@ -62,19 +63,20 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 	// catalogCount allows us to be sure we are processing catalogs in order
 	var catalogCount = 0
 
-	// Error if dont have at least one catalog
-	if len(cfg.Catalogs) < 1 {
-		gorillalog.Warn("Unable to continue, no catalogs assigned: ", cfg.Catalogs)
-		os.Exit(1)
-	}
-
 	// Setup to catch a potential failure
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println(r)
+			report.End()
 			os.Exit(1)
+
 		}
 	}()
+
+	// Error if dont have at least one catalog
+	if len(cfg.Catalogs) < 1 {
+		gorillalog.Error("Unable to continue, no catalogs assigned: ", cfg.Catalogs)
+	}
 
 	// Loop through the catalogs and get each one in order
 	for _, catalog := range cfg.Catalogs {

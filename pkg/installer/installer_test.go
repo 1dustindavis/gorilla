@@ -195,7 +195,7 @@ func TestInstallItem(t *testing.T) {
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
-	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y]"
+	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y -r]"
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -316,7 +316,7 @@ func TestUninstallItem(t *testing.T) {
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg")
-	expectedNupkg := "[" + nupkgCmd + " uninstall " + nupkgPath + " -f -y]"
+	expectedNupkg := "[" + nupkgCmd + " uninstall " + nupkgPath + " -f -y -r]"
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}

@@ -2,12 +2,12 @@ package installer
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -34,20 +34,27 @@ var (
 // runCommand executes a command and it's argurments in the CMD environment
 func runCommand(command string, arguments []string) string {
 	cmd := execCommand(command, arguments...)
-	var cmdOutput bytes.Buffer
+	var cmdOutput string
 	cmdReader, err := cmd.StdoutPipe()
-	cmd.Stdout = &cmdOutput
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
 		gorillalog.Warn("Error creating pipe to stdout", err)
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	scanner := bufio.NewScanner(cmdReader)
 	gorillalog.Debug("command:", command, arguments)
 	go func() {
+		gorillalog.Debug("Command Output:")
+		gorillalog.Debug("--------------------")
 		for scanner.Scan() {
-			gorillalog.Debug("Command output | ", scanner.Text())
+			gorillalog.Debug(scanner.Text())
+			cmdOutput = scanner.Text()
 		}
+		gorillalog.Debug("--------------------")
+		wg.Done()
 	}()
 
 	err = cmd.Start()
@@ -56,12 +63,14 @@ func runCommand(command string, arguments []string) string {
 		gorillalog.Warn("Error running command:", err)
 	}
 
+	wg.Wait()
 	err = cmd.Wait()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
 		gorillalog.Warn("Command error:", err)
 	}
-	return cmdOutput.String()
+
+	return cmdOutput
 }
 
 func installItem(item catalog.Item, itemURL, cachePath string) string {
@@ -85,7 +94,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Installer.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		installCmd = commandNupkg
-		installArgs = []string{"install", absFile, "-f", "-y"}
+		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
 	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
@@ -135,7 +144,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Uninstaller.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		uninstallCmd = commandNupkg
-		uninstallArgs = []string{"uninstall", absFile, "-f", "-y"}
+		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
 	} else if item.Uninstaller.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		uninstallCmd = commandMsi

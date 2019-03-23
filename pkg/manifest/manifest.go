@@ -9,6 +9,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	"github.com/1dustindavis/gorilla/pkg/report"
 	"gopkg.in/yaml.v2"
 )
 
@@ -60,6 +61,7 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println(r)
+			report.End()
 			os.Exit(1)
 		}
 	}()

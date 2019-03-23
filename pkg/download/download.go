@@ -31,24 +31,43 @@ func SetConfig(cfg config.Configuration) {
 }
 
 // File downloads a provided url to the file path specified.
-// Timeout is 10 seconds
-// Will only write to disk if http status code is 2XX
 func File(file string, url string) error {
 	// Get the absolute file path
 	_, fileName := path.Split(url)
 	absPath := filepath.Join(file, fileName)
 
-	// Create the dir and file
+	// Create the directory
 	err := os.MkdirAll(filepath.Clean(file), 0755)
 	if err != nil {
 		gorillalog.Warn("Unable to make filepath:", file, err)
 	}
 
-	out, err := os.Create(filepath.Clean(absPath))
+	// Create the file
+	f, err := os.Create(filepath.Clean(absPath))
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer f.Close()
+
+	// get the content at the provided url
+	responseBody, err := get(url)
+	if err != nil {
+		return err
+	}
+
+	// Write the responseBody to the file we opened
+	_, err = f.Write(responseBody)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// get downloads a url and returns the body
+// Timeout is 10 seconds
+// Will only write to disk if http status code is 2XX
+func get(url string) ([]byte, error) {
 
 	// Declare the http client
 	var client *http.Client
@@ -58,13 +77,13 @@ func File(file string, url string) error {
 		// Load	the client certificate and private key
 		clientCert, err := tls.LoadX509KeyPair(downloadCfg.TLSClientCert, downloadCfg.TLSClientKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Load server certificates
 		serverCert, err := ioutil.ReadFile(downloadCfg.TLSServerCert)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(serverCert)
@@ -127,22 +146,22 @@ func File(file string, url string) error {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// Check that the request was successful
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("%s : Download status code: %d", fileName, resp.StatusCode)
+		return nil, fmt.Errorf("%s : Download status code: %d", url, resp.StatusCode)
 	}
 
-	// Write the body of the response to disk
-	_, err = io.Copy(out, resp.Body)
+	// Copy the download to a a buffer
+	responseBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return responseBody, nil
 }
 
 // Verify compares a provided hash to the actual hash of a file

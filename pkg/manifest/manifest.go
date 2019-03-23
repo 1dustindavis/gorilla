@@ -1,7 +1,9 @@
 package manifest
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
@@ -54,6 +56,14 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	// Add the top level manifest to the list
 	manifestsList = append(manifestsList, cfg.Manifest)
 
+	// Setup to catch a potential failure
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+			os.Exit(1)
+		}
+	}()
+
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
 
@@ -65,7 +75,7 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 		gorillalog.Info("Manifest Url:", manifestURL)
 		err := downloadFile(cfg.CachePath, manifestURL)
 		if err != nil {
-			gorillalog.Error("Unable to retrieve manifest:", currentManifest, err)
+			gorillalog.Error("Unable to retrieve manifest: ", err)
 		}
 
 		// Get new manifest

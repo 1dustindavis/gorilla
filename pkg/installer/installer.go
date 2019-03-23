@@ -85,7 +85,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Installer.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		installCmd = commandNupkg
-		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
+		installArgs = []string{"install", absFile, "-f", "-y"}
 	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
@@ -135,7 +135,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	if item.Uninstaller.Type == "nupkg" {
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		uninstallCmd = commandNupkg
-		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
+		uninstallArgs = []string{"uninstall", absFile, "-f", "-y"}
 	} else if item.Uninstaller.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		uninstallCmd = commandMsi
@@ -164,6 +164,12 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	return uninstallerOut
 }
 
+var (
+	// By putting the functions in a variable, we can override later in tests
+	installItemFunc   = installItem
+	uninstallItemFunc = uninstallItem
+)
+
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
 func Install(item catalog.Item, installerType, urlPackages, cachePath string) string {
@@ -180,14 +186,17 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string) st
 		return "Item not needed"
 	}
 
-	// Compile the item's URL
-	itemURL := urlPackages + item.Uninstaller.Location
-
 	// Install or uninstall the item
 	if installerType == "install" || installerType == "update" {
-		installItem(item, itemURL, cachePath)
+		// Compile the item's URL
+		itemURL := urlPackages + item.Installer.Location
+		// Run the installer
+		installItemFunc(item, itemURL, cachePath)
 	} else if installerType == "uninstall" {
-		uninstallItem(item, itemURL, cachePath)
+		// Compile the item's URL
+		itemURL := urlPackages + item.Uninstaller.Location
+		// Run the installer
+		uninstallItemFunc(item, itemURL, cachePath)
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
 		return "Unsupported item type"

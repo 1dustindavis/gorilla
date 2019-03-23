@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -67,6 +68,14 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 		os.Exit(1)
 	}
 
+	// Setup to catch a potential failure
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+			os.Exit(1)
+		}
+	}()
+
 	// Loop through the catalogs and get each one in order
 	for _, catalog := range cfg.Catalogs {
 
@@ -77,7 +86,7 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 		gorillalog.Info("Catalog Url:", catalogURL)
 		err := downloadFile(cfg.CachePath, catalogURL)
 		if err != nil {
-			gorillalog.Error("Unable to retrieve catalog:", catalog, err)
+			gorillalog.Error("Unable to retrieve catalog: ", err)
 		}
 
 		// Open the catalog file
@@ -85,14 +94,14 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 		gorillalog.Debug("Catalog file path:", yamlPath)
 		yamlFile, err := ioutil.ReadFile(yamlPath)
 		if err != nil {
-			gorillalog.Error("Unable to open the catalog file:", yamlPath, err)
+			gorillalog.Error("Unable to open the catalog file: ", err)
 		}
 
 		// Parse the catalog
 		var catalogItems map[string]Item
 		err = yaml.Unmarshal(yamlFile, &catalogItems)
 		if err != nil {
-			gorillalog.Error("Unable to parse yaml catalog:", yamlPath, err)
+			gorillalog.Error("Unable to parse yaml catalog: ", err)
 		}
 
 		// Add the new parsed catalog items to the catalogMap

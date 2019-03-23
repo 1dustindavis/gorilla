@@ -25,7 +25,7 @@ func NewLog(cfg config.Configuration) {
 	// Setup a defer function to recover from a panic
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered from panic while creating the log file:", r)
+			fmt.Println(r)
 			os.Exit(1)
 		}
 	}()

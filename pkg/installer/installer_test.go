@@ -540,7 +540,7 @@ func ExampleRunCommandDebug() {
 	// Temp directory for logging
 	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
 
-	// Setup a testing Configuration struct with debug more
+	// Setup a testing Configuration struct with debug mode
 	cfgVerbose := config.Configuration{
 		Debug:       true,
 		Verbose:     true,

@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -195,7 +196,7 @@ func TestInstallItem(t *testing.T) {
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
-	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y]"
+	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y -r]"
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -316,7 +317,7 @@ func TestUninstallItem(t *testing.T) {
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg")
-	expectedNupkg := "[" + nupkgCmd + " uninstall " + nupkgPath + " -f -y]"
+	expectedNupkg := "[" + nupkgCmd + " uninstall " + nupkgPath + " -f -y -r]"
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -532,4 +533,38 @@ func TestUninstallURL(t *testing.T) {
 	if have, want := installItemURL, expectedURL; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
+}
+
+// ExampleRunCommandDebug tests the output when running a command in debug
+func ExampleRunCommandDebug() {
+	// Temp directory for logging
+	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
+
+	// Setup a testing Configuration struct with debug mode
+	cfgVerbose := config.Configuration{
+		Debug:       true,
+		Verbose:     true,
+		AppDataPath: logTmp,
+	}
+
+	// Start gorillalog in debug mode
+	gorillalog.NewLog(cfgVerbose)
+
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	defer func() { execCommand = origExec }()
+
+	// Set up what we expect
+	testCmd := "Command Test!"
+	testArgs := []string{"arg1", "arg2"}
+
+	// Run the function
+	runCommand(testCmd, testArgs)
+
+	// Output:
+	// command: Command Test! [arg1 arg2]
+	// Command Output:
+	// --------------------
+	// [Command Test! arg1 arg2]
+	// --------------------
 }

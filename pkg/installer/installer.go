@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -73,6 +74,21 @@ func runCommand(command string, arguments []string) string {
 	return cmdOutput
 }
 
+// Get a Nupkg's id using `choco list`
+func getNupkgID(nupkgDir, versionArg string) string {
+
+	// Compile the arguments needed to get the id
+	command := commandNupkg
+	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
+
+	// Run the command and trim the output
+	cmdOut := runCommand(command, arguments)
+	nupkgID := strings.TrimSpace(cmdOut)
+
+	// The final output should just be the nupkg id
+	return nupkgID
+}
+
 func installItem(item catalog.Item, itemURL, cachePath string) string {
 
 	// Determine the paths needed for download and install
@@ -92,17 +108,40 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	var installCmd string
 	var installArgs []string
 	if item.Installer.Type == "nupkg" {
+		// choco wants the "id" and parent dir when we install, so we need to determine both
+		gorillalog.Info("Determining nupkg id for", item.DisplayName)
+		nupkgDir := filepath.Dir(absFile)
+
+		// Since choco recommends the source is a directory,
+		// we need to pass a version to filter unexpected nupkgs (if we have a version)
+		var versionArg string
+		var nupkgID string
+		if item.Version != "" {
+			versionArg = fmt.Sprintf("--version=%s", item.Version)
+			nupkgID = getNupkgID(nupkgDir, versionArg)
+		}
+
+		// Now pass the id along with the parent directory
 		gorillalog.Info("Installing nupkg for", item.DisplayName)
 		installCmd = commandNupkg
-		installArgs = []string{"install", absFile, "-f", "-y", "-r"}
+		if nupkgID != "" && versionArg != "" {
+			// Only use this form if we have an ID and version number
+			installArgs = []string{"install", nupkgID, "-s", nupkgDir, versionArg, "-f", "-y", "-r"}
+		} else {
+			// If we dont have an id and version, fallback to the method choco doesn't recommend (but works)
+			installArgs = []string{"install", absFile, "-f", "-y", "-r"}
+		}
+
 	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
+
 	} else if item.Installer.Type == "exe" {
 		gorillalog.Info("Installing exe for", item.DisplayName)
 		installCmd = absFile
 		installArgs = item.Installer.Arguments
+
 	} else if item.Installer.Type == "ps1" {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		installCmd = commandPs1
@@ -141,20 +180,44 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	// Determine the uninstall type and build the command
 	var uninstallCmd string
 	var uninstallArgs []string
+
 	if item.Uninstaller.Type == "nupkg" {
-		gorillalog.Info("Installing nupkg for", item.DisplayName)
+		// choco wants the "id" and parent dir when we uninstall, so we need to determine both
+		gorillalog.Info("Determining nupkg id for", item.DisplayName)
+		nupkgDir := filepath.Dir(absFile)
+
+		// Since choco recommends the source is a directory,
+		// we need to pass a version to filter unexpected nupkgs (if we have a version)
+		var versionArg string
+		var nupkgID string
+		if item.Version != "" {
+			versionArg = fmt.Sprintf("--version=%s", item.Version)
+			nupkgID = getNupkgID(nupkgDir, versionArg)
+		}
+
+		// Now pass the id along with the parent directory
+		gorillalog.Info("Uninstalling nupkg for", item.DisplayName)
 		uninstallCmd = commandNupkg
-		uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
+		if nupkgID != "" && versionArg != "" {
+			// Only use this form if we have an ID and version number
+			uninstallArgs = []string{"uninstall", nupkgID, "-s", nupkgDir, versionArg, "-f", "-y", "-r"}
+		} else {
+			// If we dont have an id and version, fallback to the method choco doesn't recommend (but works)
+			uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
+		}
+
 	} else if item.Uninstaller.Type == "msi" {
-		gorillalog.Info("Installing msi for", item.DisplayName)
+		gorillalog.Info("Uninstalling msi for", item.DisplayName)
 		uninstallCmd = commandMsi
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
+
 	} else if item.Uninstaller.Type == "exe" {
-		gorillalog.Info("Installing exe for", item.DisplayName)
+		gorillalog.Info("Uninstalling exe for", item.DisplayName)
 		uninstallCmd = absFile
 		uninstallArgs = item.Uninstaller.Arguments
+
 	} else if item.Uninstaller.Type == "ps1" {
-		gorillalog.Info("Installing ps1 for", item.DisplayName)
+		gorillalog.Info("Uninstalling ps1 for", item.DisplayName)
 		uninstallCmd = commandPs1
 		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
 

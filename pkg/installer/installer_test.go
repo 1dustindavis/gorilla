@@ -48,6 +48,7 @@ var (
 			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg`,
 			Type:      `nupkg`,
 		},
+		Version: "1.2.3",
 	}
 	msiItem = catalog.Item{
 		Installer: catalog.InstallerItem{
@@ -196,7 +197,9 @@ func TestInstallItem(t *testing.T) {
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
-	expectedNupkg := "[" + nupkgCmd + " install " + nupkgFile + " -f -y -r]"
+	nupkgDir := filepath.Dir(nupkgFile)
+	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
+	expectedNupkg := fmt.Sprintf("[%s install %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -308,16 +311,25 @@ func TestUninstallItem(t *testing.T) {
 		statusCheckStatus = origCheckStatus
 	}()
 
+	// Set shared testing variables
+	cachePath := "testdata/"
+	pkgCache := "testdata/packages/"
+	urlPackages := "https://example.com/"
+
 	//
 	// Nupkg
 	//
 	nupkgItem.DisplayName = statusNoActionNoError
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64uninst.nupkg"
+	nupkgURL := urlPackages + nupkgPath
 	// Run Uninstall
-	actualNupkg := uninstallItem(nupkgItem, "https://example.com/", "testdata/")
+	actualNupkg := uninstallItem(nupkgItem, nupkgURL, cachePath)
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
-	nupkgPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.nupkg")
-	expectedNupkg := "[" + nupkgCmd + " uninstall " + nupkgPath + " -f -y -r]"
+	nupkgFile := filepath.Join(pkgCache, nupkgPath)
+	nupkgDir := filepath.Dir(nupkgFile)
+	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
+	expectedNupkg := fmt.Sprintf("[%s uninstall %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -327,7 +339,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualMsi := uninstallItem(msiItem, "https://example.com", "testdata/")
+	actualMsi := uninstallItem(msiItem, urlPackages, cachePath)
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.msi")
@@ -341,7 +353,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	exeItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualExe := uninstallItem(exeItem, "https://example.com", "testdata/")
+	actualExe := uninstallItem(exeItem, urlPackages, cachePath)
 	// Check the result
 	exePath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.exe")
 	expectedExe := "[" + exePath + " /U=1033 /S]"
@@ -354,7 +366,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	ps1Item.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualPs1 := uninstallItem(ps1Item, "https://example.com", "testdata/")
+	actualPs1 := uninstallItem(ps1Item, urlPackages, cachePath)
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")

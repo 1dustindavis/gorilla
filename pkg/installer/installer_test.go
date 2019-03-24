@@ -535,8 +535,8 @@ func TestUninstallURL(t *testing.T) {
 	}
 }
 
-// ExampleRunCommandDebug tests the output when running a command in debug
-func ExampleRunCommandDebug() {
+// Example_runCommand tests the output when running a command in debug
+func Example_runCommand() {
 	// Temp directory for logging
 	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
 

@@ -71,12 +71,18 @@ test_script:
         Write-Error "Repo contains improperly formatted go files; run gofmt -w *.go"
     }
 
+    if ($LastExitCode -ne 0) { $host.SetShouldExit($LastExitCode)  }
+
 
     # Run go vet and go lint
 
     go vet ./...
 
+    if ($LastExitCode -ne 0) { $host.SetShouldExit($LastExitCode)  }
+
     golint ./cmd/ ./pkg/
+
+    if ($LastExitCode -ne 0) { $host.SetShouldExit($LastExitCode)  }
 
 
     # Run tests

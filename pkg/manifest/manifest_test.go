@@ -6,72 +6,68 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
-	// store the current downloadFile function in order to restore later
-	origDownloadFile = downloadFile
-)
+	// store the current downloadGet function in order to restore later
+	origDownloadGet = downloadGet
 
-// TestGetManifest verifies a single manifest is processed correctly
-func TestGetManifest(t *testing.T) {
+	// Define a Configuration struct to pass to `Get`
+	cfg = config.Configuration{
+		URL:      "https://example.com/",
+		Manifest: "example_manifest",
+		Catalogs: []string{"alpha", "beta"},
+	}
 
-	// Store the actual result of `getManifest`
-	actualManifest := getManifest("testdata/", "example_manifest")
-
-	// Define what we expect it to return
-	expectedManifest := Item{
+	// testManifest is used to confirm the data is processed properly
+	exampleManifest = Item{
 		Name:       "example_manifest",
 		Includes:   []string{"included_manifest"},
 		Installs:   []string{"Chocolatey", "GoogleChrome"},
 		Uninstalls: []string{"AdobeFlash"},
 		Updates:    []string{"ChefClient", "CanonDrivers"},
+		Catalogs:   []string{"production1", "production2"},
 	}
-
-	// Compare the actual result with our expectations
-	structsMatch := reflect.DeepEqual(expectedManifest, actualManifest)
-
-	if !structsMatch {
-		t.Errorf("\nExpected: %#v\nActual: %#v", expectedManifest, actualManifest)
+	includedManifest = Item{
+		Name:       "included_manifest",
+		Includes:   []string{},
+		Installs:   []string{"TestInstall1", "TestInstall2"},
+		Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
+		Updates:    []string{"TestUpdate1", "TestUpdate2"},
+		Catalogs:   []string{},
 	}
-}
+)
 
 // TestGet verifies that multiple manifests are processed correctly
 func TestGet(t *testing.T) {
 
-	// Define a Configuration struct to pass to `Get`
-	cfg := config.Configuration{
-		URL:       "https://example.com/",
-		Manifest:  "example_manifest",
-		CachePath: "testdata/",
-	}
-
 	// Override the download function, but restore it when we're done
-	downloadFile = fakeDownload
+	downloadGet = fakeDownload
 	defer func() {
-		downloadFile = origDownloadFile
+		downloadGet = origDownloadGet
 	}()
 
 	// Store the actual slice of manifest items that `Get` returns
 	actualManifests, _ := Get(cfg)
 
 	// Define the slice of manifest items we expect it to return
-	expectedManifests := []Item{
-		{
-			Name:       "example_manifest",
-			Includes:   []string{"included_manifest"},
-			Installs:   []string{"Chocolatey", "GoogleChrome"},
-			Uninstalls: []string{"AdobeFlash"},
-			Updates:    []string{"ChefClient", "CanonDrivers"},
-		},
-		{
-			Name:       "included_manifest",
-			Includes:   []string(nil),
-			Installs:   []string{"TestInstall1", "TestInstall2"},
-			Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
-			Updates:    []string{"TestUpdate1", "TestUpdate2"},
-		},
-	}
+	expectedManifests := []Item{exampleManifest, includedManifest}
+	// 	{
+	// 		Name:       "example_manifest",
+	// 		Includes:   []string{"included_manifest"},
+	// 		Installs:   []string{"Chocolatey", "GoogleChrome"},
+	// 		Uninstalls: []string{"AdobeFlash"},
+	// 		Updates:    []string{"ChefClient", "CanonDrivers"},
+	// 	},
+	// 	{
+	// 		Name:       "included_manifest",
+	// 		Includes:   []string(nil),
+	// 		Installs:   []string{"TestInstall1", "TestInstall2"},
+	// 		Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
+	// 		Updates:    []string{"TestUpdate1", "TestUpdate2"},
+	// 	},
+	// }
 
 	// Compare the actual result with our expectations
 	structsMatch := reflect.DeepEqual(expectedManifests, actualManifests)
@@ -84,18 +80,10 @@ func TestGet(t *testing.T) {
 // TestGetCatalogs verifies that catalogs included in a manifest get added to the config
 func TestGetCatalogs(t *testing.T) {
 
-	// Define a Configuration struct to pass to `Get`
-	cfg := config.Configuration{
-		URL:       "https://example.com/",
-		Manifest:  "example_manifest_catalogs",
-		CachePath: "testdata/",
-		Catalogs:  []string{"alpha", "beta"},
-	}
-
 	// Override the download function, but restore it when we're done
-	downloadFile = fakeDownload
+	downloadGet = fakeDownload
 	defer func() {
-		downloadFile = origDownloadFile
+		downloadGet = origDownloadGet
 	}()
 
 	// Run Get() to process the manifests and (hopefully) append the catalogs
@@ -112,8 +100,27 @@ func TestGetCatalogs(t *testing.T) {
 	}
 }
 
-func fakeDownload(string1 string, string2 string) error {
-	fmt.Println(string1)
-	fmt.Println(string2)
-	return nil
+// fakeDownload returns a manifest encoded as yaml based on the url passed
+func fakeDownload(manifestURL string) ([]byte, error) {
+
+	// Define a testManifest based on the url passed
+	var testManifest Item
+	switch manifestURL {
+	case "https://example.com/manifests/example_manifest.yaml":
+		fmt.Println("example!")
+		testManifest = exampleManifest
+	case "https://example.com/manifests/included_manifest.yaml":
+		fmt.Println("included!")
+		testManifest = includedManifest
+	default:
+		return nil, fmt.Errorf("Unexpected test url: %s", manifestURL)
+	}
+
+	// Generate yaml from the expected map
+	yamlBytes, err := yaml.Marshal(testManifest)
+	if err != nil {
+		return nil, err
+	}
+
+	return yamlBytes, nil
 }

@@ -6,18 +6,26 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"gopkg.in/yaml.v2"
 )
 
-func fakeDownload(string1 string, string2 string) error {
-	fmt.Println(string1)
-	fmt.Println(string2)
-	return nil
+var expected = make(map[string]Item)
+
+func fakeDownload(string string) ([]byte, error) {
+	fmt.Println(string)
+
+	// Generate yaml from the expected map
+	yamlBytes, err := yaml.Marshal(expected)
+	if err != nil {
+		return nil, err
+	}
+
+	return yamlBytes, nil
 }
 
 // TestGet verifies that a valid catlog is parsed correctly and returns the expected map
 func TestGet(t *testing.T) {
 	// Set what we expect Get() to return
-	var expected = make(map[string]Item)
 	expected[`ChefClient`] = Item{
 		Dependencies: []string{`ruby`},
 		DisplayName:  "Chef Client",
@@ -38,7 +46,7 @@ If ($upToDate) {
 			Hash:      `f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d`,
 			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
 		},
-		Uninstaller: InstallerItem{Type: `msi`},
+		Uninstaller: InstallerItem{Type: `msi`, Arguments: []string{`/S`}},
 		Version:     `68.0.3440.106`,
 	}
 
@@ -51,7 +59,7 @@ If ($upToDate) {
 	}
 
 	// Override the downloadFile function with our fake function
-	downloadFile = fakeDownload
+	downloadGet = fakeDownload
 
 	// Run `Get`
 	testCatalog := Get(cfg)

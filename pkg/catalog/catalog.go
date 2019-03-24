@@ -2,9 +2,7 @@ package catalog
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -52,7 +50,8 @@ type RegCheck struct {
 	Version string `yaml:"version"`
 }
 
-var downloadFile = download.File
+// This abstraction allows us to override the function while testing
+var downloadGet = download.Get
 
 // Get returns a map of `Item` from the catalog
 func Get(cfg config.Configuration) map[int]map[string]Item {
@@ -86,17 +85,9 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 		// Download the catalog
 		catalogURL := cfg.URL + "catalogs/" + catalog + ".yaml"
 		gorillalog.Info("Catalog Url:", catalogURL)
-		err := downloadFile(cfg.CachePath, catalogURL)
+		yamlFile, err := downloadGet(catalogURL)
 		if err != nil {
 			gorillalog.Error("Unable to retrieve catalog: ", err)
-		}
-
-		// Open the catalog file
-		yamlPath := filepath.Join(cfg.CachePath, catalog) + ".yaml"
-		gorillalog.Debug("Catalog file path:", yamlPath)
-		yamlFile, err := ioutil.ReadFile(yamlPath)
-		if err != nil {
-			gorillalog.Error("Unable to open the catalog file: ", err)
 		}
 
 		// Parse the catalog

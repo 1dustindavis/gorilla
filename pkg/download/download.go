@@ -50,7 +50,7 @@ func File(file string, url string) error {
 	defer f.Close()
 
 	// get the content at the provided url
-	responseBody, err := get(url)
+	responseBody, err := Get(url)
 	if err != nil {
 		return err
 	}
@@ -64,10 +64,10 @@ func File(file string, url string) error {
 	return nil
 }
 
-// get downloads a url and returns the body
+// Get downloads a url and returns the body
 // Timeout is 10 seconds
 // Will only write to disk if http status code is 2XX
-func get(url string) ([]byte, error) {
+func Get(url string) ([]byte, error) {
 
 	// Declare the http client
 	var client *http.Client

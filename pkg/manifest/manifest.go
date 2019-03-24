@@ -2,9 +2,7 @@ package manifest
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -23,23 +21,8 @@ type Item struct {
 	Catalogs   []string `yaml:"catalogs"`
 }
 
-func getManifest(cachePath, manifestName string) Item {
-	// Unmarshal the yaml file
-	yamlPath := filepath.Join(cachePath, manifestName) + ".yaml"
-	yamlFile, err := ioutil.ReadFile(yamlPath)
-	if err != nil {
-		gorillalog.Error("Unable to read manifest:", yamlFile, err)
-	}
-	var manifest Item
-	err = yaml.Unmarshal(yamlFile, &manifest)
-	if err != nil {
-		gorillalog.Error("Unable to parse yaml manifest:", yamlPath, err)
-	}
-	return manifest
-}
-
 // This abstraction allows us to override when testing
-var downloadFile = download.File
+var downloadGet = download.Get
 
 // Get returns two slices:
 // 1) All manifest objects
@@ -75,13 +58,17 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 		// Download the manifest
 		manifestURL := cfg.URL + "manifests/" + currentManifest + ".yaml"
 		gorillalog.Info("Manifest Url:", manifestURL)
-		err := downloadFile(cfg.CachePath, manifestURL)
+		yamlFile, err := downloadGet(manifestURL)
 		if err != nil {
 			gorillalog.Error("Unable to retrieve manifest: ", err)
 		}
 
-		// Get new manifest
-		newManifest := getManifest(cfg.CachePath, currentManifest)
+		// Parse the new manifest
+		var newManifest Item
+		err = yaml.Unmarshal(yamlFile, &newManifest)
+		if err != nil {
+			gorillalog.Error("Unable to parse yaml manifest: ", manifestURL, err)
+		}
 
 		// Add any includes to our working list
 		workingList = append(workingList, newManifest.Includes...)

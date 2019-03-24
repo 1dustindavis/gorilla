@@ -198,7 +198,7 @@ func TestInstallItem(t *testing.T) {
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
 	nupkgDir := filepath.Dir(nupkgFile)
-	nupkgID := fmt.Sprintf("[chocolatey/bin/choco.exe list --version=1.2.3 --id-only -r -s %s]", nupkgDir)
+	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
 	expectedNupkg := fmt.Sprintf("[%s install %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
@@ -328,7 +328,7 @@ func TestUninstallItem(t *testing.T) {
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
 	nupkgDir := filepath.Dir(nupkgFile)
-	nupkgID := fmt.Sprintf("[chocolatey/bin/choco.exe list --version=1.2.3 --id-only -r -s %s]", nupkgDir)
+	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
 	expectedNupkg := fmt.Sprintf("[%s uninstall %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)

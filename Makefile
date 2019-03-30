@@ -15,6 +15,7 @@ REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 PKGDIR_TMP = ${TMPDIR}golang
 XGO_INSTALLED = $(shell command -v xgo 2> /dev/null)
+GO111MODULE=on
 
 ifneq ($(OS), Windows_NT)
 	CURRENT_PLATFORM = linux
@@ -64,9 +65,6 @@ help:
 
 gomodcheck:
 	@go help mod > /dev/null || (@echo gorilla requires Go version 1.11 or higher && exit 1)
-
-deps: gomodcheck
-	@go mod download
 
 clean:
 	rm -rf build/

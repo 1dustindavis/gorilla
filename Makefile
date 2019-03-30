@@ -15,7 +15,7 @@ REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 PKGDIR_TMP = ${TMPDIR}golang
 XGO_INSTALLED = $(shell command -v xgo 2> /dev/null)
-GO111MODULE=on
+GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
 	CURRENT_PLATFORM = linux
@@ -71,8 +71,7 @@ clean:
 	rm -rf release/
 	rm -rf ${PKGDIR_TMP}
 
-.pre-build:
-	gomodcheck
+.pre-build: gomodcheck
 	mkdir -p build/
 
 build: .pre-build
@@ -88,8 +87,7 @@ endif
 	xgo --targets=windows/amd64 -dest release/ -ldflags ${BUILD_VERSION} ./cmd/gorilla
 	mv release/*.exe release/gorilla.exe
 
-test:
-	gomodcheck
+test: gomodcheck
 	gotest -cover -race ./...
 
 lint:

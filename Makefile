@@ -72,6 +72,7 @@ clean:
 	rm -rf ${PKGDIR_TMP}
 
 .pre-build:
+	gomodcheck
 	mkdir -p build/
 
 build: .pre-build
@@ -88,6 +89,7 @@ endif
 	mv release/*.exe release/gorilla.exe
 
 test:
+	gomodcheck
 	gotest -cover -race ./...
 
 lint:

@@ -62,10 +62,11 @@ endef
 help:
 	$(info $(HELP_TEXT))
 
-deps:
-	go get -u github.com/golang/dep/...
-	go get -u github.com/golang/lint/golint
-	dep ensure -vendor-only -v
+gomodcheck:
+	@go help mod > /dev/null || (@echo gorilla requires Go version 1.11 or higher && exit 1)
+
+deps: gomodcheck
+	@go mod download
 
 clean:
 	rm -rf build/

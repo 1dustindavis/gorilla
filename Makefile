@@ -88,7 +88,7 @@ endif
 	mv release/*.exe release/gorilla.exe
 
 test: gomodcheck
-	gotest -cover -race ./...
+	go test -cover -race ./...
 
 lint:
 	@if gofmt -l -s ./cmd/ ./pkg/ | grep .go; then \

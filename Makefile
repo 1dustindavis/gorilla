@@ -15,6 +15,7 @@ REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 PKGDIR_TMP = ${TMPDIR}golang
 XGO_INSTALLED = $(shell command -v xgo 2> /dev/null)
+GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
 	CURRENT_PLATFORM = linux
@@ -62,17 +63,15 @@ endef
 help:
 	$(info $(HELP_TEXT))
 
-deps:
-	go get -u github.com/golang/dep/...
-	go get -u github.com/golang/lint/golint
-	dep ensure -vendor-only -v
+gomodcheck:
+	@go help mod > /dev/null || (@echo gorilla requires Go version 1.11 or higher && exit 1)
 
 clean:
 	rm -rf build/
 	rm -rf release/
 	rm -rf ${PKGDIR_TMP}
 
-.pre-build:
+.pre-build: gomodcheck
 	mkdir -p build/
 
 build: .pre-build
@@ -88,8 +87,8 @@ endif
 	xgo --targets=windows/amd64 -dest release/ -ldflags ${BUILD_VERSION} ./cmd/gorilla
 	mv release/*.exe release/gorilla.exe
 
-test:
-	gotest -cover -race ./...
+test: gomodcheck
+	go test -cover -race ./...
 
 lint:
 	@if gofmt -l -s ./cmd/ ./pkg/ | grep .go; then \

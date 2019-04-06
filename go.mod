@@ -1,6 +1,6 @@
 module github.com/1dustindavis/gorilla
 
-go 1.12
+go 1.11
 
 require (
 	github.com/gonutz/w32 v1.0.0

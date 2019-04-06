@@ -33,7 +33,7 @@ install:
 
     Set-AppveyorBuildVariable -Name "gorilla_revision" -Value $REVISION
 
-    Set-AppveyorBuildVariable -Name "gorilla_goversion" -Value $
+    Set-AppveyorBuildVariable -Name "gorilla_goversion" -Value $GOVERSION
 - cmd: >-
     rem go get must be ran from cmd because AppVeyor uses remote Powershell sessions
 

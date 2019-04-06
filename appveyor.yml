@@ -3,6 +3,29 @@ branches:
   only:
   - master
 clone_folder: c:\gopath\src\github.com\1dustindavis\gorilla
+init:
+- ps: >-
+    Remove-Item 'C:\go' -Recurse -Force -ErrorAction Ignore
+
+    Write-Host "Downloading Go 1.12..."
+
+    $goDistPath = "$env:TEMP\go1.12.windows-amd64.zip"
+
+    (New-Object Net.WebClient).DownloadFile('https://storage.googleapis.com/golang/go1.12.windows-amd64.zip', $goDistPath)
+
+
+    Write-Host "Unpacking Go 1.12..."
+
+    7z x $goDistPath -oC:\go1120-x64 | Out-Null
+
+    [IO.Directory]::Move('C:\go1120-x64\go', 'C:\go112')
+
+    Remove-Item 'C:\go1120-x64' -Recurse -Force
+
+    del $goDistPath
+
+
+    cmd /c mklink /J C:\go C:\go112
 environment:
   GOPATH: c:\gopath
   GO111MODULE: on

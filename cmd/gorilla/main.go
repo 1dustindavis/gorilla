@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -23,6 +24,13 @@ func main() {
 
 	// Confirm we are running as an administrator before continuing
 	adminCheck()
+
+	// If needed, create the cache directory
+	err := os.MkdirAll(filepath.Clean(cfg.CachePath), 0755)
+	if err != nil {
+		fmt.Println("Unable to create cache directory: ", err)
+		os.Exit(1)
+	}
 
 	// Create a new logger object
 	gorillalog.NewLog(cfg)

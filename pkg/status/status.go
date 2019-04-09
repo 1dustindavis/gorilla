@@ -196,7 +196,6 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 		}
 	}
 
-	gorillalog.Info("ActionStore :", actionStore)
 	for _, item := range actionStore {
 		if item == true {
 			actionNeeded = true

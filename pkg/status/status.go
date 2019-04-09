@@ -125,7 +125,9 @@ func checkScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool,
 	return actionNeeded, checkErr
 }
 
-func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
+func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
+	var actionStore []bool
+
 	// Iterate through all file provided paths
 	for _, checkFile := range catalogItem.Check.File {
 		path := filepath.Clean(checkFile.Path)
@@ -135,13 +137,19 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 		// if we get an error, we need to install
 		_, err := os.Stat(path)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if os.IsNotExist(err) && installType != "uninstall" {
 				gorillalog.Debug("Path check failed:", path)
-				actionNeeded = true
-				return
+				actionStore = append(actionStore, true)
+				break
 			}
 			gorillalog.Warn("Unable to check path:", path, err)
-			return
+			break
+		}
+		// The file exists on disk, check to see if we are doing an uninstall
+		// and bail here to start the removal.
+		if installType == "uninstall" {
+			actionStore = append(actionStore, true)
+			break
 		}
 
 		// If a hash is not blank, verify it matches the file
@@ -150,8 +158,8 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 			gorillalog.Debug("Check File Hash:", checkFile.Hash)
 			hashMatch := download.Verify(path, checkFile.Hash)
 			if !hashMatch {
-				actionNeeded = true
-				return
+				actionStore = append(actionStore, true)
+				break
 			}
 		}
 
@@ -169,26 +177,33 @@ func checkPath(catalogItem catalog.Item) (actionNeeded bool, checkErr error) {
 			versionHave, err := version.NewVersion(metadata.versionString)
 			if err != nil {
 				gorillalog.Warn("Unable to compare version:", metadata.versionString)
-				actionNeeded = true
-				return
+				actionStore = append(actionStore, true)
+				break
 			}
 			versionWant, err := version.NewVersion(checkFile.Version)
 			if err != nil {
 				gorillalog.Warn("Unable to compare version:", checkFile.Version)
-				actionNeeded = true
-				return
+				actionStore = append(actionStore, true)
+				break
 			}
 
-			// Comare the versions
+			// Compare the versions
 			outdated := versionHave.LessThan(versionWant)
 			if outdated {
-				actionNeeded = true
-				return
+				actionStore = append(actionStore, true)
+				break
 			}
 		}
-
 	}
 
+	gorillalog.Info("ActionStore :", actionStore)
+	for _, item := range actionStore {
+		if item == true {
+			actionNeeded = true
+			return
+		}
+	}
+	actionNeeded = false
 	return actionNeeded, checkErr
 }
 
@@ -201,7 +216,7 @@ func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actio
 
 	} else if catalogItem.Check.File != nil {
 		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)
-		return checkPath(catalogItem)
+		return checkPath(catalogItem, installType)
 
 	} else if catalogItem.Check.Registry.Version != "" {
 		gorillalog.Info("Checking status via Registry:", catalogItem.DisplayName)

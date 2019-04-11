@@ -270,7 +270,7 @@ func TestCheckPath(t *testing.T) {
 
 	// Run checkPath for pathInstalled
 	// We expect action is not needed; Only error if action needed is true
-	actionNeeded, err := checkPath(pathInstalled)
+	actionNeeded, err := checkPath(pathInstalled, "install")
 	if err != nil {
 		t.Errorf("checkPath failed: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestCheckPath(t *testing.T) {
 
 	// Run checkPath for pathNotInstalled
 	// We expect action is needed; Only error if actionNeeded is false
-	actionNeeded, err = checkPath(pathNotInstalled)
+	actionNeeded, err = checkPath(pathNotInstalled, "install")
 	if err != nil {
 		t.Error(err)
 	}
@@ -290,7 +290,7 @@ func TestCheckPath(t *testing.T) {
 
 	// Run checkPath for pathMetadataInstalled
 	// We expect action is not needed; Only error if actionNeeded is true
-	actionNeeded, err = checkPath(pathMetadataInstalled)
+	actionNeeded, err = checkPath(pathMetadataInstalled, "install")
 	if err != nil {
 		t.Error(err)
 	}
@@ -300,7 +300,7 @@ func TestCheckPath(t *testing.T) {
 
 	// Run checkPath for pathMetadataOutdated
 	// We expect action is needed; Only error if actionNeeded is false
-	actionNeeded, err = checkPath(pathMetadataOutdated)
+	actionNeeded, err = checkPath(pathMetadataOutdated, "install")
 	if err != nil {
 		t.Error(err)
 	}

@@ -133,22 +133,35 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 		path := filepath.Clean(checkFile.Path)
 		gorillalog.Debug("Check File Path", path)
 
-		// Confirm that path exists
+		// When doing an install confirm that path exists
 		// if we get an error, we need to install
-		_, err := os.Stat(path)
-		if err != nil {
-			if os.IsNotExist(err) && installType != "uninstall" {
-				gorillalog.Debug("Path check failed:", path)
-				actionStore = append(actionStore, true)
+		if installType == "update" || installType == "install" {
+			_, err := os.Stat(path)
+			if err != nil {
+				if os.IsNotExist(err) {
+					gorillalog.Debug("Path check failed:", path)
+					actionStore = append(actionStore, true)
+					break
+				}
+				gorillalog.Warn("Unable to check path:", path, err)
 				break
 			}
-			gorillalog.Warn("Unable to check path:", path, err)
-			break
 		}
-		// The file exists on disk, check to see if we are doing an uninstall
-		// and bail here to start the removal.
+		// When doing an uninstall confirm that path does not exist
 		if installType == "uninstall" {
-			actionStore = append(actionStore, true)
+			_, err := os.Stat(path)
+			if err == nil {
+				gorillalog.Debug("Path exists and doing an uninstall")
+				actionStore = append(actionStore, true)
+				break
+			} else if err != nil {
+				if os.IsNotExist(err) {
+					gorillalog.Debug("Path does not exist and doing an uninstall")
+					actionStore = append(actionStore, false)
+					break
+				}
+			}
+			gorillalog.Warn("Unable to check path:", path, err)
 			break
 		}
 

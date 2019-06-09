@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/discentem/gorilla/pkg/command"
+	"github.com/1dustindavis/gorilla/pkg/command"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"

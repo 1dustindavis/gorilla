@@ -1,20 +1,15 @@
-package command
+package cmd
 
 import (
 	"bufio"
-	"fmt"
-	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
-	"strings"
 	"sync"
 
-	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/1dustindavis/gorilla/pkg/report"
-	"github.com/1dustindavis/gorilla/pkg/status"
+)
+
+var (
+	execCommand = exec.Command
 )
 
 func RunCommand(command string, arguments []string) string {

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/discentem/gorilla/pkg/command"
+
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
@@ -32,47 +34,8 @@ var (
 	uninstallerURL string
 )
 
-// runCommand executes a command and it's argurments in the CMD environment
-func runCommand(command string, arguments []string) string {
-	cmd := execCommand(command, arguments...)
-	var cmdOutput string
-	cmdReader, err := cmd.StdoutPipe()
-	if err != nil {
-		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Warn("Error creating pipe to stdout", err)
-	}
+// command.RunCommand executes a command and it's argurments in the CMD environment
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	scanner := bufio.NewScanner(cmdReader)
-	gorillalog.Debug("command:", command, arguments)
-	go func() {
-		gorillalog.Debug("Command Output:")
-		gorillalog.Debug("--------------------")
-		for scanner.Scan() {
-			gorillalog.Debug(scanner.Text())
-			cmdOutput = scanner.Text()
-		}
-		gorillalog.Debug("--------------------")
-		wg.Done()
-	}()
-
-	err = cmd.Start()
-	if err != nil {
-		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Warn("Error running command:", err)
-	}
-
-	wg.Wait()
-	err = cmd.Wait()
-	if err != nil {
-		gorillalog.Warn("command:", command, arguments)
-		gorillalog.Warn("Command error:", err)
-	}
-
-	return cmdOutput
-}
 
 // Get a Nupkg's id using `choco list`
 func getNupkgID(nupkgDir, versionArg string) string {
@@ -82,7 +45,7 @@ func getNupkgID(nupkgDir, versionArg string) string {
 	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
 
 	// Run the command and trim the output
-	cmdOut := runCommand(command, arguments)
+	cmdOut := command.RunCommand(command, arguments)
 	nupkgID := strings.TrimSpace(cmdOut)
 
 	// The final output should just be the nupkg id
@@ -154,7 +117,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	installerOut := runCommand(installCmd, installArgs)
+	installerOut := command.RunCommand(installCmd, installArgs)
 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
@@ -228,7 +191,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	uninstallerOut := runCommand(uninstallCmd, uninstallArgs)
+	uninstallerOut := command.RunCommand(uninstallCmd, uninstallArgs)
 
 	// Add the item to InstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)

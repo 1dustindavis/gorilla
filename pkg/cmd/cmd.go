@@ -11,6 +11,7 @@ import (
 var (
 	execCommand = exec.Command
 )
+
 // RunCommand executes a command and it's argurments in the CMD environment
 func RunCommand(command string, arguments []string) string {
 	cmd := execCommand(command, arguments...)

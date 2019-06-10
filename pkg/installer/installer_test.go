@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/1dustindavis/gorilla/pkg/cmd"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -525,8 +526,8 @@ func TestUninstallURL(t *testing.T) {
 	}
 }
 
-// Example_runCommand tests the output when running a command in debug
-func Example_runCommand() {
+// cmd.RunCommand tests the output when running a command in debug
+func cmd.RunCommand() {
 	// Temp directory for logging
 	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
 
@@ -549,7 +550,7 @@ func Example_runCommand() {
 	testArgs := []string{"arg1", "arg2"}
 
 	// Run the function
-	runCommand(testCmd, testArgs)
+	cmd.RunCommand(testCmd, testArgs)
 
 	// Output:
 	// command: Command Test! [arg1 arg2]

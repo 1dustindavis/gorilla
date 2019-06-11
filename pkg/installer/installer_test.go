@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/1dustindavis/gorilla/pkg/cmd"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/cmd"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
@@ -524,38 +524,4 @@ func TestUninstallURL(t *testing.T) {
 	if have, want := installItemURL, expectedURL; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
-}
-
-// cmd.RunCommand tests the output when running a command in debug
-func cmd.RunCommand() {
-	// Temp directory for logging
-	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
-
-	// Setup a testing Configuration struct with debug mode
-	cfgVerbose := config.Configuration{
-		Debug:       true,
-		Verbose:     true,
-		AppDataPath: logTmp,
-	}
-
-	// Start gorillalog in debug mode
-	gorillalog.NewLog(cfgVerbose)
-
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
-	defer func() { execCommand = origExec }()
-
-	// Set up what we expect
-	testCmd := "Command Test!"
-	testArgs := []string{"arg1", "arg2"}
-
-	// Run the function
-	cmd.RunCommand(testCmd, testArgs)
-
-	// Output:
-	// command: Command Test! [arg1 arg2]
-	// Command Output:
-	// --------------------
-	// [Command Test! arg1 arg2]
-	// --------------------
 }

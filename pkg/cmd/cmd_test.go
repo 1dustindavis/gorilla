@@ -13,7 +13,6 @@ var (
 	origExec = execCommand
 )
 
-
 // fakeExecCommand provides a method for validating what is passed to exec.Command
 // this function was copied verbatim from https://npf.io/2015/06/testing-exec-command/
 func fakeExecCommand(command string, args ...string) *exec.Cmd {
@@ -44,4 +43,38 @@ func TestRunCommand(t *testing.T) {
 	if !structsMatch {
 		t.Errorf("\nExpected: %#v\nReceived: %#v", expectedCmd, actualCmd)
 	}
+}
+
+// Example_RunCommand tests the output when running a command in debug
+func Example_RunCommand() {
+	// Temp directory for logging
+	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
+
+	// Setup a testing Configuration struct with debug mode
+	cfgVerbose := config.Configuration{
+		Debug:       true,
+		Verbose:     true,
+		AppDataPath: logTmp,
+	}
+
+	// Start gorillalog in debug mode
+	gorillalog.NewLog(cfgVerbose)
+
+	// Override execCommand with our fake version
+	execCommand = fakeExecCommand
+	defer func() { execCommand = origExec }()
+
+	// Set up what we expect
+	testCmd := "Command Test!"
+	testArgs := []string{"arg1", "arg2"}
+
+	// Run the function
+	cmd.RunCommand(testCmd, testArgs)
+
+	// Output:
+	// command: Command Test! [arg1 arg2]
+	// Command Output:
+	// --------------------
+	// [Command Test! arg1 arg2]
+	// --------------------
 }

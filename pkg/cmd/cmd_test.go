@@ -6,6 +6,11 @@ import (
 	"os/exec"
 	"reflect"
 	"testing"
+	"io/ioutil"
+
+	"github.com/1dustindavis/gorilla/pkg/cmd"
+	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
 var (

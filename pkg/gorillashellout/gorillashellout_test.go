@@ -50,7 +50,7 @@ func TestRunCommand(t *testing.T) {
 }
 
 // Example_RunCommand tests the output when running a command in debug
-func Example_RunCommand() {
+func Example_runCommand() {
 	// Temp directory for logging
 	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
 

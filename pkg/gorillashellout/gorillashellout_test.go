@@ -2,11 +2,11 @@ package gorillashellout
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"reflect"
 	"testing"
-	"io/ioutil"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"

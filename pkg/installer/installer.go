@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/cmd"
+	"github.com/1dustindavis/gorilla/pkg/gorillashellout"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
@@ -31,8 +31,6 @@ var (
 	uninstallerURL string
 )
 
-// cmd.RunCommand executes a command and it's argurments in the CMD environment
-
 // Get a Nupkg's id using `choco list`
 func getNupkgID(nupkgDir, versionArg string) string {
 
@@ -41,7 +39,7 @@ func getNupkgID(nupkgDir, versionArg string) string {
 	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
 
 	// Run the command and trim the output
-	cmdOut := cmd.RunCommand(command, arguments)
+	cmdOut := gorillashellout.RunCommand(command, arguments)
 	nupkgID := strings.TrimSpace(cmdOut)
 
 	// The final output should just be the nupkg id
@@ -113,7 +111,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	installerOut := cmd.RunCommand(installCmd, installArgs)
+	installerOut := gorillashellout.RunCommand(installCmd, installArgs)
 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
@@ -187,7 +185,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	uninstallerOut := cmd.RunCommand(uninstallCmd, uninstallArgs)
+	uninstallerOut := gorillashellout.RunCommand(uninstallCmd, uninstallArgs)
 
 	// Add the item to InstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)

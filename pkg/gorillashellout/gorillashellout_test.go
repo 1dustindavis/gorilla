@@ -1,4 +1,4 @@
-package cmd
+package gorillashellout
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"io/ioutil"
 
-	"github.com/1dustindavis/gorilla/pkg/cmd"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
@@ -40,7 +39,7 @@ func TestRunCommand(t *testing.T) {
 	testCmd := append([]string{testCommand}, testArgs...)
 	expectedCmd := fmt.Sprint(testCmd)
 
-	actualCmd := cmd.RunCommand(testCommand, testArgs)
+	actualCmd := RunCommand(testCommand, testArgs)
 
 	// Compare the result with our expectations
 	structsMatch := reflect.DeepEqual(expectedCmd, actualCmd)
@@ -74,7 +73,7 @@ func Example_RunCommand() {
 	testArgs := []string{"arg1", "arg2"}
 
 	// Run the function
-	cmd.RunCommand(testCmd, testArgs)
+	RunCommand(testCmd, testArgs)
 
 	// Output:
 	// command: Command Test! [arg1 arg2]

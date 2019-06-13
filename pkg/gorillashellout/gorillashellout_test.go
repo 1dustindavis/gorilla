@@ -17,6 +17,16 @@ var (
 	origExec = execCommand
 )
 
+// TestHelperProcess processes the commands passed to fakeExecCommand
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	// print the command we received
+	fmt.Print(os.Args[3:])
+	os.Exit(0)
+}
+
 // fakeExecCommand provides a method for validating what is passed to exec.Command
 // this function was copied verbatim from https://npf.io/2015/06/testing-exec-command/
 func fakeExecCommand(command string, args ...string) *exec.Cmd {

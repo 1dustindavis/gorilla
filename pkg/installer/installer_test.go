@@ -149,11 +149,11 @@ func fakeCheckStatus(catalogItem catalog.Item, installType string, cachePath str
 // TestInstallItem validate the command that is passed to
 // exec.Command for each installer type
 func TestInstallItem(t *testing.T) {
-	// Override execCommand and checkStatus with our fake versions
-	execCommand = fakeExecCommand
+	// Override ExecCommand and checkStatus with our fake versions
+	ExecCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
 	defer func() {
-		execCommand = origExec
+		ExecCommand = origExec
 		statusCheckStatus = origCheckStatus
 	}()
 
@@ -280,12 +280,12 @@ func TestInstallStatusFalse(t *testing.T) {
 // TestUninstallItem validate the command that is passed to
 // exec.Command for each installer type
 func TestUninstallItem(t *testing.T) {
-	// Override execCommand and checkStatus with our fake versions
-	execCommand = fakeExecCommand
+	// Override ExecCommand and checkStatus with our fake versions
+	ExecCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
 	download.SetConfig(downloadCfg)
 	defer func() {
-		execCommand = origExec
+		ExecCommand = origExec
 		statusCheckStatus = origCheckStatus
 	}()
 
@@ -437,12 +437,12 @@ func TestUpdateStatusFalse(t *testing.T) {
 
 // TestInstallReport verifies that an installed item is added to the report
 func TestInstallReport(t *testing.T) {
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
+	// Override ExecCommand with our fake version
+	ExecCommand = fakeExecCommand
 	// Override the report.InstalledItems to be empty
 	report.InstalledItems = []interface{}{}
 	defer func() {
-		execCommand = origExec
+		ExecCommand = origExec
 		report.InstalledItems = origReportInstalled
 	}()
 

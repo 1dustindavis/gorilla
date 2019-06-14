@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	execCommand = exec.Command
+	ExecCommand = exec.Command
 )
 
 // RunCommand executes a command and it's argurments in the CMD environment
 func RunCommand(command string, arguments []string) string {
-	cmd := execCommand(command, arguments...)
+	cmd := ExecCommand(command, arguments...)
 	var cmdOutput string
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {

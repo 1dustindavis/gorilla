@@ -23,7 +23,7 @@ var (
 	commandPs1   = filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
 
 	// These abstractions allows us to override when testing
-	execCommand       = exec.Command
+	ExecCommand       = exec.Command
 	statusCheckStatus = status.CheckStatus
 
 	// Stores url where we will download an item

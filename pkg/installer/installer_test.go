@@ -20,7 +20,7 @@ import (
 
 var (
 	// store original data to restore after each test
-	origExec            = gorillashellout.execCommand
+	origExec            = gorillashellout.ExecCommand
 	origCheckStatus     = statusCheckStatus
 	origReportInstalled = report.InstalledItems
 	origInstallItemFunc = installItemFunc

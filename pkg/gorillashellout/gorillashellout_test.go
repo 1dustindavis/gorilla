@@ -14,7 +14,7 @@ import (
 
 var (
 	// store original data to restore after each test
-	origExec = execCommand
+	origExec = ExecCommand
 )
 
 // TestHelperProcess processes the commands passed to fakeExecCommand
@@ -39,9 +39,9 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 
 // TestRunCommand verifies that the command and it's arguments are processed correctly
 func TestRunCommand(t *testing.T) {
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
-	defer func() { execCommand = origExec }()
+	// Override ExecCommand with our fake version
+	ExecCommand = fakeExecCommand
+	defer func() { ExecCommand = origExec }()
 
 	// Define our test command and arguments
 	testCommand := "echo"
@@ -74,9 +74,9 @@ func Example_runCommand() {
 	// Start gorillalog in debug mode
 	gorillalog.NewLog(cfgVerbose)
 
-	// Override execCommand with our fake version
-	execCommand = fakeExecCommand
-	defer func() { execCommand = origExec }()
+	// Override ExecCommand with our fake version
+	ExecCommand = fakeExecCommand
+	defer func() { ExecCommand = origExec }()
 
 	// Set up what we expect
 	testCmd := "Command Test!"

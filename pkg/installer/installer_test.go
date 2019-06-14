@@ -13,13 +13,14 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
+	"github.com/1dustindavis/gorilla/pkg/gorillashellout"
 )
 
 // A lot of ideas taken from https://npf.io/2015/06/testing-exec-command/
 
 var (
 	// store original data to restore after each test
-	origExec            = execCommand
+	origExec            = gorillashellout.execCommand
 	origCheckStatus     = statusCheckStatus
 	origReportInstalled = report.InstalledItems
 	origInstallItemFunc = installItemFunc

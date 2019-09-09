@@ -249,20 +249,35 @@ func TestCheckScript(t *testing.T) {
 
 	// Set cachepath and run checkScript for scriptActionNoError
 	cachepath := fmt.Sprintf("testdata/%s/", statusActionNoError)
-	actionNeeded, err := checkScript(scriptActionNoError, cachepath)
+	actionNeeded, err := checkScript(scriptActionNoError, cachepath, "install")
 	if !actionNeeded || err != nil {
 		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
 		t.Errorf("Expected checkScript to action and no error")
 	}
 
 	// Set cachepath and run checkScript for scriptNoActionNoError
+	cachepath = fmt.Sprintf("testdata/%s/", statusActionNoError)
+	actionNeeded, err = checkScript(scriptActionNoError, cachepath, "uninstall")
+	if actionNeeded || err != nil {
+		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
+		t.Errorf("Expected checkScript to no action and no error")
+	}
+
+	// Set cachepath and run checkScript for scriptNoActionNoError
 	cachepath = fmt.Sprintf("testdata/%s/", statusNoActionNoError)
-	actionNeeded, err = checkScript(scriptNoActionNoError, cachepath)
+	actionNeeded, err = checkScript(scriptNoActionNoError, cachepath, "install")
 	if actionNeeded || err != nil {
 		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
 		t.Errorf("Expected checkScript to return no action and no error")
 	}
 
+	// Set cachepath and run checkScript for scriptActionNoError
+	cachepath = fmt.Sprintf("testdata/%s/", statusNoActionNoError)
+	actionNeeded, err = checkScript(scriptNoActionNoError, cachepath, "uninstall")
+	if !actionNeeded || err != nil {
+		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
+		t.Errorf("Expected checkScript to action and no error")
+	}
 }
 
 // TestCheckPath validates that the status of a path is checked correctly

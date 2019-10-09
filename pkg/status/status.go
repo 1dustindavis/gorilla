@@ -120,7 +120,7 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	gorillalog.Debug("stderr:", errStr)
 
 	actionNeeded = false
-	// Application not installed if exit 0 
+	// Application not installed if exit 0
 	if installType == "uninstall" {
 		actionNeeded = !cmdSuccess
 	} else if installType == "install" {

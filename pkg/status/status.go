@@ -92,7 +92,7 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 	return actionNeeded, checkErr
 }
 
-func checkScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
+func checkScript(catalogItem catalog.Item, cachePath string, installType string) (actionNeeded bool, checkErr error) {
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(cachePath, "tmpCheckScript.ps1")
@@ -119,8 +119,13 @@ func checkScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool,
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
 
-	// Install if exit 0
-	actionNeeded = cmdSuccess
+	actionNeeded = false
+	// Application not installed if exit 0
+	if installType == "uninstall" {
+		actionNeeded = !cmdSuccess
+	} else if installType == "install" {
+		actionNeeded = cmdSuccess
+	}
 
 	return actionNeeded, checkErr
 }
@@ -224,7 +229,7 @@ func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actio
 
 	if catalogItem.Check.Script != "" {
 		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
-		return checkScript(catalogItem, cachePath)
+		return checkScript(catalogItem, cachePath, installType)
 
 	} else if catalogItem.Check.File != nil {
 		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)

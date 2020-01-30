@@ -53,7 +53,7 @@ func NewLog(cfg config.Configuration) {
 	log.SetOutput(logFile)
 
 	//  Configure the `log` package to use microsecond resolution
-	log.SetFlags(log.Lmicroseconds)
+	log.SetFlags(log.Ldate | log.Lmicroseconds)
 }
 
 // Debug logs a string as DEBUG

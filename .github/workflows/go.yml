@@ -20,5 +20,8 @@ jobs:
     - name: Build
       run: go build -v ./cmd/gorilla
 
+    - name: Debug
+      run: Get-FileHash ./pkg/download/testdata/hashtest.txt
+
     - name: Test
       run: go test -v ./...

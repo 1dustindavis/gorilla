@@ -53,9 +53,9 @@ Options:
 
 // Configuration stores all of the possible parameters a config file could contain
 type Configuration struct {
-	AppDataPath   string   `yaml:"app_data_path"`
-	AuthPass      string   `yaml:"auth_pass,omitempty"`
-	AuthUser      string   `yaml:"auth_user,omitempty"`
+	AppDataPath   string `yaml:"app_data_path"`
+	AuthPass      string `yaml:"auth_pass,omitempty"`
+	AuthUser      string `yaml:"auth_user,omitempty"`
 	CachePath     string
 	Catalogs      []string `yaml:"catalogs"`
 	Debug         bool     `yaml:"debug,omitempty"`
@@ -67,6 +67,7 @@ type Configuration struct {
 	URL           string   `yaml:"url"`
 	URLPackages   string   `yaml:"url_packages"`
 	Verbose       bool     `yaml:"verbose,omitempty"`
+	RepoPath      string   `yaml:"repo_path,omitempty"`
 }
 
 func init() {

@@ -13,12 +13,13 @@ import (
 
 // Item contains an individual entry from the catalog
 type Item struct {
-	Dependencies []string      `yaml:"dependencies"`
-	DisplayName  string        `yaml:"display_name"`
-	Check        InstallCheck  `yaml:"check"`
-	Installer    InstallerItem `yaml:"installer"`
-	Uninstaller  InstallerItem `yaml:"uninstaller"`
-	Version      string        `yaml:"version"`
+	Catalog      string        `yaml:"catalog",omitempty`
+	Check        InstallCheck  `yaml:"check",omitempty`
+	Dependencies []string      `yaml:"dependencies",omitempty`
+	DisplayName  string        `yaml:"display_name",omitempty`
+	Installer    InstallerItem `yaml:"installer",omitempty`
+	Uninstaller  InstallerItem `yaml:"uninstaller",omitempty`
+	Version      string        `yaml:"version",omitempty`
 }
 
 // InstallerItem holds information about how to install a catalog item
@@ -26,28 +27,28 @@ type InstallerItem struct {
 	Type      string   `yaml:"type"`
 	Location  string   `yaml:"location"`
 	Hash      string   `yaml:"hash"`
-	Arguments []string `yaml:"arguments"`
+	Arguments []string `yaml:"arguments",omitempty`
 }
 
 // InstallCheck holds information about how to check the status of a catalog item
 type InstallCheck struct {
-	File     []FileCheck `yaml:"file"`
-	Script   string      `yaml:"script"`
-	Registry RegCheck    `yaml:"registry"`
+	File     []FileCheck `yaml:"file",omitempty`
+	Script   string      `yaml:"script",omitempty`
+	Registry RegCheck    `yaml:"registry",omitempty`
 }
 
 // FileCheck holds information about checking via a file
 type FileCheck struct {
-	Path        string `yaml:"path"`
-	Version     string `yaml:"version"`
-	ProductName string `yaml:"product_name"`
-	Hash        string `yaml:"hash"`
+	Path        string `yaml:"path",omitempty`
+	Version     string `yaml:"version",omitempty`
+	ProductName string `yaml:"product_name",omitempty`
+	Hash        string `yaml:"hash",omitempty`
 }
 
 // RegCheck holds information about checking via registry
 type RegCheck struct {
-	Name    string `yaml:"name"`
-	Version string `yaml:"version"`
+	Name    string `yaml:"name",omitempty`
+	Version string `yaml:"version",omitempty`
 }
 
 // This abstraction allows us to override the function while testing

@@ -1,0 +1,34 @@
+name: Go
+on: 
+  push:
+    branches:
+      - master
+  pull_request:
+  release:
+    types:
+      - published
+jobs:
+
+  build:
+    name: Build
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+
+    - name: Set up Go
+      uses: actions/setup-go@9fbc767707c286e568c92927bbf57d76b73e0892
+      with:
+        go-version: 1.13
+      id: go
+
+    - name: Set Git config
+      run: git config --global core.autocrlf false
+
+    - name: Check out code
+      uses: actions/checkout@722adc63f1aa60a57ec37892e133b1d319cae598
+
+    - name: Build
+      run: go build -v ./cmd/gorilla
+
+    - name: Test
+      run: go test -race -cover ./...

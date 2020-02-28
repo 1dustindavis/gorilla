@@ -63,7 +63,7 @@ func BuildCatalogs(repoPath string) error {
 		if catalogMap[packageInfo.Catalog] == nil {
 			catalogMap[packageInfo.Catalog] = map[string]catalog.Item{}
 		}
-		catalogMap[packageInfo.Catalog][packageInfo.DisplayName] = packageInfo
+		catalogMap[packageInfo.Catalog][packageInfo.ItemName] = packageInfo
 	}
 
 	// Check if the catalogs directory exists

@@ -1,4 +1,5 @@
 ---
+item_name: GoogleChrome
 display_name: Google Chrome
 check:
   registry:

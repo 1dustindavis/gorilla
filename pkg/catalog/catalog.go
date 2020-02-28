@@ -18,6 +18,7 @@ type Item struct {
 	Dependencies []string      `yaml:"dependencies",omitempty`
 	DisplayName  string        `yaml:"display_name",omitempty`
 	Installer    InstallerItem `yaml:"installer",omitempty`
+	ItemName     string        `yaml:"item_name",omitempty`
 	Uninstaller  InstallerItem `yaml:"uninstaller",omitempty`
 	Version      string        `yaml:"version",omitempty`
 }

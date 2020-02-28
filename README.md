@@ -1,5 +1,5 @@
 ![Gorilla logo](gorilla.png)
-# Gorilla [![Go Report Card](https://goreportcard.com/badge/github.com/1dustindavis/gorilla)](https://goreportcard.com/report/github.com/1dustindavis/gorilla) [![Build status](https://ci.appveyor.com/api/projects/status/hvug2p5wsvlor2v0/branch/master?svg=true)](https://ci.appveyor.com/project/DustinDavis/gorilla/branch/master)
+# Gorilla [![Go Report Card](https://goreportcard.com/badge/github.com/1dustindavis/gorilla)](https://goreportcard.com/report/github.com/1dustindavis/gorilla) [![Build status](https://github.com/1dustindavis/gorilla/workflows/Go/badge.svg?branch=master&event=push)](https://github.com/1dustindavis/gorilla/workflows/Go/badge.svg?branch=master&event=push)
 
 Munki-like Application Management for Windows
 

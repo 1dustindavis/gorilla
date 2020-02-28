@@ -110,7 +110,9 @@ func Example() {
 	// -c, -config         path to configuration file in yaml format
 	// -v, -verbose        enable verbose output
 	// -d, -debug          enable debug output
-	// -a, -about          displays the version number and other build info
+	// -b, -build          build catalog files from any files in packages-info
+	// -i, -import         create a package-info file from an installer package
+	// -a, -about          display the version number and other build info
 	// -V, -version        display the version number
 	// -h, -help           display this help message
 }

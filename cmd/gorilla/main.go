@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -34,6 +35,28 @@ func main() {
 
 	// Create a new logger object
 	gorillalog.NewLog(cfg)
+
+	// If build argument was passed, call that function and then exit
+	if cfg.BuildArg {
+		gorillalog.Info("Building catalogs...")
+		err := admin.BuildCatalogs(cfg.RepoPath)
+		if err != nil {
+			gorillalog.Warn("Error building catalogs:", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	// If import argument was passed, call that function and then exit
+	if cfg.ImportArg != "" {
+		gorillalog.Info("Importing item...")
+		err := admin.ImportItem(cfg.RepoPath, cfg.ImportArg)
+		if err != nil {
+			gorillalog.Warn("Error importing item:", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Start creating GorillaReport
 	report.Start()

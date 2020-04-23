@@ -56,6 +56,7 @@ type Configuration struct {
 	URL           string   `yaml:"url"`
 	URLPackages   string   `yaml:"url_packages"`
 	Manifest      string   `yaml:"manifest"`
+	LocalManifest string   `yaml:"local_manifest,omitempty"`
 	Catalogs      []string `yaml:"catalogs"`
 	AppDataPath   string   `yaml:"app_data_path"`
 	Verbose       bool     `yaml:"verbose,omitempty"`

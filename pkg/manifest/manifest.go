@@ -120,15 +120,18 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	}
 
 	// Add the local manifest after processing all other manifests
-	var localManifest Item
-	if cfg.LocalManifest != "" {
-		localManifestYaml, err := ioutil.ReadFile(cfg.LocalManifest)
-		if err != nil {
-			gorillalog.Error("Unable to parse yaml manifest: ", cfg.LocalManifest, err)
+	if len(cfg.LocalManifests) > 0 {
+		for _, manifest := range cfg.LocalManifests {
+			var localManifest Item
+			gorillalog.Info("Manifest File:", manifest)
+			localManifestsYaml, err := ioutil.ReadFile(manifest)
+			if err != nil {
+				gorillalog.Error("Unable to parse yaml manifest: ", manifest, err)
+			}
+			localManifest = parseManifest(manifest, localManifestsYaml)
+			manifests = append(manifests, localManifest)
 		}
-		localManifest = parseManifest(cfg.LocalManifest, localManifestYaml)
 	}
-	manifests = append(manifests, localManifest)
 
 	return manifests, newCatalogs
 }

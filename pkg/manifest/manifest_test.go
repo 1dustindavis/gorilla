@@ -15,9 +15,10 @@ var (
 
 	// Define a Configuration struct to pass to `Get`
 	cfg = config.Configuration{
-		URL:      "https://example.com/",
-		Manifest: "example_manifest",
-		Catalogs: []string{"alpha", "beta"},
+		URL:            "https://example.com/",
+		Manifest:       "example_manifest",
+		LocalManifests: []string{"testdata/example_local_manifest.yaml"},
+		Catalogs:       []string{"alpha", "beta"},
 	}
 
 	// testManifest is used to confirm the data is processed properly
@@ -37,6 +38,11 @@ var (
 		Updates:    []string{"TestUpdate1", "TestUpdate2"},
 		Catalogs:   []string{},
 	}
+	localManifest = Item{
+		Name:       "example_local_manifest",
+		Installs:   []string{"Opera"},
+		Uninstalls: []string{"SomeUninstall"},
+	}
 )
 
 // TestGet verifies that multiple manifests are processed correctly
@@ -52,7 +58,7 @@ func TestGet(t *testing.T) {
 	actualManifests, _ := Get(cfg)
 
 	// Define the slice of manifest items we expect it to return
-	expectedManifests := []Item{exampleManifest, includedManifest}
+	expectedManifests := []Item{exampleManifest, includedManifest, localManifest}
 	// 	{
 	// 		Name:       "example_manifest",
 	// 		Includes:   []string{"included_manifest"},

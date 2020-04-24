@@ -11,16 +11,17 @@ import (
 func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
 	expected := Configuration{
-		URL:         "https://example.com/gorilla/",
-		URLPackages: "https://example.com/gorilla/",
-		Manifest:    "example_manifest",
-		Catalogs:    []string{"example_catalog"},
-		AppDataPath: filepath.Clean("c:/cpe/gorilla/"),
-		Verbose:     true,
-		Debug:       true,
-		AuthUser:    "johnny",
-		AuthPass:    "pizza",
-		CachePath:   filepath.Clean("c:/cpe/gorilla/cache"),
+		URL:            "https://example.com/gorilla/",
+		URLPackages:    "https://example.com/gorilla/",
+		Manifest:       "example_manifest",
+		LocalManifests: []string{"example_local_manifest"},
+		Catalogs:       []string{"example_catalog"},
+		AppDataPath:    filepath.Clean("c:/cpe/gorilla/"),
+		Verbose:        true,
+		Debug:          true,
+		AuthUser:       "johnny",
+		AuthPass:       "pizza",
+		CachePath:      filepath.Clean("c:/cpe/gorilla/cache"),
 	}
 
 	// Save the original arguments

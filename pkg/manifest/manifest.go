@@ -126,7 +126,7 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 			gorillalog.Info("Manifest File:", manifest)
 			localManifestsYaml, err := ioutil.ReadFile(manifest)
 			if err != nil {
-				gorillalog.Error("Unable to parse yaml manifest: ", manifest, err)
+				gorillalog.Warn("Unable to parse yaml manifest: ", manifest, err)
 			}
 			localManifest = parseManifest(manifest, localManifestsYaml)
 			manifests = append(manifests, localManifest)

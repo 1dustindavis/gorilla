@@ -244,7 +244,7 @@ var (
 
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
-func Install(item catalog.Item, installerType, urlPackages, cachePath string) string {
+func Install(item catalog.Item, installerType, urlPackages, cachePath string, checkOnly bool) string {
 	// Check the status and determine if any action is needed for this item
 	actionNeeded, err := statusCheckStatus(item, installerType, cachePath)
 	if err != nil {
@@ -260,15 +260,30 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string) st
 
 	// Install or uninstall the item
 	if installerType == "install" || installerType == "update" {
-		// Compile the item's URL
-		itemURL := urlPackages + item.Installer.Location
-		// Run the installer
-		installItemFunc(item, itemURL, cachePath)
+		// Check if checkonly mode is enabled
+		if checkOnly {
+			report.InstalledItems = append(report.InstalledItems, item)
+			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
+			// Check only mode doesn't perform any action, return
+			return "Check only enabled"
+		} else {
+			// Compile the item's URL
+			itemURL := urlPackages + item.Installer.Location
+			// Run the installer
+			installItemFunc(item, itemURL, cachePath)
+		}
 	} else if installerType == "uninstall" {
-		// Compile the item's URL
-		itemURL := urlPackages + item.Uninstaller.Location
-		// Run the installer
-		uninstallItemFunc(item, itemURL, cachePath)
+		if checkOnly {
+			report.InstalledItems = append(report.InstalledItems, item)
+			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
+			// Check only mode doesn't perform any action, return
+			return "Check only enabled"
+		} else {
+			// Compile the item's URL
+			itemURL := urlPackages + item.Uninstaller.Location
+			// Run the installer
+			uninstallItemFunc(item, itemURL, cachePath)
+		}
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
 		return "Unsupported item type"

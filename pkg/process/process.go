@@ -93,7 +93,7 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 var installerInstall = installer.Install
 
 // Installs prepares and then installs an array of items
-func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
+func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the installs array, install dependencies, and then the item itself
 	for _, item := range installs {
 		// Get the first valid item from our catalogs
@@ -111,16 +111,16 @@ func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, ur
 					gorillalog.Warn(err)
 					continue
 				}
-				installerInstall(validDependency, "install", urlPackages, cachePath)
+				installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
 			}
 		}
 		// Install the item
-		installerInstall(validItem, "install", urlPackages, cachePath)
+		installerInstall(validItem, "install", urlPackages, cachePath, CheckOnly)
 	}
 }
 
 // Uninstalls prepares and then installs an array of items
-func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
+func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
 		// Get the first valid item from our catalogs
@@ -131,12 +131,12 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 			continue
 		}
 		// Uninstall the item
-		installerInstall(validItem, "uninstall", urlPackages, cachePath)
+		installerInstall(validItem, "uninstall", urlPackages, cachePath, CheckOnly)
 	}
 }
 
 // Updates prepares and then installs an array of items
-func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string) {
+func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {
 		// Get the first valid item from our catalogs
@@ -147,7 +147,7 @@ func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlP
 			continue
 		}
 		// Update the item
-		installerInstall(validItem, "update", urlPackages, cachePath)
+		installerInstall(validItem, "update", urlPackages, cachePath, CheckOnly)
 	}
 }
 

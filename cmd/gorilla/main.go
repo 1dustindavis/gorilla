@@ -60,15 +60,15 @@ func main() {
 
 	// Prepare and install
 	gorillalog.Info("Processing managed installs...")
-	process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath)
+	process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 
 	// Prepare and uninstall
 	gorillalog.Info("Processing managed uninstalls...")
-	process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath)
+	process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 
 	// Prepare and update
 	gorillalog.Info("Processing managed updates...")
-	process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath)
+	process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")

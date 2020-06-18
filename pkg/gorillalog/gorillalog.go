@@ -11,8 +11,9 @@ import (
 
 var (
 	// Define these config variables at the package scope
-	debug   bool
-	verbose bool
+	debug   	bool
+	verbose 	bool
+	checkonly 	bool
 )
 
 // TODO rewrite with io.multiwriter
@@ -22,6 +23,7 @@ var (
 
 // NewLog creates a file and points a new logging instance at it
 func NewLog(cfg config.Configuration) {
+
 	// Setup a defer function to recover from a panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -33,6 +35,12 @@ func NewLog(cfg config.Configuration) {
 	// Store the verbosity for later use
 	debug = cfg.Debug
 	verbose = cfg.Verbose
+	checkonly = cfg.CheckOnly
+
+	// Skip log if checkonly is active
+	if checkonly {
+		return
+	}
 
 	// Create the log directory
 	logPath := filepath.Join(cfg.AppDataPath, "/gorilla.log")
@@ -59,6 +67,9 @@ func Debug(logStrings ...interface{}) {
 	log.SetPrefix("DEBUG: ")
 	if debug {
 		fmt.Println(logStrings...)
+		if checkonly {
+			return
+		}
 		log.Println(logStrings...)
 	}
 }
@@ -70,6 +81,9 @@ func Info(logStrings ...interface{}) {
 	if verbose {
 		fmt.Println(logStrings...)
 	}
+	if checkonly {
+		return
+	}
 	log.Println(logStrings...)
 }
 
@@ -78,12 +92,18 @@ func Info(logStrings ...interface{}) {
 func Warn(logStrings ...interface{}) {
 	log.SetPrefix("WARN: ")
 	fmt.Println(logStrings...)
+	if checkonly {
+		return
+	}
 	log.Println(logStrings...)
 }
 
 // Error logs a string a ERROR
 // We print to stdout, write to disk, and then panic
 func Error(logStrings ...interface{}) {
+	if checkonly {
+		return
+	}
 	log.SetPrefix("ERROR: ")
 	log.Panic(logStrings...)
 }

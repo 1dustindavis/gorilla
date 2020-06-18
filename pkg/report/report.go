@@ -85,3 +85,15 @@ func End() {
 	}
 
 }
+
+func Print () {
+	// Compile everything
+	Items["InstalledItems"] = InstalledItems
+	Items["UninstalledItems"] = UninstalledItems
+	
+	reportJSON, marshalErr := json.MarshalIndent(Items, "", "    ")
+	fmt.Println(string(reportJSON))
+	if marshalErr != nil {
+		fmt.Println("Unable to create GorillaReport json", marshalErr)
+	}
+}

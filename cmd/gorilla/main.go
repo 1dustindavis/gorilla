@@ -23,7 +23,7 @@ func main() {
 	cfg := config.Get()
 
 	// Confirm we are running as an administrator before continuing
-	adminCheck()
+	adminCheck(cfg.CheckOnly)
 
 	// If needed, create the cache directory
 	err := os.MkdirAll(filepath.Clean(cfg.CachePath), 0755)
@@ -36,7 +36,9 @@ func main() {
 	gorillalog.NewLog(cfg)
 
 	// Start creating GorillaReport
-	report.Start()
+	if !cfg.CheckOnly {
+		report.Start()
+	}
 
 	// Set the configuration that `download` will use
 	download.SetConfig(cfg)
@@ -72,7 +74,11 @@ func main() {
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")
-	report.End()
+	if !cfg.CheckOnly {
+		report.End()
+	} else {
+		report.Print()
+	}
 
 	// Run CleanUp to delete old cached items and empty directories
 	gorillalog.Info("Cleaning up the cache...")
@@ -81,10 +87,15 @@ func main() {
 	gorillalog.Info("Done!")
 }
 
-func adminCheck() {
+func adminCheck(CheckOnly bool) {
 
 	// Skip the check if this is test
 	if flag.Lookup("test.v") != nil {
+		return
+	}
+
+	// Skip the check if checkonly mode is enabled
+	if CheckOnly {
 		return
 	}
 

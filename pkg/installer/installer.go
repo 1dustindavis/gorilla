@@ -116,6 +116,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		// we need to pass a version to filter unexpected nupkgs (if we have a version)
 		var versionArg string
 		var nupkgID string
+
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 			nupkgID = getNupkgID(nupkgDir, versionArg)
@@ -136,6 +137,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
+		installArgs = append(installArgs, item.Installer.Arguments...)
 
 	} else if item.Installer.Type == "exe" {
 		gorillalog.Info("Installing exe for", item.DisplayName)

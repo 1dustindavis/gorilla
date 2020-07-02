@@ -116,7 +116,6 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		// we need to pass a version to filter unexpected nupkgs (if we have a version)
 		var versionArg string
 		var nupkgID string
-
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 			nupkgID = getNupkgID(nupkgDir, versionArg)

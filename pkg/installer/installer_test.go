@@ -218,7 +218,7 @@ func TestInstallItem(t *testing.T) {
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiFile := filepath.Join(pkgCache, msiPath)
-	expectedMsi := "[" + msiCmd + " /i " + msiFile + " /qn /norestart]"
+	expectedMsi := "[" + msiCmd + " /i " + msiFile + " /qn /norestart /L=1033 /S]"
 	if have, want := actualMsi, expectedMsi; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}

@@ -10,3 +10,4 @@ auth_user: johnny
 auth_pass: pizza
 verbose: true
 debug: true
+checkonly: true

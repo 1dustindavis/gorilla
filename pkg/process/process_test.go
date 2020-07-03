@@ -98,6 +98,9 @@ var (
 		},
 	}}
 
+	// CheckOnly flag disabled for testing
+	checkOnlyMode bool = false
+
 	// Arrays of the test items
 	testInstalls   = []string{"Chocolatey", "GoogleChrome", "TestInstall1", "TestInstall2"}
 	testUninstalls = []string{"AdobeFlash", "TestUninstall1", "TestUninstall2"}
@@ -164,7 +167,7 @@ func TestInstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Installs` with test data
-	Installs(testInstalls, testCatalogs, "URLPackages", "CachePath")
+	Installs(testInstalls, testCatalogs, "URLPackages", "CachePath", checkOnlyMode)
 
 	// Define what we expect to be in the list of installed items
 	// This ends up being the testInstalls slice *PLUS any dependencies*
@@ -187,7 +190,7 @@ func TestUninstalls(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Uninstalls` with test data
-	Uninstalls(testUninstalls, testCatalogs, "URLPackages", "CachePath")
+	Uninstalls(testUninstalls, testCatalogs, "URLPackages", "CachePath", checkOnlyMode)
 
 	// Define what we expect to be in the list of uninstalled items
 	expectedItems := testUninstalls
@@ -209,7 +212,7 @@ func TestUpdates(t *testing.T) {
 	defer func() { installerInstall = origInstall }()
 
 	// Run `Updates` with test data
-	Updates(testUpdates, testCatalogs, "URLPackages", "CachePath")
+	Updates(testUpdates, testCatalogs, "URLPackages", "CachePath", checkOnlyMode)
 
 	// Define what we expect to be in the list of updated items
 	expectedItems := testUpdates
@@ -278,21 +281,21 @@ func TestCleanUp(t *testing.T) {
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualInstalledItems`
-func fakeInstall(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
+func fakeInstall(item catalog.Item, installerType string, urlPackages string, cachePath string, checkOnly bool) string {
 	// Append any item we are passed to a slice for later comparison
 	actualInstalledItems = append(actualInstalledItems, item.DisplayName)
 	return ""
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualUninstalledItems`
-func fakeUninstall(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
+func fakeUninstall(item catalog.Item, installerType string, urlPackages string, cachePath string, checkOnly bool) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUninstalledItems = append(actualUninstalledItems, item.DisplayName)
 	return ""
 }
 
 // Mocks the actual `installer.Install` function and saves what it receives to `actualUpdatedItems`
-func fakeUpdate(item catalog.Item, installerType string, urlPackages string, cachePath string) string {
+func fakeUpdate(item catalog.Item, installerType string, urlPackages string, cachePath string, checkOnly bool) string {
 	// Append any item we are passed to a slice for later comparison
 	actualUpdatedItems = append(actualUpdatedItems, item.DisplayName)
 	return ""

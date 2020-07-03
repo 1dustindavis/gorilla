@@ -28,6 +28,8 @@ var (
 	helpDefault    = false
 	verboseArg     bool
 	verboseDefault = false
+	checkOnlyArg     bool
+	checkOnlyDefault = false
 	versionArg     bool
 	versionDefault = false
 
@@ -43,6 +45,7 @@ Usage: gorilla.exe [options]
 
 Options:
 -c, -config         path to configuration file in yaml format
+-C, -checkonly	    enable check only mode
 -v, -verbose        enable verbose output
 -d, -debug          enable debug output
 -a, -about          displays the version number and other build info
@@ -61,6 +64,7 @@ type Configuration struct {
 	AppDataPath    string   `yaml:"app_data_path"`
 	Verbose        bool     `yaml:"verbose,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
+	CheckOnly      bool     `yaml:"checkonly,omitempty"`
 	AuthUser       string   `yaml:"auth_user,omitempty"`
 	AuthPass       string   `yaml:"auth_pass,omitempty"`
 	TLSAuth        bool     `yaml:"tls_auth,omitempty"`
@@ -82,6 +86,9 @@ func init() {
 	// Debug
 	flag.BoolVar(&debugArg, "debug", debugDefault, "")
 	flag.BoolVar(&debugArg, "d", debugDefault, "")
+	// Checkonly
+	flag.BoolVar(&checkOnlyArg, "checkonly", checkOnlyDefault, "")
+	flag.BoolVar(&checkOnlyArg, "C", checkOnlyDefault, "")
 	// Help
 	flag.BoolVar(&helpArg, "help", helpDefault, "")
 	flag.BoolVar(&helpArg, "h", helpDefault, "")
@@ -93,7 +100,7 @@ func init() {
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
 }
 
-func parseArguments() (string, bool, bool) {
+func parseArguments() (string, bool, bool, bool) {
 	// Get the command line args
 	flag.Parse()
 	if helpArg {
@@ -110,7 +117,7 @@ func parseArguments() (string, bool, bool) {
 		osExit(0)
 	}
 
-	return configArg, verboseArg, debugArg
+	return configArg, verboseArg, debugArg, checkOnlyArg
 }
 
 // Get retrieves and parses the config file and returns a Configuration struct and any errors
@@ -118,7 +125,7 @@ func Get() Configuration {
 	var cfg Configuration
 
 	// Parse any arguments that may have been passed
-	configPath, verbose, debug := parseArguments()
+	configPath, verbose, debug, checkonly := parseArguments()
 
 	// Read the config file
 	configFile, err := ioutil.ReadFile(configPath)
@@ -167,6 +174,10 @@ func Get() Configuration {
 	if debug && !cfg.Debug {
 		cfg.Debug = true
 		cfg.Verbose = true
+	}
+
+	if checkonly && !cfg.CheckOnly {
+		cfg.CheckOnly = true
 	}
 
 	// Set the cache path

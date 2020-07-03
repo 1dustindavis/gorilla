@@ -48,6 +48,7 @@ If ($upToDate) {
 		},
 		Uninstaller: InstallerItem{Type: `msi`, Arguments: []string{`/S`}},
 		Version:     `68.0.3440.106`,
+		BlockingApps: []string{"test"},
 	}
 
 	// Define a Configuration struct to pass to `Get`

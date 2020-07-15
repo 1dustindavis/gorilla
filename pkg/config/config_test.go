@@ -11,16 +11,18 @@ import (
 func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
 	expected := Configuration{
-		URL:         "https://example.com/gorilla/",
-		URLPackages: "https://example.com/gorilla/",
-		Manifest:    "example_manifest",
-		Catalogs:    []string{"example_catalog"},
-		AppDataPath: filepath.Clean("c:/cpe/gorilla/"),
-		Verbose:     true,
-		Debug:       true,
-		AuthUser:    "johnny",
-		AuthPass:    "pizza",
-		CachePath:   filepath.Clean("c:/cpe/gorilla/cache"),
+		URL:            "https://example.com/gorilla/",
+		URLPackages:    "https://example.com/gorilla/",
+		Manifest:       "example_manifest",
+		LocalManifests: []string{"example_local_manifest"},
+		Catalogs:       []string{"example_catalog"},
+		AppDataPath:    filepath.Clean("c:/cpe/gorilla/"),
+		Verbose:        true,
+		Debug:          true,
+		CheckOnly:   	true,
+		AuthUser:       "johnny",
+		AuthPass:       "pizza",
+		CachePath:      filepath.Clean("c:/cpe/gorilla/cache"),
 	}
 
 	// Save the original arguments
@@ -48,20 +50,26 @@ func TestParseArguments(t *testing.T) {
 	expectedConfig := `.\fake.yaml`
 	expectedVerbose := true
 	expectedDebug := true
+	expectedCheckOnly := true
 
 	// Save the original arguments
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
 	// Override with our input
-	os.Args = []string{"gorilla.exe", "--verbose", "--debug", "--config", `.\fake.yaml`}
+	os.Args = []string{"gorilla.exe", "--verbose", "--debug", "--checkonly", "--config", `.\fake.yaml`}
 
 	// Run code
-	configArg, verboseArg, debugArg := parseArguments()
+	configArg, verboseArg, debugArg, checkonlyArg := parseArguments()
 
 	// Compare config
 	if have, want := configArg, expectedConfig; have != want {
 		t.Errorf("have %s, want %s", have, want)
+	}
+
+	// Compare checkonly
+	if have, want := checkonlyArg, expectedCheckOnly; have != want {
+		t.Errorf("have %v, want %v", have, want)
 	}
 
 	// Compare verbose
@@ -96,7 +104,7 @@ func Example() {
 	os.Args = []string{"gorilla.exe", "--help"}
 
 	// Run code, ignoring the return values
-	_, _, _ = parseArguments()
+	_, _, _, _ = parseArguments()
 
 	// Output:
 	// unknown unknown
@@ -108,6 +116,7 @@ func Example() {
 	//
 	// Options:
 	// -c, -config         path to configuration file in yaml format
+	// -C, -checkonly	    enable check only mode
 	// -v, -verbose        enable verbose output
 	// -d, -debug          enable debug output
 	// -a, -about          displays the version number and other build info

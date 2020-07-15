@@ -13,7 +13,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 )
 
-// TestNewLog tests the creation of the log and it's directory
+// TestNewLog tests the creation of the log and its directory
 func TestNewLog(t *testing.T) {
 	// Set up a place for test data
 	tmpDir := filepath.Join(os.Getenv("TMPDIR"), "gorillalog")

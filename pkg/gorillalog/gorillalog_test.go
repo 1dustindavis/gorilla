@@ -1,14 +1,10 @@
 package gorillalog
 
 import (
-	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 )

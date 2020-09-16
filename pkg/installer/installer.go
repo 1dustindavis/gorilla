@@ -336,8 +336,12 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			itemURL := urlPackages + item.Installer.Location
 			// Run PreInstall_Script if needed
 			if item.PreScript != "" {
-				gorillalog.Info("Running Pre-Install script for ", item.DisplayName)
-				preinstallScript(item, cachePath)
+				gorillalog.Info("Running Pre-Install script for", item.DisplayName)
+				preScriptSuccess, err := preinstallScript(item, cachePath)
+				if !preScriptSuccess {
+					gorillalog.Error("PreInstall-Script error:", err)
+					return "PreInstall-Script error"
+				}
 			}
 
 			// Run the installer
@@ -345,8 +349,12 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 
 			// Run PostInstall_Script if needed
 			if item.PostScript != "" {
-				gorillalog.Info("Running Post-Install script for ", item.DisplayName)
-				postinstallScript(item, cachePath)
+				gorillalog.Info("Running Post-Install script for", item.DisplayName)
+				postScriptSuccess, err := postinstallScript(item, cachePath)
+				if !postScriptSuccess {
+					gorillalog.Error("PreInstall-Script error:", err)
+					return "PostInstall-Script error"
+				}
 			}
 		}
 	} else if installerType == "uninstall" {

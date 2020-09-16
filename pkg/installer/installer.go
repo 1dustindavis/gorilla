@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"bytes"
+	"io/ioutil"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -237,6 +239,68 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	return uninstallerOut
 }
 
+
+
+func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
+
+	// Write InstallCheckScript to disk as a Powershell file
+	tmpScript := filepath.Join(cachePath, "tmpPostScript.ps1")
+	ioutil.WriteFile(tmpScript, []byte(catalogItem.PreScript), 0755)
+
+	// Build the command to execute the script
+	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+
+	// Execute the script
+	cmd := execCommand(psCmd, psArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	cmdSuccess := cmd.ProcessState.Success()
+	outStr, errStr := stdout.String(), stderr.String()
+
+	// Delete the temporary script
+	os.Remove(tmpScript)
+
+	// Log results
+	gorillalog.Debug("Command Error:", err)
+	gorillalog.Debug("stdout:", outStr)
+	gorillalog.Debug("stderr:", errStr)
+
+	return cmdSuccess, err
+}
+
+func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
+
+	// Write InstallCheckScript to disk as a Powershell file
+	tmpScript := filepath.Join(cachePath, "tmpPostScript.ps1")
+	ioutil.WriteFile(tmpScript, []byte(catalogItem.PostScript), 0755)
+
+	// Build the command to execute the script
+	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+
+	// Execute the script
+	cmd := execCommand(psCmd, psArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	cmdSuccess := cmd.ProcessState.Success()
+	outStr, errStr := stdout.String(), stderr.String()
+
+	// Delete the temporary script
+	os.Remove(tmpScript)
+
+	// Log results
+	gorillalog.Debug("Command Error:", err)
+	gorillalog.Debug("stdout:", outStr)
+	gorillalog.Debug("stderr:", errStr)
+
+	return cmdSuccess, err
+}
+
 var (
 	// By putting the functions in a variable, we can override later in tests
 	installItemFunc   = installItem
@@ -270,8 +334,20 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 		} else {
 			// Compile the item's URL
 			itemURL := urlPackages + item.Installer.Location
+			// Run PreInstall_Script if needed
+			if item.PreScript != "" {
+				gorillalog.Info("Running Pre-Install script for ", item.DisplayName)
+				preinstallScript(item, cachePath)
+			}
+
 			// Run the installer
 			installItemFunc(item, itemURL, cachePath)
+
+			// Run PostInstall_Script if needed
+			if item.PostScript != "" {
+				gorillalog.Info("Running Post-Install script for ", item.DisplayName)
+				postinstallScript(item, cachePath)
+			}
 		}
 	} else if installerType == "uninstall" {
 		if checkOnly {

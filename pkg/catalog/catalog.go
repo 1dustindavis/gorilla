@@ -20,6 +20,8 @@ type Item struct {
 	Uninstaller  InstallerItem `yaml:"uninstaller"`
 	Version      string        `yaml:"version"`
 	BlockingApps []string	   `yaml:"blocking_apps"`
+	PreScript	 string        `yaml:"preinstall_script"`
+	PostScript   string        `yaml:"postinstall_script"`
 }
 
 // InstallerItem holds information about how to install a catalog item

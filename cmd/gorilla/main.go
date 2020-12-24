@@ -90,6 +90,7 @@ func main() {
 	gorillalog.Info("Done!")
 }
 
+// adminCheck is borrowed from https://github.com/golang/go/issues/28804#issuecomment-438838144
 func adminCheck(CheckOnly bool) (bool, error) {
 	var adminSid *windows.SID
 

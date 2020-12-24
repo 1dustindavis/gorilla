@@ -339,7 +339,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 				gorillalog.Info("Running Pre-Install script for", item.DisplayName)
 				preScriptSuccess, err := preinstallScript(item, cachePath)
 				if !preScriptSuccess {
-					gorillalog.Error("PreInstall-Script error:", err)
+					gorillalog.Error("Pre-Install script error:", err)
 					return "PreInstall-Script error"
 				}
 			}
@@ -352,7 +352,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 				gorillalog.Info("Running Post-Install script for", item.DisplayName)
 				postScriptSuccess, err := postinstallScript(item, cachePath)
 				if !postScriptSuccess {
-					gorillalog.Error("PreInstall-Script error:", err)
+					gorillalog.Error("Post-Install script error:", err)
 					return "PostInstall-Script error"
 				}
 			}

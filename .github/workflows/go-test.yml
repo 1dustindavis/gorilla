@@ -25,7 +25,7 @@ jobs:
       run: git config --global core.autocrlf false
 
     - name: Check out code
-      uses: actions/checkout@722adc63f1aa60a57ec37892e133b1d319cae598
+      uses: actions/checkout@37335c7bb261b353407cff977110895fa0b4f7d8
 
     - name: Build
       run: go build -v ./cmd/gorilla

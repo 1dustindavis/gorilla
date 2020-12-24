@@ -23,6 +23,10 @@ func main() {
 
 	// Confirm we are running as an administrator before continuing
 	admin, err := adminCheck(cfg.CheckOnly)
+	if err != nil {
+		fmt.Println("Unable to check if running as admin, got: %w", err)
+		os.Exit(1)
+	}
 	if !admin {
 		fmt.Println("Gorilla requires admnisistrative access. Please run as an administrator.")
 		os.Exit(1)

@@ -21,16 +21,18 @@ func main() {
 
 	// Get our configuration
 	cfg := config.Get()
-
-	// Confirm we are running as an administrator before continuing
-	admin, err := adminCheck(cfg.CheckOnly)
-	if err != nil {
-		fmt.Println("Unable to check if running as admin, got: %w", err)
-		os.Exit(1)
-	}
-	if !admin {
-		fmt.Println("Gorilla requires admnisistrative access. Please run as an administrator.")
-		os.Exit(1)
+	var err error
+	// if --checkonly is NOT passed, we need to run adminCheck()
+	if !cfg.CheckOnly {
+		admin, err := adminCheck()
+		if err != nil {
+			fmt.Println("Unable to check if running as admin, got: %w", err)
+			os.Exit(1)
+		}
+		if !admin {
+			fmt.Println("Gorilla requires admnisistrative access. Please run as an administrator.")
+			os.Exit(1)
+		}
 	}
 
 	// If needed, create the cache directory
@@ -96,14 +98,9 @@ func main() {
 }
 
 // adminCheck is borrowed from https://github.com/golang/go/issues/28804#issuecomment-438838144
-func adminCheck(CheckOnly bool) (bool, error) {
+func adminCheck() (bool, error) {
 	// Skip the check if this is test
 	if flag.Lookup("test.v") != nil {
-		return false, nil
-	}
-
-	// Skip the check if checkonly mode is enabled
-	if CheckOnly {
 		return false, nil
 	}
 

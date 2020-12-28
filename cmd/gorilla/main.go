@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -96,6 +97,16 @@ func main() {
 
 // adminCheck is borrowed from https://github.com/golang/go/issues/28804#issuecomment-438838144
 func adminCheck(CheckOnly bool) (bool, error) {
+	// Skip the check if this is test
+	if flag.Lookup("test.v") != nil {
+		return false, nil
+	}
+
+	// Skip the check if checkonly mode is enabled
+	if CheckOnly {
+		return false, nil
+	}
+
 	var adminSid *windows.SID
 
 	// Although this looks scary, it is directly copied from the

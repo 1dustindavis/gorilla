@@ -16,7 +16,7 @@ jobs:
     steps:
 
     - name: Set up Go
-      uses: actions/setup-go@9fbc767707c286e568c92927bbf57d76b73e0892
+      uses: actions/setup-go@37335c7bb261b353407cff977110895fa0b4f7d8
       with:
         go-version: 1.13
       id: go
@@ -25,7 +25,7 @@ jobs:
       run: git config --global core.autocrlf false
 
     - name: Check out code
-      uses: actions/checkout@722adc63f1aa60a57ec37892e133b1d319cae598
+      uses: actions/checkout@5a4ac9002d0be2fb38bd78e4b4dbde5606d7042f
 
     - name: Build
       run: go build -v ./cmd/gorilla

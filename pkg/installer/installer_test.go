@@ -155,11 +155,11 @@ func TestRunCommand(t *testing.T) {
 
 	// Define our test command and arguments
 	testCommand := "echo"
-	testArgs := []string{"pizza", "pizza"}
+	testArgs := []string{"pizza", "sushi"}
 	testCmd := append([]string{testCommand}, testArgs...)
 	expectedCmd := fmt.Sprint(testCmd)
 
-	actualCmd := runCommand(testCommand, testArgs)
+	actualCmd, _ := runCommand(testCommand, testArgs)
 
 	// Compare the result with our expectations
 	structsMatch := reflect.DeepEqual(expectedCmd, actualCmd)

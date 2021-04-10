@@ -35,7 +35,7 @@ var (
 	}
 	// CheckOnly flag disabled for testing
 	checkOnlyMode bool = false
-	
+
 	// These catalog items provide test data for each installer type
 	nupkgItem = catalog.Item{
 		Installer: catalog.InstallerItem{

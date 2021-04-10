@@ -157,25 +157,13 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-<<<<<<< HEAD
 	installerOut, errOut := runCommand(installCmd, installArgs)
 
 	// Write success/failure event to log
-	productStr := item.DisplayName + "-" + item.Version
-
 	if errOut != nil {
-		gorillalog.Warn(productStr, "Installation: FAILED")
+		gorillalog.Warn(item.DisplayName, item.Version, "Installation FAILED")
 	} else {
-		gorillalog.Info(productStr, "Installation: SUCCESSFUL")
-=======
-	installerOut := runCommand(installCmd, installArgs)
-	
-	// Write success/failure event to log
-	if installerOut != "" {
-		gorillalog.Warn(item.DisplayName, "Installation FAILED")
-	} else {
-		gorillalog.Info(item.DisplayName, "Installation SUCCESSFUL")
->>>>>>> d12ac79fb20b779d857ed02cde5ca8a67d464ddb
+		gorillalog.Info(item.DisplayName, item.Version, "Installation SUCCESSFUL")
 	}
 
 	// Add the item to InstalledItems in GorillaReport
@@ -253,19 +241,10 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	uninstallerOut, errOut := runCommand(uninstallCmd, uninstallArgs)
 
 	// Write success/failure event to log
-	productStr := item.DisplayName + "-" + item.Version
-
 	if errOut != nil {
-		gorillalog.Warn(productStr, "Installation FAILED")
+		gorillalog.Warn(item.DisplayName, item.Version, "Installation FAILED")
 	} else {
-		gorillalog.Info(productStr, "Installation SUCCESSFUL")
-	}
-
-	// Write success/failure event to log
-	if uninstallerOut != "" {
-		gorillalog.Warn(item.DisplayName, "Installation FAILED")
-	} else {
-		gorillalog.Info(item.DisplayName, "Installation SUCCESSFUL")
+		gorillalog.Info(item.DisplayName, item.Version, "Installation SUCCESSFUL")
 	}
 
 	// Add the item to InstalledItems in GorillaReport

@@ -2,15 +2,15 @@ package installer
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
-	"bytes"
-	"io/ioutil"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -242,9 +242,9 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 
 	// Write success/failure event to log
 	if errOut != nil {
-		gorillalog.Warn(item.DisplayName, item.Version, "Installation FAILED")
+		gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
 	} else {
-		gorillalog.Info(item.DisplayName, item.Version, "Installation SUCCESSFUL")
+		gorillalog.Info(item.DisplayName, item.Version, "Uninstallation SUCCESSFUL")
 	}
 
 	// Add the item to InstalledItems in GorillaReport

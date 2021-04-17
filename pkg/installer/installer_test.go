@@ -65,6 +65,7 @@ var (
 			Location:  `packages/chef-client/chef-client-14.3.37-1-x64uninst.msi`,
 			Type:      `msi`,
 		},
+		Version: "1.2.3",
 	}
 	exeItem = catalog.Item{
 		Installer: catalog.InstallerItem{
@@ -580,4 +581,70 @@ func Example_runCommand() {
 	// --------------------
 	// [Command Test! arg1 arg2]
 	// --------------------
+}
+
+func Example_installItemSuccess() {
+	// Override execCommand and checkStatus with our fake versions
+	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
+	download.SetConfig(downloadCfg)
+	defer func() {
+		execCommand = origExec
+		statusCheckStatus = origCheckStatus
+	}()
+
+	// Set shared testing variables
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+
+	//
+	// Msi
+	//
+	msiItem.DisplayName = statusNoActionNoError
+
+	// Run Install
+	installItem(msiItem, urlPackages, cachePath)
+
+	// Output:
+	// Installing msi for _gorilla_dev_noaction_noerror_
+	// command: C:\Windows\system32\msiexec.exe [/i testdata\packages\chef-client\chef-client-14.3.37-1-x64.msi /qn /norestart /L=1033 /S]
+	// Command Output:
+	// --------------------
+	// [C:\Windows\system32\msiexec.exe /i testdata\packages\chef-client\chef-client-14.3.37-1-x64.msi /qn /norestart /L=1033 /S]
+	// --------------------
+	// _gorilla_dev_noaction_noerror_ 1.2.3 Installation SUCCESSFUL
+
+}
+
+func Example_uninstallItemSuccess() {
+	// Override execCommand and checkStatus with our fake versions
+	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
+	download.SetConfig(downloadCfg)
+	defer func() {
+		execCommand = origExec
+		statusCheckStatus = origCheckStatus
+	}()
+
+	// Set shared testing variables
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+
+	//
+	// Msi
+	//
+	msiItem.DisplayName = statusNoActionNoError
+
+	// Run Install
+	uninstallItem(msiItem, urlPackages, cachePath)
+
+	// Output:
+	// Uninstalling msi for _gorilla_dev_noaction_noerror_
+	// command: C:\Windows\system32\msiexec.exe [/x testdata\packages\chef-client\chef-client-14.3.37-1-x64uninst.msi /qn /norestart]
+	// Command Output:
+	// --------------------
+	// [C:\Windows\system32\msiexec.exe /x testdata\packages\chef-client\chef-client-14.3.37-1-x64uninst.msi /qn /norestart]
+	// --------------------
+	// _gorilla_dev_noaction_noerror_ 1.2.3 Uninstallation SUCCESSFUL
+
 }

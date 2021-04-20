@@ -2,15 +2,15 @@ package installer
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
-	"bytes"
-	"io/ioutil"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -35,7 +35,7 @@ var (
 )
 
 // runCommand executes a command and it's argurments in the CMD environment
-func runCommand(command string, arguments []string) string {
+func runCommand(command string, arguments []string) (string, error) {
 	cmd := execCommand(command, arguments...)
 	var cmdOutput string
 	cmdReader, err := cmd.StdoutPipe()
@@ -73,7 +73,7 @@ func runCommand(command string, arguments []string) string {
 		gorillalog.Warn("Command error:", err)
 	}
 
-	return cmdOutput
+	return cmdOutput, err
 }
 
 // Get a Nupkg's id using `choco list`
@@ -84,7 +84,7 @@ func getNupkgID(nupkgDir, versionArg string) string {
 	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
 
 	// Run the command and trim the output
-	cmdOut := runCommand(command, arguments)
+	cmdOut, _ := runCommand(command, arguments)
 	nupkgID := strings.TrimSpace(cmdOut)
 
 	// The final output should just be the nupkg id
@@ -157,7 +157,14 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	installerOut := runCommand(installCmd, installArgs)
+	installerOut, errOut := runCommand(installCmd, installArgs)
+
+	// Write success/failure event to log
+	if errOut != nil {
+		gorillalog.Warn(item.DisplayName, item.Version, "Installation FAILED")
+	} else {
+		gorillalog.Info(item.DisplayName, item.Version, "Installation SUCCESSFUL")
+	}
 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
@@ -231,15 +238,20 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	uninstallerOut := runCommand(uninstallCmd, uninstallArgs)
+	uninstallerOut, errOut := runCommand(uninstallCmd, uninstallArgs)
+
+	// Write success/failure event to log
+	if errOut != nil {
+		gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
+	} else {
+		gorillalog.Info(item.DisplayName, item.Version, "Uninstallation SUCCESSFUL")
+	}
 
 	// Add the item to InstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)
 
 	return uninstallerOut
 }
-
-
 
 func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
 

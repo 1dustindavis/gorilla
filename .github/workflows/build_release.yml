@@ -46,12 +46,13 @@ jobs:
 
     - name: Build
       run: |
-        go build -v ./cmd/gorilla -ldflags="`
+        go build -v -ldflags="`
           -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla`
           -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }}`
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
           -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
-          -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"
+          -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
+          ./cmd/gorilla 
 
     - name: Cut release
       uses: ncipollo/release-action@v1

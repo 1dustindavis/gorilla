@@ -47,12 +47,11 @@ jobs:
     - name: Build
       shell: pwsh
       run: |
-        echo $now=(Get-Date -format s)
         go build -v ./cmd/gorilla -ldflags=" `
           -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla `
           -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }} `
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }} `
-          -X github.com/1dustindavis/gorilla/pkg/version.buildDate=${{ $now }} `
+          -X github.com/1dustindavis/gorilla/pkg/version.buildDate=${{ (Get-Date -format s) }} `
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ github.head_ref }} `
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}
 

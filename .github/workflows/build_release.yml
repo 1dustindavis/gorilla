@@ -45,7 +45,6 @@ jobs:
         bump_each_commit: false
 
     - name: Build
-      shell: pwsh
       run: |
         go build -v ./cmd/gorilla -ldflags=" `
           -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla `

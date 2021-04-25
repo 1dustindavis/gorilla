@@ -80,7 +80,7 @@ build: .pre-build
 .pre-release: clean
 	mkdir -p release/
 
-release: .pre-release 
+release: .pre-release
 ifndef XGO_INSTALLED
 	$(error "xgo is not available, please install xgo")
 endif

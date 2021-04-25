@@ -21,8 +21,5 @@ jobs:
     - name: Setup go
       uses: actions/setup-go@v2
 
-    - name: Test
-      run: go test -race -cover ./...
-
     - name: Build
       run: go build -v ./cmd/gorilla

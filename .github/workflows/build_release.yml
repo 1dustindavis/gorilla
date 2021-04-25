@@ -45,6 +45,7 @@ jobs:
         bump_each_commit: false
 
     - name: Build
+      shell: pwsh
       run: |
         $now=(Get-Date -format s)
         go build -v ./cmd/gorilla -ldflags=" `

@@ -51,7 +51,6 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }}`
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
           -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
-          -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.GITHUB_SHA }}`
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"
 
     - name: Cut release

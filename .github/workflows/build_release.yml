@@ -52,7 +52,7 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
           -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
-          './cmd/gorilla' 
+          ./cmd/gorilla
 
     - name: Cut release
       uses: ncipollo/release-action@v1

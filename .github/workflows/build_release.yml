@@ -61,6 +61,7 @@ jobs:
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: false
+        prelease: true
         artifacts: "./cmd/gorilla/gorilla.exe"
         tag: ${{ steps.create_tag.outputs.version_tag }}
         token: ${{ secrets.GITHUB_TOKEN }}

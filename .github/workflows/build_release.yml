@@ -1,0 +1,67 @@
+name:  Build Release
+
+# Trigger on every master branch push
+on:
+  push:
+    branches:
+      - master
+jobs:
+  build:
+    strategy:
+      matrix:
+        targetplatform: [x64]
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Setup go
+      uses: actions/setup-go@v2
+
+    - name: Get branch & rev
+      run: |
+        echo "Working Path: ${Env:GITHUB_WORKSPACE}"
+        $branchName = $Env:GITHUB_REF -replace 'refs/heads/', ''
+        echo "Branch: ${branchName}"
+        echo "CURRENT_BRANCH=${branchName}" >> $Env:GITHUB_ENV
+        $revision = (git rev-parse HEAD)
+        echo "REVISION=${revision}" >> $Env:GITHUB_ENV
+    - name: Get go version
+      run: |
+        $vers=((go version) -replace "go version go", "" -replace " windows/amd64" )
+        echo "GO_VERSION=${vers}" >> $Env:GITHUB_ENV
+
+    - name: Create version tag
+      id: create_tag
+      uses: paulhatch/semantic-version@v4.0.1
+      with: 
+        tag_prefix: "v"
+        major_pattern: "(MAJOR)"
+        minor_pattern: "/[\\s]*/"
+        format: "${major}.${minor}"
+        namespace: ''
+        short_tags: false
+        bump_each_commit: false
+
+    - name: Build
+      working-directory: ./cmd/gorilla
+      run: |
+        go build -v -ldflags="`
+          -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla`
+          -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }}`
+          -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
+          -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
+          -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
+          -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
+
+    - name: Cut release
+      uses: ncipollo/release-action@v1
+      with:
+        allowUpdates: false
+        prelease: true
+        artifacts: "./cmd/gorilla/gorilla.exe"
+        tag: ${{ steps.create_tag.outputs.version_tag }}
+        token: ${{ secrets.GITHUB_TOKEN }}

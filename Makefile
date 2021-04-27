@@ -14,7 +14,6 @@ REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 PKGDIR_TMP = ${TMPDIR}golang
-XGO_INSTALLED = $(shell command -v xgo 2> /dev/null)
 GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
@@ -53,7 +52,6 @@ define HELP_TEXT
 	make clean        - Delete all build artifacts
 
 	make build        - Build the code
-	make release      - Build in a docker container using xgo
 
 	make test         - Run the Go tests
 	make lint         - Run the Go linters
@@ -68,7 +66,6 @@ gomodcheck:
 
 clean:
 	rm -rf build/
-	rm -rf release/
 	rm -rf ${PKGDIR_TMP}
 
 .pre-build: gomodcheck
@@ -76,16 +73,6 @@ clean:
 
 build: .pre-build
 	GOOS=windows GOARCH=amd64 go build -i -o build/${APP_NAME}.exe -pkgdir ${PKGDIR_TMP} -ldflags ${BUILD_VERSION} ./cmd/gorilla
-
-.pre-release: clean
-	mkdir -p release/
-
-release: .pre-release
-ifndef XGO_INSTALLED
-	$(error "xgo is not available, please install xgo")
-endif
-	xgo --targets=windows/amd64 -dest release/ -ldflags ${BUILD_VERSION} ./cmd/gorilla
-	mv release/*.exe release/gorilla.exe
 
 test: gomodcheck
 	go test -cover -race ./...

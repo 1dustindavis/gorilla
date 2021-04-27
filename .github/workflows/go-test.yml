@@ -1,8 +1,8 @@
 name: go-test
-on: 
+on:
   push:
     branches:
-      - master
+      - main
   pull_request:
   release:
     types:

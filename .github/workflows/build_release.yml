@@ -1,10 +1,10 @@
-name:  Build Release
+name: Build Release
 
-# Trigger on every master branch push
+# Trigger on every main branch push
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   build:
     strategy:

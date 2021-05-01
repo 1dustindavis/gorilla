@@ -28,6 +28,7 @@ var (
 	// These abstractions allows us to override when testing
 	execCommand       = exec.Command
 	statusCheckStatus = status.CheckStatus
+	runCommand        = runCMD
 
 	// Stores url where we will download an item
 	installerURL   string
@@ -35,7 +36,7 @@ var (
 )
 
 // runCommand executes a command and it's argurments in the CMD environment
-func runCommand(command string, arguments []string) (string, error) {
+func runCMD(command string, arguments []string) (string, error) {
 	cmd := execCommand(command, arguments...)
 	var cmdOutput string
 	cmdReader, err := cmd.StdoutPipe()

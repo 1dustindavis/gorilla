@@ -24,6 +24,7 @@ var (
 	origCheckStatus     = statusCheckStatus
 	origReportInstalled = report.InstalledItems
 	origInstallItemFunc = installItemFunc
+	origRunCommand      = runCommand
 
 	// These tore the URL that `Install` generates during testing
 	installItemURL   string
@@ -111,6 +112,19 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
+}
+
+// fakeRunCommand just returns a string and error interface
+func fakeRunCommand(command string, arguments []string) (string, error) {
+	cmdOutput := "This is a fake test command return"
+	var err error
+	if msiItem.DisplayName == statusActionNoError {
+		err = nil
+	} else if msiItem.DisplayName == statusActionError {
+		err = fmt.Errorf("Deliberate test rror has occurred!!")
+	}
+
+	return cmdOutput, err
 }
 
 // TestHelperProcess processes the commands passed to fakeExecCommand
@@ -587,10 +601,12 @@ func Example_installItemSuccess() {
 	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
+	runCommand = fakeRunCommand
 	download.SetConfig(downloadCfg)
 	defer func() {
 		execCommand = origExec
 		statusCheckStatus = origCheckStatus
+		runCommand = origRunCommand
 	}()
 
 	// Set shared testing variables
@@ -600,19 +616,48 @@ func Example_installItemSuccess() {
 	//
 	// Msi
 	//
-	msiItem.DisplayName = statusNoActionNoError
+	msiItem.DisplayName = statusActionNoError
+
+	//
 
 	// Run Install
 	installItem(msiItem, urlPackages, cachePath)
 
 	// Output:
-	// Installing msi for _gorilla_dev_noaction_noerror_
-	// command: C:\Windows\system32\msiexec.exe [/i testdata\packages\chef-client\chef-client-14.3.37-1-x64.msi /qn /norestart /L=1033 /S]
-	// Command Output:
-	// --------------------
-	// [C:\Windows\system32\msiexec.exe /i testdata\packages\chef-client\chef-client-14.3.37-1-x64.msi /qn /norestart /L=1033 /S]
-	// --------------------
-	// _gorilla_dev_noaction_noerror_ 1.2.3 Installation SUCCESSFUL
+	// Installing msi for _gorilla_dev_action_noerror_
+	// _gorilla_dev_action_noerror_ 1.2.3 Installation SUCCESSFUL
+
+}
+
+func Example_installItemFailure() {
+	// Override execCommand and checkStatus with our fake versions
+	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
+	runCommand = fakeRunCommand
+	download.SetConfig(downloadCfg)
+	defer func() {
+		execCommand = origExec
+		statusCheckStatus = origCheckStatus
+		runCommand = origRunCommand
+	}()
+
+	// Set shared testing variables
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+
+	//
+	// Msi
+	//
+	msiItem.DisplayName = statusActionError
+
+	//
+
+	// Run Install
+	installItem(msiItem, urlPackages, cachePath)
+
+	// Output:
+	// Installing msi for _gorilla_dev_action_error_
+	// _gorilla_dev_action_error_ 1.2.3 Installation FAILED
 
 }
 
@@ -620,10 +665,12 @@ func Example_uninstallItemSuccess() {
 	// Override execCommand and checkStatus with our fake versions
 	execCommand = fakeExecCommand
 	statusCheckStatus = fakeCheckStatus
+	runCommand = fakeRunCommand
 	download.SetConfig(downloadCfg)
 	defer func() {
 		execCommand = origExec
 		statusCheckStatus = origCheckStatus
+		runCommand = origRunCommand
 	}()
 
 	// Set shared testing variables
@@ -633,18 +680,43 @@ func Example_uninstallItemSuccess() {
 	//
 	// Msi
 	//
-	msiItem.DisplayName = statusNoActionNoError
+	msiItem.DisplayName = statusActionNoError
 
 	// Run Install
 	uninstallItem(msiItem, urlPackages, cachePath)
 
 	// Output:
-	// Uninstalling msi for _gorilla_dev_noaction_noerror_
-	// command: C:\Windows\system32\msiexec.exe [/x testdata\packages\chef-client\chef-client-14.3.37-1-x64uninst.msi /qn /norestart]
-	// Command Output:
-	// --------------------
-	// [C:\Windows\system32\msiexec.exe /x testdata\packages\chef-client\chef-client-14.3.37-1-x64uninst.msi /qn /norestart]
-	// --------------------
-	// _gorilla_dev_noaction_noerror_ 1.2.3 Uninstallation SUCCESSFUL
+	// Uninstalling msi for _gorilla_dev_action_noerror_
+	// _gorilla_dev_action_noerror_ 1.2.3 Uninstallation SUCCESSFUL
+
+}
+
+func Example_uninstallItemFailure() {
+	// Override execCommand and checkStatus with our fake versions
+	execCommand = fakeExecCommand
+	statusCheckStatus = fakeCheckStatus
+	runCommand = fakeRunCommand
+	download.SetConfig(downloadCfg)
+	defer func() {
+		execCommand = origExec
+		statusCheckStatus = origCheckStatus
+		runCommand = origRunCommand
+	}()
+
+	// Set shared testing variables
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+
+	//
+	// Msi
+	//
+	msiItem.DisplayName = statusActionError
+
+	// Run Install
+	uninstallItem(msiItem, urlPackages, cachePath)
+
+	// Output:
+	// Uninstalling msi for _gorilla_dev_action_error_
+	// _gorilla_dev_action_error_ 1.2.3 Uninstallation FAILED
 
 }

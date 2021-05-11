@@ -339,7 +339,7 @@ func ExampleCheckStatus_script() {
 	CheckStatus(scriptCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via Script: scriptCheckItem
+	// Checking status via script: scriptCheckItem
 }
 
 // ExampleCheckStatus_file validates that a file check is ran
@@ -356,7 +356,7 @@ func ExampleCheckStatus_file() {
 	CheckStatus(fileCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via File: fileCheckItem
+	// Checking status via file: fileCheckItem
 }
 
 // ExampleCheckStatus_registry validates that a registry check is ran
@@ -373,7 +373,7 @@ func ExampleCheckStatus_registry() {
 	CheckStatus(registryCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via Registry: registryCheckItem
+	// Checking status via registry: registryCheckItem
 }
 
 // ExampleCheckStatus_none validates that no check is ran

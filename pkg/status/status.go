@@ -52,6 +52,7 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 		gorillalog.Warn("Unable to parse new version: ", checkReg.Version, err)
 	}
 
+	gorillalog.Debug("Check registry version:", checkReg.Version)
 	// If needed, populate applications status from the registry
 	if len(RegistryItems) == 0 {
 		RegistryItems, checkErr = getUninstallKeys()
@@ -136,44 +137,41 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 	// Iterate through all file provided paths
 	for _, checkFile := range catalogItem.Check.File {
 		path := filepath.Clean(checkFile.Path)
-		gorillalog.Debug("Check File Path", path)
+		gorillalog.Debug("Check file path:", path)
+		_, err := os.Stat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
 
-		// When doing an install confirm that path exists
-		// if we get an error, we need to install
-		if installType == "update" || installType == "install" {
-			_, err := os.Stat(path)
-			if err != nil {
-				if os.IsNotExist(err) {
-					gorillalog.Debug("Path check failed:", path)
+				// when doing an install, and the file path does not exist
+				// perform an install
+				if installType == "install" {
 					actionStore = append(actionStore, true)
 					break
 				}
-				gorillalog.Warn("Unable to check path:", path, err)
-				break
-			}
-		}
-		// When doing an uninstall confirm that path does not exist
-		if installType == "uninstall" {
-			_, err := os.Stat(path)
-			if err == nil {
-				gorillalog.Debug("Path exists and doing an uninstall")
-				actionStore = append(actionStore, true)
-				break
-			} else if err != nil {
-				if os.IsNotExist(err) {
-					gorillalog.Debug("Path does not exist and doing an uninstall")
-					actionStore = append(actionStore, false)
+
+				// When doing an update or uninstall, and the file path does
+				// not exist, do nothing
+				if installType == "update" || installType == "uninstall" {
+					gorillalog.Debug("No action needed: Install type is", installType)
 					break
 				}
 			}
 			gorillalog.Warn("Unable to check path:", path, err)
 			break
+
+		} else if err == nil {
+
+			// When doing an uninstall, and the path exists
+			// perform uninstall
+			if installType == "uninstall" {
+				actionStore = append(actionStore, true)
+			}
 		}
 
 		// If a hash is not blank, verify it matches the file
 		// if the hash does not match, we need to install
 		if checkFile.Hash != "" {
-			gorillalog.Debug("Check File Hash:", checkFile.Hash)
+			gorillalog.Debug("Check file hash:", checkFile.Hash)
 			hashMatch := download.Verify(path, checkFile.Hash)
 			if !hashMatch {
 				actionStore = append(actionStore, true)
@@ -182,7 +180,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 		}
 
 		if checkFile.Version != "" {
-			gorillalog.Debug("Check File Version:", checkFile.Version)
+			gorillalog.Debug("Check file version:", checkFile.Version)
 
 			// Get the file metadata, and check that it has a value
 			metadata := GetFileMetadata(path)
@@ -228,15 +226,15 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actionNeeded bool, checkErr error) {
 
 	if catalogItem.Check.Script != "" {
-		gorillalog.Info("Checking status via Script:", catalogItem.DisplayName)
+		gorillalog.Info("Checking status via script:", catalogItem.DisplayName)
 		return checkScript(catalogItem, cachePath, installType)
 
 	} else if catalogItem.Check.File != nil {
-		gorillalog.Info("Checking status via File:", catalogItem.DisplayName)
+		gorillalog.Info("Checking status via file:", catalogItem.DisplayName)
 		return checkPath(catalogItem, installType)
 
 	} else if catalogItem.Check.Registry.Version != "" {
-		gorillalog.Info("Checking status via Registry:", catalogItem.DisplayName)
+		gorillalog.Info("Checking status via registry:", catalogItem.DisplayName)
 		return checkRegistry(catalogItem, installType)
 	}
 

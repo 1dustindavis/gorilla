@@ -57,6 +57,14 @@ var (
 			}},
 		},
 	}
+	pathMissing = catalog.Item{
+		Check: catalog.InstallCheck{
+			File: []catalog.FileCheck{{
+				Path: `testdata/bogus.msi`,
+				Hash: `ba7d5a895f1c500aa3b4ae35f3878595f4587054a32fa6d7e9f46363525c59e8`,
+			}},
+		},
+	}
 	pathMetadataInstalled = catalog.Item{
 		Check: catalog.InstallCheck{
 			File: []catalog.FileCheck{{
@@ -293,6 +301,16 @@ func TestCheckPath(t *testing.T) {
 		t.Errorf("actionNeeded: %v; Expected checkPath to return false", actionNeeded)
 	}
 
+	// Run checkPath for file that doesn't exist
+	// We expect action is not needed; Only error if action needed is true
+	actionNeeded, err = checkPath(pathMissing, "update")
+	if err != nil {
+		t.Errorf("checkPath failed: %v", err)
+	}
+	if actionNeeded {
+		t.Errorf("actionNeeded: %v; Expected checkPath to return false", actionNeeded)
+	}
+
 	// Run checkPath for pathNotInstalled
 	// We expect action is needed; Only error if actionNeeded is false
 	actionNeeded, err = checkPath(pathNotInstalled, "install")
@@ -339,7 +357,7 @@ func ExampleCheckStatus_script() {
 	CheckStatus(scriptCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via Script: scriptCheckItem
+	// Checking status via script: scriptCheckItem
 }
 
 // ExampleCheckStatus_file validates that a file check is ran
@@ -356,7 +374,7 @@ func ExampleCheckStatus_file() {
 	CheckStatus(fileCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via File: fileCheckItem
+	// Checking status via file: fileCheckItem
 }
 
 // ExampleCheckStatus_registry validates that a registry check is ran
@@ -373,7 +391,7 @@ func ExampleCheckStatus_registry() {
 	CheckStatus(registryCheckItem, "install", "testdata/")
 
 	// Output:
-	// Checking status via Registry: registryCheckItem
+	// Checking status via registry: registryCheckItem
 }
 
 // ExampleCheckStatus_none validates that no check is ran

@@ -8,7 +8,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Item contains an individual entry from the catalog

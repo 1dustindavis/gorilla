@@ -95,7 +95,6 @@ func Get(url string) ([]byte, error) {
 			// Insecure, but might need to be an option for odd configurations in the future
 			// Renegotiation: tls.RenegotiateFreelyAsClient,
 		}
-		tlsConfig.BuildNameToCertificate()
 
 		// Setup the http client
 		client = &http.Client{

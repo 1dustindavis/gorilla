@@ -215,7 +215,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 	}
 
 	for _, item := range actionStore {
-		if item == true {
+		if item {
 			actionNeeded = true
 			return
 		}

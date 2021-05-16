@@ -13,7 +13,6 @@ BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
-PKGDIR_TMP = ${TMPDIR}golang
 GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
@@ -66,13 +65,12 @@ gomodcheck:
 
 clean:
 	rm -rf build/
-	rm -rf ${PKGDIR_TMP}
 
 .pre-build: gomodcheck
 	mkdir -p build/
 
 build: .pre-build
-	GOOS=windows GOARCH=amd64 go build -i -o build/${APP_NAME}.exe -pkgdir ${PKGDIR_TMP} -ldflags ${BUILD_VERSION} ./cmd/gorilla
+	GOOS=windows GOARCH=amd64 go build -o build/${APP_NAME}.exe -ldflags ${BUILD_VERSION} ./cmd/gorilla
 
 test: gomodcheck
 	go test -cover -race ./...

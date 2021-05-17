@@ -86,11 +86,13 @@ func End() {
 
 }
 
-func Print () {
+// Print writes the report to stdout instead of writing to disk
+// Used in check only mode
+func Print() {
 	// Compile everything
 	Items["InstalledItems"] = InstalledItems
 	Items["UninstalledItems"] = UninstalledItems
-	
+
 	reportJSON, marshalErr := json.MarshalIndent(Items, "", "    ")
 	fmt.Println(string(reportJSON))
 	if marshalErr != nil {

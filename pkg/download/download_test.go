@@ -253,16 +253,18 @@ func TestFileTLS(t *testing.T) {
 	downloadCfg.TLSClientKey = "testdata/client.key"
 	downloadCfg.TLSServerCert = "testdata/server.pem"
 	serverKeyPath := "testdata/server.key"
+	caCertPath := "testdata/rootCA.pem"
 
 	// Create a test server
 	ts := httptest.NewUnstartedServer(router())
 
-	// Prepare ca certs
+	// Prepare server certs
 	serverCert, _ := ioutil.ReadFile(downloadCfg.TLSServerCert)
 	serverKey, _ := ioutil.ReadFile(serverKeyPath)
+	caCert, _ := ioutil.ReadFile(caCertPath)
 
 	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(serverCert)
+	certPool.AppendCertsFromPEM(caCert)
 
 	cert, err := tls.X509KeyPair(serverCert, serverKey)
 	if err != nil {
@@ -275,7 +277,6 @@ func TestFileTLS(t *testing.T) {
 		ClientCAs:    certPool,
 		Certificates: []tls.Certificate{cert},
 	}
-	ts.TLS.BuildNameToCertificate()
 
 	// Start server
 	ts.StartTLS()

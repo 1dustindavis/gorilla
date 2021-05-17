@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var expected = make(map[string]Item)
@@ -46,8 +46,8 @@ If ($upToDate) {
 			Hash:      `f5ef8c31898592824751ec2252fe317c0f667db25ac40452710c8ccf35a1b28d`,
 			Location:  `packages/chef-client/chef-client-14.3.37-1-x64.msi`,
 		},
-		Uninstaller: InstallerItem{Type: `msi`, Arguments: []string{`/S`}},
-		Version:     `68.0.3440.106`,
+		Uninstaller:  InstallerItem{Type: `msi`, Arguments: []string{`/S`}},
+		Version:      `68.0.3440.106`,
 		BlockingApps: []string{"test"},
 	}
 

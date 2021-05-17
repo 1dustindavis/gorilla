@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/version"

@@ -19,7 +19,7 @@ func TestGet(t *testing.T) {
 		AppDataPath:    filepath.Clean("c:/cpe/gorilla/"),
 		Verbose:        true,
 		Debug:          true,
-		CheckOnly:   	true,
+		CheckOnly:      true,
 		AuthUser:       "johnny",
 		AuthPass:       "pizza",
 		CachePath:      filepath.Clean("c:/cpe/gorilla/cache"),

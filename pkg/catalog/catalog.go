@@ -19,8 +19,8 @@ type Item struct {
 	Installer    InstallerItem `yaml:"installer"`
 	Uninstaller  InstallerItem `yaml:"uninstaller"`
 	Version      string        `yaml:"version"`
-	BlockingApps []string	   `yaml:"blocking_apps"`
-	PreScript	 string        `yaml:"preinstall_script"`
+	BlockingApps []string      `yaml:"blocking_apps"`
+	PreScript    string        `yaml:"preinstall_script"`
 	PostScript   string        `yaml:"postinstall_script"`
 }
 

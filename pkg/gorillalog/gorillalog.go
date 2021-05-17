@@ -11,9 +11,9 @@ import (
 
 var (
 	// Define these config variables at the package scope
-	debug   	bool
-	verbose 	bool
-	checkonly 	bool
+	debug     bool
+	verbose   bool
+	checkonly bool
 )
 
 // TODO rewrite with io.multiwriter

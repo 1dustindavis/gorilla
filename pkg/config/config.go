@@ -18,20 +18,20 @@ var (
 	cachePath string
 
 	// Define flag defaults
-	aboutArg       bool
-	aboutDefault   = false
-	configArg      string
-	configDefault  = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
-	debugArg       bool
-	debugDefault   = false
-	helpArg        bool
-	helpDefault    = false
-	verboseArg     bool
-	verboseDefault = false
+	aboutArg         bool
+	aboutDefault     = false
+	configArg        string
+	configDefault    = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
+	debugArg         bool
+	debugDefault     = false
+	helpArg          bool
+	helpDefault      = false
+	verboseArg       bool
+	verboseDefault   = false
 	checkOnlyArg     bool
 	checkOnlyDefault = false
-	versionArg     bool
-	versionDefault = false
+	versionArg       bool
+	versionDefault   = false
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit

@@ -34,10 +34,10 @@ func getUninstallKeys() (installedItems map[string]RegistryApplication, checkErr
 
 	// Both Uninstall paths (64 & 32 bits apps)
 	regPaths := []string{`Software\Microsoft\Windows\CurrentVersion\Uninstall`,
-	`Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall`}
+		`Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall`}
 
 	for _, regPath := range regPaths {
-		
+
 		// Get the Uninstall key from HKLM
 		key, checkErr := registry.OpenKey(registry.LOCAL_MACHINE, regPath, registry.READ)
 		if checkErr != nil {

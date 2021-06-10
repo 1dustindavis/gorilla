@@ -101,7 +101,7 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
-	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
 
 	// Execute the script
 	cmd := execCommand(psCmd, psArgs...)

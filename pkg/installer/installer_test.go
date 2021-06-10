@@ -268,7 +268,7 @@ func TestInstallItem(t *testing.T) {
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1File := filepath.Join(pkgCache, ps1Path)
-	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1File + "]"
+	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass -File " + ps1File + "]"
 	if have, want := actualPs1, expectedPs1; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -386,7 +386,7 @@ func TestUninstallItem(t *testing.T) {
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")
-	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -WindowStyle Normal -ExecutionPolicy Bypass -File " + ps1Path + "]"
+	expectedPs1 := "[" + ps1Cmd + " -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass -File " + ps1Path + "]"
 	if have, want := actualPs1, expectedPs1; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}

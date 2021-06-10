@@ -149,7 +149,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	} else if item.Installer.Type == "ps1" {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		installCmd = commandPs1
-		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
+		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
@@ -230,7 +230,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	} else if item.Uninstaller.Type == "ps1" {
 		gorillalog.Info("Uninstalling ps1 for", item.DisplayName)
 		uninstallCmd = commandPs1
-		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", absFile}
+		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
 	} else {
 		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
@@ -262,7 +262,7 @@ func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded 
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
-	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
 
 	// Execute the script
 	cmd := execCommand(psCmd, psArgs...)
@@ -292,7 +292,7 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
-	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-WindowStyle", "Normal", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
+	psArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", tmpScript}
 
 	// Execute the script
 	cmd := execCommand(psCmd, psArgs...)

@@ -1,5 +1,6 @@
 // Without an OS specific build, go tools will try to include Windows libraries and fail
 
+//go:build !windows
 // +build !windows
 
 package main

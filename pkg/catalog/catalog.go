@@ -30,6 +30,7 @@ type InstallerItem struct {
 	Location  string   `yaml:"location"`
 	Hash      string   `yaml:"hash"`
 	Arguments []string `yaml:"arguments"`
+	Command   string   `yaml:"command"`
 }
 
 // InstallCheck holds information about how to check the status of a catalog item

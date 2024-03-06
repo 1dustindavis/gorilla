@@ -1,9 +1,11 @@
 package installer
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -150,6 +152,63 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		installCmd = commandPs1
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
+	} else if item.Installer.Type == "zip" {
+		gorillalog.Info("Extracting zip for", item.DisplayName)
+		dst := "output"
+		archive, err := zip.OpenReader(absFile)
+		if err != nil {
+			panic(err)
+		}
+		defer archive.Close()
+		// Extract the files from the zip
+		for _, f := range archive.File {
+
+			// Create the destination file path
+			filePath := filepath.Join(dst, f.Name)
+
+			// Print the file path
+			fmt.Println("Extracting file ", filePath)
+
+			// Check if the file is a directory
+			if f.FileInfo().IsDir() {
+				// Create the directory
+				fmt.Println("Creating directory...")
+				if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
+					panic(err)
+				}
+				continue
+			}
+
+			// Create the parent directory if it doesn't exist
+			if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+				panic(err)
+			}
+
+			// Create an empty destination file
+			dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				panic(err)
+			}
+
+			// Open the file in the zip and copy its contents to the destination file
+			srcFile, err := f.Open()
+			if err != nil {
+				panic(err)
+			}
+			if _, err := io.Copy(dstFile, srcFile); err != nil {
+				panic(err)
+			}
+
+			// Close the files
+			dstFile.Close()
+			srcFile.Close()
+		}
+		// tarArgs := []string{"-xf", absFile, "-C", cachePath}
+		// runCommand(commandTar, tarArgs)
+		gorillalog.Info("Running install command for", item.DisplayName)
+		installCmd = item.Installer.Command
+		installArgs = item.Installer.Arguments
 
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)

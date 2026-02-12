@@ -2,6 +2,8 @@ package manifest
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -105,6 +107,46 @@ func TestGetCatalogs(t *testing.T) {
 
 	if !slicesMatch {
 		t.Errorf("\nExpected: %#v\nActual: %#v", expectedCatalogs, newCatalogs)
+	}
+}
+
+func TestParseServiceManifestFixture(t *testing.T) {
+	serviceManifestPath := filepath.Join("testdata", "service-manifest.yaml")
+	content, err := os.ReadFile(serviceManifestPath)
+	if err != nil {
+		t.Fatalf("failed reading fixture %s: %v", serviceManifestPath, err)
+	}
+
+	parsed := parseManifest(serviceManifestPath, content)
+	if parsed.Name != "service-manifest" {
+		t.Fatalf("unexpected name: %s", parsed.Name)
+	}
+
+	expectedInstalls := []string{"GoogleChrome", "7zip"}
+	if !reflect.DeepEqual(expectedInstalls, parsed.Installs) {
+		t.Fatalf("unexpected managed_installs, expected %#v, got %#v", expectedInstalls, parsed.Installs)
+	}
+
+	if len(parsed.Uninstalls) != 0 {
+		t.Fatalf("expected no managed_uninstalls, got %#v", parsed.Uninstalls)
+	}
+}
+
+func TestParseOptionalManifestFixture(t *testing.T) {
+	optionalManifestPath := filepath.Join("testdata", "optional-manifest.yaml")
+	content, err := os.ReadFile(optionalManifestPath)
+	if err != nil {
+		t.Fatalf("failed reading fixture %s: %v", optionalManifestPath, err)
+	}
+
+	parsed := parseManifest(optionalManifestPath, content)
+	if parsed.Name != "optional-manifest" {
+		t.Fatalf("unexpected name: %s", parsed.Name)
+	}
+
+	expectedOptionalInstalls := []string{"GoogleChrome", "VSCode"}
+	if !reflect.DeepEqual(expectedOptionalInstalls, parsed.OptionalInstalls) {
+		t.Fatalf("unexpected optional_installs, expected %#v, got %#v", expectedOptionalInstalls, parsed.OptionalInstalls)
 	}
 }
 

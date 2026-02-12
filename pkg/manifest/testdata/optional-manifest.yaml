@@ -1,0 +1,5 @@
+---
+name: optional-manifest
+optional_installs:
+  - GoogleChrome
+  - VSCode

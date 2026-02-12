@@ -26,6 +26,38 @@ var (
 func main() {
 	cfg := config.Get()
 
+	if cfg.ServiceInstall {
+		if err := runServiceAction(cfg, "install"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if cfg.ServiceRemove {
+		if err := runServiceAction(cfg, "remove"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if cfg.ServiceStart {
+		if err := runServiceAction(cfg, "start"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if cfg.ServiceStop {
+		if err := runServiceAction(cfg, "stop"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if cfg.ServiceCommand != "" {
 		if err := sendServiceCommand(cfg, cfg.ServiceCommand); err != nil {
 			fmt.Fprintln(os.Stderr, err)

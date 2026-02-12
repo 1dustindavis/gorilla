@@ -39,6 +39,10 @@ var (
 	serviceDefault    = false
 	serviceCmdArg     string
 	serviceCmdDefault = ""
+	serviceInstallArg bool
+	serviceRemoveArg  bool
+	serviceStartArg   bool
+	serviceStopArg    bool
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -61,6 +65,10 @@ Options:
 -V, -version        display the version number
 -s, -service        run Gorilla as a Windows service
 -S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|uninstall:item1|update:item1)
+-serviceinstall     install Gorilla as a Windows service
+-serviceremove      remove Gorilla Windows service
+-servicestart       start Gorilla Windows service
+-servicestop        stop Gorilla Windows service
 -h, -help           display this help message
 
 `
@@ -88,9 +96,14 @@ type Configuration struct {
 	CachePath       string
 	ServiceMode     bool `yaml:"service_mode,omitempty"`
 	ServiceCommand  string
+	ServiceInstall  bool
+	ServiceRemove   bool
+	ServiceStart    bool
+	ServiceStop     bool
 	ServiceName     string `yaml:"service_name,omitempty"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
 	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
+	ConfigPath      string
 }
 
 func init() {
@@ -129,6 +142,11 @@ func init() {
 	// Service command
 	flag.StringVar(&serviceCmdArg, "servicecmd", serviceCmdDefault, "")
 	flag.StringVar(&serviceCmdArg, "S", serviceCmdDefault, "")
+	// Service install/remove/start/stop
+	flag.BoolVar(&serviceInstallArg, "serviceinstall", false, "")
+	flag.BoolVar(&serviceRemoveArg, "serviceremove", false, "")
+	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
+	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -172,8 +190,11 @@ func Get() Configuration {
 		osExit(1)
 	}
 
+	serviceControlMode := serviceInstallArg || serviceRemoveArg || serviceStartArg || serviceStopArg
+	serviceClientMode := serviceCmdArg != ""
+
 	// Normal run mode requires both manifest and URL.
-	if !cfg.BuildArg && cfg.ImportArg == "" {
+	if !cfg.BuildArg && cfg.ImportArg == "" && !serviceControlMode && !serviceClientMode {
 		if cfg.Manifest == "" {
 			fmt.Println("Invalid configuration - Manifest: ", err)
 			osExit(1)
@@ -213,8 +234,13 @@ func Get() Configuration {
 	}
 	cfg.BuildArg = build
 	cfg.ImportArg = importValue
+	cfg.ConfigPath = configPath
 	cfg.ServiceMode = serviceArg
 	cfg.ServiceCommand = serviceCmdArg
+	cfg.ServiceInstall = serviceInstallArg
+	cfg.ServiceRemove = serviceRemoveArg
+	cfg.ServiceStart = serviceStartArg
+	cfg.ServiceStop = serviceStopArg
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")

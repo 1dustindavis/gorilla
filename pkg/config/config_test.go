@@ -28,9 +28,14 @@ func TestGet(t *testing.T) {
 		CachePath:       filepath.Clean("c:/cpe/gorilla/cache"),
 		ServiceMode:     false,
 		ServiceCommand:  "",
+		ServiceInstall:  false,
+		ServiceRemove:   false,
+		ServiceStart:    false,
+		ServiceStop:     false,
 		ServiceName:     "gorilla",
 		ServiceInterval: "1h",
 		ServicePipeName: "gorilla-service",
+		ConfigPath:      "testdata/test_config.yaml",
 	}
 
 	// Save the original arguments
@@ -183,5 +188,9 @@ func Example() {
 	// -V, -version        display the version number
 	// -s, -service        run Gorilla as a Windows service
 	// -S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|uninstall:item1|update:item1)
+	// -serviceinstall     install Gorilla as a Windows service
+	// -serviceremove      remove Gorilla Windows service
+	// -servicestart       start Gorilla Windows service
+	// -servicestop        stop Gorilla Windows service
 	// -h, -help           display this help message
 }

@@ -17,26 +17,30 @@
                <Directory Id="BINDIR" Name="bin">
                   <Component Id="Binary" Guid="47855ccd-7eab-464c-a795-26091de8b83a">
                      <File Id="BinaryFile" Source="gorilla.exe"/>
+                     <ServiceInstall
+                        Id="GorillaServiceInstaller"
+                        Type="ownProcess"
+                        Vital="yes"
+                        Name="Gorilla"
+                        DisplayName="Gorilla"
+                        Description="Gorilla application management service"
+                        Start="auto"
+                        ErrorControl="normal"
+                        Account="LocalSystem"
+                        Arguments='-c "[INSTALLDIR]config_template.yaml" -service' />
+                     <ServiceControl
+                        Id="GorillaServiceControl"
+                        Name="Gorilla"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
                      <Environment Id="PATH" Name="PATH" Value="[BINDIR]" Permanent="no" Part="last" Action="set" System="yes" />
                   </Component>
                </Directory>
             </Directory>
          </Directory>
       </Directory>
-
-
-      <InstallExecuteSequence>
-         <Custom Action="CreateScheduledTask_Cmd" Before="CreateScheduledTask">NOT Installed or REINSTALL</Custom>
-         <Custom Action="CreateScheduledTask" After="InstallFiles">NOT Installed or REINSTALL</Custom>
-         <Custom Action="DeleteScheduledTask_Cmd" Before="DeleteScheduledTask">Installed</Custom>
-         <Custom Action="DeleteScheduledTask" After="RemoveFiles">Installed</Custom>
-      </InstallExecuteSequence>
-
-      <CustomAction Id="CreateScheduledTask_Cmd" Property="CreateScheduledTask" Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /CREATE /SC MINUTE /MO 60 /TN &quot;Gorilla&quot; /TR &quot;&quot;[BINDIR]gorilla.exe&quot;&quot; /RU &quot;NT Authority\System&quot; /RP /RL HIGHEST"/>
-      <CustomAction Id="CreateScheduledTask" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no"/>
-
-      <CustomAction Id="DeleteScheduledTask_Cmd" Property="DeleteScheduledTask" Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /DELETE /f /TN &quot;Gorilla&quot;"/>
-      <CustomAction Id="DeleteScheduledTask" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
 
       <Feature Id="DefaultFeature" Level="1">
          <ComponentRef Id="Binary"/>

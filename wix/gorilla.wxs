@@ -2,7 +2,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
    <Product Id="*" UpgradeCode="d61005bf-a182-4583-810d-8c33b056b8be" 
             Name="Gorilla"
-            Version="1.0.0"
+            Version="$(var.ProductVersion)"
             Manufacturer="Gorilla"
             Language="1033">
       <Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package"/>

@@ -104,6 +104,7 @@ func TestRunBuildMode(t *testing.T) {
 
 	cfg := config.Configuration{
 		BuildArg:    true,
+		CheckOnly:   true,
 		RepoPath:    "repo/path",
 		CachePath:   "cache/path",
 		AppDataPath: t.TempDir(),
@@ -142,6 +143,7 @@ func TestRunImportModeError(t *testing.T) {
 
 	cfg := config.Configuration{
 		ImportArg:   "x.msi",
+		CheckOnly:   true,
 		RepoPath:    "repo/path",
 		CachePath:   "cache/path",
 		AppDataPath: t.TempDir(),

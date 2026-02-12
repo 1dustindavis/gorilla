@@ -206,6 +206,8 @@ func Get() Configuration {
 		if wdErr == nil {
 			cfg.RepoPath = repoPath
 		}
+	} else {
+		cfg.RepoPath = filepath.Clean(cfg.RepoPath)
 	}
 
 	// Add to GorillaReport

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -16,8 +17,10 @@ import (
 )
 
 var (
-	adminCheckFunc = adminCheck
-	mkdirAllFunc   = os.MkdirAll
+	adminCheckFunc    = adminCheck
+	mkdirAllFunc      = os.MkdirAll
+	buildCatalogsFunc = admin.BuildCatalogs
+	importItemFunc    = admin.ImportItem
 )
 
 func main() {
@@ -29,8 +32,11 @@ func main() {
 }
 
 func run(cfg config.Configuration) error {
-	// If --checkonly is NOT passed, we need to run adminCheck().
-	if !cfg.CheckOnly {
+	// Build/import modes operate on repo metadata and do not require admin.
+	buildMode := cfg.BuildArg || cfg.ImportArg != ""
+
+	// If not check-only and not build/import, we need to run adminCheck().
+	if !cfg.CheckOnly && !buildMode {
 		admin, err := adminCheckFunc()
 		if err != nil {
 			return fmt.Errorf("unable to check if running as admin: %w", err)
@@ -47,6 +53,22 @@ func run(cfg config.Configuration) error {
 
 	// Create a new logger object
 	gorillalog.NewLog(cfg)
+
+	if cfg.BuildArg {
+		gorillalog.Info("Building catalogs...")
+		if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
+			return fmt.Errorf("error building catalogs: %w", err)
+		}
+		return nil
+	}
+
+	if cfg.ImportArg != "" {
+		gorillalog.Info("Importing item...")
+		if err := importItemFunc(cfg.RepoPath, cfg.ImportArg); err != nil {
+			return fmt.Errorf("error importing item: %w", err)
+		}
+		return nil
+	}
 
 	// Start creating GorillaReport
 	if !cfg.CheckOnly {

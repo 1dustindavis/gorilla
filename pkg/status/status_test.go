@@ -285,6 +285,22 @@ func TestCheckScript(t *testing.T) {
 		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
 		t.Errorf("Expected checkScript to action and no error")
 	}
+
+	// Set cachepath and run checkScript for scriptActionNoError as update
+	cachepath = fmt.Sprintf("testdata/%s/", statusActionNoError)
+	actionNeeded, err = checkScript(scriptActionNoError, cachepath, "update")
+	if !actionNeeded || err != nil {
+		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
+		t.Errorf("Expected checkScript update to action and no error")
+	}
+
+	// Set cachepath and run checkScript for scriptNoActionNoError as update
+	cachepath = fmt.Sprintf("testdata/%s/", statusNoActionNoError)
+	actionNeeded, err = checkScript(scriptNoActionNoError, cachepath, "update")
+	if actionNeeded || err != nil {
+		fmt.Printf("action: %v; error: %v\n", actionNeeded, err)
+		t.Errorf("Expected checkScript update to no action and no error")
+	}
 }
 
 // TestCheckPath validates that the status of a path is checked correctly

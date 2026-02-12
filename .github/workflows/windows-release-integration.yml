@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
   actions: read
+  checks: write
+  issues: write
 
 jobs:
   integration:
@@ -31,6 +33,60 @@ jobs:
       github.event.comment.author_association == 'COLLABORATOR'))
 
     steps:
+      - name: Resolve PR head sha
+        if: github.event_name == 'issue_comment'
+        id: pr_meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            core.setOutput("head_sha", pr.data.head.sha);
+
+      - name: Create in-progress check run
+        if: github.event_name == 'issue_comment'
+        id: check_start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const response = await github.rest.checks.create({
+              owner,
+              repo,
+              name: "Windows Released-Binary Integration",
+              head_sha: "${{ steps.pr_meta.outputs.head_sha }}",
+              status: "in_progress",
+              details_url: runUrl,
+              output: {
+                title: "Integration test started",
+                summary: `Triggered by @${context.payload.comment.user.login} via /run-integration-test.\n\nRun: ${runUrl}`
+              }
+            });
+            core.setOutput("check_run_id", String(response.data.id));
+
+      - name: Comment start on PR
+        if: github.event_name == 'issue_comment'
+        id: comment_start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const comment = await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: [
+                "<!-- gorilla-integration-status -->",
+                "Windows integration test started from `/run-integration-test`.",
+                "",
+                `Run: ${runUrl}`
+              ].join("\n")
+            });
+            core.setOutput("comment_id", String(comment.data.id));
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -83,3 +139,50 @@ jobs:
         run: |
           ./integration/windows/run-release-integration.ps1 `
             -GorillaExePath "$env:GORILLA_EXE_PATH"
+
+      - name: Finalize check run
+        if: always() && github.event_name == 'issue_comment' && steps.check_start.outputs.check_run_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const status = "${{ job.status }}";
+            let conclusion = "failure";
+            if (status === "success") conclusion = "success";
+            if (status === "cancelled") conclusion = "cancelled";
+            if (status === "skipped") conclusion = "neutral";
+
+            await github.rest.checks.update({
+              owner,
+              repo,
+              check_run_id: Number("${{ steps.check_start.outputs.check_run_id }}"),
+              status: "completed",
+              conclusion,
+              details_url: runUrl,
+              output: {
+                title: `Integration ${conclusion}`,
+                summary: `Workflow completed with status: ${status}.\n\nRun: ${runUrl}`
+              }
+            });
+
+      - name: Finalize PR comment
+        if: always() && github.event_name == 'issue_comment' && steps.comment_start.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const status = "${{ job.status }}";
+            const state = status === "success" ? "passed" : (status === "cancelled" ? "was cancelled" : "failed");
+            await github.rest.issues.updateComment({
+              owner,
+              repo,
+              comment_id: Number("${{ steps.comment_start.outputs.comment_id }}"),
+              body: [
+                "<!-- gorilla-integration-status -->",
+                `Windows integration test ${state}.`,
+                "",
+                `Run: ${runUrl}`
+              ].join("\n")
+            });

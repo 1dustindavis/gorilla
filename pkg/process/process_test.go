@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -172,16 +171,28 @@ func TestManifests(t *testing.T) {
 	}
 }
 
-func TestFirstItemInvalidMessage(t *testing.T) {
-	_, err := firstItem("MissingInstallerType", testCatalogs)
-	if err == nil {
-		t.Fatalf("expected validation error for invalid catalog item")
+func TestFirstItemInvalidReturnsFalse(t *testing.T) {
+	_, ok := firstItem("MissingInstallerType", testCatalogs)
+	if ok {
+		t.Fatalf("expected invalid catalog item to be skipped")
 	}
-	if !strings.Contains(err.Error(), "missing required type/location fields") {
-		t.Fatalf("expected missing field warning in error, got: %v", err)
+
+	_, ok = firstItem("MissingInstallerLocation", testCatalogs)
+	if ok {
+		t.Fatalf("expected invalid catalog item to be skipped")
 	}
-	if !strings.Contains(err.Error(), "installer.type") {
-		t.Fatalf("expected specific missing installer.type field in error, got: %v", err)
+
+	_, ok = firstItem("DoesNotExist", testCatalogs)
+	if ok {
+		t.Fatalf("expected missing catalog item to be skipped")
+	}
+
+	item, ok := firstItem("Chocolatey", testCatalogs)
+	if !ok {
+		t.Fatalf("expected valid catalog item")
+	}
+	if item.DisplayName != "Chocolatey" {
+		t.Fatalf("unexpected item returned: %#v", item)
 	}
 }
 

@@ -5,11 +5,12 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: write
+
 jobs:
   build:
-    strategy:
-      matrix:
-        targetplatform: [x64]
     runs-on: windows-latest
 
     steps:
@@ -39,7 +40,7 @@ jobs:
 
     - name: Create version tag
       id: create_tag
-      uses: paulhatch/semantic-version@v4.0.1
+      uses: paulhatch/semantic-version@v5.4.0
       with: 
         tag_prefix: "v"
         major_pattern: "(MAJOR)"

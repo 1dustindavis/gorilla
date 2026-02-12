@@ -5,11 +5,12 @@ on:
   pull_request:
     branches:
       - main
+
+permissions:
+  contents: read
+
 jobs:
   build:
-    strategy:
-      matrix:
-        targetplatform: [x64]
     runs-on: windows-latest
 
     steps:

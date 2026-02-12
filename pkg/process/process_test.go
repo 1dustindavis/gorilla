@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,18 @@ var (
 				Location: "TestUpdate2.ps1",
 			},
 		},
+		"MissingInstallerType": catalog.Item{
+			DisplayName: "MissingInstallerType",
+			Installer: catalog.InstallerItem{
+				Location: "MissingInstallerType.msi",
+			},
+		},
+		"MissingInstallerLocation": catalog.Item{
+			DisplayName: "MissingInstallerLocation",
+			Installer: catalog.InstallerItem{
+				Type: "msi",
+			},
+		},
 	}}
 
 	// CheckOnly flag disabled for testing
@@ -128,7 +141,7 @@ func TestManifests(t *testing.T) {
 		{
 			Name:       "included_manifest",
 			Includes:   []string(nil),
-			Installs:   []string{"TestInstall1", "TestInstall2"},
+			Installs:   []string{"TestInstall1", "TestInstall2", "MissingInstallerType", "MissingInstallerLocation"},
 			Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
 			Updates:    []string{"TestUpdate1", "TestUpdate2"},
 		},
@@ -156,6 +169,19 @@ func TestManifests(t *testing.T) {
 	}
 	if !matchUpdates {
 		t.Errorf("Manifest Updates\nExpected: %#v\nActual: %#v", expectedUpdates, actualUpdates)
+	}
+}
+
+func TestFirstItemInvalidMessage(t *testing.T) {
+	_, err := firstItem("MissingInstallerType", testCatalogs)
+	if err == nil {
+		t.Fatalf("expected validation error for invalid catalog item")
+	}
+	if !strings.Contains(err.Error(), "missing required type/location fields") {
+		t.Fatalf("expected missing field warning in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "installer.type") {
+		t.Fatalf("expected specific missing installer.type field in error, got: %v", err)
 	}
 }
 

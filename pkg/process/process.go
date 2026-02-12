@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -23,6 +24,8 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 	}
 	sort.Ints(keys)
 
+	var invalidReasons []string
+
 	// loop through each catalog and return if we find a match
 	for _, k := range keys {
 		// If
@@ -34,10 +37,32 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 			if validInstallItem || validUninstallItem {
 				return item, nil
 			}
+
+			missing := []string{}
+			if item.Installer.Type == "" {
+				missing = append(missing, "installer.type")
+			}
+			if item.Installer.Location == "" {
+				missing = append(missing, "installer.location")
+			}
+			if item.Uninstaller.Type == "" {
+				missing = append(missing, "uninstaller.type")
+			}
+			if item.Uninstaller.Location == "" {
+				missing = append(missing, "uninstaller.location")
+			}
+			invalidReasons = append(invalidReasons, fmt.Sprintf("catalog index %d missing required fields: %s", k, strings.Join(missing, ", ")))
 		}
 	}
 
 	// return an empty catalog item if we didnt already find and return a match
+	if len(invalidReasons) > 0 {
+		return catalog.Item{}, fmt.Errorf(
+			"did not find a valid item in any catalog; item %q exists but is missing required type/location fields (%s)",
+			itemName,
+			strings.Join(invalidReasons, "; "),
+		)
+	}
 	return catalog.Item{}, fmt.Errorf("did not find a valid item in any catalog; Item name: %v", itemName)
 
 }

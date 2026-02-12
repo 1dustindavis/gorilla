@@ -45,9 +45,8 @@ jobs:
         tag_prefix: "v"
         major_pattern: "(MAJOR)"
         minor_pattern: "/[\\s]*/"
-        format: "${major}.${minor}"
+        version_format: "${major}.${minor}"
         namespace: ''
-        short_tags: false
         bump_each_commit: false
 
     - name: Build

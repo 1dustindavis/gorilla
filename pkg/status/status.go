@@ -2,7 +2,6 @@ package status
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,10 +93,15 @@ func checkRegistry(catalogItem catalog.Item, installType string) (actionNeeded b
 }
 
 func checkScript(catalogItem catalog.Item, cachePath string, installType string) (actionNeeded bool, checkErr error) {
+	if err := os.MkdirAll(cachePath, 0755); err != nil {
+		return false, err
+	}
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(cachePath, "tmpCheckScript.ps1")
-	ioutil.WriteFile(tmpScript, []byte(catalogItem.Check.Script), 0755)
+	if err := os.WriteFile(tmpScript, []byte(catalogItem.Check.Script), 0755); err != nil {
+		return false, err
+	}
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
@@ -113,7 +117,9 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
-	os.Remove(tmpScript)
+	if err := os.Remove(tmpScript); err != nil && !os.IsNotExist(err) {
+		gorillalog.Warn("Unable to remove temporary check script:", tmpScript, err)
+	}
 
 	// Log results
 	gorillalog.Debug("Command Error:", err)

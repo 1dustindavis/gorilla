@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -255,10 +254,15 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 }
 
 func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
+	if err := os.MkdirAll(cachePath, 0755); err != nil {
+		return false, err
+	}
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(cachePath, "tmpPostScript.ps1")
-	ioutil.WriteFile(tmpScript, []byte(catalogItem.PreScript), 0755)
+	if err := os.WriteFile(tmpScript, []byte(catalogItem.PreScript), 0755); err != nil {
+		return false, err
+	}
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
@@ -274,7 +278,9 @@ func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded 
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
-	os.Remove(tmpScript)
+	if err := os.Remove(tmpScript); err != nil && !os.IsNotExist(err) {
+		gorillalog.Warn("Unable to remove temporary preinstall script:", tmpScript, err)
+	}
 
 	// Log results
 	gorillalog.Debug("Command Error:", err)
@@ -285,10 +291,15 @@ func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded 
 }
 
 func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
+	if err := os.MkdirAll(cachePath, 0755); err != nil {
+		return false, err
+	}
 
 	// Write InstallCheckScript to disk as a Powershell file
 	tmpScript := filepath.Join(cachePath, "tmpPostScript.ps1")
-	ioutil.WriteFile(tmpScript, []byte(catalogItem.PostScript), 0755)
+	if err := os.WriteFile(tmpScript, []byte(catalogItem.PostScript), 0755); err != nil {
+		return false, err
+	}
 
 	// Build the command to execute the script
 	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
@@ -304,7 +315,9 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
-	os.Remove(tmpScript)
+	if err := os.Remove(tmpScript); err != nil && !os.IsNotExist(err) {
+		gorillalog.Warn("Unable to remove temporary postinstall script:", tmpScript, err)
+	}
 
 	// Log results
 	gorillalog.Debug("Command Error:", err)

@@ -43,7 +43,7 @@ func NewLog(cfg config.Configuration) {
 	}
 
 	// Create the log directory
-	logPath := filepath.Join(cfg.AppDataPath, "/gorilla.log")
+	logPath := filepath.Join(cfg.AppDataPath, "gorilla.log")
 	err := os.MkdirAll(filepath.Dir(logPath), 0755)
 	if err != nil {
 		msg := fmt.Sprint("Unable to create directory:", logPath, err)

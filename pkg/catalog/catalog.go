@@ -29,6 +29,7 @@ type InstallerItem struct {
 	Type      string   `yaml:"type"`
 	Location  string   `yaml:"location"`
 	Hash      string   `yaml:"hash"`
+	PackageID string   `yaml:"package_id"`
 	Arguments []string `yaml:"arguments"`
 }
 

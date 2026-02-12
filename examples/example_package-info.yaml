@@ -8,6 +8,7 @@ check:
 installer:
   hash: ce9c44417489d6c1f205422a4b9e8d5181d1ac24b6dcae3bd68ec315efdeb18b
   location: packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg
+  package_id: GoogleChrome
   type: nupkg
 version: 68.0.3440.106
 catalog: testcatalog

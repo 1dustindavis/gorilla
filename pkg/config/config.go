@@ -3,7 +3,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -128,7 +127,7 @@ func Get() Configuration {
 	configPath, verbose, debug, checkonly := parseArguments()
 
 	// Read the config file
-	configFile, err := ioutil.ReadFile(configPath)
+	configFile, err := os.ReadFile(configPath)
 	if err != nil {
 		fmt.Println("Unable to read configuration file: ", err)
 		os.Exit(1)

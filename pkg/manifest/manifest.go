@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
@@ -124,7 +123,7 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 		for _, manifest := range cfg.LocalManifests {
 			var localManifest Item
 			gorillalog.Info("Manifest File:", manifest)
-			localManifestsYaml, err := ioutil.ReadFile(manifest)
+			localManifestsYaml, err := os.ReadFile(manifest)
 			if err != nil {
 				gorillalog.Warn("Unable to parse yaml manifest: ", manifest, err)
 			}

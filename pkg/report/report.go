@@ -3,7 +3,6 @@ package report
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -79,7 +78,7 @@ func End() {
 
 	// Write Items to disk as GorillaReport.json
 	reportPath := filepath.Join(os.Getenv("ProgramData"), "gorilla/GorillaReport.json")
-	writeErr := ioutil.WriteFile(reportPath, reportJSON, 0644)
+	writeErr := os.WriteFile(reportPath, reportJSON, 0644)
 	if writeErr != nil {
 		fmt.Println("Unable to write GorillaReport.json to disk:", writeErr)
 	}

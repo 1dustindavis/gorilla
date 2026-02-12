@@ -2,7 +2,6 @@ package installer
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -566,7 +565,7 @@ func TestUninstallURL(t *testing.T) {
 // Example_runCommand tests the output when running a command in debug
 func Example_runCommand() {
 	// Temp directory for logging
-	logTmp, _ := ioutil.TempDir("", "gorilla-installer_test")
+	logTmp, _ := os.MkdirTemp("", "gorilla-installer_test")
 
 	// Setup a testing Configuration struct with debug mode
 	cfgVerbose := config.Configuration{

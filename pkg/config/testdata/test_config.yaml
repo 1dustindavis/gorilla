@@ -5,6 +5,7 @@ local_manifests:
   - example_local_manifest
 catalogs:
   - example_catalog
+repo_path: c:/repo/gorilla
 app_data_path: c:/cpe/gorilla/
 auth_user: johnny
 auth_pass: pizza

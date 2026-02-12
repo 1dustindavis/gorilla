@@ -23,6 +23,10 @@ var (
 	configDefault    = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
 	debugArg         bool
 	debugDefault     = false
+	buildArg         bool
+	buildDefault     = false
+	importArg        string
+	importDefault    = ""
 	helpArg          bool
 	helpDefault      = false
 	verboseArg       bool
@@ -45,6 +49,8 @@ Usage: gorilla.exe [options]
 Options:
 -c, -config         path to configuration file in yaml format
 -C, -checkonly	    enable check only mode
+-b, -build          build catalog files from package-info files
+-i, -import         create a package-info file from an installer package
 -v, -verbose        enable verbose output
 -d, -debug          enable debug output
 -a, -about          displays the version number and other build info
@@ -64,12 +70,15 @@ type Configuration struct {
 	Verbose        bool     `yaml:"verbose,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
 	CheckOnly      bool     `yaml:"checkonly,omitempty"`
-	AuthUser       string   `yaml:"auth_user,omitempty"`
-	AuthPass       string   `yaml:"auth_pass,omitempty"`
-	TLSAuth        bool     `yaml:"tls_auth,omitempty"`
-	TLSClientCert  string   `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey   string   `yaml:"tls_client_key,omitempty"`
-	TLSServerCert  string   `yaml:"tls_server_cert,omitempty"`
+	BuildArg       bool
+	ImportArg      string
+	RepoPath       string `yaml:"repo_path,omitempty"`
+	AuthUser       string `yaml:"auth_user,omitempty"`
+	AuthPass       string `yaml:"auth_pass,omitempty"`
+	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
 	CachePath      string
 }
 
@@ -85,6 +94,12 @@ func init() {
 	// Debug
 	flag.BoolVar(&debugArg, "debug", debugDefault, "")
 	flag.BoolVar(&debugArg, "d", debugDefault, "")
+	// Build
+	flag.BoolVar(&buildArg, "build", buildDefault, "")
+	flag.BoolVar(&buildArg, "b", buildDefault, "")
+	// Import
+	flag.StringVar(&importArg, "import", importDefault, "")
+	flag.StringVar(&importArg, "i", importDefault, "")
 	// Checkonly
 	flag.BoolVar(&checkOnlyArg, "checkonly", checkOnlyDefault, "")
 	flag.BoolVar(&checkOnlyArg, "C", checkOnlyDefault, "")
@@ -99,7 +114,7 @@ func init() {
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
 }
 
-func parseArguments() (string, bool, bool, bool) {
+func parseArguments() (string, bool, bool, bool, bool, string) {
 	// Get the command line args
 	flag.Parse()
 	if helpArg {
@@ -116,7 +131,7 @@ func parseArguments() (string, bool, bool, bool) {
 		osExit(0)
 	}
 
-	return configArg, verboseArg, debugArg, checkOnlyArg
+	return configArg, verboseArg, debugArg, checkOnlyArg, buildArg, importArg
 }
 
 // Get retrieves and parses the config file and returns a Configuration struct and any errors
@@ -124,36 +139,37 @@ func Get() Configuration {
 	var cfg Configuration
 
 	// Parse any arguments that may have been passed
-	configPath, verbose, debug, checkonly := parseArguments()
+	configPath, verbose, debug, checkonly, build, importValue := parseArguments()
 
 	// Read the config file
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
 		fmt.Println("Unable to read configuration file: ", err)
-		os.Exit(1)
+		osExit(1)
 	}
 
 	// Parse the config into a struct
 	err = yaml.Unmarshal(configFile, &cfg)
 	if err != nil {
 		fmt.Println("Unable to parse yaml configuration: ", err)
-		os.Exit(1)
+		osExit(1)
 	}
 
-	// If Manifest wasnt provided, exit
-	if cfg.Manifest == "" {
-		fmt.Println("Invalid configuration - Manifest: ", err)
-		os.Exit(1)
+	// Normal run mode requires both manifest and URL.
+	if !cfg.BuildArg && cfg.ImportArg == "" {
+		if cfg.Manifest == "" {
+			fmt.Println("Invalid configuration - Manifest: ", err)
+			osExit(1)
+		}
+
+		if cfg.URL == "" {
+			fmt.Println("Invalid configuration - URL: ", err)
+			osExit(1)
+		}
 	}
 
-	// If URL wasnt provided, exit
-	if cfg.URL == "" {
-		fmt.Println("Invalid configuration - URL: ", err)
-		os.Exit(1)
-	}
-
-	// If URLPackages wasn't provided, use the repo URL
-	if cfg.URLPackages == "" {
+	// If URLPackages wasn't provided, use the repo URL when available.
+	if cfg.URLPackages == "" && cfg.URL != "" {
 		cfg.URLPackages = cfg.URL
 	}
 
@@ -178,9 +194,19 @@ func Get() Configuration {
 	if checkonly && !cfg.CheckOnly {
 		cfg.CheckOnly = true
 	}
+	cfg.BuildArg = build
+	cfg.ImportArg = importValue
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")
+
+	// If RepoPath wasn't provided, default to current working directory.
+	if cfg.RepoPath == "" {
+		repoPath, wdErr := os.Getwd()
+		if wdErr == nil {
+			cfg.RepoPath = repoPath
+		}
+	}
 
 	// Add to GorillaReport
 	report.Items["Manifest"] = cfg.Manifest

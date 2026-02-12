@@ -5,69 +5,128 @@ package status
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/gonutz/w32"
+	"golang.org/x/sys/windows"
 )
 
-//
-//
-// This is based on the StackOverflow answer here: https://stackoverflow.com/a/46222037
-// Information on what strings can be passed to `VerQueryValueString` can
-// be found here: https://docs.microsoft.com/en-us/windows/desktop/api/winver/nf-winver-verqueryvaluea#remarks
-//
-// This uses a bunch of C stuff I dont understand and seems kinda silly.
-// Here is what I *think* I understand:
-// - GetFileVersionInfoSize returns the size of the buffer needed to store file metadata
-// - GetFileVersionInfo returns the actual metadata, but only the "fixed" portion is directly readable
-// - VerQueryValueRoot gets info from he fixed part, which contains the "FileVersion"
-// - VerQueryValueTranslations The other stuff is in a "non-fixed" part, and this function translates it ¯\_(ツ)_/¯
-// - VerQueryValueString looks up data in the translated data
-//
-// Again, I dont really understand this, so maybe this is all wrong...
-//
-//
+var (
+	versionDLL                 = windows.NewLazySystemDLL("version.dll")
+	procGetFileVersionInfoSize = versionDLL.NewProc("GetFileVersionInfoSizeW")
+	procGetFileVersionInfo     = versionDLL.NewProc("GetFileVersionInfoW")
+	procVerQueryValue          = versionDLL.NewProc("VerQueryValueW")
+)
+
+type vsFixedFileInfo struct {
+	Signature        uint32
+	StrucVersion     uint32
+	FileVersionMS    uint32
+	FileVersionLS    uint32
+	ProductVersionMS uint32
+	ProductVersionLS uint32
+	FileFlagsMask    uint32
+	FileFlags        uint32
+	FileOS           uint32
+	FileType         uint32
+	FileSubtype      uint32
+	FileDateMS       uint32
+	FileDateLS       uint32
+}
+
+type langAndCodePage struct {
+	Lang     uint16
+	CodePage uint16
+}
+
+func getFileVersionInfoSize(path string) uint32 {
+	pathPtr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0
+	}
+	size, _, _ := procGetFileVersionInfoSize.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		0,
+	)
+	return uint32(size)
+}
+
+func getFileVersionInfo(path string, rawMetadata []byte) bool {
+	if len(rawMetadata) == 0 {
+		return false
+	}
+
+	pathPtr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return false
+	}
+
+	ret, _, _ := procGetFileVersionInfo.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		0,
+		uintptr(uint32(len(rawMetadata))),
+		uintptr(unsafe.Pointer(&rawMetadata[0])),
+	)
+	return ret != 0
+}
+
+func verQueryValue(rawMetadata []byte, subBlock string) (uintptr, uint32, bool) {
+	if len(rawMetadata) == 0 {
+		return 0, 0, false
+	}
+
+	subBlockPtr, err := windows.UTF16PtrFromString(subBlock)
+	if err != nil {
+		return 0, 0, false
+	}
+
+	var valuePtr uintptr
+	var valueLen uint32
+	ret, _, _ := procVerQueryValue.Call(
+		uintptr(unsafe.Pointer(&rawMetadata[0])),
+		uintptr(unsafe.Pointer(subBlockPtr)),
+		uintptr(unsafe.Pointer(&valuePtr)),
+		uintptr(unsafe.Pointer(&valueLen)),
+	)
+	if ret == 0 || valuePtr == 0 {
+		return 0, 0, false
+	}
+
+	return valuePtr, valueLen, true
+}
 
 // GetFileMetadata gets Windows metadata from the provided path
 // Returns a `WindowsMetadata` struct as defined in `status.go`
 func GetFileMetadata(path string) WindowsMetadata {
-
-	// finalMetadata is a struct for us to store our return values in
 	var finalMetadata WindowsMetadata
 
-	// bufferSize is the size of data needed to store the metadata
-	// zero means there is no metadata
-	bufferSize := w32.GetFileVersionInfoSize(path)
+	bufferSize := getFileVersionInfoSize(path)
 	if bufferSize <= 0 {
 		gorillalog.Info("No metadata found:", path)
 		return finalMetadata
 	}
 
-	// rawMetadata will store the returned metadata
 	rawMetadata := make([]byte, bufferSize)
-	ok := w32.GetFileVersionInfo(path, rawMetadata)
-	if !ok {
+	if !getFileVersionInfo(path, rawMetadata) {
 		gorillalog.Warn("Unable to get metadata:", path)
 		return finalMetadata
 	}
 
-	// fixed contains the "fixed" portion at the root of our raw metadata
-	fixed, ok := w32.VerQueryValueRoot(rawMetadata)
+	valuePtr, _, ok := verQueryValue(rawMetadata, "\\")
 	if !ok {
 		gorillalog.Warn("Unable to get file version:", path)
 		return finalMetadata
 	}
+	fixed := (*vsFixedFileInfo)(unsafe.Pointer(valuePtr))
+	if fixed.Signature != 0xFEEF04BD {
+		gorillalog.Warn("Invalid fixed metadata signature:", path)
+		return finalMetadata
+	}
 
-	// rawVersion is the binary format of the file version
-	rawVersion := fixed.FileVersion()
-
-	// Convert the individual version segments to integers
-	finalMetadata.versionMajor = int(rawVersion & 0xFFFF000000000000 >> 48)
-	finalMetadata.versionMinor = int(rawVersion & 0x0000FFFF00000000 >> 32)
-	finalMetadata.versionPatch = int(rawVersion & 0x00000000FFFF0000 >> 16)
-	finalMetadata.versionBuild = int(rawVersion & 0x000000000000FFFF >> 0)
-
-	// Combine everything into a pretty string
+	finalMetadata.versionMajor = int(fixed.FileVersionMS >> 16)
+	finalMetadata.versionMinor = int(fixed.FileVersionMS & 0xFFFF)
+	finalMetadata.versionPatch = int(fixed.FileVersionLS >> 16)
+	finalMetadata.versionBuild = int(fixed.FileVersionLS & 0xFFFF)
 	finalMetadata.versionString = fmt.Sprintf(
 		"%d.%d.%d.%d",
 		finalMetadata.versionMajor,
@@ -76,24 +135,30 @@ func GetFileMetadata(path string) WindowsMetadata {
 		finalMetadata.versionBuild,
 	)
 
-	// translation is the non-fixed part after translation/processing(?)
-	translation, ok := w32.VerQueryValueTranslations(rawMetadata)
+	valuePtr, valueLen, ok := verQueryValue(rawMetadata, "\\VarFileInfo\\Translation")
 	if !ok {
 		gorillalog.Warn("Unable to get 'translate' metadata:", path)
 		return finalMetadata
 	}
-	if len(translation) == 0 {
+	translationSize := int(unsafe.Sizeof(langAndCodePage{}))
+	if valueLen < uint32(translationSize) {
 		gorillalog.Warn("Unable to get additional metadata:", path)
 		return finalMetadata
 	}
-	translatedData := translation[0]
-
-	// productName is the value of "ProductName" in the metadata
-	finalMetadata.productName, ok = w32.VerQueryValueString(rawMetadata, translatedData, "ProductName")
-	if !ok {
-		gorillalog.Info("Unable to get product name from metadata:", path)
+	translationCount := int(valueLen) / translationSize
+	translations := unsafe.Slice((*langAndCodePage)(unsafe.Pointer(valuePtr)), translationCount)
+	if len(translations) == 0 {
+		gorillalog.Warn("Unable to get additional metadata:", path)
+		return finalMetadata
 	}
+	translation := translations[0]
 
+	productKey := fmt.Sprintf("\\StringFileInfo\\%04x%04x\\ProductName", translation.Lang, translation.CodePage)
+	valuePtr, _, ok = verQueryValue(rawMetadata, productKey)
+	if !ok || valuePtr == 0 {
+		gorillalog.Info("Unable to get product name from metadata:", path)
+		return finalMetadata
+	}
+	finalMetadata.productName = windows.UTF16PtrToString((*uint16)(unsafe.Pointer(valuePtr)))
 	return finalMetadata
-
 }

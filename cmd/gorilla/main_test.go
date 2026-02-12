@@ -15,7 +15,7 @@ func resetMainHooks() {
 	mkdirAllFunc = os.MkdirAll
 	buildCatalogsFunc = admin.BuildCatalogs
 	importItemFunc = admin.ImportItem
-	runFunc = run
+	managedRunFunc = managedRun
 	runServiceFunc = runService
 	sendServiceCommandFunc = sendServiceCommand
 	runServiceActionFunc = runServiceAction
@@ -32,7 +32,7 @@ func TestRunAdminCheckError(t *testing.T) {
 		return nil
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -52,7 +52,7 @@ func TestRunRequiresAdmin(t *testing.T) {
 		return nil
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -73,7 +73,7 @@ func TestRunCheckOnlySkipsAdminCheck(t *testing.T) {
 	}
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -93,7 +93,7 @@ func TestRunCreateCacheError(t *testing.T) {
 	adminCheckFunc = func() (bool, error) { return true, nil }
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -129,7 +129,7 @@ func TestRunBuildMode(t *testing.T) {
 	}
 	importItemFunc = func(repoPath, itemPath string) error { return nil }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -162,7 +162,7 @@ func TestRunImportModeError(t *testing.T) {
 		return errors.New("not implemented")
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -180,7 +180,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 	serviceMode := false
 	runCalled := false
 
-	runFunc = func(cfg config.Configuration) error {
+	managedRunFunc = func(cfg config.Configuration) error {
 		runCalled = true
 		return nil
 	}
@@ -273,7 +273,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			}
 
 			if runCalled != tt.expectRunCall {
-				t.Fatalf("run called = %v, expected %v", runCalled, tt.expectRunCall)
+				t.Fatalf("managedRun called = %v, expected %v", runCalled, tt.expectRunCall)
 			}
 			if serviceAction != tt.wantAction {
 				t.Fatalf("service action = %q, expected %q", serviceAction, tt.wantAction)

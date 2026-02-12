@@ -21,7 +21,7 @@ var (
 	mkdirAllFunc           = os.MkdirAll
 	buildCatalogsFunc      = admin.BuildCatalogs
 	importItemFunc         = admin.ImportItem
-	runFunc                = run
+	managedRunFunc         = managedRun
 	runServiceFunc         = runService
 	sendServiceCommandFunc = sendServiceCommand
 	runServiceActionFunc   = runServiceAction
@@ -60,10 +60,10 @@ func execute(cfg config.Configuration) error {
 		return runServiceFunc(cfg)
 	}
 
-	return runFunc(cfg)
+	return managedRunFunc(cfg)
 }
 
-func run(cfg config.Configuration) error {
+func managedRun(cfg config.Configuration) error {
 	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
 

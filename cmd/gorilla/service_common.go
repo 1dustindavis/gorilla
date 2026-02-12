@@ -71,12 +71,12 @@ func validateServiceCommand(cmd serviceCommand) error {
 func executeServiceCommand(cfg config.Configuration, cmd serviceCommand) (serviceCommandResponse, error) {
 	switch cmd.Action {
 	case "run":
-		return serviceCommandResponse{Status: "ok"}, run(withServiceLocalManifest(cfg))
+		return serviceCommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
 	case "install":
 		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return serviceCommandResponse{}, err
 		}
-		return serviceCommandResponse{Status: "ok"}, run(withServiceLocalManifest(cfg))
+		return serviceCommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
 	case "remove":
 		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return serviceCommandResponse{}, err

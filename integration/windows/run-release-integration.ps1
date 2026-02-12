@@ -43,14 +43,11 @@ function Assert-Missing {
     }
 }
 
-function Resolve-PythonCommand {
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        return "python"
+function Resolve-GoCommand {
+    if (Get-Command go -ErrorAction SilentlyContinue) {
+        return "go"
     }
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        return "py"
-    }
-    throw "python is required to host local integration fixtures"
+    throw "go is required to host local integration fixtures"
 }
 
 $root = [System.IO.Path]::GetFullPath($WorkRoot)
@@ -439,10 +436,35 @@ managed_uninstalls:
   - Ps1V2
 '@ | Set-Content -LiteralPath (Join-Path $manifestsRoot "integration-uninstall.yaml") -NoNewline
 
-$pythonCmd = Resolve-PythonCommand
+$goCmd = Resolve-GoCommand
+$serverGo = Join-Path $toolsRoot "fixture_server.go"
+@'
+package main
+
+import (
+    "flag"
+    "log"
+    "net/http"
+)
+
+func main() {
+    addr := flag.String("addr", "127.0.0.1:18080", "listen address")
+    root := flag.String("root", ".", "directory to serve")
+    flag.Parse()
+
+    fs := http.FileServer(http.Dir(*root))
+    if err := http.ListenAndServe(*addr, fs); err != nil {
+        log.Fatal(err)
+    }
+}
+'@ | Set-Content -LiteralPath $serverGo -NoNewline
+
+$serverExe = Join-Path $toolsRoot "fixture-server.exe"
+& $goCmd build -o $serverExe $serverGo
+
 $serverPort = Get-Random -Minimum 18080 -Maximum 18999
-$serverProc = Start-Process -FilePath $pythonCmd `
-    -ArgumentList @("-m", "http.server", "$serverPort", "--bind", "127.0.0.1", "--directory", $repoRoot) `
+$serverProc = Start-Process -FilePath $serverExe `
+    -ArgumentList @("-addr", "127.0.0.1:$serverPort", "-root", $repoRoot) `
     -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 2
 

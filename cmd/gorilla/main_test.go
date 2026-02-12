@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -287,4 +289,131 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceAction := ""
+	serviceCommandCalled := false
+	serviceModeCalled := false
+	runCalled := false
+
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		serviceAction = action
+		return nil
+	}
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		serviceCommandCalled = true
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+	runServiceFunc = func(cfg config.Configuration) error {
+		serviceModeCalled = true
+		return nil
+	}
+	managedRunFunc = func(cfg config.Configuration) error {
+		runCalled = true
+		return nil
+	}
+
+	cfg := config.Configuration{
+		ServiceInstall: true,
+		ServiceRemove:  true,
+		ServiceStart:   true,
+		ServiceStop:    true,
+		ServiceCommand: "run",
+		ServiceMode:    true,
+	}
+	if err := route(cfg); err != nil {
+		t.Fatalf("unexpected route error: %v", err)
+	}
+
+	if serviceAction != "install" {
+		t.Fatalf("expected install action, got %q", serviceAction)
+	}
+	if serviceCommandCalled {
+		t.Fatalf("service command branch should not run when service install is set")
+	}
+	if serviceModeCalled {
+		t.Fatalf("service mode branch should not run when service install is set")
+	}
+	if runCalled {
+		t.Fatalf("managedRun should not run when service install is set")
+	}
+}
+
+func TestRouteServiceCommandPrintsItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{
+			Status: "ok",
+			Items:  []string{"GoogleChrome", "VSCode"},
+		}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "GoogleChrome") || !strings.Contains(stdout, "VSCode") {
+		t.Fatalf("expected stdout to include response items, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandErrorDoesNotPrintItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{}, errors.New("boom")
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err == nil {
+			t.Fatalf("expected route error")
+		}
+		if !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "" {
+		t.Fatalf("expected no stdout output on command error, got %q", stdout)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe creation failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() {
+		os.Stdout = origStdout
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("stdout pipe close failed: %v", err)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("stdout pipe read failed: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("stdout pipe close failed: %v", err)
+	}
+
+	return fmt.Sprint(buf.String())
 }

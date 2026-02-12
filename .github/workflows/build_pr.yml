@@ -26,4 +26,14 @@ jobs:
         cache: true
 
     - name: Build
-      run: go build -v ./cmd/gorilla
+      shell: pwsh
+      run: |
+        New-Item -Path ./build -ItemType Directory -Force | Out-Null
+        go build -v -o ./build/gorilla.exe ./cmd/gorilla
+
+    - name: Upload gorilla.exe artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gorilla-exe-pr
+        path: ./build/gorilla.exe
+        if-no-files-found: error

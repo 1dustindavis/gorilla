@@ -96,6 +96,18 @@ var (
 				Location: "TestUpdate2.ps1",
 			},
 		},
+		"MissingInstallerType": catalog.Item{
+			DisplayName: "MissingInstallerType",
+			Installer: catalog.InstallerItem{
+				Location: "MissingInstallerType.msi",
+			},
+		},
+		"MissingInstallerLocation": catalog.Item{
+			DisplayName: "MissingInstallerLocation",
+			Installer: catalog.InstallerItem{
+				Type: "msi",
+			},
+		},
 	}}
 
 	// CheckOnly flag disabled for testing
@@ -128,7 +140,7 @@ func TestManifests(t *testing.T) {
 		{
 			Name:       "included_manifest",
 			Includes:   []string(nil),
-			Installs:   []string{"TestInstall1", "TestInstall2"},
+			Installs:   []string{"TestInstall1", "TestInstall2", "MissingInstallerType", "MissingInstallerLocation"},
 			Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
 			Updates:    []string{"TestUpdate1", "TestUpdate2"},
 		},
@@ -156,6 +168,31 @@ func TestManifests(t *testing.T) {
 	}
 	if !matchUpdates {
 		t.Errorf("Manifest Updates\nExpected: %#v\nActual: %#v", expectedUpdates, actualUpdates)
+	}
+}
+
+func TestFirstItemInvalidReturnsFalse(t *testing.T) {
+	_, ok := firstItem("MissingInstallerType", testCatalogs)
+	if ok {
+		t.Fatalf("expected invalid catalog item to be skipped")
+	}
+
+	_, ok = firstItem("MissingInstallerLocation", testCatalogs)
+	if ok {
+		t.Fatalf("expected invalid catalog item to be skipped")
+	}
+
+	_, ok = firstItem("DoesNotExist", testCatalogs)
+	if ok {
+		t.Fatalf("expected missing catalog item to be skipped")
+	}
+
+	item, ok := firstItem("Chocolatey", testCatalogs)
+	if !ok {
+		t.Fatalf("expected valid catalog item")
+	}
+	if item.DisplayName != "Chocolatey" {
+		t.Fatalf("unexpected item returned: %#v", item)
 	}
 }
 

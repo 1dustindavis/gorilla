@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -14,14 +15,17 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
-// firstItem returns the first occurrence of an item in a map of catalogs
-func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, error) {
+// firstItem returns the first valid occurrence of an item in a map of catalogs.
+// It logs warnings for invalid/missing items and returns false when no valid item is found.
+func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, bool) {
 	// Get the keys in the map and sort them so we can loop over them in order
 	keys := make([]int, 0)
 	for k := range catalogsMap {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
+
+	var invalidReasons []string
 
 	// loop through each catalog and return if we find a match
 	for _, k := range keys {
@@ -32,13 +36,37 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 			validUninstallItem := (item.Uninstaller.Type != "" && item.Uninstaller.Location != "")
 
 			if validInstallItem || validUninstallItem {
-				return item, nil
+				return item, true
 			}
+
+			missing := []string{}
+			if item.Installer.Type == "" {
+				missing = append(missing, "installer.type")
+			}
+			if item.Installer.Location == "" {
+				missing = append(missing, "installer.location")
+			}
+			if item.Uninstaller.Type == "" {
+				missing = append(missing, "uninstaller.type")
+			}
+			if item.Uninstaller.Location == "" {
+				missing = append(missing, "uninstaller.location")
+			}
+			invalidReasons = append(invalidReasons, fmt.Sprintf("catalog index %d missing required fields: %s", k, strings.Join(missing, ", ")))
 		}
 	}
 
-	// return an empty catalog item if we didnt already find and return a match
-	return catalog.Item{}, fmt.Errorf("did not find a valid item in any catalog; Item name: %v", itemName)
+	// No valid item found. Log why and continue processing other items.
+	if len(invalidReasons) > 0 {
+		gorillalog.Warn(fmt.Sprintf(
+			"skipping catalog item %q because it is missing required installer/uninstaller type/location fields (%s)",
+			itemName,
+			strings.Join(invalidReasons, "; "),
+		))
+		return catalog.Item{}, false
+	}
+	gorillalog.Warn(fmt.Sprintf("skipping item %q because it was not found in any catalog", itemName))
+	return catalog.Item{}, false
 
 }
 
@@ -50,9 +78,7 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 		for _, item := range manifestItem.Installs {
 			// Check for the first valid item from our catalogs
 			// Continue to the next item in the loop if we get an error
-			_, err := firstItem(item, catalogsMap)
-			if err != nil {
-				gorillalog.Warn(err)
+			if _, ok := firstItem(item, catalogsMap); !ok {
 				continue
 			}
 
@@ -63,9 +89,7 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 		for _, item := range manifestItem.Uninstalls {
 			// Check for the first valid item from our catalogs
 			// Continue to the next item in the loop if we get an error
-			_, err := firstItem(item, catalogsMap)
-			if err != nil {
-				gorillalog.Warn(err)
+			if _, ok := firstItem(item, catalogsMap); !ok {
 				continue
 			}
 
@@ -76,9 +100,7 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 		for _, item := range manifestItem.Updates {
 			// Check for the first valid item from our catalogs
 			// Continue to the next item in the loop if we get an error
-			_, err := firstItem(item, catalogsMap)
-			if err != nil {
-				gorillalog.Warn(err)
+			if _, ok := firstItem(item, catalogsMap); !ok {
 				continue
 			}
 
@@ -98,17 +120,15 @@ func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, ur
 	for _, item := range installs {
 		// Get the first valid item from our catalogs
 		// Continue to the next item in the loop if we get an error
-		validItem, err := firstItem(item, catalogsMap)
-		if err != nil {
-			gorillalog.Warn(err)
+		validItem, ok := firstItem(item, catalogsMap)
+		if !ok {
 			continue
 		}
 		// Check for dependencies and install if found
 		if len(validItem.Dependencies) > 0 {
 			for _, dependency := range validItem.Dependencies {
-				validDependency, err := firstItem(dependency, catalogsMap)
-				if err != nil {
-					gorillalog.Warn(err)
+				validDependency, ok := firstItem(dependency, catalogsMap)
+				if !ok {
 					continue
 				}
 				installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
@@ -125,9 +145,8 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 	for _, item := range uninstalls {
 		// Get the first valid item from our catalogs
 		// Continue to the next item in the loop if we get an error
-		validItem, err := firstItem(item, catalogsMap)
-		if err != nil {
-			gorillalog.Warn(err)
+		validItem, ok := firstItem(item, catalogsMap)
+		if !ok {
 			continue
 		}
 		// Uninstall the item
@@ -141,9 +160,8 @@ func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlP
 	for _, item := range updates {
 		// Get the first valid item from our catalogs
 		// Continue to the next item in the loop if we get an error
-		validItem, err := firstItem(item, catalogsMap)
-		if err != nil {
-			gorillalog.Warn(err)
+		validItem, ok := firstItem(item, catalogsMap)
+		if !ok {
 			continue
 		}
 		// Update the item

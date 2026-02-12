@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,29 +15,34 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/report"
 )
 
-func main() {
+var (
+	adminCheckFunc = adminCheck
+	mkdirAllFunc   = os.MkdirAll
+)
 
-	// Get our configuration
+func main() {
 	cfg := config.Get()
-	var err error
-	// if --checkonly is NOT passed, we need to run adminCheck()
+	if err := run(cfg); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(cfg config.Configuration) error {
+	// If --checkonly is NOT passed, we need to run adminCheck().
 	if !cfg.CheckOnly {
-		admin, err := adminCheck()
+		admin, err := adminCheckFunc()
 		if err != nil {
-			fmt.Println("Unable to check if running as admin, got: %w", err)
-			os.Exit(1)
+			return fmt.Errorf("unable to check if running as admin: %w", err)
 		}
 		if !admin {
-			fmt.Println("Gorilla requires admnisistrative access. Please run as an administrator.")
-			os.Exit(1)
+			return errors.New("gorilla requires admnisistrative access. Please run as an administrator")
 		}
 	}
 
-	// If needed, create the cache directory
-	err = os.MkdirAll(filepath.Clean(cfg.CachePath), 0755)
-	if err != nil {
-		fmt.Println("Unable to create cache directory: ", err)
-		os.Exit(1)
+	// If needed, create the cache directory.
+	if err := mkdirAllFunc(filepath.Clean(cfg.CachePath), 0755); err != nil {
+		return fmt.Errorf("unable to create cache directory: %w", err)
 	}
 
 	// Create a new logger object
@@ -92,4 +98,5 @@ func main() {
 	process.CleanUp(cfg.CachePath)
 
 	gorillalog.Info("Done!")
+	return nil
 }

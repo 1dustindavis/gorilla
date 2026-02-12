@@ -15,6 +15,10 @@ func resetMainHooks() {
 	mkdirAllFunc = os.MkdirAll
 	buildCatalogsFunc = admin.BuildCatalogs
 	importItemFunc = admin.ImportItem
+	runFunc = run
+	runServiceFunc = runService
+	sendServiceCommandFunc = sendServiceCommand
+	runServiceActionFunc = runServiceAction
 }
 
 func TestRunAdminCheckError(t *testing.T) {
@@ -164,5 +168,122 @@ func TestRunImportModeError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "error importing item: not implemented") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExecuteServiceModesSkipRun(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceAction := ""
+	serviceCommand := ""
+	serviceMode := false
+	runCalled := false
+
+	runFunc = func(cfg config.Configuration) error {
+		runCalled = true
+		return nil
+	}
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		serviceAction = action
+		return nil
+	}
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) error {
+		serviceCommand = spec
+		return nil
+	}
+	runServiceFunc = func(cfg config.Configuration) error {
+		serviceMode = true
+		return nil
+	}
+
+	tests := []struct {
+		name          string
+		cfg           config.Configuration
+		wantAction    string
+		wantCommand   string
+		wantSvcMode   bool
+		expectRunCall bool
+	}{
+		{
+			name: "service install",
+			cfg: config.Configuration{
+				ServiceInstall: true,
+			},
+			wantAction:    "install",
+			expectRunCall: false,
+		},
+		{
+			name: "service remove",
+			cfg: config.Configuration{
+				ServiceRemove: true,
+			},
+			wantAction:    "remove",
+			expectRunCall: false,
+		},
+		{
+			name: "service start",
+			cfg: config.Configuration{
+				ServiceStart: true,
+			},
+			wantAction:    "start",
+			expectRunCall: false,
+		},
+		{
+			name: "service stop",
+			cfg: config.Configuration{
+				ServiceStop: true,
+			},
+			wantAction:    "stop",
+			expectRunCall: false,
+		},
+		{
+			name: "service command",
+			cfg: config.Configuration{
+				ServiceCommand: "run",
+			},
+			wantCommand:   "run",
+			expectRunCall: false,
+		},
+		{
+			name: "service mode",
+			cfg: config.Configuration{
+				ServiceMode: true,
+			},
+			wantSvcMode:   true,
+			expectRunCall: false,
+		},
+		{
+			name:          "normal mode",
+			cfg:           config.Configuration{},
+			expectRunCall: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceAction = ""
+			serviceCommand = ""
+			serviceMode = false
+			runCalled = false
+
+			err := execute(tt.cfg)
+			if err != nil {
+				t.Fatalf("execute returned unexpected error: %v", err)
+			}
+
+			if runCalled != tt.expectRunCall {
+				t.Fatalf("run called = %v, expected %v", runCalled, tt.expectRunCall)
+			}
+			if serviceAction != tt.wantAction {
+				t.Fatalf("service action = %q, expected %q", serviceAction, tt.wantAction)
+			}
+			if serviceCommand != tt.wantCommand {
+				t.Fatalf("service command = %q, expected %q", serviceCommand, tt.wantCommand)
+			}
+			if serviceMode != tt.wantSvcMode {
+				t.Fatalf("service mode call = %v, expected %v", serviceMode, tt.wantSvcMode)
+			}
+		})
 	}
 }

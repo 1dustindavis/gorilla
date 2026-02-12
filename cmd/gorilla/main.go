@@ -17,67 +17,50 @@ import (
 )
 
 var (
-	adminCheckFunc    = adminCheck
-	mkdirAllFunc      = os.MkdirAll
-	buildCatalogsFunc = admin.BuildCatalogs
-	importItemFunc    = admin.ImportItem
+	adminCheckFunc         = adminCheck
+	mkdirAllFunc           = os.MkdirAll
+	buildCatalogsFunc      = admin.BuildCatalogs
+	importItemFunc         = admin.ImportItem
+	runFunc                = run
+	runServiceFunc         = runService
+	sendServiceCommandFunc = sendServiceCommand
+	runServiceActionFunc   = runServiceAction
 )
 
 func main() {
 	cfg := config.Get()
-
-	if cfg.ServiceInstall {
-		if err := runServiceAction(cfg, "install"); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if cfg.ServiceRemove {
-		if err := runServiceAction(cfg, "remove"); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if cfg.ServiceStart {
-		if err := runServiceAction(cfg, "start"); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if cfg.ServiceStop {
-		if err := runServiceAction(cfg, "stop"); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if cfg.ServiceCommand != "" {
-		if err := sendServiceCommand(cfg, cfg.ServiceCommand); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if cfg.ServiceMode {
-		if err := runService(cfg); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if err := run(cfg); err != nil {
+	if err := execute(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func execute(cfg config.Configuration) error {
+	if cfg.ServiceInstall {
+		return runServiceActionFunc(cfg, "install")
+	}
+
+	if cfg.ServiceRemove {
+		return runServiceActionFunc(cfg, "remove")
+	}
+
+	if cfg.ServiceStart {
+		return runServiceActionFunc(cfg, "start")
+	}
+
+	if cfg.ServiceStop {
+		return runServiceActionFunc(cfg, "stop")
+	}
+
+	if cfg.ServiceCommand != "" {
+		return sendServiceCommandFunc(cfg, cfg.ServiceCommand)
+	}
+
+	if cfg.ServiceMode {
+		return runServiceFunc(cfg)
+	}
+
+	return runFunc(cfg)
 }
 
 func run(cfg config.Configuration) error {

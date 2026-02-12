@@ -6,28 +6,9 @@ on:
       - Build Release
     types:
       - completed
-  workflow_dispatch:
-    inputs:
-      source_mode:
-        description: "Where to get gorilla.exe"
-        required: true
-        type: choice
-        options:
-          - build_from_ref
-          - workflow_artifact
-        default: build_from_ref
-      ref:
-        description: "Git ref to test when source_mode=build_from_ref (branch, tag, or sha)"
-        required: false
-        type: string
-      workflow_run_id:
-        description: "Run id to pull gorilla.exe artifact from when source_mode=workflow_artifact"
-        required: false
-        type: string
-      artifact_name:
-        description: "Artifact name containing gorilla.exe when source_mode=workflow_artifact"
-        required: false
-        type: string
+  issue_comment:
+    types:
+      - created
 
 permissions:
   contents: read
@@ -39,16 +20,21 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     if: >-
-      (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main')
+      github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/run-integration-test') &&
+      (github.event.comment.author_association == 'OWNER' ||
+      github.event.comment.author_association == 'MEMBER' ||
+      github.event.comment.author_association == 'COLLABORATOR'))
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref || github.ref }}
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || github.event.workflow_run.head_sha }}
 
       - name: Setup go
         uses: actions/setup-go@v5
@@ -66,26 +52,8 @@ jobs:
           path: ${{ runner.temp }}/gorilla-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Validate manual workflow artifact inputs
-        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'workflow_artifact'
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace("${{ inputs.workflow_run_id }}")) {
-            throw "workflow_run_id is required when source_mode=workflow_artifact"
-          }
-
-      - name: Download gorilla.exe from selected workflow artifact
-        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'workflow_artifact'
-        uses: actions/download-artifact@v4
-        with:
-          repository: ${{ github.repository }}
-          run-id: ${{ inputs.workflow_run_id }}
-          name: ${{ inputs.artifact_name || 'gorilla-exe-pr' }}
-          path: ${{ runner.temp }}/gorilla-artifact
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build gorilla.exe from tested ref
-        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'build_from_ref'
+      - name: Build gorilla.exe from PR merge ref
+        if: github.event_name == 'issue_comment'
         shell: pwsh
         run: |
           $outDir = "${{ runner.temp }}\gorilla-binary"

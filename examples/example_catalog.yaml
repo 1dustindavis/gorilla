@@ -8,6 +8,7 @@ GoogleChrome:
   installer:
     hash: ce9c44417489d6c1f205422a4b9e8d5181d1ac24b6dcae3bd68ec315efdeb18b
     location: packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg
+    package_id: GoogleChrome
     type: nupkg
   version: 68.0.3440.106
 
@@ -18,6 +19,7 @@ ColorPrinter:
   installer:
     hash: a8b4ff8bc7d77036644c1ed04713c550550f180e08da786fbca784818b918dac
     location: packages/colorprinter.1.0.nupkg
+    package_id: colorprinter
     type: nupkg
   version: 1.0
 
@@ -26,6 +28,7 @@ CanonDrivers:
   installer:
     hash: ca784818b91850f180e08da786ac1ed04713c5a8b4ff8bc7d77036644dac505aec
     location: packages/Canon-Drivers.1.0.nupkg
+    package_id: Canon-Drivers
     type: nupkg
   version: 1.0
 

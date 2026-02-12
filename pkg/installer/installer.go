@@ -37,7 +37,7 @@ var (
 // runCommand executes a command and it's argurments in the CMD environment
 func runCMD(command string, arguments []string) (string, error) {
 	cmd := execCommand(command, arguments...)
-	var cmdOutput string
+	var cmdOutput []string
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
 		gorillalog.Warn("command:", command, arguments)
@@ -54,7 +54,7 @@ func runCMD(command string, arguments []string) (string, error) {
 		gorillalog.Debug("--------------------")
 		for scanner.Scan() {
 			gorillalog.Debug(scanner.Text())
-			cmdOutput = scanner.Text()
+			cmdOutput = append(cmdOutput, scanner.Text())
 		}
 		gorillalog.Debug("--------------------")
 		wg.Done()
@@ -73,22 +73,55 @@ func runCMD(command string, arguments []string) (string, error) {
 		gorillalog.Warn("Command error:", err)
 	}
 
-	return cmdOutput, err
+	return strings.Join(cmdOutput, "\n"), err
 }
 
 // Get a Nupkg's id using `choco list`
-func getNupkgID(nupkgDir, versionArg string) string {
+func getNupkgIDs(nupkgDir, versionArg string) ([]string, error) {
 
 	// Compile the arguments needed to get the id
 	command := commandNupkg
 	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
 
-	// Run the command and trim the output
-	cmdOut, _ := runCommand(command, arguments)
-	nupkgID := strings.TrimSpace(cmdOut)
+	// Run the command and parse each non-empty line as a candidate id
+	cmdOut, cmdErr := runCommand(command, arguments)
+	outputLines := strings.Split(cmdOut, "\n")
+	ids := make([]string, 0, len(outputLines))
+	for _, line := range outputLines {
+		candidate := strings.TrimSpace(line)
+		if candidate == "" {
+			continue
+		}
+		ids = append(ids, candidate)
+	}
 
-	// The final output should just be the nupkg id
-	return nupkgID
+	return ids, cmdErr
+}
+
+func resolveNupkgID(itemName, nupkgDir, versionArg, packageID string) (string, error) {
+	explicitID := strings.TrimSpace(packageID)
+	if explicitID != "" {
+		return explicitID, nil
+	}
+
+	if versionArg == "" {
+		return "", nil
+	}
+
+	ids, cmdErr := getNupkgIDs(nupkgDir, versionArg)
+	if cmdErr != nil {
+		return "", cmdErr
+	}
+
+	if len(ids) == 0 {
+		return "", fmt.Errorf("no package id was found for %s; set installer/uninstaller.package_id", itemName)
+	}
+
+	if len(ids) > 1 {
+		return "", fmt.Errorf("multiple package ids were found for %s: %s; set installer/uninstaller.package_id", itemName, strings.Join(ids, ", "))
+	}
+
+	return ids[0], nil
 }
 
 func installItem(item catalog.Item, itemURL, cachePath string) string {
@@ -120,7 +153,13 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		var nupkgID string
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
-			nupkgID = getNupkgID(nupkgDir, versionArg)
+		}
+
+		nupkgID, err := resolveNupkgID(item.DisplayName, nupkgDir, versionArg, item.Installer.PackageID)
+		if err != nil {
+			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
+			gorillalog.Warn(msg)
+			return msg
 		}
 
 		// Now pass the id along with the parent directory
@@ -202,7 +241,13 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 		var nupkgID string
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
-			nupkgID = getNupkgID(nupkgDir, versionArg)
+		}
+
+		nupkgID, err := resolveNupkgID(item.DisplayName, nupkgDir, versionArg, item.Uninstaller.PackageID)
+		if err != nil {
+			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
+			gorillalog.Warn(msg)
+			return msg
 		}
 
 		// Now pass the id along with the parent directory

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -390,6 +391,114 @@ func TestUninstallItem(t *testing.T) {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
 
+}
+
+func TestInstallItemNupkgWithExplicitPackageID(t *testing.T) {
+	execCommand = fakeExecCommand
+	runCommand = origRunCommand
+	defer func() {
+		execCommand = origExec
+		runCommand = origRunCommand
+	}()
+
+	cachePath := "testdata/"
+	pkgCache := "testdata/packages/"
+	urlPackages := "https://example.com/"
+
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64.nupkg"
+	nupkgURL := urlPackages + nupkgPath
+	nupkgFile := filepath.Join(pkgCache, nupkgPath)
+	nupkgDir := filepath.Dir(nupkgFile)
+
+	item := nupkgItem
+	item.DisplayName = statusActionNoError
+	item.Installer.PackageID = "chef-client"
+
+	actual := installItem(item, nupkgURL, cachePath)
+	expected := fmt.Sprintf("[%s install chef-client -s %s --version=1.2.3 -f -y -r]", commandNupkg, nupkgDir)
+
+	if have, want := actual, expected; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+}
+
+func TestInstallItemNupkgAmbiguousPackageID(t *testing.T) {
+	runCommand = func(command string, arguments []string) (string, error) {
+		if len(arguments) > 0 && arguments[0] == "list" {
+			return "chef-client\nchef-client-alt", nil
+		}
+		t.Fatalf("unexpected install command was executed: %s %s", command, strings.Join(arguments, " "))
+		return "", nil
+	}
+	defer func() { runCommand = origRunCommand }()
+
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64.nupkg"
+	nupkgURL := urlPackages + nupkgPath
+
+	item := nupkgItem
+	item.DisplayName = "Ambiguous Package"
+	item.Installer.PackageID = ""
+
+	actual := installItem(item, nupkgURL, cachePath)
+	if !strings.Contains(actual, "Unable to determine nupkg id") || !strings.Contains(actual, "multiple package ids were found") {
+		t.Fatalf("expected ambiguity error message, got: %s", actual)
+	}
+}
+
+func TestUninstallItemNupkgWithExplicitPackageID(t *testing.T) {
+	execCommand = fakeExecCommand
+	runCommand = origRunCommand
+	defer func() {
+		execCommand = origExec
+		runCommand = origRunCommand
+	}()
+
+	cachePath := "testdata/"
+	pkgCache := "testdata/packages/"
+	urlPackages := "https://example.com/"
+
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64uninst.nupkg"
+	nupkgURL := urlPackages + nupkgPath
+	nupkgFile := filepath.Join(pkgCache, nupkgPath)
+	nupkgDir := filepath.Dir(nupkgFile)
+
+	item := nupkgItem
+	item.DisplayName = statusNoActionNoError
+	item.Uninstaller.PackageID = "chef-client"
+
+	actual := uninstallItem(item, nupkgURL, cachePath)
+	expected := fmt.Sprintf("[%s uninstall chef-client -s %s --version=1.2.3 -f -y -r]", commandNupkg, nupkgDir)
+
+	if have, want := actual, expected; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+}
+
+func TestUninstallItemNupkgAmbiguousPackageID(t *testing.T) {
+	runCommand = func(command string, arguments []string) (string, error) {
+		if len(arguments) > 0 && arguments[0] == "list" {
+			return "chef-client\nchef-client-alt", nil
+		}
+		t.Fatalf("unexpected uninstall command was executed: %s %s", command, strings.Join(arguments, " "))
+		return "", nil
+	}
+	defer func() { runCommand = origRunCommand }()
+
+	cachePath := "testdata/"
+	urlPackages := "https://example.com/"
+	nupkgPath := "chef-client/chef-client-14.3.37-1-x64uninst.nupkg"
+	nupkgURL := urlPackages + nupkgPath
+
+	item := nupkgItem
+	item.DisplayName = "Ambiguous Uninstall Package"
+	item.Uninstaller.PackageID = ""
+
+	actual := uninstallItem(item, nupkgURL, cachePath)
+	if !strings.Contains(actual, "Unable to determine nupkg id") || !strings.Contains(actual, "multiple package ids were found") {
+		t.Fatalf("expected ambiguity error message, got: %s", actual)
+	}
 }
 
 // TestUninstallStatusError verifies that Uninstall returns if status check fails

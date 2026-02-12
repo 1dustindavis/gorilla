@@ -1,0 +1,117 @@
+name: Windows Released-Binary Integration
+
+on:
+  workflow_run:
+    workflows:
+      - Build Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      source_mode:
+        description: "Where to get gorilla.exe"
+        required: true
+        type: choice
+        options:
+          - build_from_ref
+          - workflow_artifact
+        default: build_from_ref
+      ref:
+        description: "Git ref to test when source_mode=build_from_ref (branch, tag, or sha)"
+        required: false
+        type: string
+      workflow_run_id:
+        description: "Run id to pull gorilla.exe artifact from when source_mode=workflow_artifact"
+        required: false
+        type: string
+      artifact_name:
+        description: "Artifact name containing gorilla.exe when source_mode=workflow_artifact"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  integration:
+    name: Run Integration on Windows VM
+    runs-on: windows-latest
+    timeout-minutes: 60
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.ref || github.ref }}
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download gorilla.exe from Build Release run artifact
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          name: gorilla-exe-release
+          path: ${{ runner.temp }}/gorilla-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate manual workflow artifact inputs
+        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'workflow_artifact'
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ inputs.workflow_run_id }}")) {
+            throw "workflow_run_id is required when source_mode=workflow_artifact"
+          }
+
+      - name: Download gorilla.exe from selected workflow artifact
+        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'workflow_artifact'
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.workflow_run_id }}
+          name: ${{ inputs.artifact_name || 'gorilla-exe-pr' }}
+          path: ${{ runner.temp }}/gorilla-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build gorilla.exe from tested ref
+        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'build_from_ref'
+        shell: pwsh
+        run: |
+          $outDir = "${{ runner.temp }}\gorilla-binary"
+          New-Item -Path $outDir -ItemType Directory -Force | Out-Null
+          go build -v -o "$outDir\gorilla.exe" ./cmd/gorilla
+
+      - name: Resolve gorilla.exe path
+        shell: pwsh
+        run: |
+          $candidate1 = "${{ runner.temp }}\gorilla-artifact\gorilla.exe"
+          $candidate2 = "${{ runner.temp }}\gorilla-binary\gorilla.exe"
+
+          if (Test-Path -LiteralPath $candidate1) {
+            "GORILLA_EXE_PATH=$candidate1" >> $env:GITHUB_ENV
+            exit 0
+          }
+
+          if (Test-Path -LiteralPath $candidate2) {
+            "GORILLA_EXE_PATH=$candidate2" >> $env:GITHUB_ENV
+            exit 0
+          }
+
+          throw "Unable to resolve gorilla.exe path"
+
+      - name: Run released-binary integration harness
+        shell: pwsh
+        run: |
+          ./integration/windows/run-release-integration.ps1 `
+            -GorillaExePath "$env:GORILLA_EXE_PATH"

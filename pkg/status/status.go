@@ -130,7 +130,7 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	// Application not installed if exit 0
 	if installType == "uninstall" {
 		actionNeeded = !cmdSuccess
-	} else if installType == "install" {
+	} else if installType == "install" || installType == "update" {
 		actionNeeded = cmdSuccess
 	}
 

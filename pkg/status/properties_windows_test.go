@@ -36,11 +36,11 @@ func TestGetFileMetadataRootQueryFailure(t *testing.T) {
 
 	getFileVersionInfoSizeFunc = func(_ string) uint32 { return 16 }
 	getFileVersionInfoFunc = func(_ string, _ []byte) bool { return true }
-	verQueryValueFunc = func(_ []byte, subBlock string) (uintptr, uint32, bool) {
+	verQueryValueFunc = func(_ []byte, subBlock string) (unsafe.Pointer, uint32, bool) {
 		if subBlock == "\\" {
-			return 0, 0, false
+			return nil, 0, false
 		}
-		return 0, 0, false
+		return nil, 0, false
 	}
 
 	md := GetFileMetadata("testdata/test.exe")
@@ -61,11 +61,11 @@ func TestGetFileMetadataInvalidSignature(t *testing.T) {
 		FileVersionMS: uint32(3<<16) | 2,
 		FileVersionLS: uint32(0<<16) | 1,
 	}
-	verQueryValueFunc = func(_ []byte, subBlock string) (uintptr, uint32, bool) {
+	verQueryValueFunc = func(_ []byte, subBlock string) (unsafe.Pointer, uint32, bool) {
 		if subBlock == "\\" {
-			return uintptr(unsafe.Pointer(&fixed)), uint32(unsafe.Sizeof(fixed)), true
+			return unsafe.Pointer(&fixed), uint32(unsafe.Sizeof(fixed)), true
 		}
-		return 0, 0, false
+		return nil, 0, false
 	}
 
 	md := GetFileMetadata("testdata/test.exe")
@@ -86,14 +86,14 @@ func TestGetFileMetadataTranslationFailure(t *testing.T) {
 		FileVersionMS: uint32(3<<16) | 2,
 		FileVersionLS: uint32(0<<16) | 1,
 	}
-	verQueryValueFunc = func(_ []byte, subBlock string) (uintptr, uint32, bool) {
+	verQueryValueFunc = func(_ []byte, subBlock string) (unsafe.Pointer, uint32, bool) {
 		if subBlock == "\\" {
-			return uintptr(unsafe.Pointer(&fixed)), uint32(unsafe.Sizeof(fixed)), true
+			return unsafe.Pointer(&fixed), uint32(unsafe.Sizeof(fixed)), true
 		}
 		if subBlock == "\\VarFileInfo\\Translation" {
-			return 0, 0, false
+			return nil, 0, false
 		}
-		return 0, 0, false
+		return nil, 0, false
 	}
 
 	md := GetFileMetadata("testdata/test.exe")
@@ -118,14 +118,14 @@ func TestGetFileMetadataProductNameMissing(t *testing.T) {
 		FileVersionLS: uint32(0<<16) | 1,
 	}
 	translation := langAndCodePage{Lang: 0x0409, CodePage: 0x04E4}
-	verQueryValueFunc = func(_ []byte, subBlock string) (uintptr, uint32, bool) {
+	verQueryValueFunc = func(_ []byte, subBlock string) (unsafe.Pointer, uint32, bool) {
 		if subBlock == "\\" {
-			return uintptr(unsafe.Pointer(&fixed)), uint32(unsafe.Sizeof(fixed)), true
+			return unsafe.Pointer(&fixed), uint32(unsafe.Sizeof(fixed)), true
 		}
 		if subBlock == "\\VarFileInfo\\Translation" {
-			return uintptr(unsafe.Pointer(&translation)), uint32(unsafe.Sizeof(translation)), true
+			return unsafe.Pointer(&translation), uint32(unsafe.Sizeof(translation)), true
 		}
-		return 0, 0, false
+		return nil, 0, false
 	}
 
 	md := GetFileMetadata("testdata/test.exe")

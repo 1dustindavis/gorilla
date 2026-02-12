@@ -75,17 +75,17 @@ func getFileVersionInfo(path string, rawMetadata []byte) bool {
 	return ret != 0
 }
 
-func verQueryValue(rawMetadata []byte, subBlock string) (uintptr, uint32, bool) {
+func verQueryValue(rawMetadata []byte, subBlock string) (unsafe.Pointer, uint32, bool) {
 	if len(rawMetadata) == 0 {
-		return 0, 0, false
+		return nil, 0, false
 	}
 
 	subBlockPtr, err := windows.UTF16PtrFromString(subBlock)
 	if err != nil {
-		return 0, 0, false
+		return nil, 0, false
 	}
 
-	var valuePtr uintptr
+	var valuePtr unsafe.Pointer
 	var valueLen uint32
 	ret, _, _ := procVerQueryValue.Call(
 		uintptr(unsafe.Pointer(&rawMetadata[0])),
@@ -93,8 +93,8 @@ func verQueryValue(rawMetadata []byte, subBlock string) (uintptr, uint32, bool) 
 		uintptr(unsafe.Pointer(&valuePtr)),
 		uintptr(unsafe.Pointer(&valueLen)),
 	)
-	if ret == 0 || valuePtr == 0 {
-		return 0, 0, false
+	if ret == 0 || valuePtr == nil {
+		return nil, 0, false
 	}
 
 	return valuePtr, valueLen, true
@@ -122,7 +122,7 @@ func GetFileMetadata(path string) WindowsMetadata {
 		gorillalog.Warn("Unable to get file version:", path)
 		return finalMetadata
 	}
-	fixed := (*vsFixedFileInfo)(unsafe.Pointer(valuePtr))
+	fixed := (*vsFixedFileInfo)(valuePtr)
 	if fixed.Signature != 0xFEEF04BD {
 		gorillalog.Warn("Invalid fixed metadata signature:", path)
 		return finalMetadata
@@ -151,7 +151,7 @@ func GetFileMetadata(path string) WindowsMetadata {
 		return finalMetadata
 	}
 	translationCount := int(valueLen) / translationSize
-	translations := unsafe.Slice((*langAndCodePage)(unsafe.Pointer(valuePtr)), translationCount)
+	translations := unsafe.Slice((*langAndCodePage)(valuePtr), translationCount)
 	if len(translations) == 0 {
 		gorillalog.Warn("Unable to get additional metadata:", path)
 		return finalMetadata
@@ -160,10 +160,10 @@ func GetFileMetadata(path string) WindowsMetadata {
 
 	productKey := fmt.Sprintf("\\StringFileInfo\\%04x%04x\\ProductName", translation.Lang, translation.CodePage)
 	valuePtr, _, ok = verQueryValueFunc(rawMetadata, productKey)
-	if !ok || valuePtr == 0 {
+	if !ok || valuePtr == nil {
 		gorillalog.Info("Unable to get product name from metadata:", path)
 		return finalMetadata
 	}
-	finalMetadata.productName = windows.UTF16PtrToString((*uint16)(unsafe.Pointer(valuePtr)))
+	finalMetadata.productName = windows.UTF16PtrToString((*uint16)(valuePtr))
 	return finalMetadata
 }

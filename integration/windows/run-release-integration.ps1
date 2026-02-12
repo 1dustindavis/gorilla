@@ -43,11 +43,14 @@ function Assert-Missing {
     }
 }
 
-function To-FileUrl {
-    param([string]$Path)
-    $full = [System.IO.Path]::GetFullPath($Path)
-    $normalized = $full -replace "\\", "/"
-    return "file:///$normalized/"
+function Resolve-PythonCommand {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return "python"
+    }
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        return "py"
+    }
+    throw "python is required to host local integration fixtures"
 }
 
 $root = [System.IO.Path]::GetFullPath($WorkRoot)
@@ -436,7 +439,19 @@ managed_uninstalls:
   - Ps1V2
 '@ | Set-Content -LiteralPath (Join-Path $manifestsRoot "integration-uninstall.yaml") -NoNewline
 
-$fileUrl = To-FileUrl -Path $repoRoot
+$pythonCmd = Resolve-PythonCommand
+$serverPort = Get-Random -Minimum 18080 -Maximum 18999
+$serverProc = Start-Process -FilePath $pythonCmd `
+    -ArgumentList @("-m", "http.server", "$serverPort", "--bind", "127.0.0.1", "--directory", $repoRoot) `
+    -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 2
+
+if ($serverProc.HasExited) {
+    throw "Failed to start fixture HTTP server process"
+}
+
+$fileUrl = "http://127.0.0.1:$serverPort/"
+Write-Host "Serving fixture repo from $fileUrl"
 
 function Write-Config {
     param(
@@ -460,6 +475,9 @@ Write-Config -ManifestName "integration-install" -Path $configInstall
 Write-Config -ManifestName "integration-update" -Path $configUpdate
 Write-Config -ManifestName "integration-uninstall" -Path $configUninstall
 
+# Gorilla writes reports to ProgramData\gorilla regardless of app_data_path.
+New-Item -ItemType Directory -Path "C:\ProgramData\gorilla" -Force | Out-Null
+
 $gorillaExePath = [System.IO.Path]::GetFullPath($GorillaExePath)
 if (-not (Test-Path -LiteralPath $gorillaExePath)) {
     throw "gorilla.exe not found at path: $gorillaExePath"
@@ -476,25 +494,31 @@ function Run-Gorilla {
     }
 }
 
-Run-Gorilla -ConfigPath $configInstall
-Assert-Content -Path $exeMarker -Expected "1.0.0"
-Assert-Content -Path $msiMarker -Expected "1.0.0"
-Assert-Content -Path $nupkgMarker -Expected "1.0.0"
-Assert-Content -Path $ps1Marker -Expected "1.0.0"
-Write-Host "Install phase validated"
+try {
+    Run-Gorilla -ConfigPath $configInstall
+    Assert-Content -Path $exeMarker -Expected "1.0.0"
+    Assert-Content -Path $msiMarker -Expected "1.0.0"
+    Assert-Content -Path $nupkgMarker -Expected "1.0.0"
+    Assert-Content -Path $ps1Marker -Expected "1.0.0"
+    Write-Host "Install phase validated"
 
-Run-Gorilla -ConfigPath $configUpdate
-Assert-Content -Path $exeMarker -Expected "2.0.0"
-Assert-Content -Path $msiMarker -Expected "2.0.0"
-Assert-Content -Path $nupkgMarker -Expected "2.0.0"
-Assert-Content -Path $ps1Marker -Expected "2.0.0"
-Write-Host "Update phase validated"
+    Run-Gorilla -ConfigPath $configUpdate
+    Assert-Content -Path $exeMarker -Expected "2.0.0"
+    Assert-Content -Path $msiMarker -Expected "2.0.0"
+    Assert-Content -Path $nupkgMarker -Expected "2.0.0"
+    Assert-Content -Path $ps1Marker -Expected "2.0.0"
+    Write-Host "Update phase validated"
 
-Run-Gorilla -ConfigPath $configUninstall
-Assert-Missing -Path $exeMarker
-Assert-Missing -Path $msiMarker
-Assert-Missing -Path $nupkgMarker
-Assert-Missing -Path $ps1Marker
-Write-Host "Uninstall phase validated"
+    Run-Gorilla -ConfigPath $configUninstall
+    Assert-Missing -Path $exeMarker
+    Assert-Missing -Path $msiMarker
+    Assert-Missing -Path $nupkgMarker
+    Assert-Missing -Path $ps1Marker
+    Write-Host "Uninstall phase validated"
 
-Write-Host "Gorilla released-binary integration run passed"
+    Write-Host "Gorilla released-binary integration run passed"
+} finally {
+    if ($serverProc -and -not $serverProc.HasExited) {
+        Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
+    }
+}

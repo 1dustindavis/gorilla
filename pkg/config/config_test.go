@@ -11,21 +11,26 @@ import (
 func TestGet(t *testing.T) {
 	// Define what we expect in a successful test
 	expected := Configuration{
-		URL:            "https://example.com/gorilla/",
-		URLPackages:    "https://example.com/gorilla/",
-		Manifest:       "example_manifest",
-		LocalManifests: []string{"example_local_manifest"},
-		Catalogs:       []string{"example_catalog"},
-		RepoPath:       filepath.Clean("c:/repo/gorilla"),
-		AppDataPath:    filepath.Clean("c:/cpe/gorilla/"),
-		Verbose:        true,
-		Debug:          true,
-		CheckOnly:      true,
-		BuildArg:       false,
-		ImportArg:      "",
-		AuthUser:       "johnny",
-		AuthPass:       "pizza",
-		CachePath:      filepath.Clean("c:/cpe/gorilla/cache"),
+		URL:             "https://example.com/gorilla/",
+		URLPackages:     "https://example.com/gorilla/",
+		Manifest:        "example_manifest",
+		LocalManifests:  []string{"example_local_manifest"},
+		Catalogs:        []string{"example_catalog"},
+		RepoPath:        filepath.Clean("c:/repo/gorilla"),
+		AppDataPath:     filepath.Clean("c:/cpe/gorilla/"),
+		Verbose:         true,
+		Debug:           true,
+		CheckOnly:       true,
+		BuildArg:        false,
+		ImportArg:       "",
+		AuthUser:        "johnny",
+		AuthPass:        "pizza",
+		CachePath:       filepath.Clean("c:/cpe/gorilla/cache"),
+		ServiceMode:     false,
+		ServiceCommand:  "",
+		ServiceName:     "gorilla",
+		ServiceInterval: "1h",
+		ServicePipeName: "gorilla-service",
 	}
 
 	// Save the original arguments
@@ -176,5 +181,7 @@ func Example() {
 	// -d, -debug          enable debug output
 	// -a, -about          displays the version number and other build info
 	// -V, -version        display the version number
+	// -s, -service        run Gorilla as a Windows service
+	// -S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|uninstall:item1|update:item1)
 	// -h, -help           display this help message
 }

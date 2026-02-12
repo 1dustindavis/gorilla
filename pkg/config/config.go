@@ -17,24 +17,28 @@ var (
 	cachePath string
 
 	// Define flag defaults
-	aboutArg         bool
-	aboutDefault     = false
-	configArg        string
-	configDefault    = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
-	debugArg         bool
-	debugDefault     = false
-	buildArg         bool
-	buildDefault     = false
-	importArg        string
-	importDefault    = ""
-	helpArg          bool
-	helpDefault      = false
-	verboseArg       bool
-	verboseDefault   = false
-	checkOnlyArg     bool
-	checkOnlyDefault = false
-	versionArg       bool
-	versionDefault   = false
+	aboutArg          bool
+	aboutDefault      = false
+	configArg         string
+	configDefault     = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
+	debugArg          bool
+	debugDefault      = false
+	buildArg          bool
+	buildDefault      = false
+	importArg         string
+	importDefault     = ""
+	helpArg           bool
+	helpDefault       = false
+	verboseArg        bool
+	verboseDefault    = false
+	checkOnlyArg      bool
+	checkOnlyDefault  = false
+	versionArg        bool
+	versionDefault    = false
+	serviceArg        bool
+	serviceDefault    = false
+	serviceCmdArg     string
+	serviceCmdDefault = ""
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -55,31 +59,38 @@ Options:
 -d, -debug          enable debug output
 -a, -about          displays the version number and other build info
 -V, -version        display the version number
+-s, -service        run Gorilla as a Windows service
+-S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|uninstall:item1|update:item1)
 -h, -help           display this help message
 
 `
 
 // Configuration stores all of the possible parameters a config file could contain
 type Configuration struct {
-	URL            string   `yaml:"url"`
-	URLPackages    string   `yaml:"url_packages"`
-	Manifest       string   `yaml:"manifest"`
-	LocalManifests []string `yaml:"local_manifests,omitempty"`
-	Catalogs       []string `yaml:"catalogs"`
-	AppDataPath    string   `yaml:"app_data_path"`
-	Verbose        bool     `yaml:"verbose,omitempty"`
-	Debug          bool     `yaml:"debug,omitempty"`
-	CheckOnly      bool     `yaml:"checkonly,omitempty"`
-	BuildArg       bool
-	ImportArg      string
-	RepoPath       string `yaml:"repo_path,omitempty"`
-	AuthUser       string `yaml:"auth_user,omitempty"`
-	AuthPass       string `yaml:"auth_pass,omitempty"`
-	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
-	CachePath      string
+	URL             string   `yaml:"url"`
+	URLPackages     string   `yaml:"url_packages"`
+	Manifest        string   `yaml:"manifest"`
+	LocalManifests  []string `yaml:"local_manifests,omitempty"`
+	Catalogs        []string `yaml:"catalogs"`
+	AppDataPath     string   `yaml:"app_data_path"`
+	Verbose         bool     `yaml:"verbose,omitempty"`
+	Debug           bool     `yaml:"debug,omitempty"`
+	CheckOnly       bool     `yaml:"checkonly,omitempty"`
+	BuildArg        bool
+	ImportArg       string
+	RepoPath        string `yaml:"repo_path,omitempty"`
+	AuthUser        string `yaml:"auth_user,omitempty"`
+	AuthPass        string `yaml:"auth_pass,omitempty"`
+	TLSAuth         bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert   string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey    string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert   string `yaml:"tls_server_cert,omitempty"`
+	CachePath       string
+	ServiceMode     bool `yaml:"service_mode,omitempty"`
+	ServiceCommand  string
+	ServiceName     string `yaml:"service_name,omitempty"`
+	ServiceInterval string `yaml:"service_interval,omitempty"`
+	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
 }
 
 func init() {
@@ -112,6 +123,12 @@ func init() {
 	// Version
 	flag.BoolVar(&versionArg, "version", versionDefault, "")
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
+	// Service mode
+	flag.BoolVar(&serviceArg, "service", serviceDefault, "")
+	flag.BoolVar(&serviceArg, "s", serviceDefault, "")
+	// Service command
+	flag.StringVar(&serviceCmdArg, "servicecmd", serviceCmdDefault, "")
+	flag.StringVar(&serviceCmdArg, "S", serviceCmdDefault, "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -196,6 +213,8 @@ func Get() Configuration {
 	}
 	cfg.BuildArg = build
 	cfg.ImportArg = importValue
+	cfg.ServiceMode = serviceArg
+	cfg.ServiceCommand = serviceCmdArg
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")
@@ -213,6 +232,17 @@ func Get() Configuration {
 	// Add to GorillaReport
 	report.Items["Manifest"] = cfg.Manifest
 	report.Items["Catalog"] = cfg.Catalogs
+
+	// Configure service defaults.
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = "gorilla"
+	}
+	if cfg.ServiceInterval == "" {
+		cfg.ServiceInterval = "1h"
+	}
+	if cfg.ServicePipeName == "" {
+		cfg.ServicePipeName = "gorilla-service"
+	}
 
 	return cfg
 }

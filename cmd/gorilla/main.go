@@ -25,6 +25,23 @@ var (
 
 func main() {
 	cfg := config.Get()
+
+	if cfg.ServiceCommand != "" {
+		if err := sendServiceCommand(cfg, cfg.ServiceCommand); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if cfg.ServiceMode {
+		if err := runService(cfg); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

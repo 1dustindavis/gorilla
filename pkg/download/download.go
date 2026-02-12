@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -81,7 +80,7 @@ func Get(url string) ([]byte, error) {
 		}
 
 		// Load server certificates
-		serverCert, err := ioutil.ReadFile(downloadCfg.TLSServerCert)
+		serverCert, err := os.ReadFile(downloadCfg.TLSServerCert)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +154,7 @@ func Get(url string) ([]byte, error) {
 	}
 
 	// Copy the download to a a buffer
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package status
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,7 +18,7 @@ var (
 	origRegistryItems = RegistryItems
 
 	// Temp directory for logging
-	logTmp, _ = ioutil.TempDir("", "gorilla-status_test")
+	logTmp, _ = os.MkdirTemp("", "gorilla-status_test")
 
 	// Setup a testing Configuration struct
 	cfgVerbose = config.Configuration{

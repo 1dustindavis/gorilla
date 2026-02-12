@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -102,7 +101,7 @@ func router() *http.ServeMux {
 // TestFileHash verifies that a file is downloaded properly
 func TestFileHash(t *testing.T) {
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +124,7 @@ func TestFileHash(t *testing.T) {
 // TestFileHashLocal verifies that a *local* file is downloaded properly
 func TestFileHashLocal(t *testing.T) {
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +159,7 @@ func TestFileTimeout(t *testing.T) {
 	fmt.Println("Run with '-short' to skip this longer test")
 
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +186,7 @@ func TestFileTimeout(t *testing.T) {
 // TestFileStatus verifies status codes are respected
 func TestFileStatus(t *testing.T) {
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +213,7 @@ func TestFileStatus(t *testing.T) {
 // TestFileBasicAuth verifies username and password are included in headers
 func TestFileBasicAuth(t *testing.T) {
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +240,7 @@ func TestFileBasicAuth(t *testing.T) {
 // TestFileTLS verifies TLS auth is functioning
 func TestFileTLS(t *testing.T) {
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,9 +258,9 @@ func TestFileTLS(t *testing.T) {
 	ts := httptest.NewUnstartedServer(router())
 
 	// Prepare server certs
-	serverCert, _ := ioutil.ReadFile(downloadCfg.TLSServerCert)
-	serverKey, _ := ioutil.ReadFile(serverKeyPath)
-	caCert, _ := ioutil.ReadFile(caCertPath)
+	serverCert, _ := os.ReadFile(downloadCfg.TLSServerCert)
+	serverKey, _ := os.ReadFile(serverKeyPath)
+	caCert, _ := os.ReadFile(caCertPath)
 
 	certPool := x509.NewCertPool()
 	certPool.AppendCertsFromPEM(caCert)
@@ -329,7 +328,7 @@ func copy(src, dst string) error {
 func TestIfNeededValid(t *testing.T) {
 
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +376,7 @@ func TestIfNeededValid(t *testing.T) {
 func TestIfNeededInvalid(t *testing.T) {
 
 	// Create a temporary directory
-	dir, err := ioutil.TempDir("", "gorilla_test")
+	dir, err := os.MkdirTemp("", "gorilla_test")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 )
 
 var expected = make(map[string]Item)

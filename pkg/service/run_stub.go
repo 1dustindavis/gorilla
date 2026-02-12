@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package service
 
 import (
 	"errors"
@@ -8,6 +8,6 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 )
 
-func runService(_ config.Configuration) error {
+func Run(_ config.Configuration, _ func(config.Configuration) error) error {
 	return errors.New("service mode is only supported on Windows")
 }

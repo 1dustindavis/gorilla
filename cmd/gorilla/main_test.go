@@ -8,6 +8,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/service"
 )
 
 func resetMainHooks() {
@@ -16,9 +17,9 @@ func resetMainHooks() {
 	buildCatalogsFunc = admin.BuildCatalogs
 	importItemFunc = admin.ImportItem
 	managedRunFunc = managedRun
-	runServiceFunc = runService
-	sendServiceCommandFunc = sendServiceCommand
-	runServiceActionFunc = runServiceAction
+	runServiceFunc = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc) }
+	sendServiceCommandFunc = service.SendCommand
+	runServiceActionFunc = service.RunAction
 }
 
 func TestRunAdminCheckError(t *testing.T) {
@@ -188,9 +189,9 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 		serviceAction = action
 		return nil
 	}
-	sendServiceCommandFunc = func(cfg config.Configuration, spec string) error {
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
 		serviceCommand = spec
-		return nil
+		return service.CommandResponse{Status: "ok"}, nil
 	}
 	runServiceFunc = func(cfg config.Configuration) error {
 		serviceMode = true
@@ -267,7 +268,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			serviceMode = false
 			runCalled = false
 
-			err := execute(tt.cfg)
+			err := route(tt.cfg)
 			if err != nil {
 				t.Fatalf("execute returned unexpected error: %v", err)
 			}

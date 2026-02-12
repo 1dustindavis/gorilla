@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"errors"
@@ -13,21 +13,24 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-var manifestGet = manifest.Get
+var (
+	manifestGet = manifest.Get
+	mkdirAll    = os.MkdirAll
+)
 
-type serviceCommand struct {
+type Command struct {
 	Action string   `json:"action"`
 	Items  []string `json:"items,omitempty"`
 }
 
-type serviceCommandResponse struct {
+type CommandResponse struct {
 	Status  string   `json:"status"`
 	Message string   `json:"message,omitempty"`
 	Items   []string `json:"items,omitempty"`
 }
 
-func parseServiceCommandSpec(spec string) (serviceCommand, error) {
-	var cmd serviceCommand
+func parseCommandSpec(spec string) (Command, error) {
+	var cmd Command
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return cmd, errors.New("service command cannot be empty")
@@ -44,10 +47,10 @@ func parseServiceCommandSpec(spec string) (serviceCommand, error) {
 			}
 		}
 	}
-	return cmd, validateServiceCommand(cmd)
+	return cmd, validateCommand(cmd)
 }
 
-func validateServiceCommand(cmd serviceCommand) error {
+func validateCommand(cmd Command) error {
 	switch cmd.Action {
 	case "run":
 		if len(cmd.Items) != 0 {
@@ -68,34 +71,42 @@ func validateServiceCommand(cmd serviceCommand) error {
 	return nil
 }
 
-func executeServiceCommand(cfg config.Configuration, cmd serviceCommand) (serviceCommandResponse, error) {
+func SendCommand(cfg config.Configuration, spec string) (CommandResponse, error) {
+	cmd, err := parseCommandSpec(spec)
+	if err != nil {
+		return CommandResponse{}, err
+	}
+	return sendCommand(cfg, cmd)
+}
+
+func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
 	switch cmd.Action {
 	case "run":
-		return serviceCommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
+		return CommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
 	case "install":
 		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
-			return serviceCommandResponse{}, err
+			return CommandResponse{}, err
 		}
-		return serviceCommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
+		return CommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
 	case "remove":
 		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
-			return serviceCommandResponse{}, err
+			return CommandResponse{}, err
 		}
-		return serviceCommandResponse{Status: "ok"}, nil
+		return CommandResponse{Status: "ok"}, nil
 	case "get-service-manifest":
 		items, err := listServiceManagedInstalls(cfg)
 		if err != nil {
-			return serviceCommandResponse{}, err
+			return CommandResponse{}, err
 		}
-		return serviceCommandResponse{Status: "ok", Items: items}, nil
+		return CommandResponse{Status: "ok", Items: items}, nil
 	case "get-optional-items":
 		items, err := getOptionalItems(cfg)
 		if err != nil {
-			return serviceCommandResponse{}, err
+			return CommandResponse{}, err
 		}
-		return serviceCommandResponse{Status: "ok", Items: items}, nil
+		return CommandResponse{Status: "ok", Items: items}, nil
 	default:
-		return serviceCommandResponse{}, fmt.Errorf("unsupported service action %q", cmd.Action)
+		return CommandResponse{}, fmt.Errorf("unsupported service action %q", cmd.Action)
 	}
 }
 
@@ -178,7 +189,7 @@ func loadServiceLocalManifest(cfg config.Configuration) (manifest.Item, error) {
 
 func saveServiceLocalManifest(cfg config.Configuration, entry manifest.Item) error {
 	path := serviceLocalManifestPath(cfg)
-	if err := mkdirAllFunc(filepath.Clean(filepath.Dir(path)), 0755); err != nil {
+	if err := mkdirAll(filepath.Clean(filepath.Dir(path)), 0755); err != nil {
 		return fmt.Errorf("unable to create local manifest directory: %w", err)
 	}
 

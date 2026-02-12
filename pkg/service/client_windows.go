@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package service
 
 import (
 	"encoding/json"
@@ -15,48 +15,36 @@ import (
 )
 
 type pipeRequest struct {
-	Command serviceCommand `json:"command"`
+	Command Command `json:"command"`
 }
 
-func sendServiceCommand(cfg config.Configuration, spec string) error {
-	cmd, err := parseServiceCommandSpec(spec)
-	if err != nil {
-		return err
-	}
-
+func sendCommand(cfg config.Configuration, cmd Command) (CommandResponse, error) {
 	pipePath := servicePipePath(cfg.ServicePipeName)
 	conn, err := openPipe(pipePath, 30*time.Second)
 	if err != nil {
-		return fmt.Errorf("failed to connect to service pipe %s: %w", pipePath, err)
+		return CommandResponse{}, fmt.Errorf("failed to connect to service pipe %s: %w", pipePath, err)
 	}
 	defer func() {
 		_ = conn.Close()
 	}()
 
-	req := pipeRequest{
-		Command: cmd,
-	}
+	req := pipeRequest{Command: cmd}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return fmt.Errorf("failed to send service command: %w", err)
+		return CommandResponse{}, fmt.Errorf("failed to send service command: %w", err)
 	}
 
-	var resp serviceCommandResponse
+	var resp CommandResponse
 	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
-		return fmt.Errorf("failed to decode service response: %w", err)
+		return CommandResponse{}, fmt.Errorf("failed to decode service response: %w", err)
 	}
 	if resp.Status != "ok" {
 		if resp.Message == "" {
 			resp.Message = "service command failed"
 		}
-		return errors.New(resp.Message)
-	}
-	if cmd.Action == "get-service-manifest" || cmd.Action == "get-optional-items" {
-		for _, item := range resp.Items {
-			fmt.Println(item)
-		}
+		return CommandResponse{}, errors.New(resp.Message)
 	}
 
-	return nil
+	return resp, nil
 }
 
 func servicePipePath(pipeName string) string {

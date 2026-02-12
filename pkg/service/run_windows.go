@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package service
 
 import (
 	"context"
@@ -20,17 +20,18 @@ import (
 )
 
 type queuedCommand struct {
-	cmd    serviceCommand
+	cmd    Command
 	result chan queuedResult
 }
 
 type queuedResult struct {
-	resp serviceCommandResponse
+	resp CommandResponse
 	err  error
 }
 
 type serviceRunner struct {
 	cfg                config.Configuration
+	managedRun         func(config.Configuration) error
 	queue              chan queuedCommand
 	wg                 sync.WaitGroup
 	execMutex          sync.Mutex
@@ -38,10 +39,11 @@ type serviceRunner struct {
 	pipeListenerHandle windows.Handle
 }
 
-func newServiceRunner(cfg config.Configuration) *serviceRunner {
+func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error) *serviceRunner {
 	return &serviceRunner{
-		cfg:   cfg,
-		queue: make(chan queuedCommand),
+		cfg:        cfg,
+		managedRun: managedRun,
+		queue:      make(chan queuedCommand),
 	}
 }
 
@@ -62,7 +64,7 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 				return
 			case queued := <-sr.queue:
 				sr.execMutex.Lock()
-				resp, err := executeServiceCommand(sr.cfg, queued.cmd)
+				resp, err := executeCommand(sr.cfg, queued.cmd, sr.managedRun)
 				sr.execMutex.Unlock()
 				queued.result <- queuedResult{resp: resp, err: err}
 			}
@@ -75,13 +77,13 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		_, _ = sr.submit(ctx, serviceCommand{Action: "run"})
+		_, _ = sr.submit(ctx, Command{Action: "run"})
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				_, _ = sr.submit(ctx, serviceCommand{Action: "run"})
+				_, _ = sr.submit(ctx, Command{Action: "run"})
 			}
 		}
 	}()
@@ -104,24 +106,24 @@ func (sr *serviceRunner) stop(ctx context.Context) {
 	_ = ctx
 }
 
-func (sr *serviceRunner) submit(ctx context.Context, cmd serviceCommand) (serviceCommandResponse, error) {
+func (sr *serviceRunner) submit(ctx context.Context, cmd Command) (CommandResponse, error) {
 	result := make(chan queuedResult, 1)
 	select {
 	case <-ctx.Done():
-		return serviceCommandResponse{}, ctx.Err()
+		return CommandResponse{}, ctx.Err()
 	case sr.queue <- queuedCommand{cmd: cmd, result: result}:
 	}
 
 	select {
 	case <-ctx.Done():
-		return serviceCommandResponse{}, ctx.Err()
+		return CommandResponse{}, ctx.Err()
 	case out := <-result:
 		return out.resp, out.err
 	}
 }
 
 func writeCommandResponse(file *os.File, status, message string) {
-	_ = json.NewEncoder(file).Encode(serviceCommandResponse{
+	_ = json.NewEncoder(file).Encode(CommandResponse{
 		Status:  status,
 		Message: message,
 	})
@@ -176,7 +178,7 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 	}
 
 	req.Command.Action = strings.ToLower(strings.TrimSpace(req.Command.Action))
-	if err := validateServiceCommand(req.Command); err != nil {
+	if err := validateCommand(req.Command); err != nil {
 		writeCommandResponse(file, "error", err.Error())
 		return
 	}
@@ -237,7 +239,8 @@ func (sr *serviceRunner) clearListenerPipe(handle windows.Handle) {
 }
 
 type gorillaWindowsService struct {
-	cfg config.Configuration
+	cfg        config.Configuration
+	managedRun func(config.Configuration) error
 }
 
 func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
@@ -247,7 +250,7 @@ func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRe
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runner := newServiceRunner(g.cfg)
+	runner := newServiceRunner(g.cfg, g.managedRun)
 	if err := runner.start(ctx); err != nil {
 		gorillalog.Error("failed to start service runner:", err)
 		return false, 1
@@ -277,6 +280,6 @@ func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRe
 	return false, 0
 }
 
-func runService(cfg config.Configuration) error {
-	return svc.Run(cfg.ServiceName, &gorillaWindowsService{cfg: cfg})
+func Run(cfg config.Configuration, managedRun func(config.Configuration) error) error {
+	return svc.Run(cfg.ServiceName, &gorillaWindowsService{cfg: cfg, managedRun: managedRun})
 }

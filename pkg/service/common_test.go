@@ -1,9 +1,9 @@
-package main
+package service
 
 import "testing"
 
-func TestParseServiceCommandSpecInstall(t *testing.T) {
-	cmd, err := parseServiceCommandSpec("install:GoogleChrome, 7zip")
+func TestParseCommandSpecInstall(t *testing.T) {
+	cmd, err := parseCommandSpec("install:GoogleChrome, 7zip")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -15,8 +15,8 @@ func TestParseServiceCommandSpecInstall(t *testing.T) {
 	}
 }
 
-func TestParseServiceCommandSpecRemove(t *testing.T) {
-	cmd, err := parseServiceCommandSpec("remove:GoogleChrome")
+func TestParseCommandSpecRemove(t *testing.T) {
+	cmd, err := parseCommandSpec("remove:GoogleChrome")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -28,8 +28,8 @@ func TestParseServiceCommandSpecRemove(t *testing.T) {
 	}
 }
 
-func TestParseServiceCommandSpecRun(t *testing.T) {
-	cmd, err := parseServiceCommandSpec("run")
+func TestParseCommandSpecRun(t *testing.T) {
+	cmd, err := parseCommandSpec("run")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -41,8 +41,8 @@ func TestParseServiceCommandSpecRun(t *testing.T) {
 	}
 }
 
-func TestParseServiceCommandSpecGetServiceManifest(t *testing.T) {
-	cmd, err := parseServiceCommandSpec("get-service-manifest")
+func TestParseCommandSpecGetServiceManifest(t *testing.T) {
+	cmd, err := parseCommandSpec("get-service-manifest")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -54,8 +54,8 @@ func TestParseServiceCommandSpecGetServiceManifest(t *testing.T) {
 	}
 }
 
-func TestParseServiceCommandSpecGetOptionalItems(t *testing.T) {
-	cmd, err := parseServiceCommandSpec("get-optional-items")
+func TestParseCommandSpecGetOptionalItems(t *testing.T) {
+	cmd, err := parseCommandSpec("get-optional-items")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -67,22 +67,22 @@ func TestParseServiceCommandSpecGetOptionalItems(t *testing.T) {
 	}
 }
 
-func TestParseServiceCommandSpecInvalid(t *testing.T) {
-	_, err := parseServiceCommandSpec("install")
+func TestParseCommandSpecInvalid(t *testing.T) {
+	_, err := parseCommandSpec("install")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
-func TestParseServiceCommandSpecLegacyActionInvalid(t *testing.T) {
-	_, err := parseServiceCommandSpec("uninstall:foo")
+func TestParseCommandSpecLegacyActionInvalid(t *testing.T) {
+	_, err := parseCommandSpec("uninstall:foo")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
-func TestValidateServiceCommandRunWithItems(t *testing.T) {
-	err := validateServiceCommand(serviceCommand{
+func TestValidateCommandRunWithItems(t *testing.T) {
+	err := validateCommand(Command{
 		Action: "run",
 		Items:  []string{"foo"},
 	})

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v4"
 )
 
 var (

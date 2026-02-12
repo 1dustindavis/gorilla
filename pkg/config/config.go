@@ -64,7 +64,7 @@ Options:
 -a, -about          displays the version number and other build info
 -V, -version        display the version number
 -s, -service        run Gorilla as a Windows service
--S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|uninstall:item1|update:item1)
+-S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|remove:item1|get-service-manifest|get-optional-items)
 -serviceinstall     install Gorilla as a Windows service
 -serviceremove      remove Gorilla Windows service
 -servicestart       start Gorilla Windows service

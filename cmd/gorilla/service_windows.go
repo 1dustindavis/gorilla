@@ -21,7 +21,12 @@ import (
 
 type queuedCommand struct {
 	cmd    serviceCommand
-	result chan error
+	result chan queuedResult
+}
+
+type queuedResult struct {
+	resp serviceCommandResponse
+	err  error
 }
 
 type serviceRunner struct {
@@ -57,9 +62,9 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 				return
 			case queued := <-sr.queue:
 				sr.execMutex.Lock()
-				err := executeServiceCommand(sr.cfg, queued.cmd)
+				resp, err := executeServiceCommand(sr.cfg, queued.cmd)
 				sr.execMutex.Unlock()
-				queued.result <- err
+				queued.result <- queuedResult{resp: resp, err: err}
 			}
 		}
 	}()
@@ -70,13 +75,13 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		sr.submit(ctx, serviceCommand{Action: "run"})
+		_, _ = sr.submit(ctx, serviceCommand{Action: "run"})
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				sr.submit(ctx, serviceCommand{Action: "run"})
+				_, _ = sr.submit(ctx, serviceCommand{Action: "run"})
 			}
 		}
 	}()
@@ -99,19 +104,19 @@ func (sr *serviceRunner) stop(ctx context.Context) {
 	_ = ctx
 }
 
-func (sr *serviceRunner) submit(ctx context.Context, cmd serviceCommand) error {
-	result := make(chan error, 1)
+func (sr *serviceRunner) submit(ctx context.Context, cmd serviceCommand) (serviceCommandResponse, error) {
+	result := make(chan queuedResult, 1)
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return serviceCommandResponse{}, ctx.Err()
 	case sr.queue <- queuedCommand{cmd: cmd, result: result}:
 	}
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-result:
-		return err
+		return serviceCommandResponse{}, ctx.Err()
+	case out := <-result:
+		return out.resp, out.err
 	}
 }
 
@@ -176,12 +181,13 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
-	if err := sr.submit(ctx, req.Command); err != nil {
+	resp, err := sr.submit(ctx, req.Command)
+	if err != nil {
 		writeCommandResponse(file, "error", err.Error())
 		return
 	}
 
-	writeCommandResponse(file, "ok", "")
+	_ = json.NewEncoder(file).Encode(resp)
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {

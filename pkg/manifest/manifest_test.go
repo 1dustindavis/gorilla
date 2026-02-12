@@ -23,20 +23,22 @@ var (
 
 	// testManifest is used to confirm the data is processed properly
 	exampleManifest = Item{
-		Name:       "example_manifest",
-		Includes:   []string{"included_manifest"},
-		Installs:   []string{"Chocolatey", "GoogleChrome"},
-		Uninstalls: []string{"AdobeFlash"},
-		Updates:    []string{"ChefClient", "CanonDrivers"},
-		Catalogs:   []string{"production1", "production2"},
+		Name:             "example_manifest",
+		Includes:         []string{"included_manifest"},
+		Installs:         []string{"Chocolatey", "GoogleChrome"},
+		OptionalInstalls: []string{},
+		Uninstalls:       []string{"AdobeFlash"},
+		Updates:          []string{"ChefClient", "CanonDrivers"},
+		Catalogs:         []string{"production1", "production2"},
 	}
 	includedManifest = Item{
-		Name:       "included_manifest",
-		Includes:   []string{},
-		Installs:   []string{"TestInstall1", "TestInstall2"},
-		Uninstalls: []string{"TestUninstall1", "TestUninstall2"},
-		Updates:    []string{"TestUpdate1", "TestUpdate2"},
-		Catalogs:   []string{},
+		Name:             "included_manifest",
+		Includes:         []string{},
+		Installs:         []string{"TestInstall1", "TestInstall2"},
+		OptionalInstalls: []string{},
+		Uninstalls:       []string{"TestUninstall1", "TestUninstall2"},
+		Updates:          []string{"TestUpdate1", "TestUpdate2"},
+		Catalogs:         []string{},
 	}
 	localManifest = Item{
 		Name:       "example_local_manifest",

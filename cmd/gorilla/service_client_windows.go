@@ -50,6 +50,11 @@ func sendServiceCommand(cfg config.Configuration, spec string) error {
 		}
 		return errors.New(resp.Message)
 	}
+	if cmd.Action == "get-service-manifest" || cmd.Action == "get-optional-items" {
+		for _, item := range resp.Items {
+			fmt.Println(item)
+		}
+	}
 
 	return nil
 }

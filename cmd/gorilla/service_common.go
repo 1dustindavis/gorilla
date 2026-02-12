@@ -3,15 +3,17 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"github.com/1dustindavis/gorilla/pkg/download"
-	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
-	"github.com/1dustindavis/gorilla/pkg/process"
+	"go.yaml.in/yaml/v4"
 )
+
+var manifestGet = manifest.Get
 
 type serviceCommand struct {
 	Action string   `json:"action"`
@@ -19,8 +21,9 @@ type serviceCommand struct {
 }
 
 type serviceCommandResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
+	Status  string   `json:"status"`
+	Message string   `json:"message,omitempty"`
+	Items   []string `json:"items,omitempty"`
 }
 
 func parseServiceCommandSpec(spec string) (serviceCommand, error) {
@@ -50,7 +53,11 @@ func validateServiceCommand(cmd serviceCommand) error {
 		if len(cmd.Items) != 0 {
 			return errors.New("run action does not support items")
 		}
-	case "install", "uninstall", "update":
+	case "get-service-manifest", "get-optional-items":
+		if len(cmd.Items) != 0 {
+			return fmt.Errorf("%s action does not support items", cmd.Action)
+		}
+	case "install", "remove":
 		if len(cmd.Items) == 0 {
 			return fmt.Errorf("%s action requires at least one item", cmd.Action)
 		}
@@ -61,59 +68,148 @@ func validateServiceCommand(cmd serviceCommand) error {
 	return nil
 }
 
-func executeServiceCommand(cfg config.Configuration, cmd serviceCommand) error {
+func executeServiceCommand(cfg config.Configuration, cmd serviceCommand) (serviceCommandResponse, error) {
 	switch cmd.Action {
 	case "run":
-		return run(cfg)
+		return serviceCommandResponse{Status: "ok"}, run(withServiceLocalManifest(cfg))
 	case "install":
-		return runSelectedItems(cfg, cmd.Items, nil, nil)
-	case "uninstall":
-		return runSelectedItems(cfg, nil, cmd.Items, nil)
-	case "update":
-		return runSelectedItems(cfg, nil, nil, cmd.Items)
+		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
+			return serviceCommandResponse{}, err
+		}
+		return serviceCommandResponse{Status: "ok"}, run(withServiceLocalManifest(cfg))
+	case "remove":
+		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
+			return serviceCommandResponse{}, err
+		}
+		return serviceCommandResponse{Status: "ok"}, nil
+	case "get-service-manifest":
+		items, err := listServiceManagedInstalls(cfg)
+		if err != nil {
+			return serviceCommandResponse{}, err
+		}
+		return serviceCommandResponse{Status: "ok", Items: items}, nil
+	case "get-optional-items":
+		items, err := getOptionalItems(cfg)
+		if err != nil {
+			return serviceCommandResponse{}, err
+		}
+		return serviceCommandResponse{Status: "ok", Items: items}, nil
 	default:
-		return fmt.Errorf("unsupported service action %q", cmd.Action)
+		return serviceCommandResponse{}, fmt.Errorf("unsupported service action %q", cmd.Action)
 	}
 }
 
-func runSelectedItems(cfg config.Configuration, installs, uninstalls, updates []string) error {
-	buildMode := cfg.BuildArg || cfg.ImportArg != ""
-	if !cfg.CheckOnly && !buildMode {
-		admin, err := adminCheckFunc()
-		if err != nil {
-			return fmt.Errorf("unable to check if running as admin: %w", err)
+func withServiceLocalManifest(cfg config.Configuration) config.Configuration {
+	path := serviceLocalManifestPath(cfg)
+	if !slices.Contains(cfg.LocalManifests, path) {
+		cfg.LocalManifests = append(cfg.LocalManifests, path)
+	}
+	return cfg
+}
+
+func serviceLocalManifestPath(cfg config.Configuration) string {
+	return filepath.Join(cfg.AppDataPath, "service-manifest.yaml")
+}
+
+func listServiceManagedInstalls(cfg config.Configuration) ([]string, error) {
+	item, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return item.Installs, nil
+}
+
+func addServiceManagedInstalls(cfg config.Configuration, items []string) error {
+	entry, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		if !slices.Contains(entry.Installs, item) {
+			entry.Installs = append(entry.Installs, item)
 		}
-		if !admin {
-			return errors.New("gorilla requires admnisistrative access. Please run as an administrator")
+	}
+	slices.Sort(entry.Installs)
+
+	return saveServiceLocalManifest(cfg, entry)
+}
+
+func removeServiceManagedInstalls(cfg config.Configuration, items []string) error {
+	entry, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		return err
+	}
+
+	filtered := make([]string, 0, len(entry.Installs))
+	for _, existing := range entry.Installs {
+		if !slices.Contains(items, existing) {
+			filtered = append(filtered, existing)
 		}
 	}
+	entry.Installs = filtered
+	return saveServiceLocalManifest(cfg, entry)
+}
 
-	if err := mkdirAllFunc(cfg.CachePath, 0755); err != nil {
-		return fmt.Errorf("unable to create cache directory: %w", err)
+func loadServiceLocalManifest(cfg config.Configuration) (manifest.Item, error) {
+	path := serviceLocalManifestPath(cfg)
+	defaultManifest := manifest.Item{
+		Name:     "service-manifest",
+		Installs: []string{},
 	}
 
-	gorillalog.NewLog(cfg)
-	download.SetConfig(cfg)
-
-	_, newCatalogs := manifest.Get(cfg)
-	if newCatalogs != nil {
-		cfg.Catalogs = append(cfg.Catalogs, newCatalogs...)
-	}
-	catalogs := catalog.Get(cfg)
-
-	if len(installs) > 0 {
-		gorillalog.Info("Processing requested service installs...", installs)
-		process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-	}
-	if len(uninstalls) > 0 {
-		gorillalog.Info("Processing requested service uninstalls...", uninstalls)
-		process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-	}
-	if len(updates) > 0 {
-		gorillalog.Info("Processing requested service updates...", updates)
-		process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return defaultManifest, nil
+		}
+		return manifest.Item{}, fmt.Errorf("unable to read service local manifest %s: %w", path, err)
 	}
 
-	process.CleanUp(cfg.CachePath)
+	entry := defaultManifest
+	if err := yaml.Unmarshal(data, &entry); err != nil {
+		return manifest.Item{}, fmt.Errorf("unable to parse service local manifest %s: %w", path, err)
+	}
+	if entry.Name == "" {
+		entry.Name = defaultManifest.Name
+	}
+	return entry, nil
+}
+
+func saveServiceLocalManifest(cfg config.Configuration, entry manifest.Item) error {
+	path := serviceLocalManifestPath(cfg)
+	if err := mkdirAllFunc(filepath.Clean(filepath.Dir(path)), 0755); err != nil {
+		return fmt.Errorf("unable to create local manifest directory: %w", err)
+	}
+
+	entry.Includes = nil
+	entry.Uninstalls = nil
+	entry.Updates = nil
+	entry.Catalogs = nil
+
+	data, err := yaml.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("unable to encode service local manifest: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("unable to write service local manifest %s: %w", path, err)
+	}
 	return nil
+}
+
+func getOptionalItems(cfg config.Configuration) ([]string, error) {
+	manifests, _ := manifestGet(cfg)
+	options := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, m := range manifests {
+		for _, item := range m.OptionalInstalls {
+			if item == "" || seen[item] {
+				continue
+			}
+			seen[item] = true
+			options = append(options, item)
+		}
+	}
+	slices.Sort(options)
+	return options, nil
 }

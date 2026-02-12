@@ -13,12 +13,13 @@ import (
 
 // Item represents a single object from the manifest
 type Item struct {
-	Name       string   `yaml:"name"`
-	Includes   []string `yaml:"included_manifests"`
-	Installs   []string `yaml:"managed_installs"`
-	Uninstalls []string `yaml:"managed_uninstalls"`
-	Updates    []string `yaml:"managed_updates"`
-	Catalogs   []string `yaml:"catalogs"`
+	Name             string   `yaml:"name"`
+	Includes         []string `yaml:"included_manifests"`
+	Installs         []string `yaml:"managed_installs"`
+	OptionalInstalls []string `yaml:"optional_installs"`
+	Uninstalls       []string `yaml:"managed_uninstalls"`
+	Updates          []string `yaml:"managed_updates"`
+	Catalogs         []string `yaml:"catalogs"`
 }
 
 // This abstraction allows us to override when testing

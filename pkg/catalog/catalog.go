@@ -83,22 +83,24 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 	// Loop through the catalogs and get each one in order
 	for _, catalog := range cfg.Catalogs {
 
-		catalogCount++
-
 		// Download the catalog
 		catalogURL := cfg.URL + "catalogs/" + catalog + ".yaml"
 		gorillalog.Info("Catalog Url:", catalogURL)
 		yamlFile, err := downloadGet(catalogURL)
 		if err != nil {
-			gorillalog.Error("Unable to retrieve catalog: ", err)
+			gorillalog.Warn("Unable to retrieve catalog, skipping:", catalogURL, err)
+			continue
 		}
 
 		// Parse the catalog
 		var catalogItems map[string]Item
 		err = yaml.Unmarshal(yamlFile, &catalogItems)
 		if err != nil {
-			gorillalog.Error("Unable to parse yaml catalog: ", err)
+			gorillalog.Warn("Unable to parse yaml catalog, skipping:", catalogURL, err)
+			continue
 		}
+
+		catalogCount++
 
 		// Add the new parsed catalog items to the catalogMap
 		catalogMap[catalogCount] = catalogItems

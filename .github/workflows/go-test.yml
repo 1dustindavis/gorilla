@@ -14,15 +14,17 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
+    - name: Check out code
+      uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
 
     - name: Set Git config
       run: git config --global core.autocrlf false
-
-    - name: Check out code
-      uses: actions/checkout@v2
 
     - name: Build
       run: go build -v ./cmd/gorilla

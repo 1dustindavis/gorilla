@@ -16,6 +16,11 @@ var (
 	procGetFileVersionInfoSize = versionDLL.NewProc("GetFileVersionInfoSizeW")
 	procGetFileVersionInfo     = versionDLL.NewProc("GetFileVersionInfoW")
 	procVerQueryValue          = versionDLL.NewProc("VerQueryValueW")
+
+	// Function seams to make Windows API error paths testable.
+	getFileVersionInfoSizeFunc = getFileVersionInfoSize
+	getFileVersionInfoFunc     = getFileVersionInfo
+	verQueryValueFunc          = verQueryValue
 )
 
 type vsFixedFileInfo struct {
@@ -100,19 +105,19 @@ func verQueryValue(rawMetadata []byte, subBlock string) (uintptr, uint32, bool) 
 func GetFileMetadata(path string) WindowsMetadata {
 	var finalMetadata WindowsMetadata
 
-	bufferSize := getFileVersionInfoSize(path)
+	bufferSize := getFileVersionInfoSizeFunc(path)
 	if bufferSize <= 0 {
 		gorillalog.Info("No metadata found:", path)
 		return finalMetadata
 	}
 
 	rawMetadata := make([]byte, bufferSize)
-	if !getFileVersionInfo(path, rawMetadata) {
+	if !getFileVersionInfoFunc(path, rawMetadata) {
 		gorillalog.Warn("Unable to get metadata:", path)
 		return finalMetadata
 	}
 
-	valuePtr, _, ok := verQueryValue(rawMetadata, "\\")
+	valuePtr, _, ok := verQueryValueFunc(rawMetadata, "\\")
 	if !ok {
 		gorillalog.Warn("Unable to get file version:", path)
 		return finalMetadata
@@ -135,7 +140,7 @@ func GetFileMetadata(path string) WindowsMetadata {
 		finalMetadata.versionBuild,
 	)
 
-	valuePtr, valueLen, ok := verQueryValue(rawMetadata, "\\VarFileInfo\\Translation")
+	valuePtr, valueLen, ok := verQueryValueFunc(rawMetadata, "\\VarFileInfo\\Translation")
 	if !ok {
 		gorillalog.Warn("Unable to get 'translate' metadata:", path)
 		return finalMetadata
@@ -154,7 +159,7 @@ func GetFileMetadata(path string) WindowsMetadata {
 	translation := translations[0]
 
 	productKey := fmt.Sprintf("\\StringFileInfo\\%04x%04x\\ProductName", translation.Lang, translation.CodePage)
-	valuePtr, _, ok = verQueryValue(rawMetadata, productKey)
+	valuePtr, _, ok = verQueryValueFunc(rawMetadata, productKey)
 	if !ok || valuePtr == 0 {
 		gorillalog.Info("Unable to get product name from metadata:", path)
 		return finalMetadata

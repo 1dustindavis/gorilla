@@ -1,9 +1,9 @@
-# Commands used to genereate certificates for tests
-These commands rely on the csr, key, and cnf files that should already exist in download/testdat/
+# Commands used to generate certificates for tests
+These commands rely on the CSR, key, and config files that should already exist in `pkg/download/testdata/`.
 
-Generate rootCA cert:
+Generate root CA cert:
 ```
-openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 365 -out rootCA.crt
+openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.pem
 ```
 
 Generate server cert:
@@ -16,7 +16,7 @@ openssl x509 -req \
     -CAkey rootCA.key \
     -CAcreateserial \
     -out server.pem \
-    -days 365 -sha256
+    -days 3650 -sha256
 ```
 
 Generate client cert:
@@ -29,5 +29,5 @@ openssl x509 -req \
     -CAkey rootCA.key \
     -CAcreateserial \
     -out client.pem \
-    -days 365 -sha256
+    -days 3650 -sha256
 ```

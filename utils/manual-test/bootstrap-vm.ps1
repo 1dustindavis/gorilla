@@ -4,7 +4,6 @@ Bootstrap Gorilla on a Windows VM from prepared manual-test assets.
 
 .DESCRIPTION
 - Downloads gorilla.exe from a provided base URL.
-- Ensures Chocolatey exists (needed for .nupkg flows).
 - Writes config.yaml to ProgramData.
 - Optionally installs/starts service mode.
 #>
@@ -18,8 +17,7 @@ param(
     [string]$Manifest = "example_manifest",
     [string[]]$Catalogs = @("example_catalog"),
     [switch]$InstallService,
-    [switch]$StartService,
-    [switch]$SkipChocolateyInstall
+    [switch]$StartService
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,27 +31,6 @@ function Test-IsAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Test-CommandExists {
-    param([string]$CommandName)
-    return [bool](Get-Command $CommandName -ErrorAction SilentlyContinue)
-}
-
-function Ensure-Chocolatey {
-    if (Test-CommandExists "choco") {
-        Write-Step "Chocolatey already installed"
-        return
-    }
-
-    if ($SkipChocolateyInstall) {
-        throw "Chocolatey is not installed. Re-run without -SkipChocolateyInstall, or install it manually."
-    }
-
-    Write-Step "Installing Chocolatey"
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))
 }
 
 function Convert-ToYamlPath {
@@ -129,8 +106,6 @@ if (-not (Test-IsAdministrator)) {
 if (-not $BaseUrl.EndsWith("/")) {
     $BaseUrl = "$BaseUrl/"
 }
-
-Ensure-Chocolatey
 
 New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
 $binaryPath = Join-Path $InstallPath "gorilla.exe"

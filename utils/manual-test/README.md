@@ -62,7 +62,6 @@ From the copied `build/manual-test/vm/` folder on the VM:
 
 Optional switches:
 - `.\bootstrap-vm.bat -InstallService -StartService`
-- `.\bootstrap-vm.bat -SkipChocolateyInstall`
 - One-off URL override: `.\bootstrap-vm.bat http://192.168.1.99:8080/`
 
 ## 4) Manual run on VM

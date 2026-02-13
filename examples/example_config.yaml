@@ -6,3 +6,6 @@ catalogs:
 app_data_path: c:/cpe/gorilla/cache
 # auth_user: johnny
 # auth_pass: pizza
+# service_name: gorilla
+# service_interval: 1h
+# service_pipe_name: gorilla-service

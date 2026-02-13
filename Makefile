@@ -9,6 +9,8 @@ endif
 
 PATH := $(GOPATH)/bin:$(PATH)
 VERSION = $(shell git describe --tags --always --dirty)
+VERSION_NO_PREFIX = $(patsubst v%,%,$(VERSION))
+MSI_VERSION = $(word 1,$(subst +, ,$(word 1,$(subst -, ,$(VERSION_NO_PREFIX)))))
 BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
@@ -55,6 +57,7 @@ define HELP_TEXT
 	make clean         - Delete all build artifacts
 
 	make build         - Build the code
+	make msi           - Build Windows MSI (requires WiX on Windows)
 	make bootstrap     - Build manual-test assets/server and generate VM scripts
 	make bootstrap-run - Build manual-test assets/server and run local test server
 
@@ -77,6 +80,14 @@ clean:
 
 build: .pre-build
 	GOOS=windows GOARCH=amd64 go build -o build/${APP_NAME}.exe -ldflags ${BUILD_VERSION} ./cmd/gorilla
+
+msi: build
+ifeq ($(OS), Windows_NT)
+	powershell -Command "$$env:PRODUCT_VERSION='${MSI_VERSION}'; cd wix; ./make-msi.bat"
+else
+	@echo "msi target requires Windows and WiX"
+	@exit 1
+endif
 
 manual-test-server: .pre-build
 	cd utils/manual-test/server && go build -o ../../../build/manual-test-server .

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/service"
 )
 
 func resetMainHooks() {
@@ -15,6 +18,11 @@ func resetMainHooks() {
 	mkdirAllFunc = os.MkdirAll
 	buildCatalogsFunc = admin.BuildCatalogs
 	importItemFunc = admin.ImportItem
+	managedRunFunc = managedRun
+	runServiceFunc = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc) }
+	sendServiceCommandFunc = service.SendCommand
+	runServiceActionFunc = service.RunAction
+	serviceStatusFunc = service.ServiceStatus
 }
 
 func TestRunAdminCheckError(t *testing.T) {
@@ -28,7 +36,7 @@ func TestRunAdminCheckError(t *testing.T) {
 		return nil
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -48,7 +56,7 @@ func TestRunRequiresAdmin(t *testing.T) {
 		return nil
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -69,7 +77,7 @@ func TestRunCheckOnlySkipsAdminCheck(t *testing.T) {
 	}
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -89,7 +97,7 @@ func TestRunCreateCacheError(t *testing.T) {
 	adminCheckFunc = func() (bool, error) { return true, nil }
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -125,7 +133,7 @@ func TestRunBuildMode(t *testing.T) {
 	}
 	importItemFunc = func(repoPath, itemPath string) error { return nil }
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -158,11 +166,424 @@ func TestRunImportModeError(t *testing.T) {
 		return errors.New("not implemented")
 	}
 
-	err := run(cfg)
+	err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
 	if !strings.Contains(err.Error(), "error importing item: not implemented") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestExecuteServiceModesSkipRun(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceAction := ""
+	serviceCommand := ""
+	serviceMode := false
+	serviceStatusCalled := false
+	runCalled := false
+
+	managedRunFunc = func(cfg config.Configuration) error {
+		runCalled = true
+		return nil
+	}
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		serviceAction = action
+		return nil
+	}
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		serviceCommand = spec
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+	runServiceFunc = func(cfg config.Configuration) error {
+		serviceMode = true
+		return nil
+	}
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		serviceStatusCalled = true
+		return "running", nil
+	}
+
+	tests := []struct {
+		name          string
+		cfg           config.Configuration
+		wantAction    string
+		wantCommand   string
+		wantSvcMode   bool
+		wantSvcStatus bool
+		expectRunCall bool
+	}{
+		{
+			name: "service install",
+			cfg: config.Configuration{
+				ServiceInstall: true,
+			},
+			wantAction:    "install",
+			expectRunCall: false,
+		},
+		{
+			name: "service remove",
+			cfg: config.Configuration{
+				ServiceRemove: true,
+			},
+			wantAction:    "remove",
+			expectRunCall: false,
+		},
+		{
+			name: "service start",
+			cfg: config.Configuration{
+				ServiceStart: true,
+			},
+			wantAction:    "start",
+			expectRunCall: false,
+		},
+		{
+			name: "service stop",
+			cfg: config.Configuration{
+				ServiceStop: true,
+			},
+			wantAction:    "stop",
+			expectRunCall: false,
+		},
+		{
+			name: "service status",
+			cfg: config.Configuration{
+				ServiceStatus: true,
+			},
+			wantSvcStatus: true,
+			expectRunCall: false,
+		},
+		{
+			name: "service command",
+			cfg: config.Configuration{
+				ServiceCommand: "run",
+			},
+			wantCommand:   "run",
+			expectRunCall: false,
+		},
+		{
+			name: "service mode",
+			cfg: config.Configuration{
+				ServiceMode: true,
+			},
+			wantSvcMode:   true,
+			expectRunCall: false,
+		},
+		{
+			name:          "normal mode",
+			cfg:           config.Configuration{},
+			expectRunCall: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serviceAction = ""
+			serviceCommand = ""
+			serviceMode = false
+			serviceStatusCalled = false
+			runCalled = false
+
+			err := route(tt.cfg)
+			if err != nil {
+				t.Fatalf("execute returned unexpected error: %v", err)
+			}
+
+			if runCalled != tt.expectRunCall {
+				t.Fatalf("managedRun called = %v, expected %v", runCalled, tt.expectRunCall)
+			}
+			if serviceAction != tt.wantAction {
+				t.Fatalf("service action = %q, expected %q", serviceAction, tt.wantAction)
+			}
+			if serviceCommand != tt.wantCommand {
+				t.Fatalf("service command = %q, expected %q", serviceCommand, tt.wantCommand)
+			}
+			if serviceMode != tt.wantSvcMode {
+				t.Fatalf("service mode call = %v, expected %v", serviceMode, tt.wantSvcMode)
+			}
+			if serviceStatusCalled != tt.wantSvcStatus {
+				t.Fatalf("service status call = %v, expected %v", serviceStatusCalled, tt.wantSvcStatus)
+			}
+		})
+	}
+}
+
+func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceAction := ""
+	serviceCommandCalled := false
+	serviceModeCalled := false
+	serviceStatusCalled := false
+	runCalled := false
+
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		serviceAction = action
+		return nil
+	}
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		serviceCommandCalled = true
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+	runServiceFunc = func(cfg config.Configuration) error {
+		serviceModeCalled = true
+		return nil
+	}
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		serviceStatusCalled = true
+		return "running", nil
+	}
+	managedRunFunc = func(cfg config.Configuration) error {
+		runCalled = true
+		return nil
+	}
+
+	cfg := config.Configuration{
+		ServiceInstall: true,
+		ServiceRemove:  true,
+		ServiceStart:   true,
+		ServiceStop:    true,
+		ServiceStatus:  true,
+		ServiceCommand: "run",
+		ServiceMode:    true,
+	}
+	if err := route(cfg); err != nil {
+		t.Fatalf("unexpected route error: %v", err)
+	}
+
+	if serviceAction != "install" {
+		t.Fatalf("expected install action, got %q", serviceAction)
+	}
+	if serviceCommandCalled {
+		t.Fatalf("service command branch should not run when service install is set")
+	}
+	if serviceModeCalled {
+		t.Fatalf("service mode branch should not run when service install is set")
+	}
+	if serviceStatusCalled {
+		t.Fatalf("service status branch should not run when service install is set")
+	}
+	if runCalled {
+		t.Fatalf("managedRun should not run when service install is set")
+	}
+}
+
+func TestRouteServiceCommandPrintsItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{
+			Status: "ok",
+			Items:  []string{"GoogleChrome", "VSCode"},
+		}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "GoogleChrome") || !strings.Contains(stdout, "VSCode") {
+		t.Fatalf("expected stdout to include response items, got %q", stdout)
+	}
+}
+
+func TestRouteServiceStatusPrintsValue(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		return "state: running\nstart_type: automatic", nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceStatus: true})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "Service status:") {
+		t.Fatalf("expected stdout to include service status header, got %q", stdout)
+	}
+	if !strings.Contains(stdout, "state: running") {
+		t.Fatalf("expected stdout to include service status, got %q", stdout)
+	}
+}
+
+func TestRouteServiceActionPrintsSuccess(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		return nil
+	}
+
+	tests := []struct {
+		name       string
+		cfg        config.Configuration
+		wantOutput string
+	}{
+		{
+			name: "service install",
+			cfg: config.Configuration{
+				ServiceInstall: true,
+			},
+			wantOutput: "Service installed successfully",
+		},
+		{
+			name: "service remove",
+			cfg: config.Configuration{
+				ServiceRemove: true,
+			},
+			wantOutput: "Service removed successfully",
+		},
+		{
+			name: "service start",
+			cfg: config.Configuration{
+				ServiceStart: true,
+			},
+			wantOutput: "Service started successfully",
+		},
+		{
+			name: "service stop",
+			cfg: config.Configuration{
+				ServiceStop: true,
+			},
+			wantOutput: "Service stopped successfully",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := captureStdout(t, func() {
+				err := route(tt.cfg)
+				if err != nil {
+					t.Fatalf("unexpected route error: %v", err)
+				}
+			})
+
+			if !strings.Contains(stdout, tt.wantOutput) {
+				t.Fatalf("expected stdout to include %q, got %q", tt.wantOutput, stdout)
+			}
+		})
+	}
+}
+
+func TestRouteServiceCommandPrintsSuccessWhenNoItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "install:GoogleChrome"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "Service install command completed successfully") {
+		t.Fatalf("expected stdout to include success message, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandPrintsNoneForEmptyServiceManifest(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "none" {
+		t.Fatalf("expected stdout to be none, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandPrintsNoneForEmptyOptionalItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-optional-items"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "none" {
+		t.Fatalf("expected stdout to be none, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandErrorDoesNotPrintItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{}, errors.New("boom")
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err == nil {
+			t.Fatalf("expected route error")
+		}
+		if !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "" {
+		t.Fatalf("expected no stdout output on command error, got %q", stdout)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe creation failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() {
+		os.Stdout = origStdout
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("stdout pipe close failed: %v", err)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("stdout pipe read failed: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("stdout pipe close failed: %v", err)
+	}
+
+	return fmt.Sprint(buf.String())
 }

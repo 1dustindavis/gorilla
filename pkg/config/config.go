@@ -17,24 +17,33 @@ var (
 	cachePath string
 
 	// Define flag defaults
-	aboutArg         bool
-	aboutDefault     = false
-	configArg        string
-	configDefault    = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
-	debugArg         bool
-	debugDefault     = false
-	buildArg         bool
-	buildDefault     = false
-	importArg        string
-	importDefault    = ""
-	helpArg          bool
-	helpDefault      = false
-	verboseArg       bool
-	verboseDefault   = false
-	checkOnlyArg     bool
-	checkOnlyDefault = false
-	versionArg       bool
-	versionDefault   = false
+	aboutArg          bool
+	aboutDefault      = false
+	configArg         string
+	configDefault     = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
+	debugArg          bool
+	debugDefault      = false
+	buildArg          bool
+	buildDefault      = false
+	importArg         string
+	importDefault     = ""
+	helpArg           bool
+	helpDefault       = false
+	verboseArg        bool
+	verboseDefault    = false
+	checkOnlyArg      bool
+	checkOnlyDefault  = false
+	versionArg        bool
+	versionDefault    = false
+	serviceArg        bool
+	serviceDefault    = false
+	serviceCmdArg     string
+	serviceCmdDefault = ""
+	serviceInstallArg bool
+	serviceRemoveArg  bool
+	serviceStartArg   bool
+	serviceStopArg    bool
+	serviceStatusArg  bool
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -55,31 +64,49 @@ Options:
 -d, -debug          enable debug output
 -a, -about          displays the version number and other build info
 -V, -version        display the version number
+-s, -service        run Gorilla as a Windows service
+-S, -servicecmd     send a command to a running Gorilla service (run|install:item1,item2|remove:item1|get-service-manifest|get-optional-items)
+-serviceinstall     install Gorilla as a Windows service
+-serviceremove      remove Gorilla Windows service
+-servicestart       start Gorilla Windows service
+-servicestop        stop Gorilla Windows service
+-servicestatus      show Gorilla Windows service status
 -h, -help           display this help message
 
 `
 
 // Configuration stores all of the possible parameters a config file could contain
 type Configuration struct {
-	URL            string   `yaml:"url"`
-	URLPackages    string   `yaml:"url_packages"`
-	Manifest       string   `yaml:"manifest"`
-	LocalManifests []string `yaml:"local_manifests,omitempty"`
-	Catalogs       []string `yaml:"catalogs"`
-	AppDataPath    string   `yaml:"app_data_path"`
-	Verbose        bool     `yaml:"verbose,omitempty"`
-	Debug          bool     `yaml:"debug,omitempty"`
-	CheckOnly      bool     `yaml:"checkonly,omitempty"`
-	BuildArg       bool
-	ImportArg      string
-	RepoPath       string `yaml:"repo_path,omitempty"`
-	AuthUser       string `yaml:"auth_user,omitempty"`
-	AuthPass       string `yaml:"auth_pass,omitempty"`
-	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
-	CachePath      string
+	URL             string   `yaml:"url"`
+	URLPackages     string   `yaml:"url_packages"`
+	Manifest        string   `yaml:"manifest"`
+	LocalManifests  []string `yaml:"local_manifests,omitempty"`
+	Catalogs        []string `yaml:"catalogs"`
+	AppDataPath     string   `yaml:"app_data_path"`
+	Verbose         bool     `yaml:"verbose,omitempty"`
+	Debug           bool     `yaml:"debug,omitempty"`
+	CheckOnly       bool     `yaml:"checkonly,omitempty"`
+	BuildArg        bool
+	ImportArg       string
+	RepoPath        string `yaml:"repo_path,omitempty"`
+	AuthUser        string `yaml:"auth_user,omitempty"`
+	AuthPass        string `yaml:"auth_pass,omitempty"`
+	TLSAuth         bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert   string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey    string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert   string `yaml:"tls_server_cert,omitempty"`
+	CachePath       string
+	ServiceMode     bool `yaml:"service_mode,omitempty"`
+	ServiceCommand  string
+	ServiceInstall  bool
+	ServiceRemove   bool
+	ServiceStart    bool
+	ServiceStop     bool
+	ServiceStatus   bool
+	ServiceName     string `yaml:"service_name,omitempty"`
+	ServiceInterval string `yaml:"service_interval,omitempty"`
+	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
+	ConfigPath      string
 }
 
 func init() {
@@ -112,6 +139,18 @@ func init() {
 	// Version
 	flag.BoolVar(&versionArg, "version", versionDefault, "")
 	flag.BoolVar(&versionArg, "V", versionDefault, "")
+	// Service mode
+	flag.BoolVar(&serviceArg, "service", serviceDefault, "")
+	flag.BoolVar(&serviceArg, "s", serviceDefault, "")
+	// Service command
+	flag.StringVar(&serviceCmdArg, "servicecmd", serviceCmdDefault, "")
+	flag.StringVar(&serviceCmdArg, "S", serviceCmdDefault, "")
+	// Service install/remove/start/stop
+	flag.BoolVar(&serviceInstallArg, "serviceinstall", false, "")
+	flag.BoolVar(&serviceRemoveArg, "serviceremove", false, "")
+	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
+	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
+	flag.BoolVar(&serviceStatusArg, "servicestatus", false, "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -155,8 +194,11 @@ func Get() Configuration {
 		osExit(1)
 	}
 
+	serviceControlMode := serviceInstallArg || serviceRemoveArg || serviceStartArg || serviceStopArg || serviceStatusArg
+	serviceClientMode := serviceCmdArg != ""
+
 	// Normal run mode requires both manifest and URL.
-	if !cfg.BuildArg && cfg.ImportArg == "" {
+	if !cfg.BuildArg && cfg.ImportArg == "" && !serviceControlMode && !serviceClientMode {
 		if cfg.Manifest == "" {
 			fmt.Println("Invalid configuration - Manifest: ", err)
 			osExit(1)
@@ -196,9 +238,28 @@ func Get() Configuration {
 	}
 	cfg.BuildArg = build
 	cfg.ImportArg = importValue
+	cfg.ConfigPath = configPath
+	cfg.ServiceMode = serviceArg
+	cfg.ServiceCommand = serviceCmdArg
+	cfg.ServiceInstall = serviceInstallArg
+	cfg.ServiceRemove = serviceRemoveArg
+	cfg.ServiceStart = serviceStartArg
+	cfg.ServiceStop = serviceStopArg
+	cfg.ServiceStatus = serviceStatusArg
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")
+	serviceManifestPath := filepath.Join(cfg.AppDataPath, "service-manifest.yaml")
+	var hasServiceManifest bool
+	for _, localManifest := range cfg.LocalManifests {
+		if localManifest == serviceManifestPath {
+			hasServiceManifest = true
+			break
+		}
+	}
+	if !hasServiceManifest {
+		cfg.LocalManifests = append(cfg.LocalManifests, serviceManifestPath)
+	}
 
 	// If RepoPath wasn't provided, default to current working directory.
 	if cfg.RepoPath == "" {
@@ -213,6 +274,17 @@ func Get() Configuration {
 	// Add to GorillaReport
 	report.Items["Manifest"] = cfg.Manifest
 	report.Items["Catalog"] = cfg.Catalogs
+
+	// Configure service defaults.
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = "gorilla"
+	}
+	if cfg.ServiceInterval == "" {
+		cfg.ServiceInterval = "1h"
+	}
+	if cfg.ServicePipeName == "" {
+		cfg.ServicePipeName = "gorilla-service"
+	}
 
 	return cfg
 }

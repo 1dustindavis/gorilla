@@ -92,6 +92,36 @@ app_data_path: $yamlAppDataPath
     Set-Content -Path $ConfigFilePath -Value $content -Encoding ASCII
 }
 
+function Ensure-PathEntry {
+    param([string]$DirectoryPath)
+
+    $resolvedDir = (Resolve-Path $DirectoryPath).Path.TrimEnd("\")
+
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    if (-not $machinePath) {
+        $machinePath = ""
+    }
+
+    $machineEntries = @($machinePath -split ";" | Where-Object { $_ -ne "" })
+    $normalizedMachineEntries = @($machineEntries | ForEach-Object { $_.TrimEnd("\").ToLowerInvariant() })
+    $normalizedDir = $resolvedDir.ToLowerInvariant()
+
+    if ($normalizedMachineEntries -notcontains $normalizedDir) {
+        $newMachinePath = if ($machinePath) { "$machinePath;$resolvedDir" } else { $resolvedDir }
+        [Environment]::SetEnvironmentVariable("Path", $newMachinePath, "Machine")
+        Write-Step "Added $resolvedDir to machine PATH"
+    }
+    else {
+        Write-Step "Install path already exists in machine PATH"
+    }
+
+    $processEntries = @($env:Path -split ";" | Where-Object { $_ -ne "" })
+    $normalizedProcessEntries = @($processEntries | ForEach-Object { $_.TrimEnd("\").ToLowerInvariant() })
+    if ($normalizedProcessEntries -notcontains $normalizedDir) {
+        $env:Path = if ($env:Path) { "$env:Path;$resolvedDir" } else { $resolvedDir }
+    }
+}
+
 if (-not (Test-IsAdministrator)) {
     throw "Run this script from an elevated PowerShell session (Run as Administrator)."
 }
@@ -111,6 +141,7 @@ Invoke-WebRequest -Uri $binaryUrl -OutFile $binaryPath
 
 Write-Step "Writing config to $ConfigPath"
 Write-GorillaConfig -ConfigFilePath $ConfigPath -URLValue $BaseUrl -ManifestValue $Manifest -CatalogList $Catalogs -AppDataPathValue $AppDataPath
+Ensure-PathEntry -DirectoryPath $InstallPath
 
 if ($InstallService) {
     Write-Step "Installing Gorilla Windows service"
@@ -125,6 +156,9 @@ if ($StartService) {
 Write-Step "Bootstrap complete"
 Write-Host "Binary: $binaryPath"
 Write-Host "Config: $ConfigPath"
+Write-Host ""
+Write-Host "Install path added to PATH: $InstallPath"
+Write-Host "New CMD/PowerShell windows will pick up PATH automatically."
 Write-Host ""
 Write-Host "Manual test command:"
 Write-Host "& `"$binaryPath`" -c `"$ConfigPath`" -C -v"

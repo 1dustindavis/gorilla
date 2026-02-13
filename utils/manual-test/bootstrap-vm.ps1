@@ -110,8 +110,18 @@ function Remove-ExistingGorillaService {
 
     Write-Step "Existing '$ServiceName' service detected; stopping and removing it"
 
+    # Prevent SCM from auto-restarting the service while we are replacing gorilla.exe.
+    sc.exe failure $ServiceName reset= 0 actions= "" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Unable to clear failure actions for service '$ServiceName'."
+    }
+    sc.exe failureflag $ServiceName 0 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Unable to clear failure flag for service '$ServiceName'."
+    }
+
     if ($existingService.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
-        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+        sc.exe stop $ServiceName | Out-Null
         $serviceStopped = $false
         for ($i = 0; $i -lt 30; $i++) {
             Start-Sleep -Seconds 1
@@ -122,7 +132,24 @@ function Remove-ExistingGorillaService {
             }
         }
         if (-not $serviceStopped) {
-            throw "Timed out waiting for service '$ServiceName' to stop."
+            $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+            if ($serviceInfo -and $serviceInfo.ProcessId -gt 0) {
+                Write-Step "Service '$ServiceName' did not stop in time; terminating PID $($serviceInfo.ProcessId)"
+                Stop-Process -Id $serviceInfo.ProcessId -Force -ErrorAction Stop
+
+                for ($i = 0; $i -lt 10; $i++) {
+                    Start-Sleep -Seconds 1
+                    $serviceState = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+                    if (-not $serviceState -or $serviceState.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                        $serviceStopped = $true
+                        break
+                    }
+                }
+            }
+        }
+
+        if (-not $serviceStopped) {
+            throw "Timed out waiting for service '$ServiceName' to stop, even after force-terminating its process."
         }
     }
 

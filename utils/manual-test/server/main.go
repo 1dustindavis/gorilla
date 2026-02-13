@@ -40,8 +40,8 @@ func main() {
 
 	fmt.Printf("Serving %s on http://localhost%s\n", absRoot, addr)
 	fmt.Println("Expected Gorilla paths:")
-	fmt.Printf("  http://localhost%s/manifests/example_manifest\n", addr)
-	fmt.Printf("  http://localhost%s/catalogs/example_catalog\n", addr)
+	fmt.Printf("  http://localhost%s/manifests/example_manifest.yaml\n", addr)
+	fmt.Printf("  http://localhost%s/catalogs/example_catalog.yaml\n", addr)
 	fmt.Printf("  http://localhost%s/gorilla.exe\n", addr)
 
 	log.Fatal(http.ListenAndServe(addr, handler))

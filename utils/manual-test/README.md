@@ -5,6 +5,7 @@ This directory supports a fast macOS -> Windows VM manual test loop.
 ## Loop
 1. Make code changes on macOS.
 2. Run `make bootstrap-run` on macOS.
+3. Start the local test server on macOS (included in `bootstrap-run`).
 4. Copy generated VM scripts from `build/manual-test/vm/` to the VM.
 5. Run one VM bootstrap script to pull the latest binary/config.
 6. Run Gorilla manually on the VM.
@@ -25,8 +26,8 @@ make bootstrap
 
 This creates:
 - `build/manual-test/server-root/gorilla.exe`
-- `build/manual-test/server-root/manifests/example_manifest`
-- `build/manual-test/server-root/catalogs/example_catalog`
+- `build/manual-test/server-root/manifests/example_manifest.yaml`
+- `build/manual-test/server-root/catalogs/example_catalog.yaml`
 - `build/manual-test/server-root/packages/` (empty)
 - `build/manual-test-server` (Go static file server)
 - `build/manual-test/vm/bootstrap-vm.ps1`

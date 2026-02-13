@@ -92,6 +92,7 @@ bootstrap: build manual-test-server
 	cp utils/manual-test/bootstrap-vm.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm.ps1
 	cp utils/manual-test/bootstrap-vm-full.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm-full.ps1
 	cp utils/manual-test/templates/run-gorilla-check.bat ${MANUAL_TEST_VM_DIR}/run-gorilla-check.bat
+	cp utils/manual-test/run-release-integration.bat ${MANUAL_TEST_VM_DIR}/run-release-integration.bat
 	@BASE_URL="${MANUAL_TEST_BASE_URL}"; \
 	if [ -z "$$BASE_URL" ]; then \
 	  if [ "$(CURRENT_PLATFORM)" = "darwin" ]; then \

@@ -35,6 +35,7 @@ This creates:
 - `build/manual-test/vm/bootstrap-vm-full.ps1`
 - `build/manual-test/vm/bootstrap-vm-full.bat` (URL stamped automatically)
 - `build/manual-test/vm/run-gorilla-check.bat`
+- `build/manual-test/vm/run-release-integration.bat`
 - `build/manual-test/vm/base-url.txt` (resolved URL used for stamping)
 
 `make bootstrap` auto-detects a URL like `http://<your-mac-ip>:8080/`.
@@ -89,7 +90,7 @@ Optional switches:
 From repo root on the VM:
 
 ```bat
-.\utils\manual-test\run-release-integration.bat
+.\build\manual-test\vm\run-release-integration.bat
 ```
 
 Recommended flow first:
@@ -99,5 +100,5 @@ Recommended flow first:
 ```
 
 Optional args:
-- `.\utils\manual-test\run-release-integration.bat C:\path\to\gorilla.exe`
-- `.\utils\manual-test\run-release-integration.bat C:\path\to\gorilla.exe C:\temp\gorilla-release-integration`
+- `.\build\manual-test\vm\run-release-integration.bat C:\path\to\gorilla.exe`
+- `.\build\manual-test\vm\run-release-integration.bat C:\path\to\gorilla.exe C:\temp\gorilla-release-integration`

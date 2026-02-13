@@ -17,7 +17,8 @@ param(
     [string]$Manifest = "example_manifest",
     [string[]]$Catalogs = @("example_catalog"),
     [switch]$InstallService,
-    [switch]$StartService
+    [switch]$StartService,
+    [switch]$NoPause
 )
 
 $ErrorActionPreference = "Stop"
@@ -137,3 +138,9 @@ Write-Host "New CMD/PowerShell windows will pick up PATH automatically."
 Write-Host ""
 Write-Host "Manual test command:"
 Write-Host "& `"$binaryPath`" -c `"$ConfigPath`" -C -v"
+
+if (-not $NoPause) {
+    Write-Host ""
+    Write-Host "Press any key to continue..."
+    [void]$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}

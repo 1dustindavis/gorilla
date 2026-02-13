@@ -12,5 +12,8 @@ if "%~1"=="" (
 
 echo Using Base URL: %BASE_URL%
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bootstrap-vm.ps1" -BaseUrl "%BASE_URL%" %*
-exit /b %errorlevel%
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bootstrap-vm.ps1" -BaseUrl "%BASE_URL%" -NoPause %*
+set "EXITCODE=%errorlevel%"
+echo.
+pause
+exit /b %EXITCODE%

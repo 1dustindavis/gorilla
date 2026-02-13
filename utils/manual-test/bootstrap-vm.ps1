@@ -100,45 +100,6 @@ function Ensure-PathEntry {
     }
 }
 
-function Remove-ExistingGorillaService {
-    param([string]$ServiceName = "gorilla")
-
-    $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if (-not $existingService) {
-        return
-    }
-
-    Write-Step "Existing '$ServiceName' service detected; stopping and removing it"
-
-    if ($existingService.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
-        Stop-Service -Name $ServiceName -Force -ErrorAction Stop
-        $serviceStopped = $false
-        for ($i = 0; $i -lt 30; $i++) {
-            Start-Sleep -Seconds 1
-            $serviceState = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-            if (-not $serviceState -or $serviceState.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
-                $serviceStopped = $true
-                break
-            }
-        }
-        if (-not $serviceStopped) {
-            throw "Timed out waiting for service '$ServiceName' to stop."
-        }
-    }
-
-    sc.exe delete $ServiceName | Out-Null
-
-    for ($i = 0; $i -lt 30; $i++) {
-        Start-Sleep -Milliseconds 250
-        if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
-            Write-Step "Removed existing '$ServiceName' service"
-            return
-        }
-    }
-
-    throw "Timed out waiting for service '$ServiceName' to be removed."
-}
-
 if (-not (Test-IsAdministrator)) {
     throw "Run this script from an elevated PowerShell session (Run as Administrator)."
 }
@@ -150,8 +111,6 @@ if (-not $BaseUrl.EndsWith("/")) {
 New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
 $binaryPath = Join-Path $InstallPath "gorilla.exe"
 $binaryUrl = "$BaseUrl" + "gorilla.exe"
-
-Remove-ExistingGorillaService
 
 Write-Step "Downloading Gorilla binary from $binaryUrl"
 Invoke-WebRequest -Uri $binaryUrl -OutFile $binaryPath

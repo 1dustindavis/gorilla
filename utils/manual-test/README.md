@@ -32,7 +32,10 @@ This creates:
 - `build/manual-test-server` (Go static file server)
 - `build/manual-test/vm/bootstrap-vm.ps1`
 - `build/manual-test/vm/bootstrap-vm.bat` (URL stamped automatically)
+- `build/manual-test/vm/bootstrap-vm-full.ps1`
+- `build/manual-test/vm/bootstrap-vm-full.bat` (URL stamped automatically)
 - `build/manual-test/vm/run-gorilla-check.bat`
+- `build/manual-test/vm/run-release-integration.bat`
 - `build/manual-test/vm/base-url.txt` (resolved URL used for stamping)
 
 `make bootstrap` auto-detects a URL like `http://<your-mac-ip>:8080/`.
@@ -64,6 +67,16 @@ Optional switches:
 - `.\bootstrap-vm.bat -InstallService -StartService`
 - One-off URL override: `.\bootstrap-vm.bat http://192.168.1.99:8080/`
 
+For full integration-test prerequisites (go/chocolatey/WiX):
+
+```bat
+.\bootstrap-vm-full.bat
+```
+
+Optional switches:
+- `.\bootstrap-vm-full.bat -InstallService -StartService`
+- One-off URL override: `.\bootstrap-vm-full.bat http://192.168.1.99:8080/`
+
 ## 4) Manual run on VM
 
 ```bat
@@ -71,3 +84,21 @@ Optional switches:
 ```
 
 `-C` runs check-only mode so you can quickly validate config/flow without installing packages.
+
+## 5) Run release integration script from VM
+
+From repo root on the VM:
+
+```bat
+.\build\manual-test\vm\run-release-integration.bat
+```
+
+Recommended flow first:
+
+```bat
+.\build\manual-test\vm\bootstrap-vm-full.bat
+```
+
+Optional args:
+- `.\build\manual-test\vm\run-release-integration.bat C:\path\to\gorilla.exe`
+- `.\build\manual-test\vm\run-release-integration.bat C:\path\to\gorilla.exe C:\temp\gorilla-release-integration`

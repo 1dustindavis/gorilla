@@ -90,7 +90,9 @@ bootstrap: build manual-test-server
 	cp examples/example_manifest.yaml ${MANUAL_TEST_SERVER_ROOT}/manifests/example_manifest.yaml
 	cp examples/example_catalog.yaml ${MANUAL_TEST_SERVER_ROOT}/catalogs/example_catalog.yaml
 	cp utils/manual-test/bootstrap-vm.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm.ps1
+	cp utils/manual-test/bootstrap-vm-full.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm-full.ps1
 	cp utils/manual-test/templates/run-gorilla-check.bat ${MANUAL_TEST_VM_DIR}/run-gorilla-check.bat
+	cp utils/manual-test/run-release-integration.bat ${MANUAL_TEST_VM_DIR}/run-release-integration.bat
 	@BASE_URL="${MANUAL_TEST_BASE_URL}"; \
 	if [ -z "$$BASE_URL" ]; then \
 	  if [ "$(CURRENT_PLATFORM)" = "darwin" ]; then \
@@ -105,6 +107,7 @@ bootstrap: build manual-test-server
 	  BASE_URL="http://$$IP_ADDR:8080/"; \
 	fi; \
 	sed 's#@DEFAULT_BASE_URL@#'"$$BASE_URL"'#g' utils/manual-test/templates/bootstrap-vm.bat > ${MANUAL_TEST_VM_DIR}/bootstrap-vm.bat; \
+	sed 's#@DEFAULT_BASE_URL@#'"$$BASE_URL"'#g' utils/manual-test/templates/bootstrap-vm-full.bat > ${MANUAL_TEST_VM_DIR}/bootstrap-vm-full.bat; \
 	echo "$$BASE_URL" > ${MANUAL_TEST_VM_DIR}/base-url.txt; \
 	echo "Using manual-test base URL: $$BASE_URL"
 	@echo "Prepared manual-test assets in ${MANUAL_TEST_SERVER_ROOT}"

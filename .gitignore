@@ -28,3 +28,6 @@ config.yaml
 # WIX files
 *.wixpdb
 *.wixobj
+
+# Local build artifacts
+build/

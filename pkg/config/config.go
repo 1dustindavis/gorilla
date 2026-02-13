@@ -249,6 +249,17 @@ func Get() Configuration {
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")
+	serviceManifestPath := filepath.Join(cfg.AppDataPath, "service-manifest.yaml")
+	var hasServiceManifest bool
+	for _, localManifest := range cfg.LocalManifests {
+		if localManifest == serviceManifestPath {
+			hasServiceManifest = true
+			break
+		}
+	}
+	if !hasServiceManifest {
+		cfg.LocalManifests = append(cfg.LocalManifests, serviceManifestPath)
+	}
 
 	// If RepoPath wasn't provided, default to current working directory.
 	if cfg.RepoPath == "" {

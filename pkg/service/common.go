@@ -86,12 +86,12 @@ func serviceInstallArgs(configPath string) []string {
 func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
 	switch cmd.Action {
 	case "run":
-		return CommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
+		return CommandResponse{Status: "ok"}, managedRun(cfg)
 	case "install":
 		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok"}, managedRun(withServiceLocalManifest(cfg))
+		return CommandResponse{Status: "ok"}, managedRun(cfg)
 	case "remove":
 		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err
@@ -112,14 +112,6 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 	default:
 		return CommandResponse{}, fmt.Errorf("unsupported service action %q", cmd.Action)
 	}
-}
-
-func withServiceLocalManifest(cfg config.Configuration) config.Configuration {
-	path := serviceLocalManifestPath(cfg)
-	if !slices.Contains(cfg.LocalManifests, path) {
-		cfg.LocalManifests = append(cfg.LocalManifests, path)
-	}
-	return cfg
 }
 
 func serviceLocalManifestPath(cfg config.Configuration) string {

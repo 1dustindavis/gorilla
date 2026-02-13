@@ -42,25 +42,6 @@ func TestServiceLocalManifestAddRemoveList(t *testing.T) {
 	}
 }
 
-func TestWithServiceLocalManifest(t *testing.T) {
-	cfg := config.Configuration{
-		AppDataPath: filepath.Clean(t.TempDir()),
-	}
-
-	cfg = withServiceLocalManifest(cfg)
-	cfg = withServiceLocalManifest(cfg)
-
-	if len(cfg.LocalManifests) != 1 {
-		t.Fatalf("expected one local manifest entry, got %d", len(cfg.LocalManifests))
-	}
-	if cfg.LocalManifests[0] != serviceLocalManifestPath(cfg) {
-		t.Fatalf("unexpected local manifest path: %s", cfg.LocalManifests[0])
-	}
-	if filepath.Base(cfg.LocalManifests[0]) != "service-manifest.yaml" {
-		t.Fatalf("unexpected local manifest filename: %s", filepath.Base(cfg.LocalManifests[0]))
-	}
-}
-
 func TestGetOptionalItems(t *testing.T) {
 	origManifestGet := manifestGet
 	defer func() { manifestGet = origManifestGet }()
@@ -92,5 +73,62 @@ func TestGetOptionalItems(t *testing.T) {
 	expected := []string{"7zip", "Firefox", "GoogleChrome", "VSCode"}
 	if !reflect.DeepEqual(expected, items) {
 		t.Fatalf("unexpected optional items, expected %#v, got %#v", expected, items)
+	}
+}
+
+func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
+	cfg := config.Configuration{
+		AppDataPath:    filepath.Clean(t.TempDir()),
+		LocalManifests: []string{"already-local.yaml"},
+	}
+
+	var gotCfg config.Configuration
+	managedRun := func(in config.Configuration) error {
+		gotCfg = in
+		return nil
+	}
+
+	resp, err := executeCommand(cfg, Command{Action: "run"}, managedRun)
+	if err != nil {
+		t.Fatalf("executeCommand(run) failed: %v", err)
+	}
+	if resp.Status != "ok" {
+		t.Fatalf("expected status ok, got %q", resp.Status)
+	}
+	if !reflect.DeepEqual(gotCfg.LocalManifests, cfg.LocalManifests) {
+		t.Fatalf("expected managed run cfg local manifests %#v, got %#v", cfg.LocalManifests, gotCfg.LocalManifests)
+	}
+}
+
+func TestExecuteCommandInstallWritesManifestAndRuns(t *testing.T) {
+	cfg := config.Configuration{
+		AppDataPath:    filepath.Clean(t.TempDir()),
+		LocalManifests: []string{"already-local.yaml"},
+	}
+
+	var gotCfg config.Configuration
+	managedRun := func(in config.Configuration) error {
+		gotCfg = in
+		return nil
+	}
+
+	resp, err := executeCommand(cfg, Command{Action: "install", Items: []string{"GoogleChrome"}}, managedRun)
+	if err != nil {
+		t.Fatalf("executeCommand(install) failed: %v", err)
+	}
+	if resp.Status != "ok" {
+		t.Fatalf("expected status ok, got %q", resp.Status)
+	}
+
+	items, err := listServiceManagedInstalls(cfg)
+	if err != nil {
+		t.Fatalf("listServiceManagedInstalls failed: %v", err)
+	}
+	if !reflect.DeepEqual(items, []string{"GoogleChrome"}) {
+		t.Fatalf("unexpected service-manifest items: %#v", items)
+	}
+
+	if !reflect.DeepEqual(gotCfg.LocalManifests, cfg.LocalManifests) {
+		t.Fatalf("expected managed run cfg local manifests %#v, got %#v", cfg.LocalManifests, gotCfg.LocalManifests)
 	}
 }

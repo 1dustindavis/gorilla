@@ -14,7 +14,7 @@ func TestGet(t *testing.T) {
 		URL:             "https://example.com/gorilla/",
 		URLPackages:     "https://example.com/gorilla/",
 		Manifest:        "example_manifest",
-		LocalManifests:  []string{"example_local_manifest"},
+		LocalManifests:  []string{"example_local_manifest", filepath.Clean("c:/cpe/gorilla/service-manifest.yaml")},
 		Catalogs:        []string{"example_catalog"},
 		RepoPath:        filepath.Clean("c:/repo/gorilla"),
 		AppDataPath:     filepath.Clean("c:/cpe/gorilla/"),

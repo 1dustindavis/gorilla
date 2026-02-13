@@ -4,8 +4,7 @@ This directory supports a fast macOS -> Windows VM manual test loop.
 
 ## Loop
 1. Make code changes on macOS.
-2. Run `make bootstrap` to prepare fresh test assets.
-3. Start the local test server on macOS.
+2. Run `make bootstrap-run` on macOS.
 4. Copy generated VM scripts from `build/manual-test/vm/` to the VM.
 5. Run one VM bootstrap script to pull the latest binary/config.
 6. Run Gorilla manually on the VM.
@@ -14,7 +13,14 @@ This directory supports a fast macOS -> Windows VM manual test loop.
 From repo root:
 
 ```bash
+make bootstrap-run
+```
+
+Or if you want separate steps:
+
+```bash
 make bootstrap
+./build/manual-test-server -root build/manual-test/server-root -addr :8080
 ```
 
 This creates:

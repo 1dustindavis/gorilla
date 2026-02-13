@@ -100,6 +100,72 @@ function Ensure-PathEntry {
     }
 }
 
+function Remove-ExistingGorillaService {
+    param([string]$ServiceName = "gorilla")
+
+    $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $existingService) {
+        return
+    }
+
+    Write-Step "Existing '$ServiceName' service detected; stopping and removing it"
+
+    # Prevent SCM from auto-restarting the service while we are replacing gorilla.exe.
+    sc.exe failure $ServiceName reset= 0 actions= "" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Unable to clear failure actions for service '$ServiceName'."
+    }
+    sc.exe failureflag $ServiceName 0 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Unable to clear failure flag for service '$ServiceName'."
+    }
+
+    if ($existingService.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+        sc.exe stop $ServiceName | Out-Null
+        $serviceStopped = $false
+        for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            $serviceState = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+            if (-not $serviceState -or $serviceState.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                $serviceStopped = $true
+                break
+            }
+        }
+        if (-not $serviceStopped) {
+            $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+            if ($serviceInfo -and $serviceInfo.ProcessId -gt 0) {
+                Write-Step "Service '$ServiceName' did not stop in time; terminating PID $($serviceInfo.ProcessId)"
+                Stop-Process -Id $serviceInfo.ProcessId -Force -ErrorAction Stop
+
+                for ($i = 0; $i -lt 10; $i++) {
+                    Start-Sleep -Seconds 1
+                    $serviceState = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+                    if (-not $serviceState -or $serviceState.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                        $serviceStopped = $true
+                        break
+                    }
+                }
+            }
+        }
+
+        if (-not $serviceStopped) {
+            throw "Timed out waiting for service '$ServiceName' to stop, even after force-terminating its process."
+        }
+    }
+
+    sc.exe delete $ServiceName | Out-Null
+
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Milliseconds 250
+        if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
+            Write-Step "Removed existing '$ServiceName' service"
+            return
+        }
+    }
+
+    throw "Timed out waiting for service '$ServiceName' to be removed."
+}
+
 if (-not (Test-IsAdministrator)) {
     throw "Run this script from an elevated PowerShell session (Run as Administrator)."
 }
@@ -111,6 +177,8 @@ if (-not $BaseUrl.EndsWith("/")) {
 New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
 $binaryPath = Join-Path $InstallPath "gorilla.exe"
 $binaryUrl = "$BaseUrl" + "gorilla.exe"
+
+Remove-ExistingGorillaService
 
 Write-Step "Downloading Gorilla binary from $binaryUrl"
 Invoke-WebRequest -Uri $binaryUrl -OutFile $binaryPath

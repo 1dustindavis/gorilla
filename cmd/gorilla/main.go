@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/service"
@@ -25,19 +26,35 @@ func main() {
 
 func route(cfg config.Configuration) error {
 	if cfg.ServiceInstall {
-		return runServiceActionFunc(cfg, "install")
+		if err := runServiceActionFunc(cfg, "install"); err != nil {
+			return err
+		}
+		fmt.Println("Service installed successfully")
+		return nil
 	}
 
 	if cfg.ServiceRemove {
-		return runServiceActionFunc(cfg, "remove")
+		if err := runServiceActionFunc(cfg, "remove"); err != nil {
+			return err
+		}
+		fmt.Println("Service removed successfully")
+		return nil
 	}
 
 	if cfg.ServiceStart {
-		return runServiceActionFunc(cfg, "start")
+		if err := runServiceActionFunc(cfg, "start"); err != nil {
+			return err
+		}
+		fmt.Println("Service started successfully")
+		return nil
 	}
 
 	if cfg.ServiceStop {
-		return runServiceActionFunc(cfg, "stop")
+		if err := runServiceActionFunc(cfg, "stop"); err != nil {
+			return err
+		}
+		fmt.Println("Service stopped successfully")
+		return nil
 	}
 
 	if cfg.ServiceCommand != "" {
@@ -45,8 +62,27 @@ func route(cfg config.Configuration) error {
 		if err != nil {
 			return err
 		}
-		for _, item := range resp.Items {
-			fmt.Println(item)
+		if len(resp.Items) > 0 {
+			for _, item := range resp.Items {
+				fmt.Println(item)
+			}
+			return nil
+		}
+
+		action := cfg.ServiceCommand
+		if i := strings.Index(action, ":"); i >= 0 {
+			action = action[:i]
+		}
+		action = strings.ToLower(strings.TrimSpace(action))
+		switch action {
+		case "run":
+			fmt.Println("Service run command completed successfully")
+		case "install":
+			fmt.Println("Service install command completed successfully")
+		case "remove":
+			fmt.Println("Service remove command completed successfully")
+		default:
+			fmt.Println("Service command completed successfully")
 		}
 		return nil
 	}

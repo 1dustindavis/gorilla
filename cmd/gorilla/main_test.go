@@ -366,6 +366,85 @@ func TestRouteServiceCommandPrintsItems(t *testing.T) {
 	}
 }
 
+func TestRouteServiceActionPrintsSuccess(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	runServiceActionFunc = func(cfg config.Configuration, action string) error {
+		return nil
+	}
+
+	tests := []struct {
+		name       string
+		cfg        config.Configuration
+		wantOutput string
+	}{
+		{
+			name: "service install",
+			cfg: config.Configuration{
+				ServiceInstall: true,
+			},
+			wantOutput: "Service installed successfully",
+		},
+		{
+			name: "service remove",
+			cfg: config.Configuration{
+				ServiceRemove: true,
+			},
+			wantOutput: "Service removed successfully",
+		},
+		{
+			name: "service start",
+			cfg: config.Configuration{
+				ServiceStart: true,
+			},
+			wantOutput: "Service started successfully",
+		},
+		{
+			name: "service stop",
+			cfg: config.Configuration{
+				ServiceStop: true,
+			},
+			wantOutput: "Service stopped successfully",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := captureStdout(t, func() {
+				err := route(tt.cfg)
+				if err != nil {
+					t.Fatalf("unexpected route error: %v", err)
+				}
+			})
+
+			if !strings.Contains(stdout, tt.wantOutput) {
+				t.Fatalf("expected stdout to include %q, got %q", tt.wantOutput, stdout)
+			}
+		})
+	}
+}
+
+func TestRouteServiceCommandPrintsSuccessWhenNoItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "install:GoogleChrome"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "Service install command completed successfully") {
+		t.Fatalf("expected stdout to include success message, got %q", stdout)
+	}
+}
+
 func TestRouteServiceCommandErrorDoesNotPrintItems(t *testing.T) {
 	resetMainHooks()
 	defer resetMainHooks()

@@ -79,6 +79,10 @@ func SendCommand(cfg config.Configuration, spec string) (CommandResponse, error)
 	return sendCommand(cfg, cmd)
 }
 
+func serviceInstallArgs(configPath string) []string {
+	return []string{"-c", configPath, "-service"}
+}
+
 func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
 	switch cmd.Action {
 	case "run":

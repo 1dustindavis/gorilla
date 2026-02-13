@@ -22,6 +22,7 @@ func resetMainHooks() {
 	runServiceFunc = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc) }
 	sendServiceCommandFunc = service.SendCommand
 	runServiceActionFunc = service.RunAction
+	serviceStatusFunc = service.ServiceStatus
 }
 
 func TestRunAdminCheckError(t *testing.T) {
@@ -181,6 +182,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 	serviceAction := ""
 	serviceCommand := ""
 	serviceMode := false
+	serviceStatusCalled := false
 	runCalled := false
 
 	managedRunFunc = func(cfg config.Configuration) error {
@@ -199,6 +201,10 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 		serviceMode = true
 		return nil
 	}
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		serviceStatusCalled = true
+		return "running", nil
+	}
 
 	tests := []struct {
 		name          string
@@ -206,6 +212,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 		wantAction    string
 		wantCommand   string
 		wantSvcMode   bool
+		wantSvcStatus bool
 		expectRunCall bool
 	}{
 		{
@@ -241,6 +248,14 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			expectRunCall: false,
 		},
 		{
+			name: "service status",
+			cfg: config.Configuration{
+				ServiceStatus: true,
+			},
+			wantSvcStatus: true,
+			expectRunCall: false,
+		},
+		{
 			name: "service command",
 			cfg: config.Configuration{
 				ServiceCommand: "run",
@@ -268,6 +283,7 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			serviceAction = ""
 			serviceCommand = ""
 			serviceMode = false
+			serviceStatusCalled = false
 			runCalled = false
 
 			err := route(tt.cfg)
@@ -287,6 +303,9 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 			if serviceMode != tt.wantSvcMode {
 				t.Fatalf("service mode call = %v, expected %v", serviceMode, tt.wantSvcMode)
 			}
+			if serviceStatusCalled != tt.wantSvcStatus {
+				t.Fatalf("service status call = %v, expected %v", serviceStatusCalled, tt.wantSvcStatus)
+			}
 		})
 	}
 }
@@ -298,6 +317,7 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 	serviceAction := ""
 	serviceCommandCalled := false
 	serviceModeCalled := false
+	serviceStatusCalled := false
 	runCalled := false
 
 	runServiceActionFunc = func(cfg config.Configuration, action string) error {
@@ -312,6 +332,10 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 		serviceModeCalled = true
 		return nil
 	}
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		serviceStatusCalled = true
+		return "running", nil
+	}
 	managedRunFunc = func(cfg config.Configuration) error {
 		runCalled = true
 		return nil
@@ -322,6 +346,7 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 		ServiceRemove:  true,
 		ServiceStart:   true,
 		ServiceStop:    true,
+		ServiceStatus:  true,
 		ServiceCommand: "run",
 		ServiceMode:    true,
 	}
@@ -337,6 +362,9 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 	}
 	if serviceModeCalled {
 		t.Fatalf("service mode branch should not run when service install is set")
+	}
+	if serviceStatusCalled {
+		t.Fatalf("service status branch should not run when service install is set")
 	}
 	if runCalled {
 		t.Fatalf("managedRun should not run when service install is set")
@@ -363,6 +391,29 @@ func TestRouteServiceCommandPrintsItems(t *testing.T) {
 
 	if !strings.Contains(stdout, "GoogleChrome") || !strings.Contains(stdout, "VSCode") {
 		t.Fatalf("expected stdout to include response items, got %q", stdout)
+	}
+}
+
+func TestRouteServiceStatusPrintsValue(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	serviceStatusFunc = func(cfg config.Configuration) (string, error) {
+		return "state: running\nstart_type: automatic", nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceStatus: true})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "Service status:") {
+		t.Fatalf("expected stdout to include service status header, got %q", stdout)
+	}
+	if !strings.Contains(stdout, "state: running") {
+		t.Fatalf("expected stdout to include service status, got %q", stdout)
 	}
 }
 
@@ -442,6 +493,46 @@ func TestRouteServiceCommandPrintsSuccessWhenNoItems(t *testing.T) {
 
 	if !strings.Contains(stdout, "Service install command completed successfully") {
 		t.Fatalf("expected stdout to include success message, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandPrintsNoneForEmptyServiceManifest(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "none" {
+		t.Fatalf("expected stdout to be none, got %q", stdout)
+	}
+}
+
+func TestRouteServiceCommandPrintsNoneForEmptyOptionalItems(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
+		return service.CommandResponse{Status: "ok"}, nil
+	}
+
+	stdout := captureStdout(t, func() {
+		err := route(config.Configuration{ServiceCommand: "get-optional-items"})
+		if err != nil {
+			t.Fatalf("unexpected route error: %v", err)
+		}
+	})
+
+	if strings.TrimSpace(stdout) != "none" {
+		t.Fatalf("expected stdout to be none, got %q", stdout)
 	}
 }
 

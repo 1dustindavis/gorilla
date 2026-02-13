@@ -32,6 +32,7 @@ func TestGet(t *testing.T) {
 		ServiceRemove:   false,
 		ServiceStart:    false,
 		ServiceStop:     false,
+		ServiceStatus:   false,
 		ServiceName:     "gorilla",
 		ServiceInterval: "1h",
 		ServicePipeName: "gorilla-service",
@@ -192,5 +193,6 @@ func Example() {
 	// -serviceremove      remove Gorilla Windows service
 	// -servicestart       start Gorilla Windows service
 	// -servicestop        stop Gorilla Windows service
+	// -servicestatus      show Gorilla Windows service status
 	// -h, -help           display this help message
 }

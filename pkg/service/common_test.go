@@ -90,3 +90,20 @@ func TestValidateCommandRunWithItems(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestServiceInstallArgs(t *testing.T) {
+	configPath := `C:\ProgramData\gorilla\config.yaml`
+	got := serviceInstallArgs(configPath)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 args, got %d: %#v", len(got), got)
+	}
+	if got[0] != "-c" {
+		t.Fatalf("expected first arg -c, got %q", got[0])
+	}
+	if got[1] != configPath {
+		t.Fatalf("expected config path %q, got %q", configPath, got[1])
+	}
+	if got[2] != "-service" {
+		t.Fatalf("expected final arg -service, got %q", got[2])
+	}
+}

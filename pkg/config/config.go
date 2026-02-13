@@ -43,6 +43,7 @@ var (
 	serviceRemoveArg  bool
 	serviceStartArg   bool
 	serviceStopArg    bool
+	serviceStatusArg  bool
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -69,6 +70,7 @@ Options:
 -serviceremove      remove Gorilla Windows service
 -servicestart       start Gorilla Windows service
 -servicestop        stop Gorilla Windows service
+-servicestatus      show Gorilla Windows service status
 -h, -help           display this help message
 
 `
@@ -100,6 +102,7 @@ type Configuration struct {
 	ServiceRemove   bool
 	ServiceStart    bool
 	ServiceStop     bool
+	ServiceStatus   bool
 	ServiceName     string `yaml:"service_name,omitempty"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
 	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
@@ -147,6 +150,7 @@ func init() {
 	flag.BoolVar(&serviceRemoveArg, "serviceremove", false, "")
 	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
 	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
+	flag.BoolVar(&serviceStatusArg, "servicestatus", false, "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -190,7 +194,7 @@ func Get() Configuration {
 		osExit(1)
 	}
 
-	serviceControlMode := serviceInstallArg || serviceRemoveArg || serviceStartArg || serviceStopArg
+	serviceControlMode := serviceInstallArg || serviceRemoveArg || serviceStartArg || serviceStopArg || serviceStatusArg
 	serviceClientMode := serviceCmdArg != ""
 
 	// Normal run mode requires both manifest and URL.
@@ -241,6 +245,7 @@ func Get() Configuration {
 	cfg.ServiceRemove = serviceRemoveArg
 	cfg.ServiceStart = serviceStartArg
 	cfg.ServiceStop = serviceStopArg
+	cfg.ServiceStatus = serviceStatusArg
 
 	// Set the cache path
 	cfg.CachePath = filepath.Join(cfg.AppDataPath, "cache")

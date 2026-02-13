@@ -14,6 +14,7 @@ var (
 	runServiceFunc         = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc) }
 	sendServiceCommandFunc = service.SendCommand
 	runServiceActionFunc   = service.RunAction
+	serviceStatusFunc      = service.ServiceStatus
 )
 
 func main() {
@@ -57,24 +58,36 @@ func route(cfg config.Configuration) error {
 		return nil
 	}
 
+	if cfg.ServiceStatus {
+		status, err := serviceStatusFunc(cfg)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Service status:")
+		fmt.Println(status)
+		return nil
+	}
+
 	if cfg.ServiceCommand != "" {
 		resp, err := sendServiceCommandFunc(cfg, cfg.ServiceCommand)
 		if err != nil {
 			return err
 		}
+		action := cfg.ServiceCommand
+		if i := strings.Index(action, ":"); i >= 0 {
+			action = action[:i]
+		}
+		action = strings.ToLower(strings.TrimSpace(action))
+
 		if len(resp.Items) > 0 {
 			for _, item := range resp.Items {
 				fmt.Println(item)
 			}
 			return nil
 		}
-
-		action := cfg.ServiceCommand
-		if i := strings.Index(action, ":"); i >= 0 {
-			action = action[:i]
-		}
-		action = strings.ToLower(strings.TrimSpace(action))
 		switch action {
+		case "get-service-manifest", "get-optional-items":
+			fmt.Println("none")
 		case "run":
 			fmt.Println("Service run command completed successfully")
 		case "install":

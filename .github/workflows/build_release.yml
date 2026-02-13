@@ -60,6 +60,13 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
 
+    - name: Upload gorilla.exe workflow artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gorilla-exe-release
+        path: ./cmd/gorilla/gorilla.exe
+        if-no-files-found: error
+
     - name: Cut release
       uses: ncipollo/release-action@v1
       with:

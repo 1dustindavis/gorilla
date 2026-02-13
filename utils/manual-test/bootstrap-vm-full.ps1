@@ -95,6 +95,37 @@ function Install-ChocoPackageIfMissing {
     & choco install $PackageName -y --no-progress | Out-Host
 }
 
+function Get-WixBinDirectory {
+    if (Get-Command candle.exe -ErrorAction SilentlyContinue) {
+        return Split-Path -Parent (Get-Command candle.exe).Path
+    }
+
+    $candidates = @()
+
+    if ($env:ProgramFiles) {
+        $candidates += (Join-Path $env:ProgramFiles "WiX Toolset v3*\bin")
+    }
+    if (${env:ProgramFiles(x86)}) {
+        $candidates += (Join-Path ${env:ProgramFiles(x86)} "WiX Toolset v3*\bin")
+    }
+    if ($env:ProgramData) {
+        $candidates += (Join-Path $env:ProgramData "chocolatey\lib\wixtoolset*\tools")
+    }
+
+    foreach ($pattern in $candidates) {
+        $dirs = @(Get-Item -Path $pattern -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)
+        foreach ($dir in $dirs) {
+            $candlePath = Join-Path $dir.FullName "candle.exe"
+            $lightPath = Join-Path $dir.FullName "light.exe"
+            if ((Test-Path -LiteralPath $candlePath) -and (Test-Path -LiteralPath $lightPath)) {
+                return $dir.FullName
+            }
+        }
+    }
+
+    return $null
+}
+
 if (-not (Test-IsAdministrator)) {
     throw "Run this script from an elevated PowerShell session (Run as Administrator)."
 }
@@ -123,18 +154,21 @@ Install-ChocoPackageIfMissing -CommandName "go.exe" -PackageName "golang"
 Install-ChocoPackageIfMissing -CommandName "candle.exe" -PackageName "wixtoolset"
 
 Ensure-PathEntry -DirectoryPath "$env:ProgramFiles\Go\bin"
-Ensure-PathEntry -DirectoryPath "${env:ProgramFiles(x86)}\WiX Toolset v3.11\bin"
+$wixBinDirectory = Get-WixBinDirectory
+if ($wixBinDirectory) {
+    Ensure-PathEntry -DirectoryPath $wixBinDirectory
+}
 
 if (-not (Get-Command go.exe -ErrorAction SilentlyContinue)) {
     throw "go.exe not found in PATH after installation."
 }
 
 if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
-    throw "candle.exe not found in PATH after installation."
+    throw "candle.exe not found in PATH after installation. Checked common WiX locations."
 }
 
 if (-not (Get-Command light.exe -ErrorAction SilentlyContinue)) {
-    throw "light.exe not found in PATH after installation."
+    throw "light.exe not found in PATH after installation. Checked common WiX locations."
 }
 
 Write-Step "Full bootstrap complete"

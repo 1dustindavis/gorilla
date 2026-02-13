@@ -35,6 +35,8 @@ To override:
 make bootstrap MANUAL_TEST_BASE_URL=http://192.168.1.50:8080/
 ```
 
+Server source lives in `utils/manual-test/server` (separate Go module).
+
 ## 2) Serve assets from macOS
 
 ```bash

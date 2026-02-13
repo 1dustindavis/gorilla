@@ -79,7 +79,7 @@ build: .pre-build
 	GOOS=windows GOARCH=amd64 go build -o build/${APP_NAME}.exe -ldflags ${BUILD_VERSION} ./cmd/gorilla
 
 manual-test-server: .pre-build
-	go build -o build/manual-test-server ./cmd/manual-test-server
+	cd utils/manual-test/server && go build -o ../../../build/manual-test-server .
 
 bootstrap: build manual-test-server
 	mkdir -p ${MANUAL_TEST_SERVER_ROOT}/manifests

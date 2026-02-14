@@ -52,14 +52,14 @@ Planned operations:
 - Backward compatibility for existing CLI service-message behavior is not required during this UI/API iteration
 
 ## Immediate Next Steps
-1. Implement minimal pipe harness behavior in `gorilla-ui/tools/PipeHarness/` using the shared client/protocol code.
-2. Implement cache-first startup behavior for `ListOptionalInstalls`:
+1. Implement cache-first startup behavior for `ListOptionalInstalls`:
    - Add JSON cache file reader/writer for latest list result.
    - Load cache on app startup and render immediately.
    - Trigger immediate live refresh and update both UI and cache.
-3. Complete WinUI app scaffolding/wiring:
+2. Complete WinUI app scaffolding/wiring:
    - Generate actual WinUI app project on Windows VM.
    - Wire views/viewmodels to the tested client APIs and cache-first startup flow.
 
 ## Later TODOs
 - Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.
+- Review Gorilla service execution model and evaluate introducing safe multithreaded/concurrent processing where beneficial (current behavior is mostly single-threaded).

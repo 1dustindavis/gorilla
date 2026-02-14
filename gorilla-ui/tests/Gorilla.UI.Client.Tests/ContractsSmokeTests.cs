@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Reflection;
 using Gorilla.UI.Client;
 using Xunit;
 
@@ -83,5 +84,23 @@ public class ContractsSmokeTests
         var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateStatusEvent(payload));
 
         Assert.Contains("progressPercent", ex.Message);
+    }
+
+    [Fact]
+    public void HandleErrorEnvelopeIfPresent_NullPayload_ThrowsProtocolError()
+    {
+        using var doc = JsonDocument.Parse(
+            "{\"version\":\"v1\",\"messageType\":\"Error\",\"operation\":\"InstallItem\",\"requestId\":\"req-1\",\"operationId\":\"\",\"timestampUtc\":\"2026-02-14T18:10:00Z\",\"payload\":null}"
+        );
+
+        var method = typeof(NamedPipeGorillaServiceClient).GetMethod(
+            "HandleErrorEnvelopeIfPresent",
+            BindingFlags.NonPublic | BindingFlags.Static
+        );
+        Assert.NotNull(method);
+
+        var ex = Assert.Throws<TargetInvocationException>(() => method!.Invoke(null, new object[] { doc }));
+        Assert.NotNull(ex.InnerException);
+        Assert.Contains("missing payload", ex.InnerException!.Message);
     }
 }

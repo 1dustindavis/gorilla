@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
@@ -24,9 +26,35 @@ type Command struct {
 }
 
 type CommandResponse struct {
-	Status  string   `json:"status"`
-	Message string   `json:"message,omitempty"`
-	Items   []string `json:"items,omitempty"`
+	Status      string   `json:"status"`
+	Message     string   `json:"message,omitempty"`
+	Items       []string `json:"items,omitempty"`
+	OperationID string   `json:"operationId,omitempty"`
+}
+
+const (
+	actionRun                   = "run"
+	actionListOptionalInstalls  = "ListOptionalInstalls"
+	actionInstallItem           = "InstallItem"
+	actionRemoveItem            = "RemoveItem"
+	actionStreamOperationStatus = "StreamOperationStatus"
+)
+
+func canonicalizeAction(action string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case strings.ToLower(actionRun):
+		return actionRun, true
+	case strings.ToLower(actionListOptionalInstalls):
+		return actionListOptionalInstalls, true
+	case strings.ToLower(actionInstallItem):
+		return actionInstallItem, true
+	case strings.ToLower(actionRemoveItem):
+		return actionRemoveItem, true
+	case strings.ToLower(actionStreamOperationStatus):
+		return actionStreamOperationStatus, true
+	default:
+		return "", false
+	}
 }
 
 func parseCommandSpec(spec string) (Command, error) {
@@ -37,7 +65,11 @@ func parseCommandSpec(spec string) (Command, error) {
 	}
 
 	parts := strings.SplitN(spec, ":", 2)
-	cmd.Action = strings.ToLower(strings.TrimSpace(parts[0]))
+	canonicalAction, ok := canonicalizeAction(parts[0])
+	if !ok {
+		return cmd, fmt.Errorf("unsupported service action %q", strings.TrimSpace(parts[0]))
+	}
+	cmd.Action = canonicalAction
 	if len(parts) == 2 {
 		items := strings.Split(parts[1], ",")
 		for _, item := range items {
@@ -51,18 +83,24 @@ func parseCommandSpec(spec string) (Command, error) {
 }
 
 func validateCommand(cmd Command) error {
+	canonicalAction, ok := canonicalizeAction(cmd.Action)
+	if !ok {
+		return fmt.Errorf("unsupported service action %q", cmd.Action)
+	}
+	cmd.Action = canonicalAction
+
 	switch cmd.Action {
-	case "run":
+	case actionRun:
 		if len(cmd.Items) != 0 {
 			return errors.New("run action does not support items")
 		}
-	case "get-service-manifest", "get-optional-items":
+	case actionListOptionalInstalls:
 		if len(cmd.Items) != 0 {
 			return fmt.Errorf("%s action does not support items", cmd.Action)
 		}
-	case "install", "remove":
-		if len(cmd.Items) == 0 {
-			return fmt.Errorf("%s action requires at least one item", cmd.Action)
+	case actionInstallItem, actionRemoveItem, actionStreamOperationStatus:
+		if len(cmd.Items) != 1 {
+			return fmt.Errorf("%s action requires exactly one argument", cmd.Action)
 		}
 	default:
 		return fmt.Errorf("unsupported service action %q", cmd.Action)
@@ -85,30 +123,31 @@ func serviceInstallArgs(configPath string) []string {
 
 func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
 	switch cmd.Action {
-	case "run":
+	case actionRun:
 		return CommandResponse{Status: "ok"}, managedRun(cfg)
-	case "install":
+	case actionInstallItem:
 		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok"}, managedRun(cfg)
-	case "remove":
+		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
+		return CommandResponse{Status: "ok", OperationID: operationID}, managedRun(cfg)
+	case actionRemoveItem:
 		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok"}, nil
-	case "get-service-manifest":
-		items, err := listServiceManagedInstalls(cfg)
-		if err != nil {
-			return CommandResponse{}, err
-		}
-		return CommandResponse{Status: "ok", Items: items}, nil
-	case "get-optional-items":
+		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
+		return CommandResponse{Status: "ok", OperationID: operationID}, nil
+	case actionListOptionalInstalls:
 		items, err := getOptionalItems(cfg)
 		if err != nil {
 			return CommandResponse{}, err
 		}
 		return CommandResponse{Status: "ok", Items: items}, nil
+	case actionStreamOperationStatus:
+		return CommandResponse{
+			Status:  "ok",
+			Message: "stream status is not yet implemented in the service",
+		}, nil
 	default:
 		return CommandResponse{}, fmt.Errorf("unsupported service action %q", cmd.Action)
 	}

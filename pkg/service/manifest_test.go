@@ -88,7 +88,7 @@ func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
 		return nil
 	}
 
-	resp, err := executeCommand(cfg, Command{Action: "run"}, managedRun)
+	resp, err := executeCommand(cfg, Command{Action: actionRun}, managedRun)
 	if err != nil {
 		t.Fatalf("executeCommand(run) failed: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestExecuteCommandInstallWritesManifestAndRuns(t *testing.T) {
 		return nil
 	}
 
-	resp, err := executeCommand(cfg, Command{Action: "install", Items: []string{"GoogleChrome"}}, managedRun)
+	resp, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"GoogleChrome"}}, managedRun)
 	if err != nil {
 		t.Fatalf("executeCommand(install) failed: %v", err)
 	}

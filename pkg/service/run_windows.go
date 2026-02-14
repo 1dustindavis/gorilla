@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -177,7 +176,9 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
-	req.Command.Action = strings.ToLower(strings.TrimSpace(req.Command.Action))
+	if canonicalAction, ok := canonicalizeAction(req.Command.Action); ok {
+		req.Command.Action = canonicalAction
+	}
 	if err := validateCommand(req.Command); err != nil {
 		writeCommandResponse(file, "error", err.Error())
 		return

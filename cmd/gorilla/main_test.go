@@ -258,9 +258,9 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 		{
 			name: "service command",
 			cfg: config.Configuration{
-				ServiceCommand: "run",
+				ServiceCommand: "ListOptionalInstalls",
 			},
-			wantCommand:   "run",
+			wantCommand:   "ListOptionalInstalls",
 			expectRunCall: false,
 		},
 		{
@@ -347,7 +347,7 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 		ServiceStart:   true,
 		ServiceStop:    true,
 		ServiceStatus:  true,
-		ServiceCommand: "run",
+		ServiceCommand: "ListOptionalInstalls",
 		ServiceMode:    true,
 	}
 	if err := route(cfg); err != nil {
@@ -383,7 +383,7 @@ func TestRouteServiceCommandPrintsItems(t *testing.T) {
 	}
 
 	stdout := captureStdout(t, func() {
-		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		err := route(config.Configuration{ServiceCommand: "ListOptionalInstalls"})
 		if err != nil {
 			t.Fatalf("unexpected route error: %v", err)
 		}
@@ -485,18 +485,18 @@ func TestRouteServiceCommandPrintsSuccessWhenNoItems(t *testing.T) {
 	}
 
 	stdout := captureStdout(t, func() {
-		err := route(config.Configuration{ServiceCommand: "install:GoogleChrome"})
+		err := route(config.Configuration{ServiceCommand: "InstallItem:GoogleChrome"})
 		if err != nil {
 			t.Fatalf("unexpected route error: %v", err)
 		}
 	})
 
-	if !strings.Contains(stdout, "Service install command completed successfully") {
+	if !strings.Contains(stdout, "InstallItem command completed successfully") {
 		t.Fatalf("expected stdout to include success message, got %q", stdout)
 	}
 }
 
-func TestRouteServiceCommandPrintsNoneForEmptyServiceManifest(t *testing.T) {
+func TestRouteServiceCommandPrintsNoneForEmptyListOptionalInstalls(t *testing.T) {
 	resetMainHooks()
 	defer resetMainHooks()
 
@@ -505,27 +505,7 @@ func TestRouteServiceCommandPrintsNoneForEmptyServiceManifest(t *testing.T) {
 	}
 
 	stdout := captureStdout(t, func() {
-		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
-		if err != nil {
-			t.Fatalf("unexpected route error: %v", err)
-		}
-	})
-
-	if strings.TrimSpace(stdout) != "none" {
-		t.Fatalf("expected stdout to be none, got %q", stdout)
-	}
-}
-
-func TestRouteServiceCommandPrintsNoneForEmptyOptionalItems(t *testing.T) {
-	resetMainHooks()
-	defer resetMainHooks()
-
-	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
-		return service.CommandResponse{Status: "ok"}, nil
-	}
-
-	stdout := captureStdout(t, func() {
-		err := route(config.Configuration{ServiceCommand: "get-optional-items"})
+		err := route(config.Configuration{ServiceCommand: "ListOptionalInstalls"})
 		if err != nil {
 			t.Fatalf("unexpected route error: %v", err)
 		}
@@ -545,7 +525,7 @@ func TestRouteServiceCommandErrorDoesNotPrintItems(t *testing.T) {
 	}
 
 	stdout := captureStdout(t, func() {
-		err := route(config.Configuration{ServiceCommand: "get-service-manifest"})
+		err := route(config.Configuration{ServiceCommand: "ListOptionalInstalls"})
 		if err == nil {
 			t.Fatalf("expected route error")
 		}

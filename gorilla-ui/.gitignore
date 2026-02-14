@@ -1,0 +1,18 @@
+# .NET / Visual Studio / WinUI artifacts
+**/bin/
+**/obj/
+.vs/
+**/TestResults/
+**/*.user
+**/*.rsuser
+**/*.suo
+**/*.trx
+**/*.nupkg
+**/*.snupkg
+**/*.appx
+**/*.appxbundle
+**/*.msix
+**/*.msixbundle
+**/*.appxupload
+**/*.appxsym
+**/AppPackages/

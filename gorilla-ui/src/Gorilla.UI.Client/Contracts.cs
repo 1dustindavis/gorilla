@@ -12,13 +12,24 @@ public enum OperationState
     Canceled,
 }
 
-public sealed record OptionInstallItem(
+public enum OptionalInstallStatus
+{
+    Installed,
+    NotInstalled,
+    InstallPending,
+    RemovePending,
+    Unknown,
+}
+
+public sealed record OptionalInstallItem(
     string ItemId,
     string DisplayName,
     string Version,
-    bool IsInstalled,
     bool IsManaged,
-    string Action
+    bool IsInstalled,
+    OptionalInstallStatus Status,
+    DateTimeOffset StatusUpdatedAtUtc,
+    string? LastOperationId
 );
 
 public sealed record OperationAccepted(
@@ -34,12 +45,13 @@ public sealed record OperationStatusEvent(
     string Message,
     DateTimeOffset TimestampUtc,
     string? ErrorCode = null,
-    string? ErrorMessage = null
+    string? ErrorMessage = null,
+    string? CanceledBy = null
 );
 
 public interface IGorillaServiceClient
 {
-    Task<IReadOnlyList<OptionInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken);
 
     Task<OperationAccepted> InstallItemAsync(string itemId, CancellationToken cancellationToken);
 

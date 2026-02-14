@@ -1,7 +1,6 @@
-# Stolen from https://github.com/airbnb/gosal/blob/master/Makefile
 all: build
 
-.PHONY: build bootstrap bootstrap-run manual-test-server test lint clean help
+.PHONY: build bootstrap bootstrap-run manual-test-server test ui-test lint clean help
 
 ifndef ($(GOPATH))
 	GOPATH = $(HOME)/go
@@ -62,6 +61,7 @@ define HELP_TEXT
 	make bootstrap-run - Build manual-test assets/server and run local test server
 
 	make test          - Run the Go tests
+	make ui-test       - Run the Gorilla UI (.NET) tests
 	make lint          - Run the Go linters
 
 endef
@@ -74,6 +74,16 @@ gomodcheck:
 
 clean:
 	rm -rf build/
+	rm -rf gorilla-ui/src/Gorilla.UI.Client/bin/
+	rm -rf gorilla-ui/src/Gorilla.UI.Client/obj/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/bin/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/obj/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/TestResults/
+	rm -rf gorilla-ui/tools/PipeHarness/bin/
+	rm -rf gorilla-ui/tools/PipeHarness/obj/
+	rm -rf gorilla-ui/src/Gorilla.UI.App/AppPackages/
+	rm -rf gorilla-ui/src/Gorilla.UI.App/bin/
+	rm -rf gorilla-ui/src/Gorilla.UI.App/obj/
 
 .pre-build: gomodcheck
 	mkdir -p build/
@@ -130,6 +140,9 @@ bootstrap-run: bootstrap
 
 test: gomodcheck
 	go test -cover -race ./...
+
+ui-test:
+	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
 
 lint:
 	@if gofmt -l -s ./cmd/ ./pkg/ | grep .go; then \

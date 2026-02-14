@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Gorilla.UI.Client;
+using Xunit;
 
 namespace Gorilla.UI.Client.Tests;
 

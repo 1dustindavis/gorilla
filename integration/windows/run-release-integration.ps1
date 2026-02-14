@@ -31,14 +31,6 @@ function Assert-Missing {
     }
 }
 
-function Assert-PreparedPath {
-    param([string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        throw "Preparation output missing: $Path. Run prepare-release-integration.ps1 first."
-    }
-}
-
 function Write-Config {
     param(
         [string]$ManifestName,
@@ -79,12 +71,32 @@ $repoRoot = Join-Path $fixtureRoot "repo"
 $configRoot = Join-Path $fixtureRoot "configs"
 $toolsRoot = Join-Path $fixtureRoot "tools"
 $serverExe = Join-Path $toolsRoot "fixture-server.exe"
+$prepareScriptPath = Join-Path (Split-Path -Parent $PSCommandPath) "prepare-release-integration.ps1"
+$preparedPaths = @(
+    (Join-Path $repoRoot "catalogs/integration.yaml"),
+    (Join-Path $repoRoot "manifests/integration-install.yaml"),
+    (Join-Path $repoRoot "manifests/integration-update.yaml"),
+    (Join-Path $repoRoot "manifests/integration-uninstall.yaml"),
+    $serverExe
+)
 
-Assert-PreparedPath -Path (Join-Path $repoRoot "catalogs/integration.yaml")
-Assert-PreparedPath -Path (Join-Path $repoRoot "manifests/integration-install.yaml")
-Assert-PreparedPath -Path (Join-Path $repoRoot "manifests/integration-update.yaml")
-Assert-PreparedPath -Path (Join-Path $repoRoot "manifests/integration-uninstall.yaml")
-Assert-PreparedPath -Path $serverExe
+$missingPreparedPaths = @($preparedPaths | Where-Object { -not (Test-Path -LiteralPath $_) })
+if ($missingPreparedPaths.Count -gt 0) {
+    if (-not (Test-Path -LiteralPath $prepareScriptPath)) {
+        throw "Preparation output missing and prepare script not found: $prepareScriptPath"
+    }
+
+    Write-Host "[INFO] Missing integration preparation output; running prepare-release-integration.ps1"
+    & $prepareScriptPath -WorkRoot $root
+    if ($LASTEXITCODE -ne 0) {
+        throw "prepare-release-integration.ps1 failed with exit code $LASTEXITCODE"
+    }
+}
+
+$missingPreparedPaths = @($preparedPaths | Where-Object { -not (Test-Path -LiteralPath $_) })
+if ($missingPreparedPaths.Count -gt 0) {
+    throw "Preparation output missing after running prepare-release-integration.ps1: $($missingPreparedPaths -join ', ')"
+}
 
 $markerRoot = "C:\ProgramData\gorilla-it"
 $exeMarker = Join-Path $markerRoot "exe.txt"

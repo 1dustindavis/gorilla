@@ -93,6 +93,10 @@ From repo root on the VM:
 .\build\manual-test\vm\run-release-integration.bat
 ```
 
+This helper now runs both phases in order:
+- `integration/windows/prepare-release-integration.ps1`
+- `integration/windows/run-release-integration.ps1`
+
 Recommended flow first:
 
 ```bat

@@ -50,16 +50,22 @@ Notes:
   - Request payload: optional filters/sorting later; empty for v0.
   - Response payload: list of available items and current state metadata.
   - Important: return only a JSON-safe subset of item fields. Do not emit full internal item objects because some fields may not be JSON-compatible.
+  - Item identity and details should align with existing Gorilla YAML concepts:
+    - `itemName` (from `item_name`)
+    - `displayName` (from `display_name`)
+    - `version`
+    - `catalog`
+    - `installerType`, `installerPackageId`, `installerLocation` (installer summary fields)
   - Required item status fields in v0:
     - `isInstalled` (bool): current installed state.
     - `status` (string enum): `Installed|NotInstalled|InstallPending|RemovePending|Unknown`.
     - `statusUpdatedAtUtc` (RFC3339 timestamp): last known status update time.
     - `lastOperationId` (string, optional): most recent related install/remove operation.
 - `InstallItem`
-  - Request payload: `itemId`.
+  - Request payload: `itemName`.
   - Response payload: accepted status + `operationId`.
 - `RemoveItem`
-  - Request payload: `itemId`.
+  - Request payload: `itemName`.
   - Response payload: accepted status + `operationId`.
 - `StreamOperationStatus`
   - Request payload: `operationId`.

@@ -17,9 +17,13 @@ public class ContractsSmokeTests
     public void Envelope_RoundTrips_WithProtocolJsonOptions()
     {
         var item = new OptionalInstallItem(
-            ItemId: "org.mozilla.firefox",
-            DisplayName: "Firefox",
-            Version: "135.0",
+            ItemName: "GoogleChrome",
+            DisplayName: "Google Chrome",
+            Version: "68.0.3440.106",
+            Catalog: "testcatalog",
+            InstallerType: "nupkg",
+            InstallerPackageId: "GoogleChrome",
+            InstallerLocation: "packages/google-chrome/GoogleChrome.68.0.3440.106.nupkg",
             IsManaged: true,
             IsInstalled: false,
             Status: OptionalInstallStatus.NotInstalled,

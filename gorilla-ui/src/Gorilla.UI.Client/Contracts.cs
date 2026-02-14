@@ -22,9 +22,13 @@ public enum OptionalInstallStatus
 }
 
 public sealed record OptionalInstallItem(
-    string ItemId,
+    string ItemName,
     string DisplayName,
     string Version,
+    string Catalog,
+    string InstallerType,
+    string InstallerPackageId,
+    string InstallerLocation,
     bool IsManaged,
     bool IsInstalled,
     OptionalInstallStatus Status,
@@ -53,9 +57,9 @@ public interface IGorillaServiceClient
 {
     Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken);
 
-    Task<OperationAccepted> InstallItemAsync(string itemId, CancellationToken cancellationToken);
+    Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken);
 
-    Task<OperationAccepted> RemoveItemAsync(string itemId, CancellationToken cancellationToken);
+    Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken);
 
     IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
         string operationId,

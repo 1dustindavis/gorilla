@@ -33,9 +33,9 @@ public static class ProtocolValidation
 
     public static void ValidateOptionalInstallItem(OptionalInstallItem item)
     {
-        if (string.IsNullOrWhiteSpace(item.ItemId))
+        if (string.IsNullOrWhiteSpace(item.ItemName))
         {
-            throw new ProtocolValidationException("itemId is required.");
+            throw new ProtocolValidationException("itemName is required.");
         }
 
         if (item.StatusUpdatedAtUtc == default)

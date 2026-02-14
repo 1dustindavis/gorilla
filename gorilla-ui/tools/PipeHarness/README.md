@@ -9,6 +9,6 @@ Minimal CLI harness for validating Gorilla named-pipe protocol interactions befo
 
 ## Planned usage (Windows)
 - `dotnet run --project gorilla-ui/tools/PipeHarness -- list`
-- `dotnet run --project gorilla-ui/tools/PipeHarness -- install <itemId>`
-- `dotnet run --project gorilla-ui/tools/PipeHarness -- remove <itemId>`
+- `dotnet run --project gorilla-ui/tools/PipeHarness -- install <itemName>`
+- `dotnet run --project gorilla-ui/tools/PipeHarness -- remove <itemName>`
 - `dotnet run --project gorilla-ui/tools/PipeHarness -- stream <operationId>`

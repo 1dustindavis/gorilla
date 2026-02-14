@@ -138,10 +138,19 @@ jobs:
 
           throw "Unable to resolve gorilla.exe path"
 
-      - name: Run released-binary integration harness
+      - name: Prepare released-binary integration fixtures
         shell: pwsh
         run: |
+          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
+          ./integration/windows/prepare-release-integration.ps1 `
+            -WorkRoot "$workRoot"
+
+      - name: Run released-binary integration tests
+        shell: pwsh
+        run: |
+          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
           ./integration/windows/run-release-integration.ps1 `
+            -WorkRoot "$workRoot" `
             -GorillaExePath "$env:GORILLA_EXE_PATH"
 
       - name: Finalize check run

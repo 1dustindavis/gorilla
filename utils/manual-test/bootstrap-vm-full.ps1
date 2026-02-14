@@ -4,7 +4,7 @@ Bootstrap Gorilla on a Windows VM and install full integration test prerequisite
 
 .DESCRIPTION
 - Runs bootstrap-vm.ps1 to install gorilla.exe + config.
-- Installs prerequisite tools needed by integration/windows/run-release-integration.ps1.
+- Installs prerequisite tools needed by integration/windows/prepare-release-integration.ps1 and integration/windows/run-release-integration.ps1.
 #>
 
 [CmdletBinding()]
@@ -172,7 +172,7 @@ if (-not (Get-Command light.exe -ErrorAction SilentlyContinue)) {
 }
 
 Write-Step "Full bootstrap complete"
-Write-Host "Prereqs ready for integration/windows/run-release-integration.ps1"
+Write-Host "Prereqs ready for integration/windows/prepare-release-integration.ps1 and integration/windows/run-release-integration.ps1"
 
 if (-not $NoPause) {
     Write-Host ""

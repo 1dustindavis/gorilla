@@ -22,8 +22,6 @@ jobs:
     name: Run Integration on Windows VM
     runs-on: windows-latest
     timeout-minutes: 60
-    env:
-      INTEGRATION_WORK_ROOT: ${{ runner.temp }}\gorilla-release-integration
     if: >-
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
@@ -143,14 +141,16 @@ jobs:
       - name: Prepare released-binary integration fixtures
         shell: pwsh
         run: |
+          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
           ./integration/windows/prepare-release-integration.ps1 `
-            -WorkRoot "${{ env.INTEGRATION_WORK_ROOT }}"
+            -WorkRoot "$workRoot"
 
       - name: Run released-binary integration tests
         shell: pwsh
         run: |
+          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
           ./integration/windows/run-release-integration.ps1 `
-            -WorkRoot "${{ env.INTEGRATION_WORK_ROOT }}" `
+            -WorkRoot "$workRoot" `
             -GorillaExePath "$env:GORILLA_EXE_PATH"
 
       - name: Finalize check run

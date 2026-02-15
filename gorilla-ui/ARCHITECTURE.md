@@ -19,7 +19,7 @@
 ## Named Pipe Contract
 
 ### Transport
-- Pipe name (proposed): `gorilla.service.v1`
+- Pipe name: `gorilla-service`
 - Encoding: UTF-8 JSON
 - Framing: one JSON message per line (newline-delimited JSON)
 - Request/response operations are line-delimited envelopes.

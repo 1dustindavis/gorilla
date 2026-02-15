@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -121,10 +123,18 @@ func (sr *serviceRunner) submit(ctx context.Context, cmd Command) (CommandRespon
 	}
 }
 
-func writeCommandResponse(file *os.File, status, message string) {
-	_ = json.NewEncoder(file).Encode(CommandResponse{
-		Status:  status,
-		Message: message,
+func writeErrorEnvelope(file *os.File, requestID, operation, operationID, code, message string) {
+	_ = json.NewEncoder(file).Encode(serviceEnvelope[errorResponsePayload]{
+		Version:      pipeProtocolVersion,
+		MessageType:  messageTypeError,
+		Operation:    operation,
+		RequestID:    requestID,
+		OperationID:  operationID,
+		TimestampUTC: nowRFC3339UTC(),
+		Payload: errorResponsePayload{
+			ErrorCode:    code,
+			ErrorMessage: message,
+		},
 	})
 }
 
@@ -170,27 +180,161 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 }
 
 func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
-	var req pipeRequest
+	var req serviceEnvelope[json.RawMessage]
 	if err := json.NewDecoder(file).Decode(&req); err != nil {
-		writeCommandResponse(file, "error", "invalid JSON request body")
+		writeErrorEnvelope(file, "", "", "", "invalid_request", "invalid JSON request body")
 		return
 	}
 
-	if canonicalAction, ok := canonicalizeAction(req.Command.Action); ok {
-		req.Command.Action = canonicalAction
-	}
-	if err := validateCommand(req.Command); err != nil {
-		writeCommandResponse(file, "error", err.Error())
+	if req.Version != pipeProtocolVersion {
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "unsupported_version", "unsupported protocol version")
 		return
 	}
 
-	resp, err := sr.submit(ctx, req.Command)
+	cmd, err := commandFromRequestEnvelope(req)
 	if err != nil {
-		writeCommandResponse(file, "error", err.Error())
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
 		return
 	}
 
-	_ = json.NewEncoder(file).Encode(resp)
+	if err := validateCommand(cmd); err != nil {
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
+		return
+	}
+
+	if cmd.Action == actionStreamOperationStatus {
+		sr.writeStreamOperationStatusSequence(file, req, cmd.Items[0])
+		return
+	}
+
+	resp, err := sr.submit(ctx, cmd)
+	if err != nil {
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "command_failed", err.Error())
+		return
+	}
+
+	sr.writeSuccessEnvelope(file, req, cmd, resp)
+}
+
+func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, error) {
+	canonicalAction, ok := canonicalizeAction(req.Operation)
+	if !ok {
+		return Command{}, fmt.Errorf("unsupported service action %q", req.Operation)
+	}
+
+	cmd := Command{Action: canonicalAction}
+	switch canonicalAction {
+	case actionListOptionalInstalls:
+		return cmd, nil
+	case actionInstallItem:
+		payload, err := decodeEnvelopePayload[installItemRequest](req.Payload)
+		if err != nil {
+			return Command{}, fmt.Errorf("invalid InstallItem payload: %w", err)
+		}
+		itemName := strings.TrimSpace(payload.ItemName)
+		if itemName == "" {
+			return Command{}, errors.New("InstallItem requires itemName")
+		}
+		cmd.Items = []string{itemName}
+		return cmd, nil
+	case actionRemoveItem:
+		payload, err := decodeEnvelopePayload[removeItemRequest](req.Payload)
+		if err != nil {
+			return Command{}, fmt.Errorf("invalid RemoveItem payload: %w", err)
+		}
+		itemName := strings.TrimSpace(payload.ItemName)
+		if itemName == "" {
+			return Command{}, errors.New("RemoveItem requires itemName")
+		}
+		cmd.Items = []string{itemName}
+		return cmd, nil
+	case actionStreamOperationStatus:
+		operationID := strings.TrimSpace(req.OperationID)
+		if operationID == "" {
+			return Command{}, errors.New("StreamOperationStatus requires operationId")
+		}
+		cmd.Items = []string{operationID}
+		return cmd, nil
+	default:
+		return Command{}, fmt.Errorf("unsupported service action %q", req.Operation)
+	}
+}
+
+func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) {
+	switch cmd.Action {
+	case actionListOptionalInstalls:
+		items := make([]optionalInstallResponseItem, 0, len(resp.Items))
+		sorted := append([]string(nil), resp.Items...)
+		slices.Sort(sorted)
+		for _, name := range sorted {
+			items = append(items, optionalInstallResponseItem{
+				ItemName:           name,
+				DisplayName:        name,
+				Version:            "",
+				Catalog:            "",
+				InstallerType:      "",
+				InstallerPackageID: name,
+				InstallerLocation:  "",
+				IsManaged:          true,
+				IsInstalled:        false,
+				Status:             "Unknown",
+				StatusUpdatedAtUTC: nowRFC3339UTC(),
+			})
+		}
+
+		_ = json.NewEncoder(file).Encode(serviceEnvelope[listOptionalInstallsResponse]{
+			Version:      pipeProtocolVersion,
+			MessageType:  messageTypeResponse,
+			Operation:    actionListOptionalInstalls,
+			RequestID:    req.RequestID,
+			OperationID:  "",
+			TimestampUTC: nowRFC3339UTC(),
+			Payload:      listOptionalInstallsResponse{Items: items},
+		})
+	case actionInstallItem, actionRemoveItem:
+		_ = json.NewEncoder(file).Encode(serviceEnvelope[operationAcceptedResponse]{
+			Version:      pipeProtocolVersion,
+			MessageType:  messageTypeResponse,
+			Operation:    cmd.Action,
+			RequestID:    req.RequestID,
+			OperationID:  resp.OperationID,
+			TimestampUTC: nowRFC3339UTC(),
+			Payload: operationAcceptedResponse{
+				Accepted:    true,
+				QueuedAtUTC: nowRFC3339UTC(),
+			},
+		})
+	default:
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "unsupported_action", "unsupported service action")
+	}
+}
+
+func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req serviceEnvelope[json.RawMessage], operationID string) {
+	_ = json.NewEncoder(file).Encode(serviceEnvelope[streamOperationStatusAckResponse]{
+		Version:      pipeProtocolVersion,
+		MessageType:  messageTypeResponse,
+		Operation:    actionStreamOperationStatus,
+		RequestID:    req.RequestID,
+		OperationID:  operationID,
+		TimestampUTC: nowRFC3339UTC(),
+		Payload: streamOperationStatusAckResponse{
+			StreamAccepted: true,
+		},
+	})
+
+	_ = json.NewEncoder(file).Encode(serviceEnvelope[operationStatusEventPayload]{
+		Version:      pipeProtocolVersion,
+		MessageType:  messageTypeEvent,
+		Operation:    actionStreamOperationStatus,
+		RequestID:    "",
+		OperationID:  operationID,
+		TimestampUTC: nowRFC3339UTC(),
+		Payload: operationStatusEventPayload{
+			State:           "Succeeded",
+			ProgressPercent: 100,
+			Message:         "Operation completed",
+		},
+	})
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {

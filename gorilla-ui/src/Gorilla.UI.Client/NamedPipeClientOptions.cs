@@ -7,5 +7,5 @@ public sealed record NamedPipeClientOptions(
 )
 {
     public static NamedPipeClientOptions Default =>
-        new(PipeName: "gorilla.service.v1", ConnectTimeout: TimeSpan.FromSeconds(5), RequestTimeout: TimeSpan.FromSeconds(30));
+        new(PipeName: "gorilla-service", ConnectTimeout: TimeSpan.FromSeconds(5), RequestTimeout: TimeSpan.FromSeconds(30));
 }

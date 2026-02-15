@@ -7,16 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"golang.org/x/sys/windows"
 )
-
-type pipeRequest struct {
-	Command Command `json:"command"`
-}
 
 func sendCommand(cfg config.Configuration, cmd Command) (CommandResponse, error) {
 	pipePath := servicePipePath(cfg.ServicePipeName)
@@ -28,23 +25,39 @@ func sendCommand(cfg config.Configuration, cmd Command) (CommandResponse, error)
 		_ = conn.Close()
 	}()
 
-	req := pipeRequest{Command: cmd}
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
+	requestEnvelope, err := makeRequestEnvelope(cmd)
+	if err != nil {
+		return CommandResponse{}, err
+	}
+
+	if err := json.NewEncoder(conn).Encode(requestEnvelope); err != nil {
 		return CommandResponse{}, fmt.Errorf("failed to send service command: %w", err)
 	}
 
-	var resp CommandResponse
-	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+	var rawResp serviceEnvelope[json.RawMessage]
+	if err := json.NewDecoder(conn).Decode(&rawResp); err != nil {
 		return CommandResponse{}, fmt.Errorf("failed to decode service response: %w", err)
 	}
-	if resp.Status != "ok" {
-		if resp.Message == "" {
-			resp.Message = "service command failed"
-		}
-		return CommandResponse{}, errors.New(resp.Message)
-	}
 
-	return resp, nil
+	switch rawResp.MessageType {
+	case messageTypeError:
+		errPayload, decodeErr := decodeEnvelopePayload[errorResponsePayload](rawResp.Payload)
+		if decodeErr != nil {
+			return CommandResponse{}, fmt.Errorf("failed to decode service error payload: %w", decodeErr)
+		}
+		if strings.TrimSpace(errPayload.ErrorMessage) == "" {
+			errPayload.ErrorMessage = "service command failed"
+		}
+		return CommandResponse{}, errors.New(errPayload.ErrorMessage)
+	case messageTypeResponse:
+		resp, mapErr := mapEnvelopeToCommandResponse(rawResp)
+		if mapErr != nil {
+			return CommandResponse{}, mapErr
+		}
+		return resp, nil
+	default:
+		return CommandResponse{}, fmt.Errorf("unsupported service messageType %q", rawResp.MessageType)
+	}
 }
 
 func servicePipePath(pipeName string) string {
@@ -82,5 +95,75 @@ func openPipe(pipePath string, timeout time.Duration) (*os.File, error) {
 			return nil, err
 		}
 		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func makeRequestEnvelope(cmd Command) (serviceEnvelope[any], error) {
+	envelope := serviceEnvelope[any]{
+		Version:      pipeProtocolVersion,
+		MessageType:  messageTypeRequest,
+		Operation:    cmd.Action,
+		RequestID:    newRequestID(),
+		OperationID:  "",
+		TimestampUTC: nowRFC3339UTC(),
+		Payload:      listOptionalInstallsRequest{},
+	}
+
+	switch cmd.Action {
+	case actionListOptionalInstalls:
+		envelope.Payload = listOptionalInstallsRequest{}
+	case actionInstallItem:
+		envelope.Payload = installItemRequest{ItemName: cmd.Items[0]}
+	case actionRemoveItem:
+		envelope.Payload = removeItemRequest{ItemName: cmd.Items[0]}
+	case actionStreamOperationStatus:
+		envelope.OperationID = cmd.Items[0]
+		envelope.Payload = streamOperationStatusRequest{}
+	default:
+		return serviceEnvelope[any]{}, fmt.Errorf("unsupported service action %q", cmd.Action)
+	}
+
+	return envelope, nil
+}
+
+func mapEnvelopeToCommandResponse(raw serviceEnvelope[json.RawMessage]) (CommandResponse, error) {
+	resp := CommandResponse{Status: "ok", OperationID: raw.OperationID}
+
+	switch raw.Operation {
+	case actionListOptionalInstalls:
+		payload, err := decodeEnvelopePayload[listOptionalInstallsResponse](raw.Payload)
+		if err != nil {
+			return CommandResponse{}, fmt.Errorf("failed to decode ListOptionalInstalls payload: %w", err)
+		}
+		items := make([]string, 0, len(payload.Items))
+		for _, item := range payload.Items {
+			if strings.TrimSpace(item.ItemName) != "" {
+				items = append(items, item.ItemName)
+			}
+		}
+		slices.Sort(items)
+		resp.Items = items
+		return resp, nil
+	case actionInstallItem, actionRemoveItem:
+		payload, err := decodeEnvelopePayload[operationAcceptedResponse](raw.Payload)
+		if err != nil {
+			return CommandResponse{}, fmt.Errorf("failed to decode operation accepted payload: %w", err)
+		}
+		if !payload.Accepted {
+			return CommandResponse{}, errors.New("service did not accept operation")
+		}
+		return resp, nil
+	case actionStreamOperationStatus:
+		payload, err := decodeEnvelopePayload[streamOperationStatusAckResponse](raw.Payload)
+		if err != nil {
+			return CommandResponse{}, fmt.Errorf("failed to decode stream ack payload: %w", err)
+		}
+		if !payload.StreamAccepted {
+			return CommandResponse{}, errors.New("service rejected stream request")
+		}
+		resp.Message = "StreamOperationStatus acknowledged by service"
+		return resp, nil
+	default:
+		return CommandResponse{}, fmt.Errorf("unsupported response operation %q", raw.Operation)
 	}
 }

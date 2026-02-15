@@ -11,3 +11,11 @@ WinUI 3 application project for Gorilla UI.
 - `dotnet new sln -n Gorilla.UI`
 - `dotnet new winui3 -n Gorilla.UI.App`
 - Add the app project under this folder and reference `../Gorilla.UI.Client`.
+
+## Wiring templates
+- Starter wiring templates are available under `gorilla-ui/src/Gorilla.UI.App/template/`.
+- These include:
+  - cache-first home viewmodel flow
+  - named-pipe service composition
+  - operation status tracker stub
+  - starter Home page XAML/code-behind

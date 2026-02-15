@@ -43,6 +43,14 @@
     <ProjectReference Include="..\Gorilla.UI.Client\Gorilla.UI.Client.csproj" />
   </ItemGroup>
 
+  <!-- Keep template files in-repo for reference, but do not compile them. -->
+  <ItemGroup>
+    <Compile Remove="template\**\*.cs" />
+    <Page Remove="template\**\*.xaml" />
+    <EmbeddedResource Remove="template\**\*" />
+    <None Include="template\**\*" />
+  </ItemGroup>
+
   <!--
     Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
     Explorer "Package and Publish" context menu entry to be enabled for this project even if

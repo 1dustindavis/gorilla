@@ -6,7 +6,7 @@ namespace Gorilla.UI.App.Views;
 
 public sealed partial class HomePage : Page
 {
-    private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource? _cts;
 
     public HomeViewModel ViewModel { get; }
 
@@ -21,12 +21,16 @@ public sealed partial class HomePage : Page
 
     private async void HomePage_Loaded(object sender, RoutedEventArgs e)
     {
-        await ViewModel.InitializeAsync(_cts.Token);
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        await RunSafelyAsync(() => ViewModel.InitializeAsync(_cts.Token));
     }
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
     {
-        _cts.Cancel();
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
@@ -42,7 +46,12 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        await ViewModel.InstallAsync(item, _cts.Token);
+        if (_cts is null)
+        {
+            return;
+        }
+
+        await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
     }
 
     private async void RemoveButton_Click(object sender, RoutedEventArgs e)
@@ -58,6 +67,27 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        await ViewModel.RemoveAsync(item, _cts.Token);
+        if (_cts is null)
+        {
+            return;
+        }
+
+        await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
+    }
+
+    private async Task RunSafelyAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (_cts?.IsCancellationRequested == true)
+        {
+            // Ignore cancellation caused by page unload.
+        }
+        catch (Exception ex)
+        {
+            ViewModel.SetWarningBanner($"Operation failed: {ex.Message}");
+        }
     }
 }

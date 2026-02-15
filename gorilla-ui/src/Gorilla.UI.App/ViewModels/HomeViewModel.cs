@@ -94,6 +94,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         return Items.FirstOrDefault(i => string.Equals(i.ItemName, itemName, StringComparison.OrdinalIgnoreCase));
     }
 
+    public void SetWarningBanner(string message)
+    {
+        WarningBanner = message;
+    }
+
     private void ApplyItems(IReadOnlyList<OptionalInstallItem> source)
     {
         Items.Clear();

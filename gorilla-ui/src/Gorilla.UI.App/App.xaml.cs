@@ -1,50 +1,39 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
+using Gorilla.UI.App.Services;
+using Gorilla.UI.App.ViewModels;
+using Gorilla.UI.App.Views;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace Gorilla.UI.App
 {
-    /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
-    /// </summary>
     public partial class App : Application
     {
         private Window? _window;
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
         public App()
         {
             InitializeComponent();
         }
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
-            _window = new MainWindow();
+            var cacheFilePath = BuildCacheFilePath();
+            var services = GorillaUiServices.Create(cacheFilePath);
+            var operationTracker = new OperationTracker(services.Client);
+            var homeViewModel = new HomeViewModel(services.Client, services.CacheCoordinator, operationTracker);
+            var homePage = new HomePage(homeViewModel);
+
+            _window = new MainWindow(homePage);
             _window.Activate();
+        }
+
+        private static string BuildCacheFilePath()
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var cacheDirectory = Path.Combine(localAppData, "Gorilla", "ui");
+            Directory.CreateDirectory(cacheDirectory);
+            return Path.Combine(cacheDirectory, "optional-installs-cache.json");
         }
     }
 }

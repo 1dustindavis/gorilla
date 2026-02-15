@@ -17,6 +17,22 @@ Windows VM scaffold helper:
 - `pwsh -File gorilla-ui/tools/scaffold-winui.ps1`
 - This scaffolds `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj`, adds a reference to `Gorilla.UI.Client`, and adds the app project to `gorilla-ui/Gorilla.UI.sln`.
 
+Signed package workflow (Windows VMs):
+- Build VM:
+  - Run from repo root (`gorilla/`).
+  - `pwsh -File gorilla-ui/tools/build-signed-msix.ps1`
+  - Default output directory: `build/` (repo root)
+  - Outputs:
+    - `build/Gorilla.UI.App.signed.msix`
+    - `build/Gorilla.UI.App.cer`
+    - `build/win-build.log`
+- Target VM (Admin PowerShell):
+  - Run from repo root (`gorilla/`) when using default paths.
+  - `pwsh -File gorilla-ui/tools/install-signed-msix.ps1`
+  - Default input/output directory: `build/` (repo root relative to script location)
+  - Output:
+    - `build/win-install.log`
+
 Planned scope for the first release:
 - Display available option installs
 - Allow install/remove actions

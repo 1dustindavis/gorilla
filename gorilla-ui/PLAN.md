@@ -52,11 +52,7 @@ Planned operations:
 - Backward compatibility for existing CLI service-message behavior is not required during this UI/API iteration
 
 ## Immediate Next Steps
-1. Implement cache-first startup behavior for `ListOptionalInstalls`:
-   - Add JSON cache file reader/writer for latest list result.
-   - Load cache on app startup and render immediately.
-   - Trigger immediate live refresh and update both UI and cache.
-2. Complete WinUI app scaffolding/wiring:
+1. Complete WinUI app scaffolding/wiring:
    - Generate actual WinUI app project on Windows VM.
    - Wire views/viewmodels to the tested client APIs and cache-first startup flow.
 

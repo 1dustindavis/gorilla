@@ -9,14 +9,14 @@
 
   <Identity
     Name="133b2116-358b-42fb-8bc8-35009cc5d5af"
-    Publisher="CN=dustin"
+    Publisher="CN=GorillaUI"
     Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="133b2116-358b-42fb-8bc8-35009cc5d5af" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>Gorilla.UI.App</DisplayName>
-    <PublisherDisplayName>dustin</PublisherDisplayName>
+    <PublisherDisplayName>Gorilla UI</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 

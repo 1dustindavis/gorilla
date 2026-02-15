@@ -55,7 +55,7 @@ Planned operations:
 1. Complete WinUI app scaffolding/wiring:
    - Generate actual WinUI app project on Windows VM.
    - Wire views/viewmodels to the tested client APIs and cache-first startup flow.
-   - Progress: `gorilla-ui/Gorilla.UI.slnx` created, scaffold helper added at `gorilla-ui/tools/scaffold-winui.ps1`, implementation blueprint added at `gorilla-ui/src/Gorilla.UI.App/WIRING_BLUEPRINT.md`, copy-ready app wiring templates added under `gorilla-ui/src/Gorilla.UI.App/template/`, Windows runbook added at `gorilla-ui/src/Gorilla.UI.App/WINDOWS_VM_EXECUTION.md`, and apply helper added at `gorilla-ui/tools/apply-winui-templates.ps1`.
+   - Progress: `gorilla-ui/Gorilla.UI.sln` created, scaffold helper added at `gorilla-ui/tools/scaffold-winui.ps1`, implementation blueprint added at `gorilla-ui/src/Gorilla.UI.App/WIRING_BLUEPRINT.md`, copy-ready app wiring templates added under `gorilla-ui/src/Gorilla.UI.App/template/`, Windows runbook added at `gorilla-ui/src/Gorilla.UI.App/WINDOWS_VM_EXECUTION.md`, and apply helper added at `gorilla-ui/tools/apply-winui-templates.ps1`.
 
 ## Later TODOs
 - Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.

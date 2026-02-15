@@ -12,7 +12,7 @@ pwsh -File gorilla-ui/tools/scaffold-winui.ps1
 Expected result:
 - `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj` exists.
 - `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj` references `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`.
-- `gorilla-ui/Gorilla.UI.slnx` includes `Gorilla.UI.App`.
+- `gorilla-ui/Gorilla.UI.sln` includes `Gorilla.UI.App`.
 
 ## 2. Apply starter wiring templates
 Run from repo root:
@@ -52,7 +52,7 @@ make ui-test
 Then build solution:
 
 ```powershell
-dotnet build gorilla-ui/Gorilla.UI.slnx
+dotnet build gorilla-ui/Gorilla.UI.sln
 ```
 
 ## 5. Basic runtime smoke check

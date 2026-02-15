@@ -8,7 +8,7 @@ $repo = Resolve-Path $RepoRoot
 Set-Location $repo
 
 $uiRoot = Join-Path $repo "gorilla-ui"
-$solutionPath = Join-Path $uiRoot "Gorilla.UI.slnx"
+$solutionPath = Join-Path $uiRoot "Gorilla.UI.sln"
 $appDir = Join-Path $uiRoot "src/Gorilla.UI.App"
 $appProject = Join-Path $appDir "Gorilla.UI.App.csproj"
 $clientProject = Join-Path $uiRoot "src/Gorilla.UI.Client/Gorilla.UI.Client.csproj"

@@ -15,7 +15,13 @@ Expected result:
 - `gorilla-ui/Gorilla.UI.slnx` includes `Gorilla.UI.App`.
 
 ## 2. Apply starter wiring templates
-Copy template files into the generated app project (overwrite placeholders as needed):
+Run from repo root:
+
+```powershell
+pwsh -File gorilla-ui/tools/apply-winui-templates.ps1
+```
+
+This copies template files into the generated app project (overwriting placeholders as needed):
 
 - `gorilla-ui/src/Gorilla.UI.App/template/Models/UiOptionalInstallItem.cs`
 - `gorilla-ui/src/Gorilla.UI.App/template/Services/GorillaUiServices.cs`

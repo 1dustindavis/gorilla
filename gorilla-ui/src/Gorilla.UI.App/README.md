@@ -19,3 +19,5 @@ WinUI 3 application project for Gorilla UI.
   - named-pipe service composition
   - operation status tracker stub
   - starter Home page XAML/code-behind
+- Windows helper to apply templates into generated app project:
+  - `pwsh -File gorilla-ui/tools/apply-winui-templates.ps1`

@@ -30,6 +30,7 @@ Signed package workflow (Windows VMs):
   - Run from repo root (`gorilla/`) when using default paths.
   - `pwsh -File gorilla-ui/tools/install-signed-msix.ps1`
   - Default input/output directory: `build/` (repo root relative to script location)
+  - Handles `already installed` (`0x80073CFB`) by removing the existing package identity and retrying once.
   - Output:
     - `build/win-install.log`
 

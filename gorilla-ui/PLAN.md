@@ -51,11 +51,26 @@ Planned operations:
 - Keep `cmd/gorilla` CLI service-message commands updated in lockstep with UI pipe API changes for testing/debugging
 - Backward compatibility for existing CLI service-message behavior is not required during this UI/API iteration
 
+## Completed Milestones
+- WinUI app scaffold created under `gorilla-ui/src/Gorilla.UI.App/` and added to `gorilla-ui/Gorilla.UI.sln`.
+- App startup is wired to `HomePage` and `HomeViewModel` with named-pipe client/cache composition.
+- `HomePage` async handlers now fail safely and surface errors in UI warning banner.
+- Template source files under `gorilla-ui/src/Gorilla.UI.App/template/` are excluded from app compilation.
+- Windows VM packaging/install workflow is scripted:
+  - `gorilla-ui/tools/build-signed-msix.ps1`
+  - `gorilla-ui/tools/install-signed-msix.ps1`
+
 ## Immediate Next Steps
-1. Complete WinUI app scaffolding/wiring:
-   - Generate actual WinUI app project on Windows VM.
-   - Wire views/viewmodels to the tested client APIs and cache-first startup flow.
-   - Progress: `gorilla-ui/Gorilla.UI.sln` created, scaffold helper added at `gorilla-ui/tools/scaffold-winui.ps1`, implementation blueprint added at `gorilla-ui/src/Gorilla.UI.App/WIRING_BLUEPRINT.md`, copy-ready app wiring templates added under `gorilla-ui/src/Gorilla.UI.App/template/`, Windows runbook added at `gorilla-ui/src/Gorilla.UI.App/WINDOWS_VM_EXECUTION.md`, and apply helper added at `gorilla-ui/tools/apply-winui-templates.ps1`.
+1. Verify end-to-end live flows with Gorilla service:
+   - Validate `ListOptionalInstalls` load + cache-first startup behavior.
+   - Validate `InstallItem` and `RemoveItem` against real service responses.
+   - Validate `StreamOperationStatus` updates are reflected in UI state.
+2. Improve item-level status UX:
+   - Show per-item in-progress/terminal state from operation updates.
+   - Distinguish cached-data banner from action failure banner.
+3. Tighten CLI parity for debugging:
+   - Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
+   - Keep CLI behavior aligned as protocol contracts evolve.
 
 ## Later TODOs
 - Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.

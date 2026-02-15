@@ -17,7 +17,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public required string Status
     {
         get => _status;
-        init => _status = value;
         set
         {
             _status = value;

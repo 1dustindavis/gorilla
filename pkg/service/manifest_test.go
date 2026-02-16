@@ -53,7 +53,7 @@ func TestGetOptionalItems(t *testing.T) {
 		t.Fatalf("addServiceManagedInstalls failed: %v", err)
 	}
 
-	manifestGet = func(_ config.Configuration) ([]manifest.Item, []string) {
+	manifestGet = func(_ config.Configuration) ([]manifest.Item, []string, error) {
 		return []manifest.Item{
 			{
 				Name:             "base",
@@ -63,7 +63,7 @@ func TestGetOptionalItems(t *testing.T) {
 				Name:             "extra",
 				OptionalInstalls: []string{"7zip", "VSCode"},
 			},
-		}, nil
+		}, nil, nil
 	}
 
 	items, err := getOptionalItems(cfg)

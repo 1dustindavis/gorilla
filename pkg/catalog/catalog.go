@@ -1,13 +1,11 @@
 package catalog
 
 import (
-	"fmt"
-	"os"
+	"errors"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/1dustindavis/gorilla/pkg/report"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -57,8 +55,8 @@ type RegCheck struct {
 // This abstraction allows us to override the function while testing
 var downloadGet = download.Get
 
-// Get returns a map of `Item` from the catalog
-func Get(cfg config.Configuration) map[int]map[string]Item {
+// Get returns a map of `Item` from the catalog and any fatal catalog-loading error.
+func Get(cfg config.Configuration) (map[int]map[string]Item, error) {
 
 	// catalogMap is an map of parsed catalogs
 	var catalogMap = make(map[int]map[string]Item)
@@ -66,19 +64,9 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 	// catalogCount allows us to be sure we are processing catalogs in order
 	var catalogCount = 0
 
-	// Setup to catch a potential failure
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-			report.End()
-			os.Exit(1)
-
-		}
-	}()
-
 	// Error if dont have at least one catalog
 	if len(cfg.Catalogs) < 1 {
-		gorillalog.Error("Unable to continue, no catalogs assigned: ", cfg.Catalogs)
+		return nil, errors.New("unable to continue, no catalogs assigned")
 	}
 
 	// Loop through the catalogs and get each one in order
@@ -107,5 +95,5 @@ func Get(cfg config.Configuration) map[int]map[string]Item {
 		catalogMap[catalogCount] = catalogItems
 	}
 
-	return catalogMap
+	return catalogMap, nil
 }

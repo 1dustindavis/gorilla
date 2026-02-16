@@ -59,7 +59,10 @@ func TestGet(t *testing.T) {
 	}()
 
 	// Store the actual slice of manifest items that `Get` returns
-	actualManifests, _ := Get(cfg)
+	actualManifests, _, err := Get(cfg)
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
 
 	// Define the slice of manifest items we expect it to return
 	expectedManifests := []Item{exampleManifest, includedManifest, localManifest}
@@ -97,7 +100,10 @@ func TestGetCatalogs(t *testing.T) {
 	}()
 
 	// Run Get() to process the manifests and (hopefully) append the catalogs
-	_, newCatalogs := Get(cfg)
+	_, newCatalogs, err := Get(cfg)
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
 
 	// Define our expected catalogs
 	expectedCatalogs := []string{"production1", "production2"}
@@ -117,7 +123,10 @@ func TestParseServiceManifestFixture(t *testing.T) {
 		t.Fatalf("failed reading fixture %s: %v", serviceManifestPath, err)
 	}
 
-	parsed := parseManifest(serviceManifestPath, content)
+	parsed, err := parseManifest(serviceManifestPath, content)
+	if err != nil {
+		t.Fatalf("parseManifest failed: %v", err)
+	}
 	if parsed.Name != "service-manifest" {
 		t.Fatalf("unexpected name: %s", parsed.Name)
 	}
@@ -139,7 +148,10 @@ func TestParseOptionalManifestFixture(t *testing.T) {
 		t.Fatalf("failed reading fixture %s: %v", optionalManifestPath, err)
 	}
 
-	parsed := parseManifest(optionalManifestPath, content)
+	parsed, err := parseManifest(optionalManifestPath, content)
+	if err != nil {
+		t.Fatalf("parseManifest failed: %v", err)
+	}
 	if parsed.Name != "optional-manifest" {
 		t.Fatalf("unexpected name: %s", parsed.Name)
 	}

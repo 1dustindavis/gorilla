@@ -72,7 +72,10 @@ func managedRun(cfg config.Configuration) error {
 
 	// Get the manifests
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
-	manifests, newCatalogs := manifest.Get(cfg)
+	manifests, newCatalogs, err := manifest.Get(cfg)
+	if err != nil {
+		return fmt.Errorf("unable to retrieve manifest: %w", err)
+	}
 
 	// If we have newCatalogs, add them to the configuration
 	if newCatalogs != nil {
@@ -81,7 +84,10 @@ func managedRun(cfg config.Configuration) error {
 
 	// Get the catalogs
 	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
-	catalogs := catalog.Get(cfg)
+	catalogs, err := catalog.Get(cfg)
+	if err != nil {
+		return fmt.Errorf("unable to retrieve catalog: %w", err)
+	}
 
 	// Process the manifests into install type groups
 	gorillalog.Info("Processing manifest...")

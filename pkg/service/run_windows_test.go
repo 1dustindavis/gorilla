@@ -69,8 +69,8 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 	}()
 
 	iterations := namedPipeReliabilityIterations(t)
-	operationID := mustInstallAndGetOperationID(t, cfg, 0)
 	for i := 0; i < iterations; i++ {
+		operationID := mustInstallAndGetOperationID(t, cfg, i)
 		mustStreamAndReceiveTerminalEvent(t, cfg, operationID, i)
 	}
 }

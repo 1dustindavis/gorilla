@@ -34,7 +34,7 @@ internal static class ClientDiagnostics
         try
         {
             var directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "gorilla"
             );
             Directory.CreateDirectory(directory);

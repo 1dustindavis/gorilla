@@ -244,7 +244,10 @@ func saveServiceLocalManifest(cfg config.Configuration, entry manifest.Item) err
 }
 
 func getOptionalItems(cfg config.Configuration) ([]string, error) {
-	manifests, _ := manifestGet(cfg)
+	manifests, _, err := manifestGet(cfg)
+	if err != nil {
+		return nil, err
+	}
 	options := make([]string, 0)
 	seen := make(map[string]bool)
 	for _, m := range manifests {

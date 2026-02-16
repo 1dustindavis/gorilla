@@ -79,7 +79,10 @@ If ($upToDate) {
 	downloadGet = fakeDownload
 
 	// Run `Get`
-	testCatalog := Get(cfg)
+	testCatalog, err := Get(cfg)
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
 
 	mapsMatch := reflect.DeepEqual(expected, testCatalog[1])
 
@@ -120,7 +123,10 @@ func TestGetSkipsMissingCatalog(t *testing.T) {
 		},
 	)
 
-	got := Get(cfg)
+	got, err := Get(cfg)
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
 	if len(got) != 1 {
 		t.Fatalf("expected 1 successfully loaded catalog, got %d", len(got))
 	}
@@ -160,11 +166,26 @@ func TestGetSkipsInvalidYAML(t *testing.T) {
 		nil,
 	)
 
-	got := Get(cfg)
+	got, err := Get(cfg)
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
 	if len(got) != 1 {
 		t.Fatalf("expected 1 successfully parsed catalog, got %d", len(got))
 	}
 	if _, ok := got[1]["ChefClient"]; !ok {
 		t.Fatalf("expected ChefClient item to be loaded from valid catalog")
+	}
+}
+
+func TestGetNoCatalogsReturnsError(t *testing.T) {
+	cfg := config.Configuration{
+		URL:      "https://example.com/",
+		Catalogs: []string{},
+	}
+
+	_, err := Get(cfg)
+	if err == nil {
+		t.Fatalf("expected error when no catalogs are configured")
 	}
 }

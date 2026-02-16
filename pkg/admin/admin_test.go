@@ -123,7 +123,10 @@ version: 1.2.3.4
 		Catalogs:  []string{"base"},
 		CachePath: t.TempDir(),
 	}
-	got := catalog.Get(cfg)
+	got, err := catalog.Get(cfg)
+	if err != nil {
+		t.Fatalf("catalog.Get failed: %v", err)
+	}
 	baseCatalog, ok := got[1]
 	if !ok {
 		t.Fatalf("expected catalog map at index 1")

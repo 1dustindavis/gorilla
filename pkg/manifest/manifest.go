@@ -1,13 +1,12 @@
 package manifest
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/1dustindavis/gorilla/pkg/report"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -25,10 +24,11 @@ type Item struct {
 // This abstraction allows us to override when testing
 var downloadGet = download.Get
 
-// Get returns two slices:
+// Get returns:
 // 1) All manifest objects
 // 2) Aditional catalogs that need to be added to the config
-func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
+// 3) Any retrieval or parse error encountered while loading manifests
+func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string, err error) {
 	// Create a slice with the names of all manifests
 	// This is so we can track them before we get the data
 	var manifestsList []string
@@ -41,15 +41,6 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	// Add the top level manifest to the list
 	manifestsList = append(manifestsList, cfg.Manifest)
 
-	// Setup to catch a potential failure
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-			report.End()
-			os.Exit(1)
-		}
-	}()
-
 	for manifestsRemaining > 0 {
 		currentManifest := manifestsList[manifestsProcessed]
 
@@ -61,10 +52,13 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 		gorillalog.Info("Manifest Url:", manifestURL)
 		yamlFile, err := downloadGet(manifestURL)
 		if err != nil {
-			gorillalog.Error("Unable to retrieve manifest: ", err)
+			return nil, nil, err
 		}
 
-		newManifest := parseManifest(manifestURL, yamlFile)
+		newManifest, err := parseManifest(manifestURL, yamlFile)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		// Add any includes to our working list
 		workingList = append(workingList, newManifest.Includes...)
@@ -123,25 +117,31 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string) {
 	if len(cfg.LocalManifests) > 0 {
 		for _, manifest := range cfg.LocalManifests {
 			var localManifest Item
-			gorillalog.Info("Manifest File:", manifest)
-			localManifestsYaml, err := os.ReadFile(manifest)
-			if err != nil {
-				gorillalog.Warn("Unable to parse yaml manifest: ", manifest, err)
+				gorillalog.Info("Manifest File:", manifest)
+				localManifestsYaml, err := os.ReadFile(manifest)
+				if err != nil {
+					if errors.Is(err, os.ErrNotExist) {
+						continue
+					}
+					return nil, nil, err
+				}
+				localManifest, err = parseManifest(manifest, localManifestsYaml)
+				if err != nil {
+					return nil, nil, err
+				}
+				manifests = append(manifests, localManifest)
 			}
-			localManifest = parseManifest(manifest, localManifestsYaml)
-			manifests = append(manifests, localManifest)
 		}
-	}
 
-	return manifests, newCatalogs
+	return manifests, newCatalogs, nil
 }
 
-func parseManifest(manifestURL string, yamlFile []byte) Item {
+func parseManifest(manifestURL string, yamlFile []byte) (Item, error) {
 	// Parse the new manifest
 	var newManifest Item
 	err := yaml.Unmarshal(yamlFile, &newManifest)
 	if err != nil {
-		gorillalog.Error("Unable to parse yaml manifest: ", manifestURL, err)
+		return Item{}, err
 	}
-	return newManifest
+	return newManifest, nil
 }

@@ -71,7 +71,20 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         try
         {
             var accepted = await _client.InstallItemAsync(item.ItemName, cancellationToken);
-            await _operationTracker.TrackAsync(accepted.OperationId, _ => { }, cancellationToken);
+            if (!accepted.Accepted)
+            {
+                WarningBanner = $"Install was not accepted for {item.DisplayName}.";
+                return;
+            }
+
+            try
+            {
+                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                WarningBanner = $"Install queued, but live status stream failed: {ex.Message}";
+            }
         }
         finally
         {
@@ -85,7 +98,20 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         try
         {
             var accepted = await _client.RemoveItemAsync(item.ItemName, cancellationToken);
-            await _operationTracker.TrackAsync(accepted.OperationId, _ => { }, cancellationToken);
+            if (!accepted.Accepted)
+            {
+                WarningBanner = $"Remove was not accepted for {item.DisplayName}.";
+                return;
+            }
+
+            try
+            {
+                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                WarningBanner = $"Remove queued, but live status stream failed: {ex.Message}";
+            }
         }
         finally
         {
@@ -101,6 +127,25 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     public void SetWarningBanner(string message)
     {
         WarningBanner = message;
+    }
+
+    private void ApplyOperationUpdate(UiOptionalInstallItem item, OperationStatusEvent update)
+    {
+        item.Status = $"{update.State}: {update.Message}";
+
+        if (update.State is OperationState.Failed or OperationState.Canceled)
+        {
+            var details = string.IsNullOrWhiteSpace(update.ErrorMessage)
+                ? update.Message
+                : update.ErrorMessage;
+            WarningBanner = $"Operation for {item.DisplayName} ended with {update.State}: {details}";
+            return;
+        }
+
+        if (update.State is OperationState.Succeeded)
+        {
+            WarningBanner = string.Empty;
+        }
     }
 
     private void ApplyItems(IReadOnlyList<OptionalInstallItem> source)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/service"
 )
 
@@ -172,6 +173,39 @@ func TestRunImportModeError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "error importing item: not implemented") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestManagedRunFinalizesReportOnManifestError(t *testing.T) {
+	resetMainHooks()
+	defer resetMainHooks()
+
+	cfg := config.Configuration{
+		CheckOnly: false,
+		CachePath: t.TempDir(),
+		URL:       "http://127.0.0.1:1/",
+		Manifest:  "missing-manifest",
+	}
+
+	report.Items = make(map[string]interface{})
+	report.InstalledItems = nil
+	report.UninstalledItems = nil
+	t.Cleanup(func() {
+		report.Items = make(map[string]interface{})
+		report.InstalledItems = nil
+		report.UninstalledItems = nil
+	})
+
+	adminCheckFunc = func() (bool, error) { return true, nil }
+	mkdirAllFunc = func(path string, mode os.FileMode) error { return nil }
+
+	err := managedRun(cfg)
+	if err == nil {
+		t.Fatalf("expected error from manifest retrieval")
+	}
+
+	if _, ok := report.Items["EndTime"]; !ok {
+		t.Fatalf("expected report EndTime to be set on manifest retrieval failure")
 	}
 }
 

@@ -65,6 +65,7 @@ func managedRun(cfg config.Configuration) error {
 	// Start creating GorillaReport
 	if !cfg.CheckOnly {
 		report.Start()
+		defer report.End()
 	}
 
 	// Set the configuration that `download` will use
@@ -107,9 +108,7 @@ func managedRun(cfg config.Configuration) error {
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")
-	if !cfg.CheckOnly {
-		report.End()
-	} else {
+	if cfg.CheckOnly {
 		report.Print()
 	}
 

@@ -190,8 +190,23 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 
 		file := os.NewFile(uintptr(handle), pipePath)
 		sr.handlePipeCommand(ctx, file)
-		_ = windows.DisconnectNamedPipe(handle)
+		sr.flushAndDisconnectNamedPipe(handle)
 		_ = file.Close()
+	}
+}
+
+func (sr *serviceRunner) flushAndDisconnectNamedPipe(handle windows.Handle) {
+	if err := windows.FlushFileBuffers(handle); err != nil &&
+		!errors.Is(err, windows.ERROR_BROKEN_PIPE) &&
+		!errors.Is(err, windows.ERROR_NO_DATA) {
+		gorillalog.Warn("failed to flush named pipe buffers:", err)
+	}
+
+	if err := windows.DisconnectNamedPipe(handle); err != nil &&
+		!errors.Is(err, windows.ERROR_PIPE_NOT_CONNECTED) &&
+		!errors.Is(err, windows.ERROR_BROKEN_PIPE) &&
+		!errors.Is(err, windows.ERROR_NO_DATA) {
+		gorillalog.Warn("failed to disconnect named pipe:", err)
 	}
 }
 

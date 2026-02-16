@@ -123,6 +123,7 @@ func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, 
 func (sr *serviceRunner) stop(ctx context.Context) {
 	sr.closeListenerPipe()
 	sr.wg.Wait()
+	gorillalog.Close()
 	_ = ctx
 }
 

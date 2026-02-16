@@ -2,9 +2,11 @@ package gorillalog
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 )
@@ -14,6 +16,8 @@ var (
 	debug     bool
 	verbose   bool
 	checkonly bool
+	logMu     sync.Mutex
+	logFile   *os.File
 )
 
 // TODO rewrite with io.multiwriter
@@ -23,6 +27,8 @@ var (
 
 // NewLog creates a file and points a new logging instance at it
 func NewLog(cfg config.Configuration) {
+	logMu.Lock()
+	defer logMu.Unlock()
 
 	// Setup a defer function to recover from a panic
 	defer func() {
@@ -51,17 +57,35 @@ func NewLog(cfg config.Configuration) {
 	}
 
 	// Create the log file
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		msg := fmt.Sprint("Unable to open file:", logFile, err)
+		msg := fmt.Sprint("Unable to open file:", file, err)
 		panic(msg)
 	}
+
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	logFile = file
 
 	// Configure the `log` package to use our file
 	log.SetOutput(logFile)
 
 	//  Configure the `log` package to use microsecond resolution
 	log.SetFlags(log.Ldate | log.Lmicroseconds)
+}
+
+// Close releases the active log file handle, if one is open.
+func Close() {
+	logMu.Lock()
+	defer logMu.Unlock()
+
+	if logFile == nil {
+		return
+	}
+	log.SetOutput(io.Discard)
+	_ = logFile.Close()
+	logFile = nil
 }
 
 // Debug logs a string as DEBUG

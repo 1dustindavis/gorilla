@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"errors"
 	"os"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
@@ -119,6 +120,9 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string, err 
 				gorillalog.Info("Manifest File:", manifest)
 				localManifestsYaml, err := os.ReadFile(manifest)
 				if err != nil {
+					if errors.Is(err, os.ErrNotExist) {
+						continue
+					}
 					return nil, nil, err
 				}
 				localManifest, err = parseManifest(manifest, localManifestsYaml)

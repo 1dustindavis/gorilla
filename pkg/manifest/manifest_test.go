@@ -162,6 +162,26 @@ func TestParseOptionalManifestFixture(t *testing.T) {
 	}
 }
 
+func TestGetSkipsMissingLocalManifest(t *testing.T) {
+	downloadGet = fakeDownload
+	defer func() {
+		downloadGet = origDownloadGet
+	}()
+
+	cfgMissingLocal := cfg
+	cfgMissingLocal.LocalManifests = append([]string{}, cfg.LocalManifests...)
+	cfgMissingLocal.LocalManifests = append(cfgMissingLocal.LocalManifests, filepath.Join(t.TempDir(), "service-manifest.yaml"))
+
+	manifests, _, err := Get(cfgMissingLocal)
+	if err != nil {
+		t.Fatalf("Get() failed unexpectedly for missing local manifest: %v", err)
+	}
+
+	if len(manifests) != 3 {
+		t.Fatalf("expected 3 manifests when missing local manifest is skipped, got %d", len(manifests))
+	}
+}
+
 // fakeDownload returns a manifest encoded as yaml based on the url passed
 func fakeDownload(manifestURL string) ([]byte, error) {
 

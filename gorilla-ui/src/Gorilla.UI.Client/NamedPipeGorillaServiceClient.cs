@@ -21,6 +21,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             operationId: string.Empty,
             payload: new ListOptionalInstallsRequest()
         );
+        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId}");
 
         var responseEnvelope = await SendRequestAsync<ListOptionalInstallsRequest, ListOptionalInstallsResponse>(
             requestEnvelope,
@@ -43,6 +44,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             operationId: string.Empty,
             payload: new InstallItemRequest(itemName)
         );
+        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} itemName={itemName}");
 
         var responseEnvelope = await SendRequestAsync<InstallItemRequest, OperationAcceptedResponse>(
             requestEnvelope,
@@ -63,6 +65,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             operationId: string.Empty,
             payload: new RemoveItemRequest(itemName)
         );
+        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} itemName={itemName}");
 
         var responseEnvelope = await SendRequestAsync<RemoveItemRequest, OperationAcceptedResponse>(
             requestEnvelope,
@@ -81,6 +84,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         [EnumeratorCancellation] CancellationToken cancellationToken
     )
     {
+        ClientDiagnostics.Log($"stream:begin operationId={operationId}");
         await using var pipe = await ConnectAsync(cancellationToken);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -96,8 +100,12 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         );
 
         await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
+        ClientDiagnostics.Log(
+            $"stream:request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
+        );
 
         var ackLine = await reader.ReadLineAsync(linkedCts.Token);
+        ClientDiagnostics.Log($"stream:ack:raw {TruncateForLog(ackLine)}");
         if (string.IsNullOrWhiteSpace(ackLine))
         {
             throw new InvalidOperationException("No stream acknowledgement received from service.");
@@ -126,11 +134,13 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             {
                 throw new InvalidOperationException("Service rejected StreamOperationStatus request.");
             }
+            ClientDiagnostics.Log($"stream:ack:ok operationId={operationId}");
         }
 
         while (!cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync(cancellationToken);
+            ClientDiagnostics.Log($"stream:event:raw {TruncateForLog(line)}");
             if (line is null)
             {
                 throw new InvalidOperationException("Stream ended before terminal status event was received.");
@@ -174,9 +184,11 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             );
 
             yield return ev;
+            ClientDiagnostics.Log($"stream:event operationId={ev.OperationId} state={ev.State} progress={ev.ProgressPercent}");
 
             if (IsTerminal(ev.State))
             {
+                ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} terminalState={ev.State}");
                 yield break;
             }
         }
@@ -216,8 +228,12 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
 
         await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
+        ClientDiagnostics.Log(
+            $"request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
+        );
 
         var line = await reader.ReadLineAsync(linkedCts.Token);
+        ClientDiagnostics.Log($"response:raw {TruncateForLog(line)}");
         if (string.IsNullOrWhiteSpace(line))
         {
             throw new InvalidOperationException("No response received from service.");
@@ -235,6 +251,9 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             expectedMessageType: ProtocolMessageType.Response,
             expectedOperation: requestEnvelope.Operation,
             expectedRequestId: requestEnvelope.RequestId
+        );
+        ClientDiagnostics.Log(
+            $"response:ok operation={responseEnvelope.Operation} requestId={responseEnvelope.RequestId} operationId={responseEnvelope.OperationId}"
         );
 
         return responseEnvelope;
@@ -299,6 +318,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
 
     private async Task<NamedPipeClientStream> ConnectAsync(CancellationToken cancellationToken)
     {
+        ClientDiagnostics.Log($"connect:start pipe={_options.PipeName}");
         var pipe = new NamedPipeClientStream(
             serverName: ".",
             pipeName: _options.PipeName,
@@ -312,12 +332,25 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         try
         {
             await pipe.ConnectAsync(linkedCts.Token);
+            ClientDiagnostics.Log($"connect:ok pipe={_options.PipeName}");
             return pipe;
         }
-        catch
+        catch (Exception ex)
         {
             await pipe.DisposeAsync();
+            ClientDiagnostics.Log($"connect:failed pipe={_options.PipeName} error={ex.GetType().Name}:{ex.Message}");
             throw;
         }
+    }
+
+    private static string TruncateForLog(string? value)
+    {
+        if (value is null)
+        {
+            return "<null>";
+        }
+
+        const int max = 400;
+        return value.Length <= max ? value : value[..max] + "...";
     }
 }

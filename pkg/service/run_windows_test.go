@@ -79,7 +79,7 @@ func namedPipeReliabilityIterations(t *testing.T) int {
 	t.Helper()
 
 	const (
-		defaultIterations = 5
+		defaultIterations = 10
 		shortIterations   = 2
 		envKey            = "GORILLA_SERVICE_PIPE_RELIABILITY_ITERATIONS"
 	)

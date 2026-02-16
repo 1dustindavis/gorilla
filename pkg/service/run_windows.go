@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -65,7 +66,7 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 				return
 			case queued := <-sr.queue:
 				sr.execMutex.Lock()
-				resp, err := executeCommand(sr.cfg, queued.cmd, sr.managedRun)
+				resp, err := sr.executeCommandSafe(queued.cmd)
 				sr.execMutex.Unlock()
 				queued.result <- queuedResult{resp: resp, err: err}
 			}
@@ -99,6 +100,19 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			gorillalog.Error("panic during service command execution:", recovered)
+			gorillalog.Error(string(debug.Stack()))
+			resp = CommandResponse{}
+			err = fmt.Errorf("internal service panic while executing action %q", cmd.Action)
+		}
+	}()
+
+	return executeCommand(sr.cfg, cmd, sr.managedRun)
 }
 
 func (sr *serviceRunner) stop(ctx context.Context) {
@@ -181,6 +195,14 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 
 func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 	var req serviceEnvelope[json.RawMessage]
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			gorillalog.Error("panic while handling named pipe request:", recovered)
+			gorillalog.Error(string(debug.Stack()))
+			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "internal_error", "internal service error")
+		}
+	}()
+
 	if err := json.NewDecoder(file).Decode(&req); err != nil {
 		writeErrorEnvelope(file, "", "", "", "invalid_request", "invalid JSON request body")
 		return

@@ -88,57 +88,62 @@ Planned operations:
    - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
    - Done when: live install flow works end-to-end and expected output is documented/tested.
 
-6. Validate `RemoveItem` against real service responses.
+6. Define and implement the user-driven remove workflow when an item is not in manifest-managed uninstall paths.
+   - Scope: support ad-hoc uninstall semantics so a UI `Remove` action actually uninstalls even when absence from manifest would not trigger uninstall.
+   - Primary targets: service command semantics in `pkg/service` and process/install execution paths, plus UI/CLI contract docs.
+   - Done when: clicking `Remove` produces a deterministic uninstall path for optional installs, behavior is documented, and tests cover this case.
+
+7. Validate `RemoveItem` against real service responses.
    - Scope: same as install validation, including operation acceptance and state convergence to removed/not installed.
    - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
    - Done when: live remove flow works end-to-end and expected output is documented/tested.
 
-7. Validate `StreamOperationStatus` UI reflection end-to-end.
+8. Validate `StreamOperationStatus` UI reflection end-to-end.
    - Scope: confirm stream updates are visible in UI state for success/failure/cancel paths.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, `Services/OperationTracker.cs`.
    - Done when: each terminal state is represented correctly in the UI and covered by tests/manual checks.
 
-8. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
+9. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
    - Scope: keep CLI command grammar/output aligned with `ListOptionalInstalls|InstallItem|RemoveItem|StreamOperationStatus`.
    - Primary targets: `pkg/service/common.go`, `pkg/service/client_windows.go`, `cmd/gorilla/main.go` + tests.
    - Done when: CLI can drive all current operations and outputs useful debug info for each.
 
-9. Keep CLI behavior aligned as protocol contracts evolve.
+10. Keep CLI behavior aligned as protocol contracts evolve.
    - Scope: enforce lockstep updates whenever envelope shape/payload fields/operation semantics change.
    - Primary targets: UI client contracts, service protocol types, CLI mapping layer, contract docs/examples.
    - Done when: protocol change PRs include corresponding CLI + tests + docs updates.
 
-10. Improve item-level status UX for in-progress and terminal operation states.
+11. Improve item-level status UX for in-progress and terminal operation states.
    - Scope: surface clear pending/progress/success/failure states per item, not just generic status text.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/Models/UiOptionalInstallItem.cs`, view models, `Views/HomePage.xaml`.
    - Done when: per-item state is visually distinct and stable during operation streaming.
 
-11. Distinguish cached-data banner from action failure banner.
+12. Distinguish cached-data banner from action failure banner.
    - Scope: separate stale-data/service-warning messaging from user-initiated action errors.
    - Primary targets: `HomeViewModel` + `HomePage` bindings.
    - Done when: startup refresh issues and install/remove failures render in different UI channels/messages.
 
-12. Add a manual refresh button for `ListOptionalInstalls`.
+13. Add a manual refresh button for `ListOptionalInstalls`.
    - Scope: allow retry refresh without app restart and preserve safe cancellation/error handling.
    - Primary targets: `Views/HomePage.xaml`, `Views/HomePage.xaml.cs`, `ViewModels/HomeViewModel.cs`.
    - Done when: refresh can be triggered manually and updates list/banner state correctly.
 
-13. Add Gorilla UI/.NET validation (`make ui-test`) to appropriate GitHub Actions pipelines.
+14. Add Gorilla UI/.NET validation (`make ui-test`) to appropriate GitHub Actions pipelines.
    - Scope: ensure PR/main pipelines run .NET client tests alongside existing Go checks where relevant.
    - Primary targets: `.github/workflows/*.yml`.
    - Done when: CI executes `make ui-test` in targeted workflows and failures block merges/releases as intended.
 
-14. Prepare long-lived optional-install fixtures for UI install/remove smoke tests.
+15. Prepare long-lived optional-install fixtures for UI install/remove smoke tests.
    - Scope: reusable installer/uninstaller payloads and manifests/catalogs for stable VM and CI smoke runs.
    - Primary targets: `integration/windows/`, `utils/manual-test/`, fixture docs.
    - Done when: fixture set supports repeatable install/remove flows without ad hoc setup.
 
-15. Review service execution model for safe concurrency improvements.
+16. Review service execution model for safe concurrency improvements.
    - Scope: evaluate where parallelism helps (queueing, operation tracking, stream delivery) without violating service safety.
    - Primary targets: `pkg/service/run_windows.go` and command execution scheduling paths.
    - Done when: proposal/design notes exist and any adopted concurrency changes are covered by reliability tests.
 
-16. Start Gorilla service automatically after installation.
+17. Start Gorilla service automatically after installation.
    - Scope: define install UX and implement post-install start behavior with clear idempotent error handling.
    - Primary targets: `pkg/service/manage_windows.go`, CLI output/messages, install docs.
    - Done when: `serviceinstall` results in a running service (or actionable error) and behavior is documented/tested.

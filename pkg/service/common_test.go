@@ -2,80 +2,67 @@ package service
 
 import "testing"
 
-func TestParseCommandSpecInstall(t *testing.T) {
-	cmd, err := parseCommandSpec("install:GoogleChrome, 7zip")
+func TestParseCommandSpecInstallItem(t *testing.T) {
+	cmd, err := parseCommandSpec("InstallItem:GoogleChrome")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if cmd.Action != "install" {
-		t.Fatalf("expected action install, got %s", cmd.Action)
-	}
-	if len(cmd.Items) != 2 || cmd.Items[0] != "GoogleChrome" || cmd.Items[1] != "7zip" {
-		t.Fatalf("unexpected items: %#v", cmd.Items)
-	}
-}
-
-func TestParseCommandSpecRemove(t *testing.T) {
-	cmd, err := parseCommandSpec("remove:GoogleChrome")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if cmd.Action != "remove" {
-		t.Fatalf("expected action remove, got %s", cmd.Action)
+	if cmd.Action != actionInstallItem {
+		t.Fatalf("expected action %s, got %s", actionInstallItem, cmd.Action)
 	}
 	if len(cmd.Items) != 1 || cmd.Items[0] != "GoogleChrome" {
 		t.Fatalf("unexpected items: %#v", cmd.Items)
 	}
 }
 
-func TestParseCommandSpecRun(t *testing.T) {
-	cmd, err := parseCommandSpec("run")
+func TestParseCommandSpecRemoveItem(t *testing.T) {
+	cmd, err := parseCommandSpec("RemoveItem:GoogleChrome")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if cmd.Action != "run" {
-		t.Fatalf("expected action run, got %s", cmd.Action)
+	if cmd.Action != actionRemoveItem {
+		t.Fatalf("expected action %s, got %s", actionRemoveItem, cmd.Action)
+	}
+	if len(cmd.Items) != 1 || cmd.Items[0] != "GoogleChrome" {
+		t.Fatalf("unexpected items: %#v", cmd.Items)
+	}
+}
+
+func TestParseCommandSpecListOptionalInstalls(t *testing.T) {
+	cmd, err := parseCommandSpec("ListOptionalInstalls")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cmd.Action != actionListOptionalInstalls {
+		t.Fatalf("expected action %s, got %s", actionListOptionalInstalls, cmd.Action)
 	}
 	if len(cmd.Items) != 0 {
 		t.Fatalf("expected no items, got %#v", cmd.Items)
 	}
 }
 
-func TestParseCommandSpecGetServiceManifest(t *testing.T) {
-	cmd, err := parseCommandSpec("get-service-manifest")
+func TestParseCommandSpecStreamOperationStatus(t *testing.T) {
+	cmd, err := parseCommandSpec("StreamOperationStatus:op-123")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if cmd.Action != "get-service-manifest" {
-		t.Fatalf("expected action get-service-manifest, got %s", cmd.Action)
+	if cmd.Action != actionStreamOperationStatus {
+		t.Fatalf("expected action %s, got %s", actionStreamOperationStatus, cmd.Action)
 	}
-	if len(cmd.Items) != 0 {
-		t.Fatalf("expected no items, got %#v", cmd.Items)
-	}
-}
-
-func TestParseCommandSpecGetOptionalItems(t *testing.T) {
-	cmd, err := parseCommandSpec("get-optional-items")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if cmd.Action != "get-optional-items" {
-		t.Fatalf("expected action get-optional-items, got %s", cmd.Action)
-	}
-	if len(cmd.Items) != 0 {
-		t.Fatalf("expected no items, got %#v", cmd.Items)
+	if len(cmd.Items) != 1 || cmd.Items[0] != "op-123" {
+		t.Fatalf("unexpected items: %#v", cmd.Items)
 	}
 }
 
 func TestParseCommandSpecInvalid(t *testing.T) {
-	_, err := parseCommandSpec("install")
+	_, err := parseCommandSpec("InstallItem")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
 func TestParseCommandSpecLegacyActionInvalid(t *testing.T) {
-	_, err := parseCommandSpec("uninstall:foo")
+	_, err := parseCommandSpec("install:foo")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -83,8 +70,18 @@ func TestParseCommandSpecLegacyActionInvalid(t *testing.T) {
 
 func TestValidateCommandRunWithItems(t *testing.T) {
 	err := validateCommand(Command{
-		Action: "run",
+		Action: actionRun,
 		Items:  []string{"foo"},
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestValidateCommandInstallItemRequiresOneArgument(t *testing.T) {
+	err := validateCommand(Command{
+		Action: actionInstallItem,
+		Items:  []string{"foo", "bar"},
 	})
 	if err == nil {
 		t.Fatalf("expected error")

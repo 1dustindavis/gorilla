@@ -85,15 +85,22 @@ func route(cfg config.Configuration) error {
 			}
 			return nil
 		}
+		if resp.OperationID != "" {
+			fmt.Printf("operationId: %s\n", resp.OperationID)
+		}
+		if resp.Message != "" {
+			fmt.Println(resp.Message)
+			return nil
+		}
 		switch action {
-		case "get-service-manifest", "get-optional-items":
+		case "listoptionalinstalls":
 			fmt.Println("none")
-		case "run":
-			fmt.Println("Service run command completed successfully")
-		case "install":
-			fmt.Println("Service install command completed successfully")
-		case "remove":
-			fmt.Println("Service remove command completed successfully")
+		case "installitem":
+			fmt.Println("InstallItem command completed successfully")
+		case "removeitem":
+			fmt.Println("RemoveItem command completed successfully")
+		case "streamoperationstatus":
+			fmt.Println("StreamOperationStatus command completed successfully")
 		default:
 			fmt.Println("Service command completed successfully")
 		}

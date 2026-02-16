@@ -31,3 +31,7 @@ config.yaml
 
 # Local build artifacts
 build/
+
+# Local .NET CLI homes/tooling caches
+/.dotnet/
+/.dotnet-home/

@@ -30,23 +30,29 @@ Guidance for coding agents working in this repository.
 - Helpful make targets:
   - `make build`
   - `make test`
+  - `make ui-test`
   - `make clean`
   - `make bootstrap`
   - `make bootstrap-run`
 
 Prefer `make test` as the default local validation step, even for small changes.
+When changes include Gorilla UI/.NET code, also run `make ui-test`.
+When changes span Go service/CLI and UI protocol layers, run both `make test` and `make ui-test`.
 
 ## Code Style
 
 - Use idiomatic Go and keep code gofmt-clean.
 - Prefer small, explicit functions over broad refactors.
 - Preserve existing package boundaries (`cmd/`, `pkg/`, `integration/`, `utils/`, `wix/`).
+- Keep Gorilla UI code and related docs under `gorilla-ui/` unless there is a clear reason to place files elsewhere.
 - Do not add new dependencies unless necessary, and explicitly call out/review any dependency additions in the PR.
 
 ## Windows & Integration Notes
 
 - Be careful with path handling, newlines, and shell behavior differences.
 - Changes that affect service behavior should include/adjust tests in `pkg/service` and `cmd/gorilla` when appropriate.
+- When changing Windows named-pipe/service code paths, add or update Windows-only tests (`//go:build windows`) and validate on a Windows VM.
+- Keep diagnostics pragmatic: prefer debug-level logging or explicit debug toggles over always-on high-volume tracing.
 - Manual/integration helpers live under:
   - `integration/windows/`
   - `utils/manual-test/`
@@ -58,6 +64,17 @@ Prefer `make test` as the default local validation step, even for small changes.
   - `examples/example_catalog.yaml`
   - `examples/example_manifest.yaml`
   - `examples/example_package-info.yaml`
+- For UI protocol/data shape changes, keep the JSON contract aligned with the YAML model represented in:
+  - `examples/example_manifest.yaml`
+  - `examples/example_package-info.yaml`
+
+## UI & Protocol Notes
+
+- Local tooling prerequisites for Gorilla UI work:
+  - macOS: `dotnet-sdk@8`
+  - Windows VM: Visual Studio 2022 with WinUI/Windows App SDK tooling and .NET 8 SDK
+- Keep `cmd/gorilla` service-message commands updated in lockstep with Gorilla UI protocol changes for testing/debugging.
+- `ListOptionalInstalls` should return JSON-safe subset DTOs, not full internal item objects.
 
 ## PR Expectations
 

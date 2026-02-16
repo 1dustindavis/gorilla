@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Gorilla.UI.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Gorilla.UI.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

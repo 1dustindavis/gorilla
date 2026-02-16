@@ -59,6 +59,8 @@ Planned operations:
 - Windows VM packaging/install workflow is scripted:
   - `gorilla-ui/tools/build-signed-msix.ps1`
   - `gorilla-ui/tools/install-signed-msix.ps1`
+- Service named-pipe handling now flushes pipe buffers before disconnect to improve response/event delivery reliability.
+- UI client diagnostics are debug-gated and do not create local log directories when diagnostics are disabled.
 
 ## Immediate Next Steps
 1. Verify end-to-end live flows with Gorilla service:
@@ -68,6 +70,7 @@ Planned operations:
 2. Improve item-level status UX:
    - Show per-item in-progress/terminal state from operation updates.
    - Distinguish cached-data banner from action failure banner.
+   - Add a manual refresh button in the UI so users can retry `ListOptionalInstalls` without restarting.
 3. Tighten CLI parity for debugging:
    - Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
    - Keep CLI behavior aligned as protocol contracts evolve.
@@ -78,3 +81,6 @@ Planned operations:
 - Prepare long-lived optional-install test fixtures (installer/uninstaller payloads) for UI install/remove smoke tests, reusing/aligning with integration test fixtures where possible.
 - Make Gorilla service start automatically after installation.
 - Remove `os.Exit` usage from service-facing code paths (for example `manifest.Get`) and replace with error returns so a bad manifest/download cannot terminate the Windows service process.
+- Define a long-term diagnostics strategy (debug-toggle defaults, stable log locations, retention/rotation) for UI and service logs so troubleshooting is easy without noisy default output.
+- Replace placeholder immediate terminal `StreamOperationStatus` behavior with full async lifecycle status events from real operation execution.
+- Add Windows CI coverage for named-pipe reliability tests.

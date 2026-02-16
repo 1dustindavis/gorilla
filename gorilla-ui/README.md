@@ -34,6 +34,11 @@ Signed package workflow (Windows VMs):
   - Output:
     - `build/win-install.log`
 
+Debug diagnostics (optional):
+- UI client pipe diagnostics are off by default.
+- Enable UI client diagnostics by setting `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`) before launching Gorilla.UI.App.
+- Service named-pipe trace logging is gated by Gorilla config debug mode (`debug: true` or `--debug`).
+
 Planned scope for the first release:
 - Display available option installs
 - Allow install/remove actions

@@ -24,6 +24,7 @@
 - Framing: one JSON message per line (newline-delimited JSON)
 - Request/response operations are line-delimited envelopes.
 - `StreamOperationStatus` returns a line-delimited stream of status envelopes until completion/failure/cancel.
+- Service flushes pipe buffers before disconnecting a client connection to reduce dropped terminal envelopes.
 
 ### Envelope
 All messages use this base shape:
@@ -131,6 +132,8 @@ Notes:
 ## Logging
 - Both UI and service log: `requestId`, `operationId`, `operation`, `state`, `durationMs`, `result`.
 - First release keeps logs local and human-readable for support.
+- UI client diagnostics are disabled by default and enabled via `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`).
+- Service pipe trace logs are emitted at debug level (`gorillalog.Debug`) and are disabled unless Gorilla debug logging is enabled.
 
 ## Immediate Build Notes
 - WinUI project creation/build happens on Windows VM.

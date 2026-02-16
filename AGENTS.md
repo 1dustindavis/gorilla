@@ -51,6 +51,8 @@ When changes span Go service/CLI and UI protocol layers, run both `make test` an
 
 - Be careful with path handling, newlines, and shell behavior differences.
 - Changes that affect service behavior should include/adjust tests in `pkg/service` and `cmd/gorilla` when appropriate.
+- When changing Windows named-pipe/service code paths, add or update Windows-only tests (`//go:build windows`) and validate on a Windows VM.
+- Keep diagnostics pragmatic: prefer debug-level logging or explicit debug toggles over always-on high-volume tracing.
 - Manual/integration helpers live under:
   - `integration/windows/`
   - `utils/manual-test/`

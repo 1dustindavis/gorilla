@@ -10,6 +10,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/service"
 )
@@ -183,6 +184,7 @@ func TestManagedRunFinalizesReportOnManifestError(t *testing.T) {
 	cfg := config.Configuration{
 		CheckOnly: false,
 		CachePath: t.TempDir(),
+		AppDataPath: t.TempDir(),
 		URL:       "http://127.0.0.1:1/",
 		Manifest:  "missing-manifest",
 	}
@@ -191,6 +193,7 @@ func TestManagedRunFinalizesReportOnManifestError(t *testing.T) {
 	report.InstalledItems = nil
 	report.UninstalledItems = nil
 	t.Cleanup(func() {
+		gorillalog.Close()
 		report.Items = make(map[string]interface{})
 		report.InstalledItems = nil
 		report.UninstalledItems = nil

@@ -138,7 +138,7 @@ func (sr *serviceRunner) submit(ctx context.Context, cmd Command) (CommandRespon
 }
 
 func writeErrorEnvelope(file *os.File, requestID, operation, operationID, code, message string) {
-	_ = json.NewEncoder(file).Encode(serviceEnvelope[errorResponsePayload]{
+	if err := json.NewEncoder(file).Encode(serviceEnvelope[errorResponsePayload]{
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeError,
 		Operation:    operation,
@@ -149,7 +149,9 @@ func writeErrorEnvelope(file *os.File, requestID, operation, operationID, code, 
 			ErrorCode:    code,
 			ErrorMessage: message,
 		},
-	})
+	}); err != nil {
+		gorillalog.Error("failed to write error envelope:", err)
+	}
 }
 
 func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
@@ -204,9 +206,12 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 	}()
 
 	if err := json.NewDecoder(file).Decode(&req); err != nil {
+		gorillalog.Error("failed to decode named pipe request:", err)
 		writeErrorEnvelope(file, "", "", "", "invalid_request", "invalid JSON request body")
 		return
 	}
+
+	gorillalog.Info("named pipe request:", req.Operation, "requestId=", req.RequestID, "operationId=", req.OperationID)
 
 	if req.Version != pipeProtocolVersion {
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "unsupported_version", "unsupported protocol version")
@@ -215,11 +220,13 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 
 	cmd, err := commandFromRequestEnvelope(req)
 	if err != nil {
+		gorillalog.Error("failed to map request envelope to command:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
 		return
 	}
 
 	if err := validateCommand(cmd); err != nil {
+		gorillalog.Error("command validation failed:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
 		return
 	}
@@ -231,11 +238,14 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 
 	resp, err := sr.submit(ctx, cmd)
 	if err != nil {
+		gorillalog.Error("command execution failed:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "command_failed", err.Error())
 		return
 	}
 
-	sr.writeSuccessEnvelope(file, req, cmd, resp)
+	if err := sr.writeSuccessEnvelope(file, req, cmd, resp); err != nil {
+		gorillalog.Error("failed to write success envelope:", err)
+	}
 	sr.scheduleRunAfterMutation(ctx, cmd.Action)
 }
 
@@ -297,7 +307,7 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 	}
 }
 
-func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) {
+func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) error {
 	switch cmd.Action {
 	case actionListOptionalInstalls:
 		items := make([]optionalInstallResponseItem, 0, len(resp.Items))
@@ -319,7 +329,7 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 			})
 		}
 
-		_ = json.NewEncoder(file).Encode(serviceEnvelope[listOptionalInstallsResponse]{
+		if err := json.NewEncoder(file).Encode(serviceEnvelope[listOptionalInstallsResponse]{
 			Version:      pipeProtocolVersion,
 			MessageType:  messageTypeResponse,
 			Operation:    actionListOptionalInstalls,
@@ -327,9 +337,12 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 			OperationID:  "",
 			TimestampUTC: nowRFC3339UTC(),
 			Payload:      listOptionalInstallsResponse{Items: items},
-		})
+		}); err != nil {
+			return err
+		}
+		return nil
 	case actionInstallItem, actionRemoveItem:
-		_ = json.NewEncoder(file).Encode(serviceEnvelope[operationAcceptedResponse]{
+		if err := json.NewEncoder(file).Encode(serviceEnvelope[operationAcceptedResponse]{
 			Version:      pipeProtocolVersion,
 			MessageType:  messageTypeResponse,
 			Operation:    cmd.Action,
@@ -340,14 +353,18 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 				Accepted:    true,
 				QueuedAtUTC: nowRFC3339UTC(),
 			},
-		})
+		}); err != nil {
+			return err
+		}
+		return nil
 	default:
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "unsupported_action", "unsupported service action")
+		return nil
 	}
 }
 
 func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req serviceEnvelope[json.RawMessage], operationID string) {
-	_ = json.NewEncoder(file).Encode(serviceEnvelope[streamOperationStatusAckResponse]{
+	if err := json.NewEncoder(file).Encode(serviceEnvelope[streamOperationStatusAckResponse]{
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeResponse,
 		Operation:    actionStreamOperationStatus,
@@ -357,9 +374,12 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 		Payload: streamOperationStatusAckResponse{
 			StreamAccepted: true,
 		},
-	})
+	}); err != nil {
+		gorillalog.Error("failed to write stream ack envelope:", err)
+		return
+	}
 
-	_ = json.NewEncoder(file).Encode(serviceEnvelope[operationStatusEventPayload]{
+	if err := json.NewEncoder(file).Encode(serviceEnvelope[operationStatusEventPayload]{
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeEvent,
 		Operation:    actionStreamOperationStatus,
@@ -371,7 +391,9 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 			ProgressPercent: 100,
 			Message:         "Operation completed",
 		},
-	})
+	}); err != nil {
+		gorillalog.Error("failed to write stream event envelope:", err)
+	}
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {

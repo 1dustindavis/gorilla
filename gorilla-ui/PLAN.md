@@ -76,3 +76,4 @@ Planned operations:
 - Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.
 - Review Gorilla service execution model and evaluate introducing safe multithreaded/concurrent processing where beneficial (current behavior is mostly single-threaded).
 - Prepare long-lived optional-install test fixtures (installer/uninstaller payloads) for UI install/remove smoke tests, reusing/aligning with integration test fixtures where possible.
+- Make Gorilla service start automatically after installation.

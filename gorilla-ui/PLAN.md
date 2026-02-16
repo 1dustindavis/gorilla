@@ -77,3 +77,4 @@ Planned operations:
 - Review Gorilla service execution model and evaluate introducing safe multithreaded/concurrent processing where beneficial (current behavior is mostly single-threaded).
 - Prepare long-lived optional-install test fixtures (installer/uninstaller payloads) for UI install/remove smoke tests, reusing/aligning with integration test fixtures where possible.
 - Make Gorilla service start automatically after installation.
+- Remove `os.Exit` usage from service-facing code paths (for example `manifest.Get`) and replace with error returns so a bad manifest/download cannot terminate the Windows service process.

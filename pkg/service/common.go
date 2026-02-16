@@ -130,7 +130,7 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 			return CommandResponse{}, err
 		}
 		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
-		return CommandResponse{Status: "ok", OperationID: operationID}, managedRun(cfg)
+		return CommandResponse{Status: "ok", OperationID: operationID}, nil
 	case actionRemoveItem:
 		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err

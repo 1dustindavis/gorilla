@@ -100,15 +100,15 @@ func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
 	}
 }
 
-func TestExecuteCommandInstallWritesManifestAndRuns(t *testing.T) {
+func TestExecuteCommandInstallWritesManifestAndDoesNotRunInline(t *testing.T) {
 	cfg := config.Configuration{
 		AppDataPath:    filepath.Clean(t.TempDir()),
 		LocalManifests: []string{"already-local.yaml"},
 	}
 
-	var gotCfg config.Configuration
+	managedRunCalled := false
 	managedRun := func(in config.Configuration) error {
-		gotCfg = in
+		managedRunCalled = true
 		return nil
 	}
 
@@ -128,7 +128,7 @@ func TestExecuteCommandInstallWritesManifestAndRuns(t *testing.T) {
 		t.Fatalf("unexpected service-manifest items: %#v", items)
 	}
 
-	if !reflect.DeepEqual(gotCfg.LocalManifests, cfg.LocalManifests) {
-		t.Fatalf("expected managed run cfg local manifests %#v, got %#v", cfg.LocalManifests, gotCfg.LocalManifests)
+	if managedRunCalled {
+		t.Fatalf("expected managed run to be deferred, but it ran inline")
 	}
 }

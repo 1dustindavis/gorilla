@@ -236,6 +236,21 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 	}
 
 	sr.writeSuccessEnvelope(file, req, cmd, resp)
+	sr.scheduleRunAfterMutation(ctx, cmd.Action)
+}
+
+func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string) {
+	if action != actionInstallItem && action != actionRemoveItem {
+		return
+	}
+
+	sr.wg.Add(1)
+	go func() {
+		defer sr.wg.Done()
+		if _, err := sr.submit(ctx, Command{Action: actionRun}); err != nil && !errors.Is(err, context.Canceled) {
+			gorillalog.Error("failed to run managed action after service mutation:", err)
+		}
+	}()
 }
 
 func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, error) {

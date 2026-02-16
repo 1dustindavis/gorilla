@@ -64,6 +64,7 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 	}
 	defer func() {
 		cancel()
+		bestEffortUnblockPipeListener(cfg)
 		sr.stop(context.Background())
 	}()
 
@@ -205,4 +206,12 @@ func sendOneRequest[T any](t *testing.T, cfg config.Configuration, req serviceEn
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	return resp
+}
+
+func bestEffortUnblockPipeListener(cfg config.Configuration) {
+	conn, err := openPipe(servicePipePath(cfg.ServicePipeName), 250*time.Millisecond)
+	if err != nil {
+		return
+	}
+	_ = conn.Close()
 }

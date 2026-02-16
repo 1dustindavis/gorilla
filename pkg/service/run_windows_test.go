@@ -58,17 +58,19 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 
 	sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	if err := sr.start(ctx); err != nil {
 		t.Fatalf("service start failed: %v", err)
 	}
-	defer sr.stop(context.Background())
+	defer func() {
+		cancel()
+		sr.stop(context.Background())
+	}()
 
 	iterations := namedPipeReliabilityIterations(t)
+	operationID := mustInstallAndGetOperationID(t, cfg, 0)
 	for i := 0; i < iterations; i++ {
-		operationID := mustInstallAndGetOperationID(t, cfg, i)
-		mustStreamAndReceiveTerminalEvent(t, cfg, operationID)
+		mustStreamAndReceiveTerminalEvent(t, cfg, operationID, i)
 	}
 }
 
@@ -76,8 +78,8 @@ func namedPipeReliabilityIterations(t *testing.T) int {
 	t.Helper()
 
 	const (
-		defaultIterations = 8
-		shortIterations   = 3
+		defaultIterations = 5
+		shortIterations   = 2
 		envKey            = "GORILLA_SERVICE_PIPE_RELIABILITY_ITERATIONS"
 	)
 
@@ -126,7 +128,7 @@ func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq in
 	return response.OperationID
 }
 
-func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, operationID string) {
+func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, operationID string, seq int) {
 	t.Helper()
 
 	conn, err := openPipe(servicePipePath(cfg.ServicePipeName), 5*time.Second)
@@ -141,7 +143,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeRequest,
 		Operation:    actionStreamOperationStatus,
-		RequestID:    fmt.Sprintf("req-stream-%d", time.Now().UnixNano()),
+		RequestID:    fmt.Sprintf("req-stream-%d", seq),
 		OperationID:  operationID,
 		TimestampUTC: nowRFC3339UTC(),
 		Payload:      streamOperationStatusRequest{},

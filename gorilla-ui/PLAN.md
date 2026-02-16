@@ -62,25 +62,20 @@ Planned operations:
 - Service named-pipe handling now flushes pipe buffers before disconnect to improve response/event delivery reliability.
 - UI client diagnostics are debug-gated and do not create local log directories when diagnostics are disabled.
 
-## Immediate Next Steps
-1. Verify end-to-end live flows with Gorilla service:
-   - Validate `ListOptionalInstalls` load + cache-first startup behavior.
-   - Validate `InstallItem` and `RemoveItem` against real service responses.
-   - Validate `StreamOperationStatus` updates are reflected in UI state.
-2. Improve item-level status UX:
-   - Show per-item in-progress/terminal state from operation updates.
-   - Distinguish cached-data banner from action failure banner.
-   - Add a manual refresh button in the UI so users can retry `ListOptionalInstalls` without restarting.
-3. Tighten CLI parity for debugging:
-   - Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
-   - Keep CLI behavior aligned as protocol contracts evolve.
-
-## Later TODOs
-- Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.
-- Review Gorilla service execution model and evaluate introducing safe multithreaded/concurrent processing where beneficial (current behavior is mostly single-threaded).
-- Prepare long-lived optional-install test fixtures (installer/uninstaller payloads) for UI install/remove smoke tests, reusing/aligning with integration test fixtures where possible.
-- Make Gorilla service start automatically after installation.
-- Remove `os.Exit` usage from service-facing code paths (for example `manifest.Get`) and replace with error returns so a bad manifest/download cannot terminate the Windows service process.
-- Define a long-term diagnostics strategy (debug-toggle defaults, stable log locations, retention/rotation) for UI and service logs so troubleshooting is easy without noisy default output.
-- Replace placeholder immediate terminal `StreamOperationStatus` behavior with full async lifecycle status events from real operation execution.
-- Add Windows CI coverage for named-pipe reliability tests.
+## TODOs (Priority Order)
+1. Remove `os.Exit` usage from service-facing code paths (for example `manifest.Get`) and replace with error returns so a bad manifest/download cannot terminate the Windows service process.
+2. Define a long-term diagnostics strategy (debug-toggle defaults, stable log locations, retention/rotation) for UI and service logs so troubleshooting is easy without noisy default output.
+3. Replace placeholder immediate terminal `StreamOperationStatus` behavior with full async lifecycle status events from real operation execution, and add Windows CI coverage for named-pipe reliability tests.
+4. Verify `ListOptionalInstalls` load + cache-first startup behavior against live Gorilla service responses.
+5. Validate `InstallItem` against real service responses.
+6. Validate `RemoveItem` against real service responses.
+7. Validate `StreamOperationStatus` updates are reflected in UI state.
+8. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
+9. Keep CLI behavior aligned as protocol contracts evolve.
+10. Improve item-level status UX to show per-item in-progress/terminal state from operation updates.
+11. Distinguish cached-data banner from action failure banner.
+12. Add a manual refresh button in the UI so users can retry `ListOptionalInstalls` without restarting.
+13. Update GitHub Actions workflows to include Gorilla UI/.NET validation (`make ui-test`) in the appropriate pipelines.
+14. Prepare long-lived optional-install test fixtures (installer/uninstaller payloads) for UI install/remove smoke tests, reusing/aligning with integration test fixtures where possible.
+15. Review Gorilla service execution model and evaluate introducing safe multithreaded/concurrent processing where beneficial (current behavior is mostly single-threaded).
+16. Make Gorilla service start automatically after installation.

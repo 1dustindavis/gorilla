@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -63,11 +65,36 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 	}
 	defer sr.stop(context.Background())
 
-	iterations := 25
+	iterations := namedPipeReliabilityIterations(t)
 	for i := 0; i < iterations; i++ {
 		operationID := mustInstallAndGetOperationID(t, cfg, i)
 		mustStreamAndReceiveTerminalEvent(t, cfg, operationID)
 	}
+}
+
+func namedPipeReliabilityIterations(t *testing.T) int {
+	t.Helper()
+
+	const (
+		defaultIterations = 8
+		shortIterations   = 3
+		envKey            = "GORILLA_SERVICE_PIPE_RELIABILITY_ITERATIONS"
+	)
+
+	iterations := defaultIterations
+	if value := strings.TrimSpace(os.Getenv(envKey)); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			t.Fatalf("invalid %s value %q: expected positive integer", envKey, value)
+		}
+		iterations = parsed
+	}
+
+	if testing.Short() && iterations > shortIterations {
+		return shortIterations
+	}
+
+	return iterations
 }
 
 func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq int) string {

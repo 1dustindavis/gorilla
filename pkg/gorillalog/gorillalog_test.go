@@ -26,7 +26,9 @@ func TestNewLog(t *testing.T) {
 	}()
 
 	// Run the function
-	NewLog(cfg)
+	if err := NewLog(cfg); err != nil {
+		t.Fatalf("NewLog failed: %v", err)
+	}
 
 	// Check values
 	logDir := tmpDir

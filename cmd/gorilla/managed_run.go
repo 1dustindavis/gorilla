@@ -44,7 +44,9 @@ func managedRun(cfg config.Configuration) error {
 	}
 
 	// Create a new logger object
-	gorillalog.NewLog(cfg)
+	if err := gorillalog.NewLog(cfg); err != nil {
+		return fmt.Errorf("unable to initialize logger: %w", err)
+	}
 
 	if cfg.BuildArg {
 		gorillalog.Info("Building catalogs...")

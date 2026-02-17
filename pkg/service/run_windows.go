@@ -55,7 +55,9 @@ func newServiceRunner(cfg config.Configuration, managedRun func(config.Configura
 }
 
 func (sr *serviceRunner) start(ctx context.Context) error {
-	gorillalog.NewLog(sr.cfg)
+	if err := gorillalog.NewLog(sr.cfg); err != nil {
+		return fmt.Errorf("initialize logger: %w", err)
+	}
 
 	interval, err := time.ParseDuration(sr.cfg.ServiceInterval)
 	if err != nil || interval <= 0 {

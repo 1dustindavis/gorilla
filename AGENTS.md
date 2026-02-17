@@ -30,14 +30,15 @@ Guidance for coding agents working in this repository.
 - Helpful make targets:
   - `make build`
   - `make test`
+  - `make ui-lint`
   - `make ui-test`
   - `make clean`
   - `make bootstrap`
   - `make bootstrap-run`
 
 Prefer `make test` as the default local validation step, even for small changes.
-When changes include Gorilla UI/.NET code, also run `make ui-test`.
-When changes span Go service/CLI and UI protocol layers, run both `make test` and `make ui-test`.
+When changes include Gorilla UI/.NET code, run `make ui-lint` and `make ui-test`.
+When changes span Go service/CLI and UI protocol layers, run `make test`, `make ui-lint`, and `make ui-test`.
 
 ## Code Style
 

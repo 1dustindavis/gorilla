@@ -1,6 +1,6 @@
 all: build
 
-.PHONY: build bootstrap bootstrap-run manual-test-server test ui-test lint clean help
+.PHONY: build bootstrap bootstrap-run manual-test-server test ui-lint ui-test lint clean help
 
 ifndef ($(GOPATH))
 	GOPATH = $(HOME)/go
@@ -61,6 +61,7 @@ define HELP_TEXT
 	make bootstrap-run - Build manual-test assets/server and run local test server
 
 	make test          - Run the Go tests
+	make ui-lint       - Run Gorilla UI formatting/analyzer validation
 	make ui-test       - Run the Gorilla UI (.NET) tests
 	make lint          - Run the Go linters
 
@@ -140,6 +141,11 @@ bootstrap-run: bootstrap
 
 test: gomodcheck
 	go test -cover -race ./...
+
+ui-lint:
+	dotnet build gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj -warnaserror
+	dotnet build gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj -warnaserror
+	dotnet build gorilla-ui/tools/PipeHarness/PipeHarness.csproj -warnaserror
 
 ui-test:
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj

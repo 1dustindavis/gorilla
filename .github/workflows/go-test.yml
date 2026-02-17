@@ -30,8 +30,19 @@ jobs:
         go-version-file: go.mod
         cache: true
 
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
     - name: Build
       run: go build -v ./cmd/gorilla
 
     - name: Test
       run: go test -race -cover ./...
+
+    - name: UI lint
+      run: make ui-lint
+
+    - name: UI test
+      run: make ui-test

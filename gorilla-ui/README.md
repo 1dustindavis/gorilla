@@ -13,6 +13,14 @@ Current workspace:
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
   - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
 
+Validation commands:
+- `make ui-lint` runs `dotnet build -warnaserror` for:
+  - `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`
+  - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
+  - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
+- `make ui-test` runs the Gorilla UI .NET test project.
+- Optional local autofix: `dotnet format gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`.
+
 Windows VM scaffold helper:
 - `pwsh -File gorilla-ui/tools/scaffold-winui.ps1`
 - This scaffolds `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj`, adds a reference to `Gorilla.UI.Client`, and adds the app project to `gorilla-ui/Gorilla.UI.sln`.

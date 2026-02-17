@@ -8,6 +8,7 @@ on:
       - pkg/**
       - utils/**
       - integration/**
+      - Makefile
       - go.mod
       - go.sum
       - .github/workflows/go-test.yml
@@ -17,6 +18,7 @@ on:
       - pkg/**
       - utils/**
       - integration/**
+      - Makefile
       - go.mod
       - go.sum
       - .github/workflows/go-test.yml
@@ -43,5 +45,8 @@ jobs:
         go-version-file: go.mod
         cache: true
 
+    - name: Lint
+      run: make lint
+
     - name: Test
-      run: go test -race -cover ./...
+      run: make test

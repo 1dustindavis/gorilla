@@ -363,7 +363,7 @@ func ExampleCheckStatus_script() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
 	// Override the verbose setting
-	gorillalog.NewLog(cfgVerbose)
+	_ = gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
 	}()
@@ -380,7 +380,7 @@ func ExampleCheckStatus_file() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
 	// Override the verbose setting
-	gorillalog.NewLog(cfgVerbose)
+	_ = gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
 	}()
@@ -397,7 +397,7 @@ func ExampleCheckStatus_registry() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
 	// Override the verbose setting
-	gorillalog.NewLog(cfgVerbose)
+	_ = gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
 	}()
@@ -414,7 +414,7 @@ func ExampleCheckStatus_none() {
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand
 	// Override the verbose setting
-	gorillalog.NewLog(cfgVerbose)
+	_ = gorillalog.NewLog(cfgVerbose)
 	defer func() {
 		execCommand = origExec
 	}()

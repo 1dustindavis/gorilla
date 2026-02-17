@@ -91,7 +91,7 @@ If ($upToDate) {
 	}
 }
 
-func TestGetSkipsMissingCatalog(t *testing.T) {
+func TestGetReturnsErrorForMissingCatalog(t *testing.T) {
 	baseCatalog := map[string]Item{
 		"Chrome": {
 			DisplayName: "Chrome",
@@ -123,19 +123,13 @@ func TestGetSkipsMissingCatalog(t *testing.T) {
 		},
 	)
 
-	got, err := Get(cfg)
-	if err != nil {
-		t.Fatalf("Get() failed: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 successfully loaded catalog, got %d", len(got))
-	}
-	if _, ok := got[1]["Chrome"]; !ok {
-		t.Fatalf("expected Chrome item to be loaded from valid catalog")
+	_, err = Get(cfg)
+	if err == nil {
+		t.Fatalf("expected Get() to fail for missing catalog")
 	}
 }
 
-func TestGetSkipsInvalidYAML(t *testing.T) {
+func TestGetReturnsErrorForInvalidYAML(t *testing.T) {
 	baseCatalog := map[string]Item{
 		"ChefClient": {
 			DisplayName: "Chef Client",
@@ -166,15 +160,9 @@ func TestGetSkipsInvalidYAML(t *testing.T) {
 		nil,
 	)
 
-	got, err := Get(cfg)
-	if err != nil {
-		t.Fatalf("Get() failed: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected 1 successfully parsed catalog, got %d", len(got))
-	}
-	if _, ok := got[1]["ChefClient"]; !ok {
-		t.Fatalf("expected ChefClient item to be loaded from valid catalog")
+	_, err = Get(cfg)
+	if err == nil {
+		t.Fatalf("expected Get() to fail for invalid catalog YAML")
 	}
 }
 

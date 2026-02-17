@@ -25,18 +25,10 @@ var (
 // logOutput := io.MultiWriter(os.Stdout, logFile)
 // log.SetOutput(logOutput)
 
-// NewLog creates a file and points a new logging instance at it
-func NewLog(cfg config.Configuration) {
+// NewLog creates a file and points a new logging instance at it.
+func NewLog(cfg config.Configuration) error {
 	logMu.Lock()
 	defer logMu.Unlock()
-
-	// Setup a defer function to recover from a panic
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-			os.Exit(1)
-		}
-	}()
 
 	// Store the verbosity for later use
 	debug = cfg.Debug
@@ -45,22 +37,20 @@ func NewLog(cfg config.Configuration) {
 
 	// Skip log if checkonly is active
 	if checkonly {
-		return
+		return nil
 	}
 
 	// Create the log directory
 	logPath := filepath.Join(cfg.AppDataPath, "gorilla.log")
 	err := os.MkdirAll(filepath.Dir(logPath), 0755)
 	if err != nil {
-		msg := fmt.Sprint("Unable to create directory:", logPath, err)
-		panic(msg)
+		return fmt.Errorf("unable to create log directory %s: %w", filepath.Dir(logPath), err)
 	}
 
 	// Create the log file
 	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		msg := fmt.Sprint("Unable to open file:", file, err)
-		panic(msg)
+		return fmt.Errorf("unable to open log file %s: %w", logPath, err)
 	}
 
 	if logFile != nil {
@@ -73,6 +63,7 @@ func NewLog(cfg config.Configuration) {
 
 	//  Configure the `log` package to use microsecond resolution
 	log.SetFlags(log.Ldate | log.Lmicroseconds)
+	return nil
 }
 
 // Close releases the active log file handle, if one is open.

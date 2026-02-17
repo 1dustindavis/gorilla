@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -77,16 +78,14 @@ func Get(cfg config.Configuration) (map[int]map[string]Item, error) {
 		gorillalog.Info("Catalog Url:", catalogURL)
 		yamlFile, err := downloadGet(catalogURL)
 		if err != nil {
-			gorillalog.Warn("Unable to retrieve catalog, skipping:", catalogURL, err)
-			continue
+			return nil, fmt.Errorf("unable to retrieve catalog %s: %w", catalogURL, err)
 		}
 
 		// Parse the catalog
 		var catalogItems map[string]Item
 		err = yaml.Unmarshal(yamlFile, &catalogItems)
 		if err != nil {
-			gorillalog.Warn("Unable to parse yaml catalog, skipping:", catalogURL, err)
-			continue
+			return nil, fmt.Errorf("unable to parse yaml catalog %s: %w", catalogURL, err)
 		}
 
 		catalogCount++

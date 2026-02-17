@@ -684,7 +684,7 @@ func Example_runCommand() {
 	}
 
 	// Start gorillalog in debug mode
-	gorillalog.NewLog(cfgVerbose)
+	_ = gorillalog.NewLog(cfgVerbose)
 
 	// Override execCommand with our fake version
 	execCommand = fakeExecCommand

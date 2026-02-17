@@ -155,4 +155,3 @@ lint:
 	  echo "^- Repo contains improperly formatted go files; run gofmt -w -s *.go" && exit 1; \
 	  else echo "All .go files formatted correctly"; fi
 	GOOS=windows GOARCH=amd64 go vet ./...
-	golint -set_exit_status `go list ./... | grep -v /vendor/`

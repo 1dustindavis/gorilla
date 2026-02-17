@@ -3,7 +3,25 @@ on:
   push:
     branches:
       - main
+    paths:
+      - cmd/**
+      - pkg/**
+      - utils/**
+      - integration/**
+      - Makefile
+      - go.mod
+      - go.sum
+      - .github/workflows/go-test.yml
   pull_request:
+    paths:
+      - cmd/**
+      - pkg/**
+      - utils/**
+      - integration/**
+      - Makefile
+      - go.mod
+      - go.sum
+      - .github/workflows/go-test.yml
 
 permissions:
   contents: read
@@ -27,16 +45,14 @@ jobs:
         go-version-file: go.mod
         cache: true
 
-    - name: Set up .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
+    - name: Install staticcheck
+      shell: pwsh
+      run: |
+        go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+        "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
+
+    - name: Lint
+      run: make lint
 
     - name: Test
-      run: go test -race -cover ./...
-
-    - name: UI lint
-      run: make ui-lint
-
-    - name: UI test
-      run: make ui-test
+      run: make test

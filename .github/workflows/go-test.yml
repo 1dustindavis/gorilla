@@ -3,7 +3,23 @@ on:
   push:
     branches:
       - main
+    paths:
+      - cmd/**
+      - pkg/**
+      - utils/**
+      - integration/**
+      - go.mod
+      - go.sum
+      - .github/workflows/go-test.yml
   pull_request:
+    paths:
+      - cmd/**
+      - pkg/**
+      - utils/**
+      - integration/**
+      - go.mod
+      - go.sum
+      - .github/workflows/go-test.yml
 
 permissions:
   contents: read
@@ -27,16 +43,5 @@ jobs:
         go-version-file: go.mod
         cache: true
 
-    - name: Set up .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-
     - name: Test
       run: go test -race -cover ./...
-
-    - name: UI lint
-      run: make ui-lint
-
-    - name: UI test
-      run: make ui-test

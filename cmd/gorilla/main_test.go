@@ -182,11 +182,11 @@ func TestManagedRunFinalizesReportOnManifestError(t *testing.T) {
 	defer resetMainHooks()
 
 	cfg := config.Configuration{
-		CheckOnly: false,
-		CachePath: t.TempDir(),
+		CheckOnly:   false,
+		CachePath:   t.TempDir(),
 		AppDataPath: t.TempDir(),
-		URL:       "http://127.0.0.1:1/",
-		Manifest:  "missing-manifest",
+		URL:         "http://127.0.0.1:1/",
+		Manifest:    "missing-manifest",
 	}
 
 	report.Items = make(map[string]interface{})

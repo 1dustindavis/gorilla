@@ -117,21 +117,21 @@ func Get(cfg config.Configuration) (manifests []Item, newCatalogs []string, err 
 	if len(cfg.LocalManifests) > 0 {
 		for _, manifest := range cfg.LocalManifests {
 			var localManifest Item
-				gorillalog.Info("Manifest File:", manifest)
-				localManifestsYaml, err := os.ReadFile(manifest)
-				if err != nil {
-					if errors.Is(err, os.ErrNotExist) {
-						continue
-					}
-					return nil, nil, err
+			gorillalog.Info("Manifest File:", manifest)
+			localManifestsYaml, err := os.ReadFile(manifest)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
 				}
-				localManifest, err = parseManifest(manifest, localManifestsYaml)
-				if err != nil {
-					return nil, nil, err
-				}
-				manifests = append(manifests, localManifest)
+				return nil, nil, err
 			}
+			localManifest, err = parseManifest(manifest, localManifestsYaml)
+			if err != nil {
+				return nil, nil, err
+			}
+			manifests = append(manifests, localManifest)
 		}
+	}
 
 	return manifests, newCatalogs, nil
 }

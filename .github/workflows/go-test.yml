@@ -48,7 +48,7 @@ jobs:
     - name: Install staticcheck
       shell: pwsh
       run: |
-        go install honnef.co/go/tools/cmd/staticcheck@v0.5.1
+        go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
         "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
 
     - name: Lint

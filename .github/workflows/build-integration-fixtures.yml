@@ -1,0 +1,39 @@
+name: Build Integration Fixtures
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Integration Fixtures
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Prepare released-binary integration fixtures
+        shell: pwsh
+        run: |
+          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
+          ./integration/windows/prepare-release-integration.ps1 `
+            -WorkRoot "$workRoot"
+
+      - name: Upload integration fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: gorilla-release-fixtures
+          path: ${{ runner.temp }}/gorilla-release-integration/fixture
+          if-no-files-found: error

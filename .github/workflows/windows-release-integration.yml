@@ -34,6 +34,16 @@ jobs:
       github.event.comment.author_association == 'COLLABORATOR'))
 
     steps:
+      - name: Resolve fixture mode
+        if: github.event_name == 'issue_comment'
+        id: fixture_mode
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.comment && context.payload.comment.body) || "";
+            const fullMode = body.includes("/run-integration-test-full");
+            core.setOutput("mode", fullMode ? "full" : "prebuilt");
+
       - name: Resolve PR head sha
         if: github.event_name == 'issue_comment'
         id: pr_meta
@@ -120,6 +130,41 @@ jobs:
           New-Item -Path $outDir -ItemType Directory -Force | Out-Null
           go build -v -o "$outDir\gorilla.exe" ./cmd/gorilla
 
+      - name: Resolve latest integration fixture run
+        if: github.event_name == 'issue_comment' && steps.fixture_mode.outputs.mode != 'full'
+        id: fixture_run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner,
+              repo,
+              workflow_id: "build-integration-fixtures.yml",
+              branch: "main",
+              event: "push",
+              status: "completed",
+              per_page: 100
+            });
+            const latestSuccess = runs.find((run) => run.conclusion === "success");
+            if (!latestSuccess) {
+              core.warning("No successful main-branch fixture run found. Falling back to local fixture build.");
+              return;
+            }
+            core.setOutput("run_id", String(latestSuccess.id));
+
+      - name: Download prebuilt fixtures
+        if: github.event_name == 'issue_comment' && steps.fixture_mode.outputs.mode != 'full' && steps.fixture_run.outputs.run_id != ''
+        id: fixture_download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.fixture_run.outputs.run_id }}
+          name: gorilla-release-fixtures
+          path: ${{ runner.temp }}/gorilla-release-integration/fixture
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Resolve gorilla.exe path
         shell: pwsh
         run: |
@@ -139,6 +184,7 @@ jobs:
           throw "Unable to resolve gorilla.exe path"
 
       - name: Prepare released-binary integration fixtures
+        if: github.event_name == 'workflow_run' || github.event_name == 'issue_comment' && (steps.fixture_mode.outputs.mode == 'full' || steps.fixture_download.outcome != 'success')
         shell: pwsh
         run: |
           $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"

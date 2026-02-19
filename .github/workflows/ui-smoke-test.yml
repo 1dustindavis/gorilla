@@ -1,4 +1,4 @@
-name: ui-smoke-test
+name: Windows UI Test
 
 on:
   push:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   smoke:
-    name: WinUI Smoke Test (Non-Blocking)
+    name: Windows UI Test
     runs-on: windows-2025
     timeout-minutes: 30
     continue-on-error: true
@@ -33,11 +33,17 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Restore WinUI app dependencies
+        run: dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
+
       - name: Restore smoke test dependencies
         run: dotnet restore gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj
 
       - name: Build WinUI app
         run: dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 --no-restore
+
+      - name: Build smoke test project
+        run: dotnet build gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj -c Release --no-restore
 
       - name: Resolve WinUI app executable path
         shell: pwsh

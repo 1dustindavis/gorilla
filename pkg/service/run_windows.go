@@ -219,56 +219,85 @@ func (sr *serviceRunner) flushAndDisconnectNamedPipe(handle windows.Handle) {
 }
 
 func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
+	startedAt := time.Now()
+	result := "error"
 	var req serviceEnvelope[json.RawMessage]
 	defer func() {
 		if recovered := recover(); recovered != nil {
+			result = "error"
 			gorillalog.Warn("panic while handling named pipe request:", recovered)
 			gorillalog.Warn(string(debug.Stack()))
 			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "internal_error", "internal service error")
 		}
+		gorillalog.Debug(
+			"named pipe lifecycle:",
+			"operation=", req.Operation,
+			"requestId=", req.RequestID,
+			"operationId=", req.OperationID,
+			"state=completed",
+			"result=", result,
+			"durationMs=", time.Since(startedAt).Milliseconds(),
+		)
 	}()
 
 	if err := json.NewDecoder(file).Decode(&req); err != nil {
+		result = "error"
 		gorillalog.Warn("failed to decode named pipe request:", err)
 		writeErrorEnvelope(file, "", "", "", "invalid_request", "invalid JSON request body")
 		return
 	}
 
+	// Keep correlation keys explicit so request/operation flow can be joined with UI diagnostics.
 	gorillalog.Debug("named pipe request:", req.Operation, "requestId=", req.RequestID, "operationId=", req.OperationID)
 
 	if req.Version != pipeProtocolVersion {
+		result = "error"
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "unsupported_version", "unsupported protocol version")
 		return
 	}
 
 	cmd, err := commandFromRequestEnvelope(req)
 	if err != nil {
+		result = "error"
 		gorillalog.Warn("failed to map request envelope to command:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
 		return
 	}
 
 	if err := validateCommand(cmd); err != nil {
+		result = "error"
 		gorillalog.Warn("command validation failed:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", err.Error())
 		return
 	}
 
 	if cmd.Action == actionStreamOperationStatus {
-		sr.writeStreamOperationStatusSequence(file, req, cmd.Items[0])
+		if err := sr.writeStreamOperationStatusSequence(file, req, cmd.Items[0]); err != nil {
+			result = "error"
+			gorillalog.Warn("failed to write stream response envelope:", err)
+			return
+		}
+		result = "ok"
 		return
 	}
 
 	resp, err := sr.submit(ctx, cmd)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			result = "canceled"
+		} else {
+			result = "error"
+		}
 		gorillalog.Warn("command execution failed:", err)
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "command_failed", err.Error())
 		return
 	}
 
 	if err := sr.writeSuccessEnvelope(file, req, cmd, resp); err != nil {
+		result = "error"
 		gorillalog.Warn("failed to write success envelope:", err)
 	} else {
+		result = "ok"
 		gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
 	}
 	sr.scheduleRunAfterMutation(ctx, cmd.Action)
@@ -388,7 +417,7 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 	}
 }
 
-func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req serviceEnvelope[json.RawMessage], operationID string) {
+func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req serviceEnvelope[json.RawMessage], operationID string) error {
 	if err := json.NewEncoder(file).Encode(serviceEnvelope[streamOperationStatusAckResponse]{
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeResponse,
@@ -400,8 +429,7 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 			StreamAccepted: true,
 		},
 	}); err != nil {
-		gorillalog.Warn("failed to write stream ack envelope:", err)
-		return
+		return err
 	}
 	gorillalog.Debug("stream ack sent for operationId=", operationID)
 
@@ -418,10 +446,10 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 			Message:         "Operation completed",
 		},
 	}); err != nil {
-		gorillalog.Warn("failed to write stream event envelope:", err)
-		return
+		return err
 	}
 	gorillalog.Debug("stream terminal event sent for operationId=", operationID)
+	return nil
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {

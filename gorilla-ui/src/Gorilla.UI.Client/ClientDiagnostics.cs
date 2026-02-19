@@ -5,12 +5,11 @@ namespace Gorilla.UI.Client;
 internal static class ClientDiagnostics
 {
     private static readonly object Gate = new();
-    private static readonly bool Enabled = ResolveEnabled();
-    private static readonly string? LogPath = Enabled ? BuildLogPath() : null;
+    private const long DefaultMaxBytes = 10 * 1024 * 1024;
 
     public static void Log(string message)
     {
-        if (!Enabled)
+        if (!ResolveEnabled())
         {
             return;
         }
@@ -18,7 +17,8 @@ internal static class ClientDiagnostics
         var line = $"{DateTimeOffset.UtcNow:O} {message}";
         try
         {
-            if (string.IsNullOrWhiteSpace(LogPath))
+            var logPath = BuildLogPath();
+            if (string.IsNullOrWhiteSpace(logPath))
             {
                 Trace.WriteLine(line);
                 return;
@@ -26,7 +26,9 @@ internal static class ClientDiagnostics
 
             lock (Gate)
             {
-                File.AppendAllText(LogPath, line + Environment.NewLine);
+                EnsureDirectoryForPath(logPath);
+                RotateIfNeeded(logPath);
+                File.AppendAllText(logPath, line + Environment.NewLine);
             }
         }
         catch
@@ -35,7 +37,7 @@ internal static class ClientDiagnostics
         }
     }
 
-    private static bool ResolveEnabled()
+    internal static bool ResolveEnabled()
     {
         static bool ParseTrue(string? value) =>
             string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
@@ -47,10 +49,16 @@ internal static class ClientDiagnostics
             || ParseTrue(Environment.GetEnvironmentVariable("GORILLA_DEBUG"));
     }
 
-    private static string? BuildLogPath()
+    internal static string? BuildLogPath()
     {
         try
         {
+            var overridePath = Environment.GetEnvironmentVariable("GORILLA_UI_LOG_PATH");
+            if (!string.IsNullOrWhiteSpace(overridePath))
+            {
+                return overridePath;
+            }
+
             var directory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "gorilla"
@@ -62,5 +70,43 @@ internal static class ClientDiagnostics
         {
             return null;
         }
+    }
+
+    private static long ResolveMaxBytes()
+    {
+        var raw = Environment.GetEnvironmentVariable("GORILLA_UI_LOG_MAX_BYTES");
+        if (!string.IsNullOrWhiteSpace(raw) && long.TryParse(raw, out var parsed) && parsed > 0)
+        {
+            return parsed;
+        }
+
+        return DefaultMaxBytes;
+    }
+
+    private static void EnsureDirectoryForPath(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    private static void RotateIfNeeded(string path)
+    {
+        var maxBytes = ResolveMaxBytes();
+        var info = new FileInfo(path);
+        if (!info.Exists || info.Length < maxBytes)
+        {
+            return;
+        }
+
+        var backup = path + ".1";
+        if (File.Exists(backup))
+        {
+            File.Delete(backup);
+        }
+
+        File.Move(path, backup);
     }
 }

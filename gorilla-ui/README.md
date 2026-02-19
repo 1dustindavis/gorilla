@@ -42,10 +42,26 @@ Signed package workflow (Windows VMs):
   - Output:
     - `build/win-install.log`
 
-Debug diagnostics (optional):
-- UI client pipe diagnostics are off by default.
-- Enable UI client diagnostics by setting `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`) before launching Gorilla.UI.App.
-- Service named-pipe trace logging is gated by Gorilla config debug mode (`debug: true` or `--debug`).
+Diagnostics strategy (TODO 2):
+- Quiet-by-default behavior:
+  - UI client diagnostics are off by default and produce no diagnostics directory/file until explicitly enabled.
+  - Service named-pipe trace logs are debug-only (`debug: true` or `--debug`).
+  - Baseline Gorilla process logs remain enabled in `gorilla.log` for troubleshooting (both service mode and CLI mode), with console chatter gated by `verbose: true` or `--verbose`.
+- Enablement:
+  - UI client diagnostics: set `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`) before launching Gorilla.UI.App.
+  - Service trace diagnostics: set `debug: true` in config or launch Gorilla with `--debug`.
+  - Service console verbosity: set `verbose: true` in config or launch Gorilla with `--verbose`.
+- Log locations:
+  - UI client (Windows runtime): `%LOCALAPPDATA%\\gorilla\\ui-client.log`.
+  - Gorilla process log (service mode and CLI mode): `<app_data_path>/gorilla.log` (default `%ProgramData%\\gorilla\\gorilla.log`).
+- Retention/rotation policy (implementation target):
+  - Cap each log at `10 MiB`.
+  - Keep one rotated backup (`*.log.1`).
+  - Run cleanup at startup and before first append past the cap.
+  - If cleanup fails, continue app/service behavior and keep logging best-effort.
+- Required correlation fields for troubleshooting:
+  - `requestId`, `operationId`, `operation`, `state`, `result`, `durationMs`.
+  - Scope note: required for protocol/operation lifecycle logs; not required for every generic line.
 
 Planned scope for the first release:
 - Display available option installs

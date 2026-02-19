@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace Gorilla.UI.Client;
 
@@ -84,112 +85,147 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         [EnumeratorCancellation] CancellationToken cancellationToken
     )
     {
+        var duration = Stopwatch.StartNew();
+        var completed = false;
+        var terminalState = string.Empty;
+        var result = "error";
         ClientDiagnostics.Log($"stream:begin operationId={operationId}");
-        await using var pipe = await ConnectAsync(cancellationToken);
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        linkedCts.CancelAfter(_options.RequestTimeout);
-
-        await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-        using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-
-        var requestEnvelope = CreateRequestEnvelope(
-            operation: ProtocolConstants.Operation.StreamOperationStatus,
-            operationId: operationId,
-            payload: new StreamOperationStatusRequest()
-        );
-
-        await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
-        ClientDiagnostics.Log(
-            $"stream:request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
-        );
-
-        var ackLine = await reader.ReadLineAsync(linkedCts.Token);
-        ClientDiagnostics.Log($"stream:ack:raw {TruncateForLog(ackLine)}");
-        if (string.IsNullOrWhiteSpace(ackLine))
+        try
         {
-            throw new InvalidOperationException("No stream acknowledgement received from service.");
-        }
+            await using var pipe = await ConnectAsync(cancellationToken);
 
-        using (var ackDoc = JsonDocument.Parse(ackLine))
-        {
-            HandleErrorEnvelopeIfPresent(ackDoc);
-            var ackEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<StreamOperationStatusResponse>>(ackLine, ProtocolJson.Options)
-                ?? throw new InvalidOperationException("Unable to decode stream acknowledgement envelope.");
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(_options.RequestTimeout);
 
-            ProtocolValidation.ValidateEnvelopeHeader(ackEnvelope);
-            ValidateExpectedEnvelope(
-                envelope: ackEnvelope,
-                expectedMessageType: ProtocolMessageType.Response,
-                expectedOperation: requestEnvelope.Operation,
-                expectedRequestId: requestEnvelope.RequestId
+            await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+            using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+
+            var requestEnvelope = CreateRequestEnvelope(
+                operation: ProtocolConstants.Operation.StreamOperationStatus,
+                operationId: operationId,
+                payload: new StreamOperationStatusRequest()
             );
-            if (!string.Equals(ackEnvelope.OperationId, operationId, StringComparison.Ordinal))
+
+            await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
+            ClientDiagnostics.Log(
+                $"stream:request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
+            );
+
+            var ackLine = await reader.ReadLineAsync(linkedCts.Token);
+            ClientDiagnostics.Log($"stream:ack:raw {TruncateForLog(ackLine)}");
+            if (string.IsNullOrWhiteSpace(ackLine))
             {
-                throw new InvalidOperationException(
-                    $"Unexpected operationId in stream acknowledgement. Expected '{operationId}', got '{ackEnvelope.OperationId}'."
+                throw new InvalidOperationException("No stream acknowledgement received from service.");
+            }
+
+            using (var ackDoc = JsonDocument.Parse(ackLine))
+            {
+                HandleErrorEnvelopeIfPresent(ackDoc);
+                var ackEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<StreamOperationStatusResponse>>(ackLine, ProtocolJson.Options)
+                    ?? throw new InvalidOperationException("Unable to decode stream acknowledgement envelope.");
+
+                ProtocolValidation.ValidateEnvelopeHeader(ackEnvelope);
+                ValidateExpectedEnvelope(
+                    envelope: ackEnvelope,
+                    expectedMessageType: ProtocolMessageType.Response,
+                    expectedOperation: requestEnvelope.Operation,
+                    expectedRequestId: requestEnvelope.RequestId
+                );
+                if (!string.Equals(ackEnvelope.OperationId, operationId, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Unexpected operationId in stream acknowledgement. Expected '{operationId}', got '{ackEnvelope.OperationId}'."
+                    );
+                }
+                if (!ackEnvelope.Payload.StreamAccepted)
+                {
+                    throw new InvalidOperationException("Service rejected StreamOperationStatus request.");
+                }
+                ClientDiagnostics.Log($"stream:ack:ok operationId={operationId}");
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken);
+                ClientDiagnostics.Log($"stream:event:raw {TruncateForLog(line)}");
+                if (line is null)
+                {
+                    throw new InvalidOperationException("Stream ended before terminal status event was received.");
+                }
+
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                using var doc = JsonDocument.Parse(line);
+                HandleErrorEnvelopeIfPresent(doc);
+
+                var eventEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<OperationStatusEventPayload>>(line, ProtocolJson.Options)
+                    ?? throw new InvalidOperationException("Unable to decode stream event envelope.");
+
+                ProtocolValidation.ValidateEnvelopeHeader(eventEnvelope);
+                ValidateExpectedEnvelope(
+                    envelope: eventEnvelope,
+                    expectedMessageType: ProtocolMessageType.Event,
+                    expectedOperation: requestEnvelope.Operation,
+                    expectedRequestId: null
+                );
+                if (!string.Equals(eventEnvelope.OperationId, operationId, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"Unexpected operationId in stream event. Expected '{operationId}', got '{eventEnvelope.OperationId}'."
+                    );
+                }
+                ProtocolValidation.ValidateStatusEvent(eventEnvelope.Payload);
+
+                var ev = new OperationStatusEvent(
+                    OperationId: eventEnvelope.OperationId,
+                    State: eventEnvelope.Payload.State,
+                    ProgressPercent: eventEnvelope.Payload.ProgressPercent,
+                    Message: eventEnvelope.Payload.Message,
+                    TimestampUtc: eventEnvelope.TimestampUtc,
+                    ErrorCode: eventEnvelope.Payload.ErrorCode,
+                    ErrorMessage: eventEnvelope.Payload.ErrorMessage,
+                    CanceledBy: eventEnvelope.Payload.CanceledBy
+                );
+
+                yield return ev;
+                ClientDiagnostics.Log($"stream:event operationId={ev.OperationId} state={ev.State} progress={ev.ProgressPercent}");
+
+                if (IsTerminal(ev.State))
+                {
+                    ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} terminalState={ev.State}");
+                    completed = true;
+                    terminalState = ev.State.ToString();
+                    result = ev.State switch
+                    {
+                        OperationState.Succeeded => "ok",
+                        OperationState.Canceled => "canceled",
+                        _ => "error"
+                    };
+                    yield break;
+                }
+            }
+        }
+        finally
+        {
+            if (!completed && cancellationToken.IsCancellationRequested)
+            {
+                result = "canceled";
+            }
+
+            if (completed)
+            {
+                ClientDiagnostics.Log(
+                    $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
                 );
             }
-            if (!ackEnvelope.Payload.StreamAccepted)
+            else
             {
-                throw new InvalidOperationException("Service rejected StreamOperationStatus request.");
-            }
-            ClientDiagnostics.Log($"stream:ack:ok operationId={operationId}");
-        }
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var line = await reader.ReadLineAsync(cancellationToken);
-            ClientDiagnostics.Log($"stream:event:raw {TruncateForLog(line)}");
-            if (line is null)
-            {
-                throw new InvalidOperationException("Stream ended before terminal status event was received.");
-            }
-
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            using var doc = JsonDocument.Parse(line);
-            HandleErrorEnvelopeIfPresent(doc);
-
-            var eventEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<OperationStatusEventPayload>>(line, ProtocolJson.Options)
-                ?? throw new InvalidOperationException("Unable to decode stream event envelope.");
-
-            ProtocolValidation.ValidateEnvelopeHeader(eventEnvelope);
-            ValidateExpectedEnvelope(
-                envelope: eventEnvelope,
-                expectedMessageType: ProtocolMessageType.Event,
-                expectedOperation: requestEnvelope.Operation,
-                expectedRequestId: null
-            );
-            if (!string.Equals(eventEnvelope.OperationId, operationId, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"Unexpected operationId in stream event. Expected '{operationId}', got '{eventEnvelope.OperationId}'."
+                ClientDiagnostics.Log(
+                    $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
                 );
-            }
-            ProtocolValidation.ValidateStatusEvent(eventEnvelope.Payload);
-
-            var ev = new OperationStatusEvent(
-                OperationId: eventEnvelope.OperationId,
-                State: eventEnvelope.Payload.State,
-                ProgressPercent: eventEnvelope.Payload.ProgressPercent,
-                Message: eventEnvelope.Payload.Message,
-                TimestampUtc: eventEnvelope.TimestampUtc,
-                ErrorCode: eventEnvelope.Payload.ErrorCode,
-                ErrorMessage: eventEnvelope.Payload.ErrorMessage,
-                CanceledBy: eventEnvelope.Payload.CanceledBy
-            );
-
-            yield return ev;
-            ClientDiagnostics.Log($"stream:event operationId={ev.OperationId} state={ev.State} progress={ev.ProgressPercent}");
-
-            if (IsTerminal(ev.State))
-            {
-                ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} terminalState={ev.State}");
-                yield break;
             }
         }
     }
@@ -219,44 +255,59 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         CancellationToken cancellationToken
     )
     {
-        await using var pipe = await ConnectAsync(cancellationToken);
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        linkedCts.CancelAfter(_options.RequestTimeout);
-
-        await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-        using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-
-        await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
-        ClientDiagnostics.Log(
-            $"request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
-        );
-
-        var line = await reader.ReadLineAsync(linkedCts.Token);
-        ClientDiagnostics.Log($"response:raw {TruncateForLog(line)}");
-        if (string.IsNullOrWhiteSpace(line))
+        var duration = Stopwatch.StartNew();
+        try
         {
-            throw new InvalidOperationException("No response received from service.");
+            await using var pipe = await ConnectAsync(cancellationToken);
+
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(_options.RequestTimeout);
+
+            await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+            using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+
+            await writer.WriteLineAsync(JsonSerializer.Serialize(requestEnvelope, ProtocolJson.Options));
+            ClientDiagnostics.Log(
+                $"request:sent operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId}"
+            );
+
+            var line = await reader.ReadLineAsync(linkedCts.Token);
+            ClientDiagnostics.Log($"response:raw {TruncateForLog(line)}");
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                throw new InvalidOperationException("No response received from service.");
+            }
+
+            using var doc = JsonDocument.Parse(line);
+            HandleErrorEnvelopeIfPresent(doc);
+
+            var responseEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<TResponse>>(line, ProtocolJson.Options)
+                ?? throw new InvalidOperationException("Unable to decode service response envelope.");
+
+            ProtocolValidation.ValidateEnvelopeHeader(responseEnvelope);
+            ValidateExpectedEnvelope(
+                envelope: responseEnvelope,
+                expectedMessageType: ProtocolMessageType.Response,
+                expectedOperation: requestEnvelope.Operation,
+                expectedRequestId: requestEnvelope.RequestId
+            );
+            ClientDiagnostics.Log(
+                $"response:ok operation={responseEnvelope.Operation} requestId={responseEnvelope.RequestId} operationId={responseEnvelope.OperationId}"
+            );
+            ClientDiagnostics.Log(
+                $"request:lifecycle operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId} result=ok durationMs={duration.ElapsedMilliseconds}"
+            );
+
+            return responseEnvelope;
         }
-
-        using var doc = JsonDocument.Parse(line);
-        HandleErrorEnvelopeIfPresent(doc);
-
-        var responseEnvelope = JsonSerializer.Deserialize<ServiceEnvelope<TResponse>>(line, ProtocolJson.Options)
-            ?? throw new InvalidOperationException("Unable to decode service response envelope.");
-
-        ProtocolValidation.ValidateEnvelopeHeader(responseEnvelope);
-        ValidateExpectedEnvelope(
-            envelope: responseEnvelope,
-            expectedMessageType: ProtocolMessageType.Response,
-            expectedOperation: requestEnvelope.Operation,
-            expectedRequestId: requestEnvelope.RequestId
-        );
-        ClientDiagnostics.Log(
-            $"response:ok operation={responseEnvelope.Operation} requestId={responseEnvelope.RequestId} operationId={responseEnvelope.OperationId}"
-        );
-
-        return responseEnvelope;
+        catch (Exception ex)
+        {
+            var result = ex is OperationCanceledException ? "canceled" : "error";
+            ClientDiagnostics.Log(
+                $"request:lifecycle operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} operationId={requestEnvelope.OperationId} result={result} durationMs={duration.ElapsedMilliseconds} error={ex.GetType().Name}:{ex.Message}"
+            );
+            throw;
+        }
     }
 
     private static void ValidateExpectedEnvelope<TPayload>(

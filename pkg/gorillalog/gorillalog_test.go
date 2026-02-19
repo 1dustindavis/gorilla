@@ -176,6 +176,8 @@ func TestRotateCurrentLogIfNeededReopensWhenHandleMissing(t *testing.T) {
 	t.Cleanup(func() {
 		logPath = originalPath
 		logFile = originalFile
+	})
+	t.Cleanup(func() {
 		Close()
 		log.SetOutput(os.Stdout)
 	})

@@ -2,12 +2,13 @@ using System.Diagnostics;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
 using Xunit;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-namespace Gorilla.UI.App.SmokeTests;
+namespace Gorilla.UI.App.WindowsUiTests;
 
 public sealed class AppLaunchSmokeTests
 {
@@ -34,6 +35,12 @@ public sealed class AppLaunchSmokeTests
                 TimeSpan.FromSeconds(30)
             );
             Assert.NotNull(heading);
+
+            var textElements = mainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
+            Assert.DoesNotContain(
+                textElements,
+                text => text.Name.StartsWith("Operation failed", StringComparison.OrdinalIgnoreCase)
+            );
 
             var itemsList = WaitFor(
                 () => mainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ItemsList")),
@@ -101,13 +108,13 @@ public sealed class AppLaunchSmokeTests
 
     private static string ResolveArtifactsDirectory()
     {
-        var dir = Environment.GetEnvironmentVariable("SMOKE_ARTIFACTS_DIR");
+        var dir = Environment.GetEnvironmentVariable("WINDOWS_UI_TEST_ARTIFACTS_DIR");
         if (!string.IsNullOrWhiteSpace(dir))
         {
             return dir;
         }
 
-        return Path.Combine(Path.GetTempPath(), "gorilla-ui-smoke-artifacts");
+        return Path.Combine(Path.GetTempPath(), "gorilla-ui-windows-ui-test-artifacts");
     }
 
     private static T? WaitFor<T>(Func<T?> probe, TimeSpan timeout)

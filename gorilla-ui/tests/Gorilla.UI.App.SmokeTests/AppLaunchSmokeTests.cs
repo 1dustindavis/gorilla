@@ -53,6 +53,36 @@ public sealed class AppLaunchSmokeTests
         }
     }
 
+    [Fact]
+    public void AppLaunchesAndRemainsRunningAfterStartup()
+    {
+        var appExePath = ResolveAppExePath();
+        var artifactsDir = ResolveArtifactsDirectory();
+        Directory.CreateDirectory(artifactsDir);
+
+        Application? app = null;
+        UIA3Automation? automation = null;
+
+        try
+        {
+            app = Application.Launch(appExePath);
+            automation = new UIA3Automation();
+
+            _ = WaitForMainWindow(app, automation, TimeSpan.FromSeconds(30));
+            AssertAppStillRunning(app, TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex)
+        {
+            WriteFailureDetails(artifactsDir, ex, app, automation);
+            throw;
+        }
+        finally
+        {
+            automation?.Dispose();
+            CloseOrKill(app);
+        }
+    }
+
     private static string ResolveAppExePath()
     {
         var appExePath = Environment.GetEnvironmentVariable("GORILLA_UI_APP_EXE");
@@ -154,6 +184,20 @@ public sealed class AppLaunchSmokeTests
         catch
         {
             return new InvalidOperationException("Gorilla.UI.App exited before a main window was available.");
+        }
+    }
+
+    private static void AssertAppStillRunning(Application app, TimeSpan duration)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < duration)
+        {
+            if (AppHasExitedOrUnavailable(app))
+            {
+                throw BuildExitedEarlyException(app);
+            }
+
+            Thread.Sleep(100);
         }
     }
 

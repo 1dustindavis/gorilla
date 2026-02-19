@@ -71,7 +71,20 @@ Planned operations:
 2. Define a long-term diagnostics strategy for UI + service logs.
    - Scope: agree on default-off/on behavior, log file locations, retention policy, and rotation/truncation behavior.
    - Primary targets: `gorilla-ui/README.md`, `gorilla-ui/ARCHITECTURE.md`, and service logging notes/config docs.
-   - Done when: docs specify exact behavior and code follows that policy without creating noisy logs by default.
+   - Implementation plan:
+     - Publish a diagnostics policy matrix for UI client and service with explicit defaults for `debug`, `verbose`, and env-var overrides.
+     - Standardize log paths for Windows runtime and non-Windows development workflows, and document exactly when directories/files are created.
+     - Define retention/rotation behavior (size/time caps, cleanup trigger, and failure behavior when cleanup cannot run).
+     - Define required structured log fields for cross-process troubleshooting (`requestId`, `operationId`, operation name, state, result, duration).
+     - Map policy to implementation tasks in `pkg/gorillalog`, service pipe logging, and `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs`.
+   - Deliverables:
+     - A short diagnostics decision record in `gorilla-ui/ARCHITECTURE.md` with concrete defaults and rationale.
+     - Updated operator/developer docs in `gorilla-ui/README.md` and any service logging docs covering enablement, locations, and retention behavior.
+     - Follow-up implementation TODO links/issues for any policy parts intentionally deferred.
+   - Done when:
+     - docs specify exact behavior with no ambiguous defaults,
+     - code behavior matches those defaults without noisy logging by default,
+     - and one validation checklist is included for Windows VM + local dev verification.
 
 3. Replace placeholder `StreamOperationStatus` terminal behavior with real async lifecycle events, and add Windows CI coverage for named-pipe reliability.
    - Scope: emit realistic state transitions (`Queued` -> ... -> terminal) tied to actual operation execution and correlate via `operationId`.

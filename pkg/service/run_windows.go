@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime/debug"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,10 +36,13 @@ type serviceRunner struct {
 	cfg                config.Configuration
 	managedRun         func(config.Configuration) error
 	queue              chan queuedCommand
+	handlerSem         chan struct{}
 	wg                 sync.WaitGroup
 	execMutex          sync.Mutex
 	pipeListenerMu     sync.Mutex
 	pipeListenerHandle windows.Handle
+	activeConnMu       sync.Mutex
+	activeConns        map[windows.Handle]struct{}
 	operationsMu       sync.Mutex
 	operations         map[string]*trackedOperation
 }
@@ -49,17 +53,27 @@ var (
 	streamPollSleep       = 20 * time.Millisecond
 )
 
+const (
+	maxConcurrentPipeHandlers    = 32
+	trackedOperationsMaxCount    = 512
+	trackedCompletedOperationTTL = 24 * time.Hour
+)
+
 type trackedOperation struct {
-	events []operationStatusEventPayload
-	done   bool
+	events      []operationStatusEventPayload
+	done        bool
+	lastUpdated time.Time
+	completedAt time.Time
 }
 
 func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error) *serviceRunner {
 	return &serviceRunner{
-		cfg:        cfg,
-		managedRun: managedRun,
-		queue:      make(chan queuedCommand),
-		operations: make(map[string]*trackedOperation),
+		cfg:         cfg,
+		managedRun:  managedRun,
+		queue:       make(chan queuedCommand),
+		handlerSem:  make(chan struct{}, maxConcurrentPipeHandlers),
+		activeConns: make(map[windows.Handle]struct{}),
+		operations:  make(map[string]*trackedOperation),
 	}
 }
 
@@ -133,6 +147,7 @@ func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, 
 
 func (sr *serviceRunner) stop(ctx context.Context) {
 	sr.closeListenerPipe()
+	sr.closeActiveConnections()
 	sr.wg.Wait()
 	gorillalog.Close()
 	_ = ctx
@@ -204,14 +219,27 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 		}
 
 		sr.clearListenerPipe(handle)
-		sr.wg.Add(1)
-		go func(connectedHandle windows.Handle) {
-			defer sr.wg.Done()
-			file := os.NewFile(uintptr(connectedHandle), pipePath)
-			sr.handlePipeCommand(ctx, file)
-			sr.flushAndDisconnectNamedPipe(connectedHandle)
+		select {
+		case sr.handlerSem <- struct{}{}:
+			sr.trackActiveConnection(handle)
+			sr.wg.Add(1)
+			go func(connectedHandle windows.Handle) {
+				defer sr.wg.Done()
+				defer func() {
+					sr.untrackActiveConnection(connectedHandle)
+					<-sr.handlerSem
+				}()
+				file := os.NewFile(uintptr(connectedHandle), pipePath)
+				sr.handlePipeCommand(ctx, file)
+				sr.flushAndDisconnectNamedPipe(connectedHandle)
+				_ = file.Close()
+			}(handle)
+		default:
+			file := os.NewFile(uintptr(handle), pipePath)
+			writeErrorEnvelope(file, "", actionStreamOperationStatus, "", "server_busy", "service is busy; retry shortly")
+			sr.flushAndDisconnectNamedPipe(handle)
 			_ = file.Close()
-		}(handle)
+		}
 	}
 }
 
@@ -523,6 +551,7 @@ func (sr *serviceRunner) registerTrackedOperation(operationID string) {
 	}
 	sr.operationsMu.Lock()
 	defer sr.operationsMu.Unlock()
+	sr.pruneTrackedOperationsLocked(time.Now())
 	sr.operations[operationID] = &trackedOperation{
 		events: []operationStatusEventPayload{
 			{
@@ -531,6 +560,7 @@ func (sr *serviceRunner) registerTrackedOperation(operationID string) {
 				Message:         "Operation queued",
 			},
 		},
+		lastUpdated: time.Now(),
 	}
 }
 
@@ -544,10 +574,14 @@ func (sr *serviceRunner) appendOperationEvent(operationID string, event operatio
 	if !ok {
 		return
 	}
+	now := time.Now()
 	op.events = append(op.events, event)
+	op.lastUpdated = now
 	if event.State == "Succeeded" || event.State == "Failed" || event.State == "Canceled" {
 		op.done = true
+		op.completedAt = now
 	}
+	sr.pruneTrackedOperationsLocked(now)
 }
 
 func (sr *serviceRunner) hasTrackedOperation(operationID string) bool {
@@ -567,6 +601,39 @@ func (sr *serviceRunner) snapshotTrackedOperation(operationID string) ([]operati
 	out := make([]operationStatusEventPayload, len(op.events))
 	copy(out, op.events)
 	return out, op.done, true
+}
+
+func (sr *serviceRunner) pruneTrackedOperationsLocked(now time.Time) {
+	for id, op := range sr.operations {
+		if op.done && !op.completedAt.IsZero() && now.Sub(op.completedAt) > trackedCompletedOperationTTL {
+			delete(sr.operations, id)
+		}
+	}
+
+	if len(sr.operations) <= trackedOperationsMaxCount {
+		return
+	}
+
+	type doneOp struct {
+		id          string
+		completedAt time.Time
+	}
+	done := make([]doneOp, 0, len(sr.operations))
+	for id, op := range sr.operations {
+		if !op.done {
+			continue
+		}
+		done = append(done, doneOp{id: id, completedAt: op.completedAt})
+	}
+	sort.Slice(done, func(i, j int) bool {
+		return done[i].completedAt.Before(done[j].completedAt)
+	})
+	for _, candidate := range done {
+		if len(sr.operations) <= trackedOperationsMaxCount {
+			return
+		}
+		delete(sr.operations, candidate.id)
+	}
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {
@@ -604,6 +671,26 @@ func (sr *serviceRunner) closeListenerPipe() {
 	if sr.pipeListenerHandle != 0 && sr.pipeListenerHandle != windows.InvalidHandle {
 		_ = windows.CloseHandle(sr.pipeListenerHandle)
 		sr.pipeListenerHandle = 0
+	}
+}
+
+func (sr *serviceRunner) trackActiveConnection(handle windows.Handle) {
+	sr.activeConnMu.Lock()
+	defer sr.activeConnMu.Unlock()
+	sr.activeConns[handle] = struct{}{}
+}
+
+func (sr *serviceRunner) untrackActiveConnection(handle windows.Handle) {
+	sr.activeConnMu.Lock()
+	defer sr.activeConnMu.Unlock()
+	delete(sr.activeConns, handle)
+}
+
+func (sr *serviceRunner) closeActiveConnections() {
+	sr.activeConnMu.Lock()
+	defer sr.activeConnMu.Unlock()
+	for handle := range sr.activeConns {
+		_ = windows.CloseHandle(handle)
 	}
 }
 

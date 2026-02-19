@@ -230,3 +230,35 @@ func bestEffortUnblockPipeListener(cfg config.Configuration) {
 	}
 	_ = conn.Close()
 }
+
+func TestTrackedOperationPruningDropsOldCompletedEntries(t *testing.T) {
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	now := time.Now()
+
+	sr.operationsMu.Lock()
+	for i := 0; i < trackedOperationsMaxCount+50; i++ {
+		id := fmt.Sprintf("done-%d", i)
+		sr.operations[id] = &trackedOperation{
+			events:      []operationStatusEventPayload{{State: "Succeeded", ProgressPercent: 100, Message: "done"}},
+			done:        true,
+			lastUpdated: now.Add(-time.Duration(i) * time.Minute),
+			completedAt: now.Add(-time.Duration(i) * time.Minute),
+		}
+	}
+	sr.operations["active-op"] = &trackedOperation{
+		events:      []operationStatusEventPayload{{State: "Installing", ProgressPercent: 60, Message: "running"}},
+		done:        false,
+		lastUpdated: now,
+	}
+	sr.pruneTrackedOperationsLocked(now)
+	_, activeStillTracked := sr.operations["active-op"]
+	count := len(sr.operations)
+	sr.operationsMu.Unlock()
+
+	if !activeStillTracked {
+		t.Fatalf("expected active operation to remain tracked after pruning")
+	}
+	if count > trackedOperationsMaxCount {
+		t.Fatalf("expected tracked operations count <= %d, got %d", trackedOperationsMaxCount, count)
+	}
+}

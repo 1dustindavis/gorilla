@@ -1,4 +1,4 @@
-name: Windows UI Smoke Test
+name: Windows UI Tests
 
 on:
   push:
@@ -16,8 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
-    name: Windows UI Smoke Test
+  windows-ui-tests:
+    name: Windows UI Tests
     runs-on: windows-2025
     timeout-minutes: 30
     continue-on-error: true
@@ -36,13 +36,13 @@ jobs:
       - name: Restore WinUI app dependencies
         run: dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
 
-      - name: Restore smoke test dependencies
+      - name: Restore Windows UI test dependencies
         run: dotnet restore gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj
 
       - name: Build WinUI app
         run: dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 --no-restore
 
-      - name: Build smoke test project
+      - name: Build Windows UI test project
         run: dotnet build gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj -c Release --no-restore
 
       - name: Resolve WinUI app executable path
@@ -57,7 +57,7 @@ jobs:
 
           "GORILLA_UI_APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Run FlaUI smoke tests with retry
+      - name: Run FlaUI Windows UI tests with retry
         shell: pwsh
         env:
           SMOKE_RESULTS_DIR: gorilla-ui/tests/Gorilla.UI.App.SmokeTests/TestResults
@@ -68,11 +68,11 @@ jobs:
 
           $maxAttempts = 3
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            Write-Host "Smoke test attempt $attempt/$maxAttempts"
+            Write-Host "Windows UI test attempt $attempt/$maxAttempts"
             dotnet test gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj `
               -c Release `
               --no-build `
-              --logger "trx;LogFileName=ui-smoke-attempt-$attempt.trx" `
+              --logger "trx;LogFileName=windows-ui-test-attempt-$attempt.trx" `
               --results-directory $env:SMOKE_RESULTS_DIR
 
             if ($LASTEXITCODE -eq 0) {
@@ -84,13 +84,13 @@ jobs:
             }
           }
 
-          throw "WinUI smoke tests failed after $maxAttempts attempts"
+          throw "Windows UI tests failed after $maxAttempts attempts"
 
-      - name: Upload smoke artifacts
+      - name: Upload Windows UI test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-smoke-results
+          name: windows-ui-test-results
           path: |
             gorilla-ui/tests/Gorilla.UI.App.SmokeTests/TestResults/**
             gorilla-ui/tests/Gorilla.UI.App.SmokeTests/artifacts/**

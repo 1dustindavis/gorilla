@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -75,6 +76,118 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 	}
 }
 
+func TestStreamOperationStatusUnknownOperationIDReturnsError(t *testing.T) {
+	tempDir := t.TempDir()
+	cfg := config.Configuration{
+		AppDataPath:     tempDir,
+		ServicePipeName: fmt.Sprintf("gorilla-test-%d", time.Now().UnixNano()),
+		ServiceInterval: "1h",
+		ServiceMode:     true,
+		ServiceName:     "gorilla-test",
+	}
+
+	sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := sr.start(ctx); err != nil {
+		t.Fatalf("service start failed: %v", err)
+	}
+	defer func() {
+		cancel()
+		bestEffortUnblockPipeListener(cfg)
+		sr.stop(context.Background())
+	}()
+
+	conn, err := openPipe(servicePipePath(cfg.ServicePipeName), 5*time.Second)
+	if err != nil {
+		t.Fatalf("failed to open service pipe: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	request := serviceEnvelope[streamOperationStatusRequest]{
+		Version:      pipeProtocolVersion,
+		MessageType:  messageTypeRequest,
+		Operation:    actionStreamOperationStatus,
+		RequestID:    "req-stream-unknown",
+		OperationID:  "does-not-exist",
+		TimestampUTC: nowRFC3339UTC(),
+		Payload:      streamOperationStatusRequest{},
+	}
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		t.Fatalf("failed to encode stream request: %v", err)
+	}
+
+	var resp serviceEnvelope[errorResponsePayload]
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode stream error response: %v", err)
+	}
+	if resp.MessageType != messageTypeError {
+		t.Fatalf("expected messageType=%s, got %s", messageTypeError, resp.MessageType)
+	}
+	if resp.Payload.ErrorCode != "invalid_request" {
+		t.Fatalf("expected errorCode=invalid_request, got %s", resp.Payload.ErrorCode)
+	}
+}
+
+func TestStreamOperationStatusFailedLifecycle(t *testing.T) {
+	tempDir := t.TempDir()
+	cfg := config.Configuration{
+		AppDataPath:     tempDir,
+		ServicePipeName: fmt.Sprintf("gorilla-test-%d", time.Now().UnixNano()),
+		ServiceInterval: "1h",
+		ServiceMode:     true,
+		ServiceName:     "gorilla-test",
+	}
+
+	sr := newServiceRunner(cfg, func(config.Configuration) error { return errors.New("forced managed run failure") })
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := sr.start(ctx); err != nil {
+		t.Fatalf("service start failed: %v", err)
+	}
+	defer func() {
+		cancel()
+		bestEffortUnblockPipeListener(cfg)
+		sr.stop(context.Background())
+	}()
+
+	operationID := mustInstallAndGetOperationID(t, cfg, 0)
+	terminal := mustStreamAndReceiveTerminalState(t, cfg, operationID, 0)
+	if terminal.State != "Failed" {
+		t.Fatalf("expected terminal state Failed, got %s", terminal.State)
+	}
+	if terminal.ErrorCode != "managed_run_failed" {
+		t.Fatalf("expected errorCode managed_run_failed, got %s", terminal.ErrorCode)
+	}
+}
+
+func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	operationID := "op-canceled"
+	sr.registerTrackedOperation(operationID)
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	sr.scheduleRunAfterMutation(canceledCtx, actionInstallItem, operationID)
+	sr.wg.Wait()
+
+	events, done, ok := sr.snapshotTrackedOperation(operationID)
+	if !ok {
+		t.Fatalf("expected tracked operation to exist")
+	}
+	if !done {
+		t.Fatalf("expected tracked operation to be marked done")
+	}
+	last := events[len(events)-1]
+	if last.State != "Canceled" {
+		t.Fatalf("expected terminal state Canceled, got %s", last.State)
+	}
+	if last.CanceledBy != "service" {
+		t.Fatalf("expected canceledBy=service, got %s", last.CanceledBy)
+	}
+}
+
 func namedPipeReliabilityIterations(t *testing.T) int {
 	t.Helper()
 
@@ -132,6 +245,15 @@ func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq in
 func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, operationID string, seq int) {
 	t.Helper()
 
+	terminal := mustStreamAndReceiveTerminalState(t, cfg, operationID, seq)
+	if terminal.State != "Succeeded" {
+		t.Fatalf("expected terminal state Succeeded, got %s", terminal.State)
+	}
+}
+
+func mustStreamAndReceiveTerminalState(t *testing.T, cfg config.Configuration, operationID string, seq int) operationStatusEventPayload {
+	t.Helper()
+
 	conn, err := openPipe(servicePipePath(cfg.ServicePipeName), 5*time.Second)
 	if err != nil {
 		t.Fatalf("failed to open service pipe: %v", err)
@@ -170,6 +292,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	}
 
 	states := make([]string, 0, 4)
+	var terminal operationStatusEventPayload
 	for {
 		var event serviceEnvelope[operationStatusEventPayload]
 		if err := decoder.Decode(&event); err != nil {
@@ -186,6 +309,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 		}
 		states = append(states, event.Payload.State)
 		if event.Payload.State == "Succeeded" || event.Payload.State == "Failed" || event.Payload.State == "Canceled" {
+			terminal = event.Payload
 			break
 		}
 	}
@@ -196,9 +320,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	if states[0] != "Queued" {
 		t.Fatalf("expected first state Queued, got %s (%v)", states[0], states)
 	}
-	if states[len(states)-1] != "Succeeded" {
-		t.Fatalf("expected terminal state Succeeded, got %s (%v)", states[len(states)-1], states)
-	}
+	return terminal
 }
 
 func sendOneRequest[T any](t *testing.T, cfg config.Configuration, req serviceEnvelope[T]) serviceEnvelope[json.RawMessage] {

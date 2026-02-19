@@ -1,0 +1,96 @@
+name: Windows UI Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - gorilla-ui/**
+      - .github/workflows/windows-ui-test.yml
+  pull_request:
+    paths:
+      - gorilla-ui/**
+      - .github/workflows/windows-ui-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-ui-tests:
+    name: Windows UI Tests
+    runs-on: windows-2025
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Set Git config
+        run: git config --global core.autocrlf false
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore WinUI app dependencies
+        run: dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
+
+      - name: Restore Windows UI test dependencies
+        run: dotnet restore gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj
+
+      - name: Build WinUI app
+        run: dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false -p:PublishTrimmed=false --no-restore
+
+      - name: Build Windows UI test project
+        run: dotnet build gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj -c Release --no-restore
+
+      - name: Resolve WinUI app executable path
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/bin -Recurse -Filter Gorilla.UI.App.exe |
+            Where-Object { $_.FullName -notmatch '\\AppX\\' } |
+            Select-Object -First 1
+          if (-not $exe) {
+            throw "Unable to locate Gorilla.UI.App.exe after build."
+          }
+
+          "GORILLA_UI_APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Run FlaUI Windows UI tests with retry
+        shell: pwsh
+        env:
+          SMOKE_RESULTS_DIR: gorilla-ui/tests/Gorilla.UI.App.SmokeTests/TestResults
+          SMOKE_ARTIFACTS_DIR: gorilla-ui/tests/Gorilla.UI.App.SmokeTests/artifacts
+        run: |
+          New-Item -ItemType Directory -Path $env:SMOKE_RESULTS_DIR -Force | Out-Null
+          New-Item -ItemType Directory -Path $env:SMOKE_ARTIFACTS_DIR -Force | Out-Null
+
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Windows UI test attempt $attempt/$maxAttempts"
+            dotnet test gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj `
+              -c Release `
+              --no-build `
+              --logger "trx;LogFileName=windows-ui-test-attempt-$attempt.trx" `
+              --results-directory $env:SMOKE_RESULTS_DIR
+
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+
+            if ($attempt -lt $maxAttempts) {
+              Start-Sleep -Seconds (15 * $attempt)
+            }
+          }
+
+          throw "Windows UI tests failed after $maxAttempts attempts"
+
+      - name: Upload Windows UI test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-test-results
+          path: |
+            gorilla-ui/tests/Gorilla.UI.App.SmokeTests/TestResults/**
+            gorilla-ui/tests/Gorilla.UI.App.SmokeTests/artifacts/**

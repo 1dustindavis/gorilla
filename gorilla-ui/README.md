@@ -19,6 +19,17 @@ Validation commands:
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
   - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
 - `make ui-test` runs the Gorilla UI .NET test project.
+- Windows UI tests (FlaUI):
+  - CI workflow: `.github/workflows/windows-ui-test.yml`
+  - Runner: `windows-2025`
+  - Behavior: non-blocking (`continue-on-error: true`) with up to 3 attempts
+  - Artifacts: TRX results and failure screenshots/logs from `gorilla-ui/tests/Gorilla.UI.App.SmokeTests`
+  - Local run (Windows):
+    - Build app:
+      - `dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64`
+    - Set app path and run Windows UI tests:
+      - `$env:GORILLA_UI_APP_EXE = "<path-to-Gorilla.UI.App.exe>"`
+      - `dotnet test gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj -c Release`
 - Optional local autofix: `dotnet format gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`.
 
 Windows VM scaffold helper:

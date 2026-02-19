@@ -6,11 +6,15 @@ on:
       - main
     paths:
       - gorilla-ui/**
+      - '!gorilla-ui/*.md'
+      - '!gorilla-ui/**/*.md'
       - Makefile
       - .github/workflows/ui-client-test.yml
   pull_request:
     paths:
       - gorilla-ui/**
+      - '!gorilla-ui/*.md'
+      - '!gorilla-ui/**/*.md'
       - Makefile
       - .github/workflows/ui-client-test.yml
 

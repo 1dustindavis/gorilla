@@ -6,10 +6,14 @@ on:
       - main
     paths:
       - gorilla-ui/**
+      - '!gorilla-ui/*.md'
+      - '!gorilla-ui/**/*.md'
       - .github/workflows/windows-ui-test.yml
   pull_request:
     paths:
       - gorilla-ui/**
+      - '!gorilla-ui/*.md'
+      - '!gorilla-ui/**/*.md'
       - .github/workflows/windows-ui-test.yml
 
 permissions:

@@ -22,7 +22,6 @@ Validation commands:
 - Windows UI tests (FlaUI):
   - CI workflow: `.github/workflows/windows-ui-test.yml`
   - Runner: `windows-2025`
-  - Schedule: daily at 09:00 UTC
   - Behavior: non-blocking (`continue-on-error: true`) with up to 3 attempts
   - Artifacts: TRX results and failure screenshots/logs from `gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests`
   - Local run (Windows):

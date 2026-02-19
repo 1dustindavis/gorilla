@@ -11,8 +11,6 @@ on:
     paths:
       - gorilla-ui/**
       - .github/workflows/windows-ui-test.yml
-  schedule:
-    - cron: "0 9 * * *"
 
 permissions:
   contents: read

@@ -69,7 +69,7 @@ public sealed class AppLaunchSmokeTests
             automation = new UIA3Automation();
 
             _ = WaitForMainWindow(app, automation, TimeSpan.FromSeconds(30));
-            AssertAppStillRunning(app, TimeSpan.FromSeconds(2));
+            AssertAppStillRunning(app, TimeSpan.FromSeconds(5));
         }
         catch (Exception ex)
         {

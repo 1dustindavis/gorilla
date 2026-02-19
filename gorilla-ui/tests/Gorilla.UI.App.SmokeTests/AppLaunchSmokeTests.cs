@@ -103,7 +103,7 @@ public sealed class AppLaunchSmokeTests
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed < timeout)
         {
-            if (app.HasExited)
+            if (AppHasExitedOrUnavailable(app))
             {
                 throw BuildExitedEarlyException(app);
             }
@@ -118,7 +118,7 @@ public sealed class AppLaunchSmokeTests
             }
             catch
             {
-                if (app.HasExited)
+                if (AppHasExitedOrUnavailable(app))
                 {
                     throw BuildExitedEarlyException(app);
                 }
@@ -128,6 +128,18 @@ public sealed class AppLaunchSmokeTests
         }
 
         throw new TimeoutException($"Timed out waiting {timeout.TotalSeconds:n0}s for Gorilla.UI.App main window.");
+    }
+
+    private static bool AppHasExitedOrUnavailable(Application app)
+    {
+        try
+        {
+            return app.HasExited;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private static InvalidOperationException BuildExitedEarlyException(Application app)

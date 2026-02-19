@@ -153,9 +153,10 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	if err := json.NewEncoder(conn).Encode(request); err != nil {
 		t.Fatalf("failed to encode stream request: %v", err)
 	}
+	decoder := json.NewDecoder(conn)
 
 	var ack serviceEnvelope[json.RawMessage]
-	if err := json.NewDecoder(conn).Decode(&ack); err != nil {
+	if err := decoder.Decode(&ack); err != nil {
 		t.Fatalf("failed to decode stream ack: %v", err)
 	}
 	if ack.MessageType != messageTypeResponse {
@@ -171,7 +172,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	states := make([]string, 0, 4)
 	for {
 		var event serviceEnvelope[operationStatusEventPayload]
-		if err := json.NewDecoder(conn).Decode(&event); err != nil {
+		if err := decoder.Decode(&event); err != nil {
 			t.Fatalf("failed to decode stream event: %v", err)
 		}
 		if event.MessageType != messageTypeEvent {

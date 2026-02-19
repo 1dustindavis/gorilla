@@ -130,12 +130,13 @@ public sealed class AppLaunchSmokeTests
         throw new TimeoutException($"Timed out waiting {timeout.TotalSeconds:n0}s for Gorilla.UI.App main window.");
     }
 
-    private static Exception BuildExitedEarlyException(Application app)
+    private static InvalidOperationException BuildExitedEarlyException(Application app)
     {
         try
         {
+            var process = Process.GetProcessById(app.ProcessId);
             return new InvalidOperationException(
-                $"Gorilla.UI.App exited before a main window was available. ExitCode={app.Process.ExitCode}."
+                $"Gorilla.UI.App exited before a main window was available. ExitCode={process.ExitCode}."
             );
         }
         catch
@@ -158,11 +159,11 @@ public sealed class AppLaunchSmokeTests
         {
             try
             {
-                details += $"{Environment.NewLine}ProcessId: {app.Process.Id}";
+                details += $"{Environment.NewLine}ProcessId: {app.ProcessId}";
                 details += $"{Environment.NewLine}HasExited: {app.HasExited}";
                 if (app.HasExited)
                 {
-                    details += $"{Environment.NewLine}ExitCode: {app.Process.ExitCode}";
+                    details += $"{Environment.NewLine}ExitCode: {Process.GetProcessById(app.ProcessId).ExitCode}";
                 }
             }
             catch

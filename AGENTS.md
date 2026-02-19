@@ -77,6 +77,12 @@ When changes span Go service/CLI and UI protocol layers, run `make test`, `make 
 - Keep `cmd/gorilla` service-message commands updated in lockstep with Gorilla UI protocol changes for testing/debugging.
 - `ListOptionalInstalls` should return JSON-safe subset DTOs, not full internal item objects.
 
+## Diagnostics
+
+- For diagnostics policy, behavior, and implementation guidance, follow:
+  - `gorilla-ui/ARCHITECTURE.md` (Diagnostics Decision Record)
+  - `gorilla-ui/README.md` (Diagnostics strategy)
+
 ## PR Expectations
 
 - Keep PRs focused and explain user-visible behavior changes clearly.

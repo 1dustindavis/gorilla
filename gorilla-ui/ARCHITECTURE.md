@@ -129,11 +129,57 @@ Notes:
 - Cache read failure: log warning and continue with live request.
 - Cache write failure: log warning and continue; do not block UI.
 
-## Logging
-- Both UI and service log: `requestId`, `operationId`, `operation`, `state`, `durationMs`, `result`.
-- First release keeps logs local and human-readable for support.
-- UI client diagnostics are disabled by default and enabled via `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`).
-- Service pipe trace logs are emitted at debug level (`gorillalog.Debug`) and are disabled unless Gorilla debug logging is enabled.
+## Diagnostics Decision Record
+
+### Policy Matrix
+| Area | Default | Debug Enablement | Verbose Enablement | Notes |
+| --- | --- | --- | --- | --- |
+| UI client diagnostics (`ClientDiagnostics`) | Disabled | `GORILLA_UI_DEBUG=1` or `GORILLA_DEBUG=1` | N/A | No diagnostics directory/file is created when disabled. |
+| Service named-pipe trace diagnostics (`gorillalog.Debug` in service pipe paths) | Disabled | `debug: true` in config or `--debug` | N/A | High-volume pipe request/response tracing remains debug-only. |
+| Gorilla process baseline logs (`gorillalog.Info/Warn/Error`) | Enabled | Still enabled | `verbose: true` or `--verbose` adds console output | Baseline troubleshooting logs stay enabled in both service mode and CLI mode. |
+
+### Log Paths and Creation Rules
+- UI client (Windows runtime): `%LOCALAPPDATA%\\gorilla\\ui-client.log`.
+- Gorilla process log (service mode and CLI mode): `<app_data_path>/gorilla.log` (defaults to `%ProgramData%\\gorilla\\gorilla.log` when `app_data_path` is not set).
+- Creation rules:
+  - UI diagnostics directory/file are created only when UI diagnostics are enabled.
+  - Service log directory/file are created at service logger initialization except in `checkonly` mode.
+  - No additional per-operation files are created.
+
+### Retention and Rotation Policy
+- Target policy:
+  - Keep `gorilla.log` and `ui-client.log` bounded to `10 MiB` each.
+  - Rotate by rename (`*.log` -> `*.log.1`) when exceeding cap, keep one backup.
+  - Trigger cleanup at process startup and before first append after crossing cap.
+- Failure behavior:
+  - If rotation/cleanup fails, continue operating and keep logging best-effort.
+  - Diagnostics/logging failures must never fail install/remove/list service operations.
+
+### Required Correlation Fields
+- Required fields for cross-process troubleshooting on protocol/operation lifecycle logs:
+  - `requestId`
+  - `operationId`
+  - `operation` (API action name)
+  - `state` (operation state)
+  - `result` (`ok|error|canceled`)
+  - `durationMs` (when measurable)
+- UI and service lifecycle logs should include these fields whenever the value exists for the event.
+
+### Implementation Mapping and Deferred Tasks
+- `pkg/gorillalog/gorillalog.go`
+  - Implemented: bounded file retention/rotation for `gorilla.log` (single backup: `gorilla.log.1`).
+  - Deferred: structured key/value helper API to avoid ad hoc string formatting in call sites.
+- `pkg/service/run_windows.go`
+  - Implemented: request lifecycle diagnostics with explicit `operation`, `requestId`, `operationId`, `result`, and `durationMs`.
+  - Deferred: add explicit `state` transitions beyond terminal lifecycle markers.
+- `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs`
+  - Implemented: retention/rotation for `ui-client.log` (single backup: `ui-client.log.1`).
+  - Deferred: normalize all diagnostics lines to one schema; currently enforced for request/stream lifecycle lines.
+
+### Rationale
+- Keep diagnostics noise low by default while preserving current service operational logging behavior needed for support.
+- Keep high-volume tracing behind explicit debug toggles.
+- Standardize correlation fields so UI and service events can be joined during incident triage.
 
 ## Immediate Build Notes
 - WinUI project creation/build happens on Windows VM.

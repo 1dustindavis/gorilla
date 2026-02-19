@@ -7,7 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Gorilla.UI.App.Views;
 
-public sealed partial class HomePage : Page
+public sealed partial class HomePage : Page, IDisposable
 {
     private CancellationTokenSource? _cts;
 
@@ -31,9 +31,7 @@ public sealed partial class HomePage : Page
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
+        ResetCancellation();
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
@@ -92,5 +90,19 @@ public sealed partial class HomePage : Page
         {
             ViewModel.SetWarningBanner($"Operation failed: {ex.Message}");
         }
+    }
+
+    public void Dispose()
+    {
+        Loaded -= HomePage_Loaded;
+        Unloaded -= HomePage_Unloaded;
+        ResetCancellation();
+    }
+
+    private void ResetCancellation()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 }

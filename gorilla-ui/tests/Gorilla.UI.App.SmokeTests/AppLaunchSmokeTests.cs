@@ -123,9 +123,9 @@ public sealed class AppLaunchSmokeTests
                 return;
             }
 
-            var image = window.Capture();
             var screenshotFile = Path.Combine(artifactsDir, $"failure-{now}.png");
-            image.ToFile(screenshotFile);
+            using var image = window.Capture();
+            image.Save(screenshotFile);
         }
         catch
         {

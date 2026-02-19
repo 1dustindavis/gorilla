@@ -20,7 +20,7 @@ Validation commands:
   - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
 - `make ui-test` runs the Gorilla UI .NET test project.
 - WinUI smoke UI test (FlaUI):
-  - CI workflow: `.github/workflows/ui-smoke-test.yml`
+  - CI workflow: `.github/workflows/windows-ui-test.yml`
   - Runner: `windows-2025`
   - Behavior: non-blocking (`continue-on-error: true`) with up to 3 attempts
   - Artifacts: TRX results and failure screenshots/logs from `gorilla-ui/tests/Gorilla.UI.App.SmokeTests`

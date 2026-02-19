@@ -1,4 +1,4 @@
-name: ui-test
+name: UI Client Test
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
     paths:
       - gorilla-ui/**
       - Makefile
-      - .github/workflows/ui-test.yml
+      - .github/workflows/ui-client-test.yml
   pull_request:
     paths:
       - gorilla-ui/**
       - Makefile
-      - .github/workflows/ui-test.yml
+      - .github/workflows/ui-client-test.yml
 
 permissions:
   contents: read

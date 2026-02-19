@@ -204,11 +204,14 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 		}
 
 		sr.clearListenerPipe(handle)
-
-		file := os.NewFile(uintptr(handle), pipePath)
-		sr.handlePipeCommand(ctx, file)
-		sr.flushAndDisconnectNamedPipe(handle)
-		_ = file.Close()
+		sr.wg.Add(1)
+		go func(connectedHandle windows.Handle) {
+			defer sr.wg.Done()
+			file := os.NewFile(uintptr(connectedHandle), pipePath)
+			sr.handlePipeCommand(ctx, file)
+			sr.flushAndDisconnectNamedPipe(connectedHandle)
+			_ = file.Close()
+		}(handle)
 	}
 }
 
@@ -486,7 +489,6 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 	}
 	gorillalog.Debug("stream ack sent for operationId=", operationID)
 
-	deadline := time.Now().Add(30 * time.Second)
 	sent := 0
 	for {
 		events, done, ok := sr.snapshotTrackedOperation(operationID)
@@ -509,10 +511,6 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 			sent++
 		}
 		if done {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "timeout", "operation stream timed out")
 			return nil
 		}
 		time.Sleep(streamPollSleep)

@@ -2,12 +2,14 @@ using System.Diagnostics;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using FlaUI.Core.Definitions;
+using FlaUI.Core.Exceptions;
 using FlaUI.UIA3;
 using Xunit;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-namespace Gorilla.UI.App.SmokeTests;
+namespace Gorilla.UI.App.WindowsUiTests;
 
 public sealed class AppLaunchSmokeTests
 {
@@ -35,11 +37,47 @@ public sealed class AppLaunchSmokeTests
             );
             Assert.NotNull(heading);
 
+            var textElements = mainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
+            Assert.DoesNotContain(
+                textElements,
+                text => TextStartsWith(text, "Operation failed")
+            );
+
             var itemsList = WaitFor(
                 () => mainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ItemsList")),
                 TimeSpan.FromSeconds(30)
             );
             Assert.NotNull(itemsList);
+        }
+        catch (Exception ex)
+        {
+            WriteFailureDetails(artifactsDir, ex, app, automation);
+            throw;
+        }
+        finally
+        {
+            automation?.Dispose();
+            CloseOrKill(app);
+        }
+    }
+
+    [Fact]
+    public void AppLaunchesAndRemainsRunningAfterStartup()
+    {
+        var appExePath = ResolveAppExePath();
+        var artifactsDir = ResolveArtifactsDirectory();
+        Directory.CreateDirectory(artifactsDir);
+
+        Application? app = null;
+        UIA3Automation? automation = null;
+
+        try
+        {
+            app = Application.Launch(appExePath);
+            automation = new UIA3Automation();
+
+            _ = WaitForMainWindow(app, automation, TimeSpan.FromSeconds(30));
+            AssertAppStillRunning(app, TimeSpan.FromSeconds(5));
         }
         catch (Exception ex)
         {
@@ -71,13 +109,13 @@ public sealed class AppLaunchSmokeTests
 
     private static string ResolveArtifactsDirectory()
     {
-        var dir = Environment.GetEnvironmentVariable("SMOKE_ARTIFACTS_DIR");
+        var dir = Environment.GetEnvironmentVariable("WINDOWS_UI_TEST_ARTIFACTS_DIR");
         if (!string.IsNullOrWhiteSpace(dir))
         {
             return dir;
         }
 
-        return Path.Combine(Path.GetTempPath(), "gorilla-ui-smoke-artifacts");
+        return Path.Combine(Path.GetTempPath(), "gorilla-ui-windows-ui-test-artifacts");
     }
 
     private static T? WaitFor<T>(Func<T?> probe, TimeSpan timeout)
@@ -154,6 +192,33 @@ public sealed class AppLaunchSmokeTests
         catch
         {
             return new InvalidOperationException("Gorilla.UI.App exited before a main window was available.");
+        }
+    }
+
+    private static bool TextStartsWith(AutomationElement element, string prefix)
+    {
+        try
+        {
+            var name = element.Name;
+            return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static void AssertAppStillRunning(Application app, TimeSpan duration)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < duration)
+        {
+            if (AppHasExitedOrUnavailable(app))
+            {
+                throw BuildExitedEarlyException(app);
+            }
+
+            Thread.Sleep(100);
         }
     }
 

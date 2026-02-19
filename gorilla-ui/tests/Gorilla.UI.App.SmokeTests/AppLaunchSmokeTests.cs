@@ -26,12 +26,11 @@ public sealed class AppLaunchSmokeTests
             app = Application.Launch(appExePath);
             automation = new UIA3Automation();
 
-            var mainWindow = WaitFor(() => app.GetMainWindow(automation), TimeSpan.FromSeconds(30));
-            Assert.NotNull(mainWindow);
-            Assert.Equal("Gorilla.UI.App", mainWindow!.Title);
+            var mainWindow = WaitForMainWindow(app, automation, TimeSpan.FromSeconds(30));
+            Assert.Equal("Gorilla.UI.App", mainWindow.Title);
 
             var heading = WaitFor(
-                () => mainWindow!.FindFirstDescendant(cf => cf.ByText("Available Software")),
+                () => mainWindow.FindFirstDescendant(cf => cf.ByText("Available Software")),
                 TimeSpan.FromSeconds(30)
             );
             Assert.NotNull(heading);
@@ -99,6 +98,52 @@ public sealed class AppLaunchSmokeTests
         return null;
     }
 
+    private static Window WaitForMainWindow(Application app, UIA3Automation automation, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (app.HasExited)
+            {
+                throw BuildExitedEarlyException(app);
+            }
+
+            try
+            {
+                var mainWindow = app.GetMainWindow(automation, TimeSpan.FromMilliseconds(250));
+                if (mainWindow is not null)
+                {
+                    return mainWindow;
+                }
+            }
+            catch
+            {
+                if (app.HasExited)
+                {
+                    throw BuildExitedEarlyException(app);
+                }
+            }
+
+            Thread.Sleep(250);
+        }
+
+        throw new TimeoutException($"Timed out waiting {timeout.TotalSeconds:n0}s for Gorilla.UI.App main window.");
+    }
+
+    private static Exception BuildExitedEarlyException(Application app)
+    {
+        try
+        {
+            return new InvalidOperationException(
+                $"Gorilla.UI.App exited before a main window was available. ExitCode={app.Process.ExitCode}."
+            );
+        }
+        catch
+        {
+            return new InvalidOperationException("Gorilla.UI.App exited before a main window was available.");
+        }
+    }
+
     private static void WriteFailureDetails(
         string artifactsDir,
         Exception ex,
@@ -108,7 +153,25 @@ public sealed class AppLaunchSmokeTests
     {
         var now = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var errorFile = Path.Combine(artifactsDir, $"failure-{now}.txt");
-        File.WriteAllText(errorFile, ex.ToString());
+        var details = ex.ToString();
+        if (app is not null)
+        {
+            try
+            {
+                details += $"{Environment.NewLine}ProcessId: {app.Process.Id}";
+                details += $"{Environment.NewLine}HasExited: {app.HasExited}";
+                if (app.HasExited)
+                {
+                    details += $"{Environment.NewLine}ExitCode: {app.Process.ExitCode}";
+                }
+            }
+            catch
+            {
+                // Best-effort diagnostics only.
+            }
+        }
+
+        File.WriteAllText(errorFile, details);
 
         if (app is null || automation is null)
         {

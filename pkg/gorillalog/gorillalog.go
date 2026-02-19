@@ -154,7 +154,16 @@ func Error(logStrings ...interface{}) {
 }
 
 func rotateCurrentLogIfNeeded() {
-	if logFile == nil || logPath == "" {
+	if logPath == "" {
+		return
+	}
+	if logFile == nil {
+		file, openErr := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if openErr != nil {
+			return
+		}
+		log.SetOutput(file)
+		logFile = file
 		return
 	}
 	info, err := logFile.Stat()

@@ -159,6 +159,33 @@ func TestRotateLogIfNeededReturnsStatErrorWithoutPanicking(t *testing.T) {
 	}
 }
 
+func TestRotateCurrentLogIfNeededReopensWhenHandleMissing(t *testing.T) {
+	Close()
+	log.SetOutput(os.Stdout)
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "gorilla.log")
+	if err := os.WriteFile(path, []byte("seed"), 0644); err != nil {
+		t.Fatalf("seed log: %v", err)
+	}
+
+	originalPath := logPath
+	originalFile := logFile
+	logPath = path
+	logFile = nil
+	t.Cleanup(func() {
+		logPath = originalPath
+		logFile = originalFile
+		Close()
+		log.SetOutput(os.Stdout)
+	})
+
+	rotateCurrentLogIfNeeded()
+	if logFile == nil {
+		t.Fatalf("expected rotateCurrentLogIfNeeded to reopen log file when handle is missing")
+	}
+}
+
 // ExampleDebug_off tests the output of a log sent to DEBUG while config.Debug is false
 func ExampleDebug_off() {
 	// Set up what we expect

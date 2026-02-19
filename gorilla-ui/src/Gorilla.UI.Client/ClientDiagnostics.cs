@@ -6,6 +6,9 @@ internal static class ClientDiagnostics
 {
     private static readonly object Gate = new();
     private const long DefaultMaxBytes = 10 * 1024 * 1024;
+    internal static Action<string, string> MoveFile = File.Move;
+    internal static Action<string> DeleteFile = File.Delete;
+    internal static Func<string, bool> FileExists = File.Exists;
 
     public static void Log(string message)
     {
@@ -102,11 +105,36 @@ internal static class ClientDiagnostics
         }
 
         var backup = path + ".1";
-        if (File.Exists(backup))
+        var backupSwap = path + ".1.swap";
+
+        if (FileExists(backupSwap))
         {
-            File.Delete(backup);
+            DeleteFile(backupSwap);
         }
 
-        File.Move(path, backup);
+        var hasBackup = false;
+        if (FileExists(backup))
+        {
+            MoveFile(backup, backupSwap);
+            hasBackup = true;
+        }
+
+        try
+        {
+            MoveFile(path, backup);
+        }
+        catch
+        {
+            if (hasBackup && FileExists(backupSwap))
+            {
+                MoveFile(backupSwap, backup);
+            }
+            throw;
+        }
+
+        if (hasBackup && FileExists(backupSwap))
+        {
+            DeleteFile(backupSwap);
+        }
     }
 }

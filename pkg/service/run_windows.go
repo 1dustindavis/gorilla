@@ -39,18 +39,27 @@ type serviceRunner struct {
 	execMutex          sync.Mutex
 	pipeListenerMu     sync.Mutex
 	pipeListenerHandle windows.Handle
+	operationsMu       sync.Mutex
+	operations         map[string]*trackedOperation
 }
 
 var (
 	flushNamedPipeBuffers = windows.FlushFileBuffers
 	disconnectNamedPipe   = windows.DisconnectNamedPipe
+	streamPollSleep       = 20 * time.Millisecond
 )
+
+type trackedOperation struct {
+	events []operationStatusEventPayload
+	done   bool
+}
 
 func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error) *serviceRunner {
 	return &serviceRunner{
 		cfg:        cfg,
 		managedRun: managedRun,
 		queue:      make(chan queuedCommand),
+		operations: make(map[string]*trackedOperation),
 	}
 }
 
@@ -292,6 +301,9 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "command_failed", err.Error())
 		return
 	}
+	if cmd.Action == actionInstallItem || cmd.Action == actionRemoveItem {
+		sr.registerTrackedOperation(resp.OperationID)
+	}
 
 	if err := sr.writeSuccessEnvelope(file, req, cmd, resp); err != nil {
 		result = "error"
@@ -300,10 +312,10 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		result = "ok"
 		gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
 	}
-	sr.scheduleRunAfterMutation(ctx, cmd.Action)
+	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp.OperationID)
 }
 
-func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string) {
+func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action, operationID string) {
 	if action != actionInstallItem && action != actionRemoveItem {
 		return
 	}
@@ -311,9 +323,45 @@ func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action st
 	sr.wg.Add(1)
 	go func() {
 		defer sr.wg.Done()
-		if _, err := sr.submit(ctx, Command{Action: actionRun}); err != nil && !errors.Is(err, context.Canceled) {
-			gorillalog.Warn("failed to run managed action after service mutation:", err)
+		sr.appendOperationEvent(operationID, operationStatusEventPayload{
+			State:           "Validating",
+			ProgressPercent: 20,
+			Message:         "Validating operation inputs",
+		})
+		inProgressState := "Installing"
+		if action == actionRemoveItem {
+			inProgressState = "Removing"
 		}
+		sr.appendOperationEvent(operationID, operationStatusEventPayload{
+			State:           inProgressState,
+			ProgressPercent: 60,
+			Message:         fmt.Sprintf("%s item via managed run", inProgressState),
+		})
+		if _, err := sr.submit(ctx, Command{Action: actionRun}); err != nil {
+			if errors.Is(err, context.Canceled) {
+				sr.appendOperationEvent(operationID, operationStatusEventPayload{
+					State:           "Canceled",
+					ProgressPercent: 60,
+					Message:         "Operation canceled",
+					CanceledBy:      "service",
+				})
+				return
+			}
+			gorillalog.Warn("failed to run managed action after service mutation:", err)
+			sr.appendOperationEvent(operationID, operationStatusEventPayload{
+				State:           "Failed",
+				ProgressPercent: 100,
+				Message:         "Operation failed",
+				ErrorCode:       "managed_run_failed",
+				ErrorMessage:    err.Error(),
+			})
+			return
+		}
+		sr.appendOperationEvent(operationID, operationStatusEventPayload{
+			State:           "Succeeded",
+			ProgressPercent: 100,
+			Message:         "Operation completed",
+		})
 	}()
 }
 
@@ -418,6 +466,11 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 }
 
 func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req serviceEnvelope[json.RawMessage], operationID string) error {
+	if !sr.hasTrackedOperation(operationID) {
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", "unknown operationId")
+		return nil
+	}
+
 	if err := json.NewEncoder(file).Encode(serviceEnvelope[streamOperationStatusAckResponse]{
 		Version:      pipeProtocolVersion,
 		MessageType:  messageTypeResponse,
@@ -433,23 +486,89 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 	}
 	gorillalog.Debug("stream ack sent for operationId=", operationID)
 
-	if err := json.NewEncoder(file).Encode(serviceEnvelope[operationStatusEventPayload]{
-		Version:      pipeProtocolVersion,
-		MessageType:  messageTypeEvent,
-		Operation:    actionStreamOperationStatus,
-		RequestID:    "",
-		OperationID:  operationID,
-		TimestampUTC: nowRFC3339UTC(),
-		Payload: operationStatusEventPayload{
-			State:           "Succeeded",
-			ProgressPercent: 100,
-			Message:         "Operation completed",
-		},
-	}); err != nil {
-		return err
+	deadline := time.Now().Add(30 * time.Second)
+	sent := 0
+	for {
+		events, done, ok := sr.snapshotTrackedOperation(operationID)
+		if !ok {
+			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", "unknown operationId")
+			return nil
+		}
+		for sent < len(events) {
+			if err := json.NewEncoder(file).Encode(serviceEnvelope[operationStatusEventPayload]{
+				Version:      pipeProtocolVersion,
+				MessageType:  messageTypeEvent,
+				Operation:    actionStreamOperationStatus,
+				RequestID:    "",
+				OperationID:  operationID,
+				TimestampUTC: nowRFC3339UTC(),
+				Payload:      events[sent],
+			}); err != nil {
+				return err
+			}
+			sent++
+		}
+		if done {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "timeout", "operation stream timed out")
+			return nil
+		}
+		time.Sleep(streamPollSleep)
 	}
-	gorillalog.Debug("stream terminal event sent for operationId=", operationID)
-	return nil
+}
+
+func (sr *serviceRunner) registerTrackedOperation(operationID string) {
+	if strings.TrimSpace(operationID) == "" {
+		return
+	}
+	sr.operationsMu.Lock()
+	defer sr.operationsMu.Unlock()
+	sr.operations[operationID] = &trackedOperation{
+		events: []operationStatusEventPayload{
+			{
+				State:           "Queued",
+				ProgressPercent: 0,
+				Message:         "Operation queued",
+			},
+		},
+	}
+}
+
+func (sr *serviceRunner) appendOperationEvent(operationID string, event operationStatusEventPayload) {
+	if strings.TrimSpace(operationID) == "" {
+		return
+	}
+	sr.operationsMu.Lock()
+	defer sr.operationsMu.Unlock()
+	op, ok := sr.operations[operationID]
+	if !ok {
+		return
+	}
+	op.events = append(op.events, event)
+	if event.State == "Succeeded" || event.State == "Failed" || event.State == "Canceled" {
+		op.done = true
+	}
+}
+
+func (sr *serviceRunner) hasTrackedOperation(operationID string) bool {
+	sr.operationsMu.Lock()
+	defer sr.operationsMu.Unlock()
+	_, ok := sr.operations[operationID]
+	return ok
+}
+
+func (sr *serviceRunner) snapshotTrackedOperation(operationID string) ([]operationStatusEventPayload, bool, bool) {
+	sr.operationsMu.Lock()
+	defer sr.operationsMu.Unlock()
+	op, ok := sr.operations[operationID]
+	if !ok {
+		return nil, false, false
+	}
+	out := make([]operationStatusEventPayload, len(op.events))
+	copy(out, op.events)
+	return out, op.done, true
 }
 
 func createNamedPipe(pipePath string) (windows.Handle, error) {

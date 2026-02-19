@@ -168,21 +168,35 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 		t.Fatalf("expected stream ack operationId=%s, got %s", operationID, ack.OperationID)
 	}
 
-	var event serviceEnvelope[operationStatusEventPayload]
-	if err := json.NewDecoder(conn).Decode(&event); err != nil {
-		t.Fatalf("failed to decode stream event: %v", err)
+	states := make([]string, 0, 4)
+	for {
+		var event serviceEnvelope[operationStatusEventPayload]
+		if err := json.NewDecoder(conn).Decode(&event); err != nil {
+			t.Fatalf("failed to decode stream event: %v", err)
+		}
+		if event.MessageType != messageTypeEvent {
+			t.Fatalf("expected stream event messageType=%s, got %s", messageTypeEvent, event.MessageType)
+		}
+		if event.Operation != actionStreamOperationStatus {
+			t.Fatalf("expected stream event operation=%s, got %s", actionStreamOperationStatus, event.Operation)
+		}
+		if event.OperationID != operationID {
+			t.Fatalf("expected stream event operationId=%s, got %s", operationID, event.OperationID)
+		}
+		states = append(states, event.Payload.State)
+		if event.Payload.State == "Succeeded" || event.Payload.State == "Failed" || event.Payload.State == "Canceled" {
+			break
+		}
 	}
-	if event.MessageType != messageTypeEvent {
-		t.Fatalf("expected stream event messageType=%s, got %s", messageTypeEvent, event.MessageType)
+
+	if len(states) < 3 {
+		t.Fatalf("expected multiple lifecycle states, got %v", states)
 	}
-	if event.Operation != actionStreamOperationStatus {
-		t.Fatalf("expected stream event operation=%s, got %s", actionStreamOperationStatus, event.Operation)
+	if states[0] != "Queued" {
+		t.Fatalf("expected first state Queued, got %s (%v)", states[0], states)
 	}
-	if event.OperationID != operationID {
-		t.Fatalf("expected stream event operationId=%s, got %s", operationID, event.OperationID)
-	}
-	if event.Payload.State != "Succeeded" {
-		t.Fatalf("expected stream terminal state Succeeded, got %s", event.Payload.State)
+	if states[len(states)-1] != "Succeeded" {
+		t.Fatalf("expected terminal state Succeeded, got %s (%v)", states[len(states)-1], states)
 	}
 }
 

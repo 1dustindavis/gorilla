@@ -61,6 +61,10 @@ Planned operations:
   - `gorilla-ui/tools/install-signed-msix.ps1`
 - Service named-pipe handling now flushes pipe buffers before disconnect to improve response/event delivery reliability.
 - UI client diagnostics are debug-gated and do not create local log directories when diagnostics are disabled.
+- Diagnostics policy + implementation baseline is defined and shipped:
+  - `gorilla-ui/ARCHITECTURE.md` includes the diagnostics decision record (defaults, paths, retention, required correlation fields, and deferred follow-ups).
+  - `gorilla-ui/README.md` documents operator/developer diagnostics behavior and enablement.
+  - `pkg/gorillalog` and `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs` implement bounded rotation with backup preservation and best-effort failure handling.
 
 ## TODOs (Priority Order)
 1. Remove `os.Exit` usage from service-facing code paths.
@@ -68,95 +72,77 @@ Planned operations:
    - Primary targets: `pkg/manifest`, `pkg/catalog`, and any call chains used by `cmd/gorilla` + `pkg/service`.
    - Done when: malformed manifest/catalog/download failures return errors, service stays alive, and tests cover non-crash behavior.
 
-2. Define a long-term diagnostics strategy for UI + service logs.
-   - Scope: agree on default-off/on behavior, log file locations, retention policy, and rotation/truncation behavior.
-   - Primary targets: `gorilla-ui/README.md`, `gorilla-ui/ARCHITECTURE.md`, and service logging notes/config docs.
-   - Implementation plan:
-     - Publish a diagnostics policy matrix for UI client and service with explicit defaults for `debug`, `verbose`, and env-var overrides.
-     - Standardize log paths for Windows runtime and non-Windows development workflows, and document exactly when directories/files are created.
-     - Define retention/rotation behavior (size/time caps, cleanup trigger, and failure behavior when cleanup cannot run).
-     - Define required structured log fields for cross-process troubleshooting (`requestId`, `operationId`, operation name, state, result, duration).
-     - Map policy to implementation tasks in `pkg/gorillalog`, service pipe logging, and `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs`.
-   - Deliverables:
-     - A short diagnostics decision record in `gorilla-ui/ARCHITECTURE.md` with concrete defaults and rationale.
-     - Updated operator/developer docs in `gorilla-ui/README.md` and any service logging docs covering enablement, locations, and retention behavior.
-     - Follow-up implementation TODO links/issues for any policy parts intentionally deferred.
-   - Done when:
-     - docs specify exact behavior with no ambiguous defaults,
-     - code behavior matches those defaults without noisy logging by default,
-     - and one validation checklist is included for Windows VM + local dev verification.
-
-3. Replace placeholder `StreamOperationStatus` terminal behavior with real async lifecycle events, and add Windows CI coverage for named-pipe reliability.
+2. Replace placeholder `StreamOperationStatus` terminal behavior with real async lifecycle events, and add Windows CI coverage for named-pipe reliability.
    - Scope: emit realistic state transitions (`Queued` -> ... -> terminal) tied to actual operation execution and correlate via `operationId`.
    - Primary targets: `pkg/service/run_windows.go`, `pkg/service/common.go`, `pkg/service/run_windows_test.go`, Windows workflows.
    - Done when: stream produces non-placeholder progress/events in live runs and Windows CI validates stream reliability.
 
-4. Verify `ListOptionalInstalls` load + cache-first startup behavior with live service data.
+3. Verify `ListOptionalInstalls` load + cache-first startup behavior with live service data.
    - Scope: validate cached render first, then refresh/replace behavior, including stale-data warning behavior.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, cache store/coordinator classes, manual test docs.
    - Done when: startup flow is confirmed on Windows VM with reproducible test notes.
 
-5. Validate `InstallItem` against real service responses.
+4. Validate `InstallItem` against real service responses.
    - Scope: ensure operation acceptance, `operationId` handling, and item state updates map to actual service behavior.
    - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
    - Done when: live install flow works end-to-end and expected output is documented/tested.
 
-6. Define and implement the user-driven remove workflow when an item is not in manifest-managed uninstall paths.
+5. Define and implement the user-driven remove workflow when an item is not in manifest-managed uninstall paths.
    - Scope: support ad-hoc uninstall semantics so a UI `Remove` action actually uninstalls even when absence from manifest would not trigger uninstall.
    - Primary targets: service command semantics in `pkg/service` and process/install execution paths, plus UI/CLI contract docs.
    - Done when: clicking `Remove` produces a deterministic uninstall path for optional installs, behavior is documented, and tests cover this case.
 
-7. Validate `RemoveItem` against real service responses.
+6. Validate `RemoveItem` against real service responses.
    - Scope: same as install validation, including operation acceptance and state convergence to removed/not installed.
    - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
    - Done when: live remove flow works end-to-end and expected output is documented/tested.
 
-8. Validate `StreamOperationStatus` UI reflection end-to-end.
+7. Validate `StreamOperationStatus` UI reflection end-to-end.
    - Scope: confirm stream updates are visible in UI state for success/failure/cancel paths.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, `Services/OperationTracker.cs`.
    - Done when: each terminal state is represented correctly in the UI and covered by tests/manual checks.
 
-9. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
+8. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
    - Scope: keep CLI command grammar/output aligned with `ListOptionalInstalls|InstallItem|RemoveItem|StreamOperationStatus`.
    - Primary targets: `pkg/service/common.go`, `pkg/service/client_windows.go`, `cmd/gorilla/main.go` + tests.
    - Done when: CLI can drive all current operations and outputs useful debug info for each.
 
-10. Keep CLI behavior aligned as protocol contracts evolve.
+9. Keep CLI behavior aligned as protocol contracts evolve.
    - Scope: enforce lockstep updates whenever envelope shape/payload fields/operation semantics change.
    - Primary targets: UI client contracts, service protocol types, CLI mapping layer, contract docs/examples.
    - Done when: protocol change PRs include corresponding CLI + tests + docs updates.
 
-11. Improve item-level status UX for in-progress and terminal operation states.
+10. Improve item-level status UX for in-progress and terminal operation states.
    - Scope: surface clear pending/progress/success/failure states per item, not just generic status text.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/Models/UiOptionalInstallItem.cs`, view models, `Views/HomePage.xaml`.
    - Done when: per-item state is visually distinct and stable during operation streaming.
 
-12. Distinguish cached-data banner from action failure banner.
+11. Distinguish cached-data banner from action failure banner.
    - Scope: separate stale-data/service-warning messaging from user-initiated action errors.
    - Primary targets: `HomeViewModel` + `HomePage` bindings.
    - Done when: startup refresh issues and install/remove failures render in different UI channels/messages.
 
-13. Add a manual refresh button for `ListOptionalInstalls`.
+12. Add a manual refresh button for `ListOptionalInstalls`.
    - Scope: allow retry refresh without app restart and preserve safe cancellation/error handling.
    - Primary targets: `Views/HomePage.xaml`, `Views/HomePage.xaml.cs`, `ViewModels/HomeViewModel.cs`.
    - Done when: refresh can be triggered manually and updates list/banner state correctly.
 
-14. Add Gorilla UI/.NET validation (`make ui-test`) to appropriate GitHub Actions pipelines.
+13. Add Gorilla UI/.NET validation (`make ui-test`) to appropriate GitHub Actions pipelines.
    - Scope: ensure PR/main pipelines run .NET client tests alongside existing Go checks where relevant.
    - Primary targets: `.github/workflows/*.yml`.
    - Done when: CI executes `make ui-test` in targeted workflows and failures block merges/releases as intended.
 
-15. Prepare long-lived optional-install fixtures for UI install/remove smoke tests.
+14. Prepare long-lived optional-install fixtures for UI install/remove smoke tests.
    - Scope: reusable installer/uninstaller payloads and manifests/catalogs for stable VM and CI smoke runs.
    - Primary targets: `integration/windows/`, `utils/manual-test/`, fixture docs.
    - Done when: fixture set supports repeatable install/remove flows without ad hoc setup.
 
-16. Review service execution model for safe concurrency improvements.
+15. Review service execution model for safe concurrency improvements.
    - Scope: evaluate where parallelism helps (queueing, operation tracking, stream delivery) without violating service safety.
    - Primary targets: `pkg/service/run_windows.go` and command execution scheduling paths.
    - Done when: proposal/design notes exist and any adopted concurrency changes are covered by reliability tests.
 
-17. Start Gorilla service automatically after installation.
+16. Start Gorilla service automatically after installation.
    - Scope: define install UX and implement post-install start behavior with clear idempotent error handling.
    - Primary targets: `pkg/service/manage_windows.go`, CLI output/messages, install docs.
    - Done when: `serviceinstall` results in a running service (or actionable error) and behavior is documented/tested.

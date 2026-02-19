@@ -40,7 +40,7 @@ jobs:
         run: dotnet restore gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj
 
       - name: Build WinUI app
-        run: dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 --no-restore
+        run: dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 -p:PublishReadyToRun=false -p:PublishTrimmed=false --no-restore
 
       - name: Build Windows UI test project
         run: dotnet build gorilla-ui/tests/Gorilla.UI.App.SmokeTests/Gorilla.UI.App.SmokeTests.csproj -c Release --no-restore

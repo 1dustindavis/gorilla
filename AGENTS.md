@@ -77,21 +77,11 @@ When changes span Go service/CLI and UI protocol layers, run `make test`, `make 
 - Keep `cmd/gorilla` service-message commands updated in lockstep with Gorilla UI protocol changes for testing/debugging.
 - `ListOptionalInstalls` should return JSON-safe subset DTOs, not full internal item objects.
 
-## Diagnostics Handoff Notes (TODO 2)
+## Diagnostics
 
-- When working diagnostics strategy tasks, treat `gorilla-ui/PLAN.md` item 2 as the source of truth for scope and acceptance criteria.
-- Produce both policy and implementation guidance in the same PR:
-  - policy decisions in `gorilla-ui/ARCHITECTURE.md`
-  - operator/developer usage details in `gorilla-ui/README.md`
-  - service-side logging notes in relevant Go docs/comments when behavior changes
-- Keep diagnostics defaults quiet by default:
-  - no high-volume logs unless debug/diagnostic toggles are explicitly enabled
-  - avoid creating log directories/files when diagnostics are disabled unless required for existing behavior compatibility
-- Ensure policy decisions are concrete and testable:
-  - explicit log path(s) by environment
-  - explicit retention/rotation trigger and limits
-  - explicit required correlation fields (`requestId`, `operationId`) for UI/service troubleshooting
-- For diagnostics behavior changes, call out Windows impact in PR summary and run `make test`; include `make ui-lint` and `make ui-test` when touching UI/.NET diagnostics code.
+- For diagnostics policy, behavior, and implementation guidance, follow:
+  - `gorilla-ui/ARCHITECTURE.md` (Diagnostics Decision Record)
+  - `gorilla-ui/README.md` (Diagnostics strategy)
 
 ## PR Expectations
 

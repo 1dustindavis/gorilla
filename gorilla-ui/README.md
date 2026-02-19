@@ -42,7 +42,7 @@ Signed package workflow (Windows VMs):
   - Output:
     - `build/win-install.log`
 
-Diagnostics strategy (TODO 2):
+Diagnostics strategy:
 - Quiet-by-default behavior:
   - UI client diagnostics are off by default and produce no diagnostics directory/file until explicitly enabled.
   - Service named-pipe trace logs are debug-only (`debug: true` or `--debug`).

@@ -129,7 +129,7 @@ Notes:
 - Cache read failure: log warning and continue with live request.
 - Cache write failure: log warning and continue; do not block UI.
 
-## Diagnostics Decision Record (TODO 2)
+## Diagnostics Decision Record
 
 ### Policy Matrix
 | Area | Default | Debug Enablement | Verbose Enablement | Notes |

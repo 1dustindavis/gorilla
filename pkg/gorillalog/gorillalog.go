@@ -31,7 +31,7 @@ var (
 // logOutput := io.MultiWriter(os.Stdout, logFile)
 // log.SetOutput(logOutput)
 //
-// Diagnostics policy notes (TODO 2):
+// Diagnostics policy notes:
 // - Service operational logs currently write to <app_data_path>/gorilla.log (except checkonly mode).
 // - High-volume service trace logging must stay behind debug mode only.
 // - Follow-up implementation should add bounded retention/rotation and standardized

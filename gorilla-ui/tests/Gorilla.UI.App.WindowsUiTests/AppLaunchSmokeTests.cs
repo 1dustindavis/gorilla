@@ -3,6 +3,7 @@ using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Exceptions;
 using FlaUI.UIA3;
 using Xunit;
 
@@ -39,7 +40,7 @@ public sealed class AppLaunchSmokeTests
             var textElements = mainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
             Assert.DoesNotContain(
                 textElements,
-                text => text.Name.StartsWith("Operation failed", StringComparison.OrdinalIgnoreCase)
+                text => TextStartsWith(text, "Operation failed")
             );
 
             var itemsList = WaitFor(
@@ -191,6 +192,19 @@ public sealed class AppLaunchSmokeTests
         catch
         {
             return new InvalidOperationException("Gorilla.UI.App exited before a main window was available.");
+        }
+    }
+
+    private static bool TextStartsWith(AutomationElement element, string prefix)
+    {
+        try
+        {
+            var name = element.Name;
+            return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return false;
         }
     }
 

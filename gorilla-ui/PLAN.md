@@ -67,17 +67,17 @@ Planned operations:
   - `pkg/gorillalog` and `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs` implement bounded rotation with backup preservation and best-effort failure handling.
 
 ## TODOs (Priority Order)
-1. Remove `os.Exit` usage from service-facing code paths.
+1. [Done] Remove `os.Exit` usage from service-facing code paths.
    - Scope: convert fatal exits in runtime call paths into typed errors that bubble back to service handlers.
    - Primary targets: `pkg/manifest`, `pkg/catalog`, and any call chains used by `cmd/gorilla` + `pkg/service`.
    - Done when: malformed manifest/catalog/download failures return errors, service stays alive, and tests cover non-crash behavior.
 
-2. Replace placeholder `StreamOperationStatus` terminal behavior with real async lifecycle events, and add Windows CI coverage for named-pipe reliability.
+2. [Done] Replace placeholder `StreamOperationStatus` terminal behavior with real async lifecycle events, and add Windows CI coverage for named-pipe reliability.
    - Scope: emit realistic state transitions (`Queued` -> ... -> terminal) tied to actual operation execution and correlate via `operationId`.
    - Primary targets: `pkg/service/run_windows.go`, `pkg/service/common.go`, `pkg/service/run_windows_test.go`, Windows workflows.
    - Done when: stream produces non-placeholder progress/events in live runs and Windows CI validates stream reliability.
 
-3. Verify `ListOptionalInstalls` load + cache-first startup behavior with live service data.
+3. [Done] Verify `ListOptionalInstalls` load + cache-first startup behavior with live service data.
    - Scope: validate cached render first, then refresh/replace behavior, including stale-data warning behavior.
    - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, cache store/coordinator classes, manual test docs.
    - Done when: startup flow is confirmed on Windows VM with reproducible test notes.

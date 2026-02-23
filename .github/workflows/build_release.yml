@@ -135,6 +135,8 @@ jobs:
           -c Release `
           -p:Platform=x64 `
           -p:GenerateAppxPackageOnBuild=true `
+          -p:PublishReadyToRun=false `
+          -p:PublishTrimmed=false `
           -p:AppxPackageVersion="$Env:MSIX_VERSION" `
           -p:PackageCertificateKeyFile="$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx" `
           -p:PackageCertificatePassword="$Env:MSIX_CERT_PASSWORD"

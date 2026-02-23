@@ -31,6 +31,8 @@ config.yaml
 
 # Local build artifacts
 build/
+*.pfx
+*.cer
 
 # Local .NET CLI homes/tooling caches
 /.dotnet/

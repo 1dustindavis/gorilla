@@ -119,8 +119,11 @@ jobs:
         )
         $pfxPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx"
         $cerPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.cer"
-        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-        $cert.Import($pfxPath, $Env:MSIX_CERT_PASSWORD, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+          $pfxPath,
+          $Env:MSIX_CERT_PASSWORD,
+          [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable
+        )
         [IO.File]::WriteAllBytes($cerPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
 
     - name: Build Gorilla UI MSIX

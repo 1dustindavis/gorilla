@@ -11,7 +11,7 @@ namespace Gorilla.UI.App.ViewModels;
 public sealed class HomeViewModel : INotifyPropertyChanged
 {
     private readonly IGorillaServiceClient _client;
-    private readonly OptionalInstallsCacheCoordinator _cacheCoordinator;
+    private readonly OptionalInstallsStartupLoader _startupLoader;
     private readonly OperationTracker _operationTracker;
 
     private string _warningBanner = string.Empty;
@@ -23,7 +23,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     )
     {
         _client = client;
-        _cacheCoordinator = cacheCoordinator;
+        _startupLoader = new OptionalInstallsStartupLoader(cacheCoordinator);
         _operationTracker = operationTracker;
     }
 
@@ -43,22 +43,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        var cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
-        if (cached is not null)
-        {
-            ApplyItems(cached.Items);
-        }
-
-        try
-        {
-            var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
-            ApplyItems(refreshed.Items);
-            WarningBanner = string.Empty;
-        }
-        catch (Exception ex)
-        {
-            WarningBanner = $"Showing cached data. Refresh failed: {ex.Message}";
-        }
+        WarningBanner = await _startupLoader.InitializeAsync(
+            applyCachedItems: ApplyItems,
+            applyRefreshedItems: ApplyItems,
+            cancellationToken: cancellationToken
+        );
     }
 
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)

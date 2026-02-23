@@ -54,6 +54,35 @@ jobs:
         namespace: ''
         bump_each_commit: false
 
+    - name: Compute MSIX version from release tag
+      run: |
+        $releaseTag = "${{ steps.create_tag.outputs.version_tag }}"
+        if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+          throw "Release tag output is empty."
+        }
+
+        $normalized = $releaseTag -replace '^v', ''
+        $parts = $normalized.Split('.')
+        if ($parts.Count -lt 1 -or $parts.Count -gt 4) {
+          throw "Unsupported release tag format for MSIX version: $releaseTag"
+        }
+
+        $versionParts = @(0, 0, 0, 0)
+        for ($i = 0; $i -lt $parts.Count; $i++) {
+          [int]$value = 0
+          if (-not [int]::TryParse($parts[$i], [ref]$value)) {
+            throw "Release tag contains non-numeric segment: $releaseTag"
+          }
+          if ($value -lt 0 -or $value -gt 65535) {
+            throw "MSIX version segment out of range (0-65535): $value"
+          }
+          $versionParts[$i] = $value
+        }
+
+        $msixVersion = "{0}.{1}.{2}.{3}" -f $versionParts[0], $versionParts[1], $versionParts[2], $versionParts[3]
+        echo "MSIX_VERSION=$msixVersion" >> $Env:GITHUB_ENV
+        Write-Host "MSIX version: $msixVersion"
+
     - name: Build
       working-directory: ./cmd/gorilla
       run: |
@@ -103,6 +132,7 @@ jobs:
           -c Release `
           -p:Platform=x64 `
           -p:GenerateAppxPackageOnBuild=true `
+          -p:AppxPackageVersion="$Env:MSIX_VERSION" `
           -p:PackageCertificateKeyFile="$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx" `
           -p:PackageCertificatePassword="$Env:MSIX_CERT_PASSWORD"
 

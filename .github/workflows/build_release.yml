@@ -88,6 +88,11 @@ jobs:
           "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx",
           [Convert]::FromBase64String($Env:MSIX_CERT_PFX_B64)
         )
+        $pfxPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx"
+        $cerPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.cer"
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+        $cert.Import($pfxPath, $Env:MSIX_CERT_PASSWORD, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        [IO.File]::WriteAllBytes($cerPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
 
     - name: Build Gorilla UI MSIX
       env:
@@ -115,7 +120,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: gorilla-ui-msix-selfsigned-release
-        path: ./build/Gorilla.UI.App.SelfSigned.msix
+        path: |
+          ./build/Gorilla.UI.App.SelfSigned.msix
+          ./build/Gorilla.UI.App.SelfSigned.cer
         if-no-files-found: error
 
     - name: Cut release
@@ -123,6 +130,6 @@ jobs:
       with:
         allowUpdates: false
         prerelease: true
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.SelfSigned.msix"
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.SelfSigned.msix,./build/Gorilla.UI.App.SelfSigned.cer"
         tag: ${{ steps.create_tag.outputs.version_tag }}
         token: ${{ secrets.GITHUB_TOKEN }}

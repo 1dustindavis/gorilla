@@ -29,7 +29,7 @@ public sealed class AppLaunchSmokeTests
             automation = new UIA3Automation();
 
             var mainWindow = WaitForMainWindow(app, automation, TimeSpan.FromSeconds(30));
-            Assert.Equal("Gorilla.UI.App", mainWindow.Title);
+            Assert.Equal("App Catalog", mainWindow.Title);
 
             var heading = WaitFor(
                 () => mainWindow.FindFirstDescendant(cf => cf.ByText("Available Software")),

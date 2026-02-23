@@ -146,3 +146,8 @@ Planned operations:
    - Scope: define install UX and implement post-install start behavior with clear idempotent error handling.
    - Primary targets: `pkg/service/manage_windows.go`, CLI output/messages, install docs.
    - Done when: `serviceinstall` results in a running service (or actionable error) and behavior is documented/tested.
+
+17. Map low-level transport errors to user-friendly UI warnings.
+   - Scope: replace raw pipe/IPC exception text (for example, `Pipe is broken`) with actionable language (for example, `Service unavailable`), while preserving detailed diagnostics in logs.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, `gorilla-ui/src/Gorilla.UI.Client` exception handling/mapping layer, and related UI tests.
+   - Done when: stale-data and action-failure warnings use user-friendly messages and tests cover known transport failure strings.

@@ -25,6 +25,11 @@ jobs:
         go-version-file: go.mod
         cache: true
 
+    - name: Setup dotnet
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
     - name: Get branch & rev
       run: |
         echo "Working Path: ${Env:GITHUB_WORKSPACE}"
@@ -67,11 +72,57 @@ jobs:
         path: ./cmd/gorilla/gorilla.exe
         if-no-files-found: error
 
+    - name: Restore MSIX signing certificate
+      env:
+        MSIX_CERT_PFX_B64: ${{ secrets.MSIX_CERT_PFX_B64 }}
+        MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        if ([string]::IsNullOrWhiteSpace($Env:MSIX_CERT_PFX_B64)) {
+          throw "Missing required secret: MSIX_CERT_PFX_B64"
+        }
+        if ([string]::IsNullOrWhiteSpace($Env:MSIX_CERT_PASSWORD)) {
+          throw "Missing required secret: MSIX_CERT_PASSWORD"
+        }
+        [IO.File]::WriteAllBytes(
+          "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx",
+          [Convert]::FromBase64String($Env:MSIX_CERT_PFX_B64)
+        )
+
+    - name: Build Gorilla UI MSIX
+      env:
+        MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
+      run: |
+        dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
+        dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
+          -c Release `
+          -p:Platform=x64 `
+          -p:GenerateAppxPackageOnBuild=true `
+          -p:PackageCertificateKeyFile="$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx" `
+          -p:PackageCertificatePassword="$Env:MSIX_CERT_PASSWORD"
+
+    - name: Collect MSIX artifact
+      run: |
+        $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix |
+          Sort-Object LastWriteTime -Descending |
+          Select-Object -First 1
+        if ($null -eq $msix) {
+          throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages"
+        }
+        Copy-Item $msix.FullName "build/Gorilla.UI.App.SelfSigned.msix" -Force
+
+    - name: Upload Gorilla UI MSIX workflow artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gorilla-ui-msix-selfsigned-release
+        path: ./build/Gorilla.UI.App.SelfSigned.msix
+        if-no-files-found: error
+
     - name: Cut release
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: false
         prerelease: true
-        artifacts: "./cmd/gorilla/gorilla.exe"
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.SelfSigned.msix"
         tag: ${{ steps.create_tag.outputs.version_tag }}
         token: ${{ secrets.GITHUB_TOKEN }}

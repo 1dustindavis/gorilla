@@ -61,4 +61,17 @@ public static class ProtocolValidation
             throw new ProtocolValidationException("canceledBy is required when state is Canceled.");
         }
     }
+
+    public static void ValidateOperationAccepted(string operationId, OperationAcceptedResponse payload)
+    {
+        if (payload.Accepted && string.IsNullOrWhiteSpace(operationId))
+        {
+            throw new ProtocolValidationException("operationId is required when operation is accepted.");
+        }
+
+        if (payload.Accepted && payload.QueuedAtUtc == default)
+        {
+            throw new ProtocolValidationException("queuedAtUtc is required when operation is accepted.");
+        }
+    }
 }

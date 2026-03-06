@@ -238,6 +238,16 @@ func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq in
 	if strings.TrimSpace(response.OperationID) == "" {
 		t.Fatalf("expected non-empty operationId from install response")
 	}
+	payload, err := decodeEnvelopePayload[operationAcceptedResponse](response.Payload)
+	if err != nil {
+		t.Fatalf("expected operation accepted payload, decode failed: %v", err)
+	}
+	if !payload.Accepted {
+		t.Fatalf("expected accepted=true in install response payload")
+	}
+	if _, err := time.Parse(time.RFC3339, payload.QueuedAtUTC); err != nil {
+		t.Fatalf("expected queuedAtUtc to be RFC3339 timestamp, got %q: %v", payload.QueuedAtUTC, err)
+	}
 
 	return response.OperationID
 }

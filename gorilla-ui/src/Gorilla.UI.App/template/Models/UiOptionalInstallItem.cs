@@ -25,7 +25,17 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    public bool IsInstalled { get; init; }
+    private bool _isInstalled;
+
+    public bool IsInstalled
+    {
+        get => _isInstalled;
+        set
+        {
+            _isInstalled = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsBusy
     {

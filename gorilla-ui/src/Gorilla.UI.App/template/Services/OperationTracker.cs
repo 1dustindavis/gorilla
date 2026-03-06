@@ -11,15 +11,18 @@ public sealed class OperationTracker
         _client = client;
     }
 
-    public async Task TrackAsync(
+    public async Task<OperationStatusEvent?> TrackAsync(
         string operationId,
         Action<OperationStatusEvent> onUpdate,
         CancellationToken cancellationToken
     )
     {
+        OperationStatusEvent? latest = null;
         await foreach (var update in _client.StreamOperationStatusAsync(operationId, cancellationToken))
         {
+            latest = update;
             onUpdate(update);
         }
+        return latest;
     }
 }

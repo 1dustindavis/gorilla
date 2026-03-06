@@ -103,4 +103,45 @@ public class ContractsSmokeTests
         Assert.NotNull(ex.InnerException);
         Assert.Contains("missing payload", ex.InnerException!.Message);
     }
+
+    [Fact]
+    public void ValidateOperationAccepted_ThrowsWhenAcceptedWithoutOperationId()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: true,
+            QueuedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z")
+        );
+
+        var ex = Assert.Throws<ProtocolValidationException>(() =>
+            ProtocolValidation.ValidateOperationAccepted("", payload)
+        );
+
+        Assert.Contains("operationId is required", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateOperationAccepted_ThrowsWhenAcceptedWithoutQueuedAtUtc()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: true,
+            QueuedAtUtc: default
+        );
+
+        var ex = Assert.Throws<ProtocolValidationException>(() =>
+            ProtocolValidation.ValidateOperationAccepted("op-1", payload)
+        );
+
+        Assert.Contains("queuedAtUtc is required", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateOperationAccepted_AllowsNotAcceptedWithoutOperationId()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: false,
+            QueuedAtUtc: default
+        );
+
+        ProtocolValidation.ValidateOperationAccepted("", payload);
+    }
 }

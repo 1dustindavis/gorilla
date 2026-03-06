@@ -89,3 +89,42 @@ Record results in PR notes with:
 - observed first-render list
 - observed post-refresh list
 - observed stale-data warning text
+
+## 7. Reproducible install validation against live service responses (TODO #4)
+Use these exact steps to validate operation acceptance, `operationId` handling, and item-state convergence with live data.
+
+1. Pick a target optional install item that is currently not installed.
+   - Confirm baseline with:
+     - `dotnet run --project gorilla-ui/tools/PipeHarness -- list`
+   - Record the target item and baseline status.
+2. Submit install and capture operation acceptance.
+   - Run:
+     - `dotnet run --project gorilla-ui/tools/PipeHarness -- install <itemName>`
+   - Expected:
+     - command prints a non-empty `operationId`
+     - acceptance is true
+     - queued timestamp is present
+3. Validate stream correlation and terminal event.
+   - Run:
+     - `dotnet run --project gorilla-ui/tools/PipeHarness -- stream <operationId>`
+   - Expected:
+     - stream acknowledgement uses the same `operationId`
+     - lifecycle includes queued/in-progress states and ends in a terminal state
+4. Validate UI state convergence after success.
+   - Launch Gorilla UI and install the same item.
+   - Expected:
+     - UI shows in-progress status while streaming.
+     - On terminal success, the item list refreshes from service data.
+     - The installed item converges to installed state (`IsInstalled=true` via refreshed list).
+5. Validate service truth after UI action.
+   - Re-run:
+     - `dotnet run --project gorilla-ui/tools/PipeHarness -- list`
+   - Expected:
+     - installed item state matches the UI post-success state.
+
+Record results in PR notes with:
+- VM image/build identifier
+- target item name
+- install acceptance output (`accepted`, `operationId`, `queuedAtUtc`)
+- observed stream states (first state + terminal state)
+- UI status during operation and final converged installed state

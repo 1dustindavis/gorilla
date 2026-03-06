@@ -68,7 +68,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
             try
             {
-                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+                var terminal = await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+                if (terminal is not null)
+                {
+                    await RefreshItemsFromServiceAsync(cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -95,7 +99,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
             try
             {
-                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+                var terminal = await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
+                if (terminal is not null)
+                {
+                    await RefreshItemsFromServiceAsync(cancellationToken);
+                }
             }
             catch (Exception ex)
             {
@@ -151,6 +159,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 IsInstalled = item.IsInstalled,
             });
         }
+    }
+
+    private async Task RefreshItemsFromServiceAsync(CancellationToken cancellationToken)
+    {
+        var latest = await _client.ListOptionalInstallsAsync(cancellationToken);
+        ApplyItems(latest);
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

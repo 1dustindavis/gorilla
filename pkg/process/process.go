@@ -33,7 +33,9 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 		if item, exists := catalogsMap[k][itemName]; exists {
 			// If it does exist, we should confirm it is a valid item
 			validInstallItem := (item.Installer.Type != "" && item.Installer.Location != "")
-			validUninstallItem := (item.Uninstaller.Type != "" && item.Uninstaller.Location != "")
+			validUninstallItem := (item.Uninstaller.Type != "" && item.Uninstaller.Location != "") ||
+				item.Uninstaller.Type == "msix" ||
+				item.Installer.Type == "msix"
 
 			if validInstallItem || validUninstallItem {
 				return item, true

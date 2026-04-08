@@ -108,6 +108,29 @@ var (
 				Type: "msi",
 			},
 		},
+		"TestMsixInstallOnly": catalog.Item{
+			DisplayName: "TestMsixInstallOnly",
+			Check: catalog.InstallCheck{
+				Appx: catalog.AppxCheck{
+					Name: "TestPublisher.TestApp",
+				},
+			},
+			Installer: catalog.InstallerItem{
+				Type:     "msix",
+				Location: "TestApp.msix",
+			},
+		},
+		"TestMsixUninstall": catalog.Item{
+			DisplayName: "TestMsixUninstall",
+			Check: catalog.InstallCheck{
+				Appx: catalog.AppxCheck{
+					Name: "TestPublisher.TestApp",
+				},
+			},
+			Uninstaller: catalog.InstallerItem{
+				Type: "msix",
+			},
+		},
 	}}
 
 	// CheckOnly flag disabled for testing
@@ -193,6 +216,68 @@ func TestFirstItemInvalidReturnsFalse(t *testing.T) {
 	}
 	if item.DisplayName != "Chocolatey" {
 		t.Fatalf("unexpected item returned: %#v", item)
+	}
+}
+
+// TestFirstItemMsixNoLocationIsValid verifies that an msix uninstall item with no
+// location is considered valid (msix uninstalls use the package name, not a file).
+func TestFirstItemMsixNoLocationIsValid(t *testing.T) {
+	item, ok := firstItem("TestMsixUninstall", testCatalogs)
+	if !ok {
+		t.Fatalf("expected msix uninstall item with no location to be valid")
+	}
+	if item.DisplayName != "TestMsixUninstall" {
+		t.Fatalf("unexpected item returned: %#v", item)
+	}
+}
+
+// TestFirstItemMsixInstallerTypeIsValid verifies that an msix item with only an
+// installer block (no explicit uninstaller) is still considered valid for uninstall,
+// since msix uninstalls are handled via the package name rather than a file.
+func TestFirstItemMsixInstallerTypeIsValid(t *testing.T) {
+	item, ok := firstItem("TestMsixInstallOnly", testCatalogs)
+	if !ok {
+		t.Fatalf("expected msix installer-only item to be valid for uninstall")
+	}
+	if item.DisplayName != "TestMsixInstallOnly" {
+		t.Fatalf("unexpected item returned: %#v", item)
+	}
+}
+
+// TestUninstallsMsixInferredFromInstaller verifies that an msix item with no explicit
+// uninstaller block is processed correctly when queued for uninstall.
+func TestUninstallsMsixInferredFromInstaller(t *testing.T) {
+	installerInstall = fakeUninstall
+	defer func() {
+		installerInstall = origInstall
+		actualUninstalledItems = nil
+	}()
+
+	msixUninstalls := []string{"TestMsixInstallOnly"}
+	Uninstalls(msixUninstalls, testCatalogs, "URLPackages", "CachePath", checkOnlyMode)
+
+	expectedItems := msixUninstalls
+	matchItems := reflect.DeepEqual(expectedItems, actualUninstalledItems)
+	if !matchItems {
+		t.Errorf("\nExpected: %#v\nActual: %#v", expectedItems, actualUninstalledItems)
+	}
+}
+
+// TestUninstallsMsix verifies that msix uninstall items are processed correctly.
+func TestUninstallsMsix(t *testing.T) {
+	installerInstall = fakeUninstall
+	defer func() {
+		installerInstall = origInstall
+		actualUninstalledItems = nil
+	}()
+
+	msixUninstalls := []string{"TestMsixUninstall"}
+	Uninstalls(msixUninstalls, testCatalogs, "URLPackages", "CachePath", checkOnlyMode)
+
+	expectedItems := msixUninstalls
+	matchItems := reflect.DeepEqual(expectedItems, actualUninstalledItems)
+	if !matchItems {
+		t.Errorf("\nExpected: %#v\nActual: %#v", expectedItems, actualUninstalledItems)
 	}
 }
 

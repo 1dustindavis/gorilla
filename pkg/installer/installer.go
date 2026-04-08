@@ -189,6 +189,15 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 		installCmd = commandPs1
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
 
+	} else if item.Installer.Type == "msix" {
+		gorillalog.Info("Installing msix for", item.DisplayName)
+		installCmd = commandPs1
+		psCommand := fmt.Sprintf("Add-AppxProvisionedPackage -Online -PackagePath '%s' -SkipLicense", absFile)
+		if len(item.Installer.Arguments) > 0 {
+			psCommand += " " + strings.Join(item.Installer.Arguments, " ")
+		}
+		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", psCommand}
+
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
@@ -212,6 +221,30 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 }
 
 func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
+
+	// msix uninstall only needs the package name, no file download required
+	if item.Uninstaller.Type == "msix" || (item.Uninstaller.Type == "" && item.Installer.Type == "msix") {
+		gorillalog.Info("Uninstalling msix for", item.DisplayName)
+		if item.Check.Appx.Name == "" {
+			msg := fmt.Sprintf("Check.Appx.Name is required for msix uninstall of %s", item.DisplayName)
+			gorillalog.Warn(msg)
+			return msg
+		}
+		removeCmd := fmt.Sprintf(
+			"$pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq '%s' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name '%s' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue",
+			item.Check.Appx.Name, item.Check.Appx.Name,
+		)
+		uninstallCmd := commandPs1
+		uninstallArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", removeCmd}
+		uninstallerOut, errOut := runCommand(uninstallCmd, uninstallArgs)
+		if errOut != nil {
+			gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
+		} else {
+			gorillalog.Info(item.DisplayName, item.Version, "Uninstallation SUCCESSFUL")
+		}
+		report.UninstalledItems = append(report.UninstalledItems, item)
+		return uninstallerOut
+	}
 
 	// Determine the paths needed for download and uinstall
 	relPath, fileName := path.Split(item.Uninstaller.Location)

@@ -2,6 +2,7 @@ package status
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -228,6 +229,63 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 	return actionNeeded, checkErr
 }
 
+// checkAppx checks whether an AppX/MSIX package is provisioned and at the required version.
+// It calls `Get-AppxProvisionedPackage -Online` via PowerShell and parses the Version field
+// from the output to compare against the catalog version.
+func checkAppx(catalogItem catalog.Item, installType string) (actionNeeded bool, checkErr error) {
+	checkAppxItem := catalogItem.Check.Appx
+	psCmd := filepath.Join(os.Getenv("WINDIR"), "system32/", "WindowsPowershell", "v1.0", "powershell.exe")
+	psArgs := []string{
+		"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+		"-Command",
+		fmt.Sprintf(
+			"$p = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq '%s' }; if ($p) { $p.Version } else { '' }",
+			checkAppxItem.Name,
+		),
+	}
+
+	cmd := execCommand(psCmd, psArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		gorillalog.Warn("checkAppx command error:", err)
+	}
+
+	installedVersionStr := strings.TrimSpace(stdout.String())
+	gorillalog.Debug("AppX installed version:", installedVersionStr)
+	gorillalog.Debug("AppX stderr:", stderr.String())
+
+	installed := installedVersionStr != ""
+
+	var versionMatch bool
+	if installed && checkAppxItem.Version != "" {
+		catalogVersion, err := version.NewVersion(checkAppxItem.Version)
+		if err != nil {
+			gorillalog.Warn("Unable to parse catalog appx version:", checkAppxItem.Version, err)
+			return true, err
+		}
+		currentVersion, err := version.NewVersion(installedVersionStr)
+		if err != nil {
+			gorillalog.Warn("Unable to parse installed appx version:", installedVersionStr, err)
+			return true, err
+		}
+		versionMatch = !currentVersion.LessThan(catalogVersion)
+	}
+
+	if installType == "update" && !installed {
+		actionNeeded = false
+	} else if installType == "uninstall" {
+		actionNeeded = installed
+	} else if installed && versionMatch {
+		actionNeeded = false
+	} else {
+		actionNeeded = true
+	}
+
+	return actionNeeded, checkErr
+}
+
 // CheckStatus determines the method for checking status
 func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actionNeeded bool, checkErr error) {
 
@@ -242,6 +300,10 @@ func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actio
 	} else if catalogItem.Check.Registry.Version != "" {
 		gorillalog.Info("Checking status via registry:", catalogItem.DisplayName)
 		return checkRegistry(catalogItem, installType)
+
+	} else if catalogItem.Check.Appx.Name != "" {
+		gorillalog.Info("Checking status via appx:", catalogItem.DisplayName)
+		return checkAppx(catalogItem, installType)
 	}
 
 	gorillalog.Warn("Not enough data to check the current status:", catalogItem.DisplayName)

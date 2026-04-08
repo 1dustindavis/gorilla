@@ -96,6 +96,22 @@ var (
 			Type:      `ps1`,
 		},
 	}
+	msixItem = catalog.Item{
+		Installer: catalog.InstallerItem{
+			Hash:     `fcc18ed417b62314901e2712933f89e55d5900f2c3cf883100e7fcef1ef1de74`,
+			Location: `packages/chef-client/chef-client-14.3.37-1-x64.msix`,
+			Type:     `msix`,
+		},
+		Uninstaller: catalog.InstallerItem{
+			Type: `msix`,
+		},
+		Check: catalog.InstallCheck{
+			Appx: catalog.AppxCheck{
+				Name: `Gorilla.Test.App`,
+			},
+		},
+		Version: "1.0.0",
+	}
 
 	// Define different options to bypass status checks during tests
 	statusActionNoError   = `_gorilla_dev_action_noerror_`
@@ -273,6 +289,24 @@ func TestInstallItem(t *testing.T) {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
 
+	//
+	// Msix
+	//
+	msixItem.DisplayName = statusActionNoError
+	msixPath := "chef-client/chef-client-14.3.37-1-x64.msix"
+	msixURL := urlPackages + msixPath
+
+	// Run Install
+	actualMsix := installItem(msixItem, msixURL, cachePath)
+
+	// Check the result
+	msixCmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
+	msixFile := filepath.Join(pkgCache, msixPath)
+	expectedMsix := "[" + msixCmd + " -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command Add-AppxProvisionedPackage -Online -PackagePath '" + msixFile + "' -SkipLicense]"
+	if have, want := actualMsix, expectedMsix; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+
 }
 
 // TestInstallStatusError verifies that Install returns if status check fails
@@ -391,6 +425,19 @@ func TestUninstallItem(t *testing.T) {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
 
+	//
+	// Msix
+	//
+	msixItem.DisplayName = statusNoActionNoError
+	// Run Uninstall (msix uses Check.Appx.Name, no file download needed)
+	actualMsix := uninstallItem(msixItem, "", cachePath)
+	// Check the result
+	msixCmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
+	expectedMsix := "[" + msixCmd + " -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command $pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq 'Gorilla.Test.App' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name 'Gorilla.Test.App' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue]"
+	if have, want := actualMsix, expectedMsix; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+
 }
 
 func TestInstallItemNupkgWithExplicitPackageID(t *testing.T) {
@@ -498,6 +545,22 @@ func TestUninstallItemNupkgAmbiguousPackageID(t *testing.T) {
 	actual := uninstallItem(item, nupkgURL, cachePath)
 	if !strings.Contains(actual, "Unable to determine nupkg id") || !strings.Contains(actual, "multiple package ids were found") {
 		t.Fatalf("expected ambiguity error message, got: %s", actual)
+	}
+}
+
+// TestUninstallItemMsixMissingName verifies that uninstall returns an error when Check.Appx.Name is empty
+func TestUninstallItemMsixMissingName(t *testing.T) {
+	execCommand = fakeExecCommand
+	defer func() { execCommand = origExec }()
+
+	item := msixItem
+	item.DisplayName = "Missing Name App"
+	item.Check.Appx.Name = ""
+
+	actual := uninstallItem(item, "", "testdata/")
+	expected := "Check.Appx.Name is required for msix uninstall of Missing Name App"
+	if have, want := actual, expected; have != want {
+		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
 }
 

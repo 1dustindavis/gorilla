@@ -1,5 +1,6 @@
 param(
-    [string]$WorkRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
+    [string]$WorkRoot = "$env:RUNNER_TEMP\gorilla-release-integration",
+    [string]$MsixCertThumbprint = ""
 )
 
 Set-StrictMode -Version Latest
@@ -40,10 +41,14 @@ $exeMarker = Join-Path $markerRoot "exe.txt"
 $msiMarker = Join-Path $markerRoot "msi.txt"
 $nupkgMarker = Join-Path $markerRoot "nupkg.txt"
 $ps1Marker = Join-Path $markerRoot "ps1.txt"
+$msixPackageName = "GorillaIntegrationTest"
+$msixNoUninstallerPackageName = "GorillaIntegrationTestNoUninstaller"
+
+$msixBuildRoot = Join-Path $fixtureRoot "msix"
 
 Write-Host "Preparing integration workspace at $root"
 Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path $packagesRoot, $catalogsRoot, $manifestsRoot, $configRoot, $toolsRoot, $msiBuildRoot, $chocoRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $packagesRoot, $catalogsRoot, $manifestsRoot, $configRoot, $toolsRoot, $msiBuildRoot, $chocoRoot, $msixBuildRoot -Force | Out-Null
 
 Write-Host "Cleaning old host markers"
 Remove-Item -LiteralPath $markerRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -221,6 +226,119 @@ New-Item -ItemType Directory -Path (Split-Path -Path $msiV1 -Parent) -Force | Ou
 Build-Msi -Version "1.0.0" -OutputPath $msiV1
 Build-Msi -Version "2.0.0" -OutputPath $msiV2
 
+Write-Host "Creating msix fixtures"
+$makeAppx = Get-Command MakeAppx.exe -ErrorAction SilentlyContinue
+if (-not $makeAppx) {
+    $sdkRoots = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "${env:ProgramFiles}\Windows Kits\10\bin"
+    )
+    foreach ($sdkRoot in $sdkRoots) {
+        $candidates = Get-ChildItem -Path $sdkRoot -Filter MakeAppx.exe -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object -Property FullName -Descending
+        if ($candidates) {
+            $makeAppx = $candidates[0].FullName
+            break
+        }
+    }
+}
+if (-not $makeAppx) {
+    throw "MakeAppx.exe not found; install the Windows SDK or add it to PATH"
+}
+$makeAppxExe = if ($makeAppx -is [System.Management.Automation.ApplicationInfo]) { $makeAppx.Source } else { $makeAppx }
+
+function Build-Msix {
+    param(
+        [string]$Version,
+        [string]$OutputPath,
+        [string]$PackageName = $msixPackageName
+    )
+
+    $versionRoot = Join-Path $msixBuildRoot "$PackageName-$Version"
+    New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
+
+    # AppxManifest.xml — minimal sideload package (no executable needed for registration test)
+    $manifest = Join-Path $versionRoot "AppxManifest.xml"
+    @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         IgnorableNamespaces="uap">
+  <Identity Name="$PackageName" Version="$Version.0" Publisher="CN=GorillaIT" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Gorilla Integration Test</DisplayName>
+    <PublisherDisplayName>GorillaIT</PublisherDisplayName>
+    <Logo>Assets\Square150x150Logo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="gorilla-it-stub.exe" EntryPoint="gorilla-it-stub.exe">
+      <uap:VisualElements DisplayName="Gorilla Integration Test" Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png" Description="Integration test stub"
+                          BackgroundColor="transparent" />
+    </Application>
+  </Applications>
+</Package>
+"@ | Set-Content -LiteralPath $manifest -NoNewline
+
+    # Minimal PNG assets (1x1 transparent PNG, base64-encoded)
+    $assetsDir = Join-Path $versionRoot "Assets"
+    New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+    $pngBytes = [Convert]::FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    )
+    [IO.File]::WriteAllBytes((Join-Path $assetsDir "Square150x150Logo.png"), $pngBytes)
+    [IO.File]::WriteAllBytes((Join-Path $assetsDir "Square44x44Logo.png"), $pngBytes)
+
+    # Minimal stub exe (empty file — MakeAppx only requires the file exists for pack)
+    $stubExe = Join-Path $versionRoot "gorilla-it-stub.exe"
+    [IO.File]::WriteAllBytes($stubExe, [byte[]]@())
+
+    & $makeAppxExe pack /d $versionRoot /p $OutputPath /nv /o | Out-Host
+}
+
+New-Item -ItemType Directory -Path (Join-Path $packagesRoot "msix") -Force | Out-Null
+$msixV1 = Join-Path $packagesRoot "msix/gorilla-it-msix-1.0.0.msix"
+$msixV2 = Join-Path $packagesRoot "msix/gorilla-it-msix-2.0.0.msix"
+$msixNoUninstallerV1 = Join-Path $packagesRoot "msix/gorilla-it-msix-nouninstaller-1.0.0.msix"
+Build-Msix -Version "1.0.0" -OutputPath $msixV1
+Build-Msix -Version "2.0.0" -OutputPath $msixV2
+Build-Msix -Version "1.0.0" -OutputPath $msixNoUninstallerV1 -PackageName $msixNoUninstallerPackageName
+
+if ($MsixCertThumbprint -ne "") {
+    Write-Host "Signing msix fixtures with certificate thumbprint: $MsixCertThumbprint"
+    $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if (-not $signtool) {
+        $sdkRoots = @(
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+            "${env:ProgramFiles}\Windows Kits\10\bin"
+        )
+        foreach ($sdkRoot in $sdkRoots) {
+            $candidates = Get-ChildItem -Path $sdkRoot -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+                Sort-Object -Property FullName -Descending
+            if ($candidates) {
+                $signtool = $candidates[0].FullName
+                break
+            }
+        }
+    }
+    if (-not $signtool) {
+        throw "signtool.exe not found; install the Windows SDK or add it to PATH"
+    }
+    $signtoolExe = if ($signtool -is [System.Management.Automation.ApplicationInfo]) { $signtool.Source } else { $signtool }
+    foreach ($msix in @($msixV1, $msixV2, $msixNoUninstallerV1)) {
+        & $signtoolExe sign /sha1 $MsixCertThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $msix | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "signtool failed for $msix"
+        }
+    }
+}
+
 $hashExeInstall = Get-FileSha256 -Path $exeInstall
 $hashExeUninstall = Get-FileSha256 -Path $exeUninstall
 $hashPs1InstallV1 = Get-FileSha256 -Path $ps1InstallV1
@@ -230,6 +348,9 @@ $hashNupkgV1 = Get-FileSha256 -Path $nupkgV1
 $hashNupkgV2 = Get-FileSha256 -Path $nupkgV2
 $hashMsiV1 = Get-FileSha256 -Path $msiV1
 $hashMsiV2 = Get-FileSha256 -Path $msiV2
+$hashMsixV1 = Get-FileSha256 -Path $msixV1
+$hashMsixV2 = Get-FileSha256 -Path $msixV2
+$hashMsixNoUninstallerV1 = Get-FileSha256 -Path $msixNoUninstallerV1
 
 $checkScriptTemplate = '$path = "__PATH__"; $want = [version]"__TARGET__"; if (!(Test-Path -LiteralPath $path)) { exit 0 }; $raw = (Get-Content -LiteralPath $path -Raw).Trim(); $have = [version]$raw; if ($have -ge $want) { exit 1 }; exit 0'
 
@@ -240,6 +361,7 @@ function Build-CheckScript {
     )
     return $checkScriptTemplate.Replace("__PATH__", $Path.Replace("\\", "\\\\")).Replace("__TARGET__", $Target)
 }
+
 
 $catalogPath = Join-Path $catalogsRoot "integration.yaml"
 $catalogContent = @"
@@ -380,6 +502,46 @@ $(Build-CheckScript -Path $ps1Marker -Target "2.0.0" | ForEach-Object { "      $
     location: packages/scripts/marker-uninstall.ps1
     hash: $hashPs1Uninstall
   version: 2.0.0
+
+MsixV1:
+  display_name: MsixV1
+  check:
+    appx:
+      name: $msixPackageName
+      version: 1.0.0
+  installer:
+    type: msix
+    location: packages/msix/gorilla-it-msix-1.0.0.msix
+    hash: $hashMsixV1
+  uninstaller:
+    type: msix
+  version: 1.0.0
+
+MsixV2:
+  display_name: MsixV2
+  check:
+    appx:
+      name: $msixPackageName
+      version: 2.0.0
+  installer:
+    type: msix
+    location: packages/msix/gorilla-it-msix-2.0.0.msix
+    hash: $hashMsixV2
+  uninstaller:
+    type: msix
+  version: 2.0.0
+
+MsixNoUninstallerV1:
+  display_name: MsixNoUninstallerV1
+  check:
+    appx:
+      name: $msixNoUninstallerPackageName
+      version: 1.0.0
+  installer:
+    type: msix
+    location: packages/msix/gorilla-it-msix-nouninstaller-1.0.0.msix
+    hash: $hashMsixNoUninstallerV1
+  version: 1.0.0
 "@
 $catalogContent | Set-Content -LiteralPath $catalogPath -NoNewline
 
@@ -390,6 +552,8 @@ managed_installs:
   - MsiV1
   - NupkgV1
   - Ps1V1
+  - MsixV1
+  - MsixNoUninstallerV1
 '@ | Set-Content -LiteralPath (Join-Path $manifestsRoot "integration-install.yaml") -NoNewline
 
 @'
@@ -399,6 +563,7 @@ managed_updates:
   - MsiV2
   - NupkgV2
   - Ps1V2
+  - MsixV2
 '@ | Set-Content -LiteralPath (Join-Path $manifestsRoot "integration-update.yaml") -NoNewline
 
 @'
@@ -408,6 +573,8 @@ managed_uninstalls:
   - MsiV2
   - NupkgV2
   - Ps1V2
+  - MsixV2
+  - MsixNoUninstallerV1
 '@ | Set-Content -LiteralPath (Join-Path $manifestsRoot "integration-uninstall.yaml") -NoNewline
 
 $goCmd = Resolve-GoCommand

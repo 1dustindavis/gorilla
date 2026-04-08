@@ -130,6 +130,45 @@ var (
 		},
 		DisplayName: `registryCheckItem`,
 	}
+	// appxCheckInstalled simulates a package that is current (version matches)
+	appxCheckInstalled = catalog.Item{
+		Check: catalog.InstallCheck{
+			Appx: catalog.AppxCheck{
+				Name:    statusActionNoError,
+				Version: `1.2.0`,
+			},
+		},
+		DisplayName: `appxCheckInstalled`,
+	}
+	// appxCheckOutdated simulates a package that is installed but below the required version
+	appxCheckOutdated = catalog.Item{
+		Check: catalog.InstallCheck{
+			Appx: catalog.AppxCheck{
+				Name:    statusActionNoError,
+				Version: `9.9.9`,
+			},
+		},
+		DisplayName: `appxCheckOutdated`,
+	}
+	// appxCheckNotInstalled simulates a package that is not registered
+	appxCheckNotInstalled = catalog.Item{
+		Check: catalog.InstallCheck{
+			Appx: catalog.AppxCheck{
+				Name:    statusNoActionNoError,
+				Version: `1.0.0`,
+			},
+		},
+		DisplayName: `appxCheckNotInstalled`,
+	}
+	appxCheckItem = catalog.Item{
+		Check: catalog.InstallCheck{
+			Appx: catalog.AppxCheck{
+				Name:    `appxCheckItem`,
+				Version: `1.0.0`,
+			},
+		},
+		DisplayName: `appxCheckItem`,
+	}
 	noCheckItem = catalog.Item{
 		DisplayName: `noCheckItem`,
 	}
@@ -159,6 +198,17 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	return cmd
 }
 
+// fakeExecCommandAppx returns a command that prints a version string when the
+// package name matches statusActionNoError (simulating an installed package),
+// or prints nothing when the name matches statusNoActionNoError (not installed).
+func fakeExecCommandAppx(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcessAppx", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS_APPX=1"}
+	return cmd
+}
+
 // TestHelperProcess processes the commands passed to fakeExecCommand
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
@@ -170,6 +220,20 @@ func TestHelperProcess(t *testing.T) {
 	if sliceContains(os.Args[3:], statusNoActionNoError) {
 		os.Exit(1)
 	}
+	os.Exit(0)
+}
+
+// TestHelperProcessAppx handles fake AppX version output for checkAppx tests.
+// Prints "1.2.0" to stdout when the package name is statusActionNoError,
+// prints nothing when the name is statusNoActionNoError (package not registered).
+func TestHelperProcessAppx(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS_APPX") != "1" {
+		return
+	}
+	if sliceContains(os.Args[3:], statusActionNoError) {
+		fmt.Print("1.2.0")
+	}
+	// statusNoActionNoError: print nothing — package not installed
 	os.Exit(0)
 }
 
@@ -243,6 +307,60 @@ func TestCheckRegistry(t *testing.T) {
 		t.Errorf("actionNeeded: %v; Expected checkRegistry to return true", actionNeeded)
 	}
 
+}
+
+// TestCheckAppx validates AppX/MSIX package status checks across install/update/uninstall types
+func TestCheckAppx(t *testing.T) {
+	execCommand = fakeExecCommandAppx
+	defer func() { execCommand = origExec }()
+
+	// install — package installed at version 1.2.0, catalog wants 1.2.0 → no action
+	actionNeeded, _ := checkAppx(appxCheckInstalled, "install")
+	if actionNeeded {
+		t.Errorf("actionNeeded: %v; expected false (installed, version current)", actionNeeded)
+	}
+
+	// install — package installed at version 1.2.0, catalog wants 9.9.9 → action needed
+	actionNeeded, _ = checkAppx(appxCheckOutdated, "install")
+	if !actionNeeded {
+		t.Errorf("actionNeeded: %v; expected true (installed, version outdated)", actionNeeded)
+	}
+
+	// install — package not installed, catalog wants 1.0.0 → action needed
+	actionNeeded, _ = checkAppx(appxCheckNotInstalled, "install")
+	if !actionNeeded {
+		t.Errorf("actionNeeded: %v; expected true (not installed)", actionNeeded)
+	}
+
+	// uninstall — package installed → action needed
+	actionNeeded, _ = checkAppx(appxCheckInstalled, "uninstall")
+	if !actionNeeded {
+		t.Errorf("actionNeeded: %v; expected true (installed, uninstall needed)", actionNeeded)
+	}
+
+	// uninstall — package not installed → no action
+	actionNeeded, _ = checkAppx(appxCheckNotInstalled, "uninstall")
+	if actionNeeded {
+		t.Errorf("actionNeeded: %v; expected false (not installed, nothing to uninstall)", actionNeeded)
+	}
+
+	// update — package installed at version 1.2.0, catalog wants 1.2.0 → no action
+	actionNeeded, _ = checkAppx(appxCheckInstalled, "update")
+	if actionNeeded {
+		t.Errorf("actionNeeded: %v; expected false (installed, version current)", actionNeeded)
+	}
+
+	// update — package installed, catalog wants 9.9.9 → action needed
+	actionNeeded, _ = checkAppx(appxCheckOutdated, "update")
+	if !actionNeeded {
+		t.Errorf("actionNeeded: %v; expected true (installed, version outdated)", actionNeeded)
+	}
+
+	// update — package not installed → no action (don't update something not present)
+	actionNeeded, _ = checkAppx(appxCheckNotInstalled, "update")
+	if actionNeeded {
+		t.Errorf("actionNeeded: %v; expected false (not installed, skip update)", actionNeeded)
+	}
 }
 
 // TestCheckScript validates that a script is properly written disk, ran, and then deleted
@@ -407,6 +525,18 @@ func ExampleCheckStatus_registry() {
 
 	// Output:
 	// Checking status via registry: registryCheckItem
+}
+
+// ExampleCheckStatus_appx validates that an appx check is ran
+func ExampleCheckStatus_appx() {
+	execCommand = fakeExecCommandAppx
+	_ = gorillalog.NewLog(cfgVerbose)
+	defer func() { execCommand = origExec }()
+
+	CheckStatus(appxCheckItem, "install", "testdata/")
+
+	// Output:
+	// Checking status via appx: appxCheckItem
 }
 
 // ExampleCheckStatus_none validates that no check is ran

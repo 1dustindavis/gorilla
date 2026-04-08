@@ -37,6 +37,7 @@ type InstallCheck struct {
 	File     []FileCheck `yaml:"file"`
 	Script   string      `yaml:"script"`
 	Registry RegCheck    `yaml:"registry"`
+	Appx     AppxCheck   `yaml:"appx"`
 }
 
 // FileCheck holds information about checking via a file
@@ -49,6 +50,12 @@ type FileCheck struct {
 
 // RegCheck holds information about checking via registry
 type RegCheck struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+}
+
+// AppxCheck holds information about checking an installed AppX/MSIX package
+type AppxCheck struct {
 	Name    string `yaml:"name"`
 	Version string `yaml:"version"`
 }

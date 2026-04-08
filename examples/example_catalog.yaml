@@ -80,15 +80,29 @@ vlc:
   installer:
     location: packages/apps/vlc/vlc-3.0.3-win32.exe
     hash: 65bf42b15a05b13197e4dd6cdf181e39f30d47feb2cb6cc929db21cd634cd36f
-    arguments: 
+    arguments:
      - /L=1033
      - /S
     type: exe
   uninstaller:
     location: packages/apps/vlc/vlc-3.0.3-uninstall.exe
     hash: 676dcb69da99728feb8af3231e863dbb9639dc09f409749a74dd5c08dc2fb809
-    arguments: 
+    arguments:
      - /S
     type: exe
   version: 3.0.3
-  
+
+slack:
+  display_name: Slack
+  check:
+    appx:
+      name: Slack
+      version: 4.49.81.0
+  installer:
+    location: packages/apps/slack/Slack-4.49.81.0.msix
+    hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+    type: msix
+  uninstaller:
+    type: msix
+  version: 4.49.81.0
+

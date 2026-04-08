@@ -31,6 +31,32 @@ function Assert-Missing {
     }
 }
 
+function Assert-AppxInstalled {
+    param(
+        [string]$Name,
+        [string]$ExpectedVersion
+    )
+
+    $pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $Name }
+    if (-not $pkg) {
+        throw "Expected AppX package '$Name' to be installed but it was not found"
+    }
+    $actual = [version]$pkg.Version
+    $expected = [version]$ExpectedVersion
+    if ($actual -lt $expected) {
+        throw "AppX package '$Name' version mismatch: expected>=$ExpectedVersion actual=$($pkg.Version)"
+    }
+}
+
+function Assert-AppxMissing {
+    param([string]$Name)
+
+    $pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $Name }
+    if ($pkg) {
+        throw "Expected AppX package '$Name' to be uninstalled but it is still registered (version $($pkg.Version))"
+    }
+}
+
 function Write-Config {
     param(
         [string]$ManifestName,
@@ -103,6 +129,8 @@ $exeMarker = Join-Path $markerRoot "exe.txt"
 $msiMarker = Join-Path $markerRoot "msi.txt"
 $nupkgMarker = Join-Path $markerRoot "nupkg.txt"
 $ps1Marker = Join-Path $markerRoot "ps1.txt"
+$msixPackageName = "GorillaIntegrationTest"
+$msixNoUninstallerPackageName = "GorillaIntegrationTestNoUninstaller"
 
 Write-Host "::group::[TEST] Environment setup"
 Remove-Item -LiteralPath $markerRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -148,6 +176,8 @@ try {
     Assert-Content -Path $msiMarker -Expected "1.0.0"
     Assert-Content -Path $nupkgMarker -Expected "1.0.0"
     Assert-Content -Path $ps1Marker -Expected "1.0.0"
+    Assert-AppxInstalled -Name $msixPackageName -ExpectedVersion "1.0.0"
+    Assert-AppxInstalled -Name $msixNoUninstallerPackageName -ExpectedVersion "1.0.0"
     $results += "[PASS] Install"
 
     $currentPhase = "update"
@@ -156,6 +186,8 @@ try {
     Assert-Content -Path $msiMarker -Expected "2.0.0"
     Assert-Content -Path $nupkgMarker -Expected "2.0.0"
     Assert-Content -Path $ps1Marker -Expected "2.0.0"
+    Assert-AppxInstalled -Name $msixPackageName -ExpectedVersion "2.0.0"
+    Assert-AppxInstalled -Name $msixNoUninstallerPackageName -ExpectedVersion "1.0.0"
     $results += "[PASS] Update"
 
     $currentPhase = "uninstall"
@@ -164,6 +196,8 @@ try {
     Assert-Missing -Path $msiMarker
     Assert-Missing -Path $nupkgMarker
     Assert-Missing -Path $ps1Marker
+    Assert-AppxMissing -Name $msixPackageName
+    Assert-AppxMissing -Name $msixNoUninstallerPackageName
     $results += "[PASS] Uninstall"
 
     Write-Host "========== Integration Test Summary =========="
@@ -174,9 +208,9 @@ try {
         @"
 ## Windows Released-Binary Integration Results
 
-- PASS: Install
-- PASS: Update
-- PASS: Uninstall
+- PASS: Install (exe, msi, nupkg, ps1, msix)
+- PASS: Update (exe, msi, nupkg, ps1, msix)
+- PASS: Uninstall (exe, msi, nupkg, ps1, msix)
 
 Overall: PASS
 "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

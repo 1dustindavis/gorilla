@@ -8,6 +8,16 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+
+env:
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || '2cd0243e-c60d-4cce-9225-e569d41b02e2' }}
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || '2d81f33c-5e91-4bc0-98a3-2267183edfcd' }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || '85049d10-3b29-403f-8849-fb54e4a5e0d3' }}
+  ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT || 'https://wus3.codesigning.azure.net/' }}
+  ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT || 'gorilla-signing' }}
+  ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE || 'gorilla-public-trust' }}
+  ARTIFACT_SIGNING_SUBJECT: 'CN=Dustin Davis, O=Dustin Davis, L=Walnut Creek, S=ca, C=US'
 
 jobs:
   build:
@@ -46,7 +56,7 @@ jobs:
     - name: Create version tag
       id: create_tag
       uses: paulhatch/semantic-version@v5.4.0
-      with: 
+      with:
         tag_prefix: "v"
         major_pattern: "(MAJOR)"
         minor_pattern: "/[\\s]*/"
@@ -101,35 +111,9 @@ jobs:
         path: ./cmd/gorilla/gorilla.exe
         if-no-files-found: error
 
-    - name: Restore MSIX signing certificate
-      env:
-        MSIX_CERT_PFX_B64: ${{ secrets.MSIX_CERT_PFX_B64 }}
-        MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
+    - name: Build unsigned Gorilla UI MSIX
       run: |
         New-Item -ItemType Directory -Force -Path build | Out-Null
-        if ([string]::IsNullOrWhiteSpace($Env:MSIX_CERT_PFX_B64)) {
-          throw "Missing required secret: MSIX_CERT_PFX_B64"
-        }
-        if ([string]::IsNullOrWhiteSpace($Env:MSIX_CERT_PASSWORD)) {
-          throw "Missing required secret: MSIX_CERT_PASSWORD"
-        }
-        [IO.File]::WriteAllBytes(
-          "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx",
-          [Convert]::FromBase64String($Env:MSIX_CERT_PFX_B64)
-        )
-        $pfxPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx"
-        $cerPath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.cer"
-        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
-          $pfxPath,
-          $Env:MSIX_CERT_PASSWORD,
-          [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable
-        )
-        [IO.File]::WriteAllBytes($cerPath, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-
-    - name: Build Gorilla UI MSIX
-      env:
-        MSIX_CERT_PASSWORD: ${{ secrets.MSIX_CERT_PASSWORD }}
-      run: |
         dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
         dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
           -c Release `
@@ -138,10 +122,9 @@ jobs:
           -p:PublishReadyToRun=false `
           -p:PublishTrimmed=false `
           -p:AppxPackageVersion="$Env:MSIX_VERSION" `
-          -p:PackageCertificateKeyFile="$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.SelfSigned.pfx" `
-          -p:PackageCertificatePassword="$Env:MSIX_CERT_PASSWORD"
+          -p:AppxPackageSigningEnabled=false
 
-    - name: Collect MSIX artifact
+    - name: Collect unsigned MSIX artifact
       run: |
         $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix |
           Sort-Object LastWriteTime -Descending |
@@ -149,15 +132,56 @@ jobs:
         if ($null -eq $msix) {
           throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages"
         }
-        Copy-Item $msix.FullName "build/Gorilla.UI.App.SelfSigned.msix" -Force
+        Copy-Item $msix.FullName "build/Gorilla.UI.App.msix" -Force
+
+        $signature = Get-AuthenticodeSignature -FilePath "build/Gorilla.UI.App.msix"
+        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
+          throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)."
+        }
+
+    - name: Login to Azure with GitHub OIDC
+      uses: Azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
+      with:
+        client-id: ${{ env.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Sign Gorilla UI MSIX with Azure Artifact Signing
+      uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+      with:
+        endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
+        signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ env.ARTIFACT_SIGNING_PROFILE }}
+        files: ${{ github.workspace }}\build\Gorilla.UI.App.msix
+        file-digest: SHA256
+        timestamp-digest: SHA256
+
+    - name: Verify signed MSIX
+      shell: pwsh
+      run: |
+        $packagePath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.msix"
+        $signature = Get-AuthenticodeSignature -FilePath $packagePath
+
+        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+          throw "Artifact Signing produced an invalid MSIX signature. Status: $($signature.Status); message: $($signature.StatusMessage)"
+        }
+        if ($null -eq $signature.SignerCertificate) {
+          throw "Signed MSIX does not expose a signer certificate."
+        }
+        if ($signature.SignerCertificate.Subject -cne $Env:ARTIFACT_SIGNING_SUBJECT) {
+          throw "Unexpected MSIX signer subject. Expected '$Env:ARTIFACT_SIGNING_SUBJECT'; got '$($signature.SignerCertificate.Subject)'."
+        }
+
+        Write-Host "Verified MSIX signature"
+        Write-Host "  Subject: $($signature.SignerCertificate.Subject)"
+        Write-Host "  Thumbprint: $($signature.SignerCertificate.Thumbprint)"
+        Write-Host "  Valid through: $($signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('u'))"
 
     - name: Upload Gorilla UI MSIX workflow artifact
       uses: actions/upload-artifact@v4
       with:
-        name: gorilla-ui-msix-selfsigned-release
-        path: |
-          ./build/Gorilla.UI.App.SelfSigned.msix
-          ./build/Gorilla.UI.App.SelfSigned.cer
+        name: gorilla-ui-msix-release
+        path: ./build/Gorilla.UI.App.msix
         if-no-files-found: error
 
     - name: Cut release
@@ -165,6 +189,6 @@ jobs:
       with:
         allowUpdates: false
         prerelease: true
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.SelfSigned.msix,./build/Gorilla.UI.App.SelfSigned.cer"
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
         tag: ${{ steps.create_tag.outputs.version_tag }}
         token: ${{ secrets.GITHUB_TOKEN }}

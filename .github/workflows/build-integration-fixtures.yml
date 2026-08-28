@@ -24,12 +24,27 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Create and trust MSIX test certificate
+        id: msix_certificate
+        shell: pwsh
+        run: |
+          $certPath = "$env:RUNNER_TEMP\gorilla-it-sideload.cer"
+          $thumbprint = ./integration/windows/initialize-msix-test-certificate.ps1 `
+            -CertificatePath $certPath `
+            -Create
+          "path=$certPath" >> $env:GITHUB_OUTPUT
+          "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
+
       - name: Prepare released-binary integration fixtures
         shell: pwsh
         run: |
           $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
           ./integration/windows/prepare-release-integration.ps1 `
-            -WorkRoot "$workRoot"
+            -WorkRoot "$workRoot" `
+            -MsixCertThumbprint "${{ steps.msix_certificate.outputs.thumbprint }}"
+          Copy-Item `
+            -LiteralPath "${{ steps.msix_certificate.outputs.path }}" `
+            -Destination "$workRoot\fixture\tools\gorilla-it-sideload.cer"
 
       - name: Upload integration fixtures
         uses: actions/upload-artifact@v4

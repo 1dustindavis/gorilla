@@ -217,10 +217,12 @@ Overall: PASS
     }
 } catch {
     $errorMessage = $_.Exception.Message
+    $annotationMessage = ("Phase '$currentPhase': $errorMessage").Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
     Write-Host "========== Integration Test Summary =========="
     $results | ForEach-Object { Write-Host $_ }
     Write-Host "[FAIL] Phase: $currentPhase"
     Write-Host "[FAIL] $errorMessage"
+    Write-Host "::error title=Windows integration failed::$annotationMessage"
 
     if ($env:GITHUB_STEP_SUMMARY) {
         @"

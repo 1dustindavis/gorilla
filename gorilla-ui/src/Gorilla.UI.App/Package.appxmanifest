@@ -9,7 +9,7 @@
 
   <Identity
     Name="133b2116-358b-42fb-8bc8-35009cc5d5af"
-    Publisher="CN=GorillaUI"
+    Publisher="CN=Dustin Davis, O=Dustin Davis, L=Walnut Creek, S=ca, C=US"
     Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="133b2116-358b-42fb-8bc8-35009cc5d5af" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>

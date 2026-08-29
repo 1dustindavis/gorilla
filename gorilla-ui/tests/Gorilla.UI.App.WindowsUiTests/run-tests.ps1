@@ -20,6 +20,7 @@ function Invoke-DotNet {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 $appProject = Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\Gorilla.UI.App.csproj"
 $testProject = Join-Path $PSScriptRoot "Gorilla.UI.App.WindowsUiTests.csproj"
+$appExe = Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\Gorilla.UI.App.exe"
 
 New-Item -ItemType Directory -Path $ResultsDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $ArtifactsDirectory -Force | Out-Null
@@ -40,17 +41,15 @@ if (-not $SkipBuild) {
     Invoke-DotNet @("build", $testProject, "-c", "Release", "--no-restore")
 }
 
-$exe = Get-ChildItem -Path (Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\bin") -Recurse -Filter Gorilla.UI.App.exe |
-    Where-Object { $_.FullName -notmatch '\\AppX\\' } |
-    Select-Object -First 1
-if (-not $exe) {
+if (-not (Test-Path -LiteralPath $appExe)) {
     if ($SkipBuild) {
-        throw "Unable to locate Gorilla.UI.App.exe. Run the Windows UI build before test execution."
+        throw "Expected Release x64 Gorilla.UI.App.exe was not found at $appExe. Run the Windows UI build before test execution."
     }
-    throw "Unable to locate Gorilla.UI.App.exe after build."
+    throw "Expected Release x64 Gorilla.UI.App.exe was not found after build: $appExe"
 }
 
-$env:GORILLA_UI_APP_EXE = $exe.FullName
+Write-Host "Using Windows UI executable: $appExe"
+$env:GORILLA_UI_APP_EXE = $appExe
 $env:WINDOWS_UI_TEST_RESULTS_DIR = $ResultsDirectory
 $env:WINDOWS_UI_TEST_ARTIFACTS_DIR = $ArtifactsDirectory
 

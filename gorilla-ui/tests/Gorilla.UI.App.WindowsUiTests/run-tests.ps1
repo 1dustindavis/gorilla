@@ -1,7 +1,8 @@
 param(
     [string]$ResultsDirectory = "$PSScriptRoot\TestResults",
     [string]$ArtifactsDirectory = "$PSScriptRoot\artifacts",
-    [int]$MaxAttempts = 1
+    [int]$MaxAttempts = 1,
+    [switch]$SkipBuild
 )
 
 Set-StrictMode -Version Latest
@@ -23,24 +24,29 @@ $testProject = Join-Path $PSScriptRoot "Gorilla.UI.App.WindowsUiTests.csproj"
 New-Item -ItemType Directory -Path $ResultsDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $ArtifactsDirectory -Force | Out-Null
 
-Invoke-DotNet @("restore", $appProject)
-Invoke-DotNet @("restore", $testProject)
-Invoke-DotNet @(
-    "build", $appProject,
-    "-c", "Release",
-    "-p:Platform=x64",
-    "-p:WindowsPackageType=None",
-    "-p:WindowsAppSDKSelfContained=true",
-    "-p:PublishReadyToRun=false",
-    "-p:PublishTrimmed=false",
-    "--no-restore"
-)
-Invoke-DotNet @("build", $testProject, "-c", "Release", "--no-restore")
+if (-not $SkipBuild) {
+    Invoke-DotNet @("restore", $appProject)
+    Invoke-DotNet @("restore", $testProject)
+    Invoke-DotNet @(
+        "build", $appProject,
+        "-c", "Release",
+        "-p:Platform=x64",
+        "-p:WindowsPackageType=None",
+        "-p:WindowsAppSDKSelfContained=true",
+        "-p:PublishReadyToRun=false",
+        "-p:PublishTrimmed=false",
+        "--no-restore"
+    )
+    Invoke-DotNet @("build", $testProject, "-c", "Release", "--no-restore")
+}
 
 $exe = Get-ChildItem -Path (Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\bin") -Recurse -Filter Gorilla.UI.App.exe |
     Where-Object { $_.FullName -notmatch '\\AppX\\' } |
     Select-Object -First 1
 if (-not $exe) {
+    if ($SkipBuild) {
+        throw "Unable to locate Gorilla.UI.App.exe. Run the Windows UI build before test execution."
+    }
     throw "Unable to locate Gorilla.UI.App.exe after build."
 }
 

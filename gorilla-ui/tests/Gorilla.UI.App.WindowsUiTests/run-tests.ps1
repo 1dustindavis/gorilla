@@ -7,6 +7,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Invoke-DotNet {
+    param([Parameter(Mandatory)][string[]]$Arguments)
+
+    & dotnet @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 $appProject = Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\Gorilla.UI.App.csproj"
 $testProject = Join-Path $PSScriptRoot "Gorilla.UI.App.WindowsUiTests.csproj"
@@ -14,19 +23,19 @@ $testProject = Join-Path $PSScriptRoot "Gorilla.UI.App.WindowsUiTests.csproj"
 New-Item -ItemType Directory -Path $ResultsDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $ArtifactsDirectory -Force | Out-Null
 
-dotnet restore $appProject
-dotnet restore $testProject
-
-dotnet build $appProject `
-    -c Release `
-    -p:Platform=x64 `
-    -p:WindowsPackageType=None `
-    -p:WindowsAppSDKSelfContained=true `
-    -p:PublishReadyToRun=false `
-    -p:PublishTrimmed=false `
-    --no-restore
-
-dotnet build $testProject -c Release --no-restore
+Invoke-DotNet @("restore", $appProject)
+Invoke-DotNet @("restore", $testProject)
+Invoke-DotNet @(
+    "build", $appProject,
+    "-c", "Release",
+    "-p:Platform=x64",
+    "-p:WindowsPackageType=None",
+    "-p:WindowsAppSDKSelfContained=true",
+    "-p:PublishReadyToRun=false",
+    "-p:PublishTrimmed=false",
+    "--no-restore"
+)
+Invoke-DotNet @("build", $testProject, "-c", "Release", "--no-restore")
 
 $exe = Get-ChildItem -Path (Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\bin") -Recurse -Filter Gorilla.UI.App.exe |
     Where-Object { $_.FullName -notmatch '\\AppX\\' } |
@@ -41,7 +50,7 @@ $env:WINDOWS_UI_TEST_ARTIFACTS_DIR = $ArtifactsDirectory
 
 for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     Write-Host "Windows UI test attempt $attempt/$MaxAttempts"
-    dotnet test $testProject `
+    & dotnet test $testProject `
         -c Release `
         --no-build `
         --logger "trx;LogFileName=windows-ui-test-attempt-$attempt.trx" `

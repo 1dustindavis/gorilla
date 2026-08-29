@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - integration/windows/**
+      - Makefile
       - .github/workflows/build-integration-fixtures.yml
       - .github/workflows/windows-release-integration.yml
   workflow_run:
@@ -189,43 +190,12 @@ jobs:
 
           throw "Unable to resolve gorilla.exe path"
 
-      - name: Initialize MSIX test certificate
-        id: msix_certificate
+      - name: Run canonical released-binary validation
         shell: pwsh
-        run: |
-          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
-          $prebuiltCertificatePath = "$workRoot\fixture\tools\gorilla-it-sideload.cer"
-
-          if (Test-Path -LiteralPath $prebuiltCertificatePath) {
-            ./integration/windows/initialize-msix-test-certificate.ps1 `
-              -CertificatePath $prebuiltCertificatePath | Out-Null
-            "prebuilt_certificate=true" >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-
-          $localCertificatePath = "$env:RUNNER_TEMP\gorilla-it-sideload.cer"
-          $thumbprint = ./integration/windows/initialize-msix-test-certificate.ps1 `
-            -CertificatePath $localCertificatePath `
-            -Create
-          "prebuilt_certificate=false" >> $env:GITHUB_OUTPUT
-          "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
-
-      - name: Prepare released-binary integration fixtures
-        if: github.event_name == 'workflow_run' || github.event_name == 'pull_request' || github.event_name == 'issue_comment' && (steps.fixture_mode.outputs.mode == 'full' || steps.fixture_download.outcome != 'success' || steps.msix_certificate.outputs.prebuilt_certificate != 'true')
-        shell: pwsh
-        run: |
-          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
-          ./integration/windows/prepare-release-integration.ps1 `
-            -WorkRoot "$workRoot" `
-            -MsixCertThumbprint "${{ steps.msix_certificate.outputs.thumbprint }}"
-
-      - name: Run released-binary integration tests
-        shell: pwsh
-        run: |
-          $workRoot = "$env:RUNNER_TEMP\gorilla-release-integration"
-          ./integration/windows/run-release-integration.ps1 `
-            -WorkRoot "$workRoot" `
-            -GorillaExePath "$env:GORILLA_EXE_PATH"
+        env:
+          GORILLA_RELEASE_EXE: ${{ env.GORILLA_EXE_PATH }}
+          RELEASE_INTEGRATION_WORK_ROOT: ${{ runner.temp }}\gorilla-release-integration
+        run: make release-integration
 
       - name: Upload integration failure diagnostics
         if: failure()

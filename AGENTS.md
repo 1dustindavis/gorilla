@@ -58,7 +58,8 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - `make ui-test`
 - `make ui-windows-build`
 - `make windows-integration`
-- `make ui-e2e`
+- `make ui-e2e` (build and run the FlaUI suite)
+- `make ui-e2e-test` (run FlaUI against an existing Windows UI build)
 - `make release-integration GORILLA_RELEASE_EXE=<path>`
 
 `make lint` and `make test` remain supported compatibility aliases for Go linting and Go tests respectively. `make lint` includes `staticcheck`.

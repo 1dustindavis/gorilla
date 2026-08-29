@@ -93,6 +93,7 @@ Run `make help` for the current command summary.
 
 ## Windows & Integration Notes
 
+- Canonical Windows validation requires PowerShell 7 (`pwsh`).
 - Be careful with path handling, newlines, and shell behavior differences.
 - Changes that affect service behavior should include/adjust tests in `pkg/service` and `cmd/gorilla` when appropriate.
 - When changing Windows named-pipe/service code paths, add or update Windows-only tests (`//go:build windows`) and validate through the Windows validation layer.

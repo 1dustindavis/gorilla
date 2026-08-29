@@ -192,10 +192,10 @@ jobs:
 
       - name: Run canonical released-binary validation
         shell: pwsh
-        env:
-          GORILLA_RELEASE_EXE: ${{ env.GORILLA_EXE_PATH }}
-          RELEASE_INTEGRATION_WORK_ROOT: ${{ runner.temp }}\gorilla-release-integration
-        run: make release-integration
+        run: |
+          make release-integration `
+            GORILLA_RELEASE_EXE="$env:GORILLA_EXE_PATH" `
+            RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration"
 
       - name: Upload integration failure diagnostics
         if: failure()

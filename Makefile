@@ -1,6 +1,8 @@
 all: build
 
-.PHONY: build bootstrap bootstrap-run manual-test-server test ui-lint ui-test lint clean help
+.PHONY: build bootstrap bootstrap-run manual-test-server clean help \
+	go-format go-vet go-staticcheck go-test lint test \
+	ui-lint ui-test verify
 
 ifndef ($(GOPATH))
 	GOPATH = $(HOME)/go
@@ -14,6 +16,7 @@ BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
+STATICCHECK_VERSION ?= v0.7.0
 MANUAL_TEST_DIR = build/manual-test
 MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
 MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
@@ -60,10 +63,16 @@ define HELP_TEXT
 	make bootstrap     - Build manual-test assets/server and generate VM scripts
 	make bootstrap-run - Build manual-test assets/server and run local test server
 
-	make test          - Run the Go tests
-	make ui-lint       - Run Gorilla UI formatting/analyzer validation
-	make ui-test       - Run the Gorilla UI (.NET) tests
-	make lint          - Run the Go linters
+	make verify         - Run all portable validation expected before pushing
+	make go-format      - Check Go formatting
+	make go-vet         - Run Go vet for the Windows deployment target
+	make go-staticcheck - Run pinned staticcheck
+	make go-test        - Run Go tests with coverage and race detection
+	make ui-lint        - Run Gorilla UI portable build/analyzer validation
+	make ui-test        - Run the Gorilla UI portable .NET tests
+
+	make lint          - Compatibility alias for Go format/vet/staticcheck
+	make test          - Compatibility alias for Go tests
 
 endef
 
@@ -139,7 +148,25 @@ bootstrap: build manual-test-server
 bootstrap-run: bootstrap
 	./build/manual-test-server -root ${MANUAL_TEST_SERVER_ROOT} -addr :8080
 
-test: gomodcheck
+# Portable validation leaf targets. Keep these small so CI and developers can
+# run exactly the layer they need while `verify` composes the complete contract.
+go-format:
+	@UNFORMATTED="$$(git ls-files '*.go' | xargs gofmt -l -s)"; \
+	if [ -n "$$UNFORMATTED" ]; then \
+	  echo "Repo contains improperly formatted Go files:"; \
+	  echo "$$UNFORMATTED"; \
+	  exit 1; \
+	else \
+	  echo "All Go files formatted correctly"; \
+	fi
+
+go-vet: gomodcheck
+	GOOS=windows GOARCH=amd64 go vet ./...
+
+go-staticcheck: gomodcheck
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+
+go-test: gomodcheck
 	go test -cover -race ./...
 
 ui-lint:
@@ -150,8 +177,9 @@ ui-lint:
 ui-test:
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
 
-lint:
-	@if gofmt -l -s ./cmd/ ./pkg/ | grep .go; then \
-	  echo "^- Repo contains improperly formatted go files; run gofmt -w -s *.go" && exit 1; \
-	  else echo "All .go files formatted correctly"; fi
-	GOOS=windows GOARCH=amd64 go vet ./...
+verify: go-format go-vet go-staticcheck go-test ui-lint ui-test
+
+# Backwards-compatible entry points used by existing workflows and contributors.
+lint: go-format go-vet go-staticcheck
+
+test: go-test

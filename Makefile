@@ -202,7 +202,7 @@ endif
 
 windows-integration: build
 ifeq ($(OS), Windows_NT)
-	powershell -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(WINDOWS_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe"
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(WINDOWS_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe"
 else
 	@echo "windows-integration requires Windows"
 	@exit 1
@@ -210,7 +210,7 @@ endif
 
 ui-e2e:
 ifeq ($(OS), Windows_NT)
-	powershell -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
+	pwsh -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
 else
 	@echo "ui-e2e requires Windows"
 	@exit 1
@@ -222,7 +222,7 @@ ifeq ($(strip $(GORILLA_RELEASE_EXE)),)
 	@echo "GORILLA_RELEASE_EXE must point to a produced gorilla.exe release artifact"
 	@exit 1
 else
-	powershell -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
 endif
 else
 	@echo "release-integration requires Windows"

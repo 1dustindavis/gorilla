@@ -193,9 +193,11 @@ jobs:
       - name: Run canonical released-binary validation
         shell: pwsh
         run: |
+          $usePrebuiltFixtures = if ("${{ steps.fixture_download.outcome }}" -eq "success") { "1" } else { "0" }
           make release-integration `
             GORILLA_RELEASE_EXE="$env:GORILLA_EXE_PATH" `
-            RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration"
+            RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration" `
+            RELEASE_USE_PREBUILT_FIXTURES="$usePrebuiltFixtures"
 
       - name: Upload integration failure diagnostics
         if: failure()

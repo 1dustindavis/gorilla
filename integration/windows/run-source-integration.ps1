@@ -1,6 +1,7 @@
 param(
     [string]$WorkRoot = "$env:TEMP\gorilla-source-integration",
-    [string]$GorillaExePath = ""
+    [string]$GorillaExePath = "",
+    [switch]$UsePrebuiltFixtures
 )
 
 Set-StrictMode -Version Latest
@@ -18,12 +19,16 @@ if (-not (Test-Path -LiteralPath $GorillaExePath)) {
 New-Item -ItemType Directory -Path $WorkRoot -Force | Out-Null
 
 $prebuiltCertificatePath = Join-Path $WorkRoot "fixture\tools\gorilla-it-sideload.cer"
-if (Test-Path -LiteralPath $prebuiltCertificatePath) {
-    Write-Host "Using prebuilt release integration fixtures from $WorkRoot"
+if ($UsePrebuiltFixtures) {
+    if (-not (Test-Path -LiteralPath $prebuiltCertificatePath)) {
+        throw "Prebuilt fixtures were requested, but the fixture certificate was not found at $prebuiltCertificatePath"
+    }
+
+    Write-Host "Using explicitly supplied prebuilt release integration fixtures from $WorkRoot"
     & (Join-Path $PSScriptRoot "initialize-msix-test-certificate.ps1") `
         -CertificatePath $prebuiltCertificatePath | Out-Null
 } else {
-    Write-Host "Preparing release integration fixtures in $WorkRoot"
+    Write-Host "Regenerating release integration fixtures from the current checkout in $WorkRoot"
     $certPath = Join-Path $WorkRoot "gorilla-it-sideload.cer"
     $thumbprint = & (Join-Path $PSScriptRoot "initialize-msix-test-certificate.ps1") `
         -CertificatePath $certPath `

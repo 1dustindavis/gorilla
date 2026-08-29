@@ -2,7 +2,7 @@ all: build
 
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
-	ui-lint ui-test ui-windows-build ui-e2e \
+	ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
 	windows-integration release-integration \
 	verify verify-windows verify-e2e verify-release
 
@@ -82,7 +82,8 @@ define HELP_TEXT
 	make ui-test         - Run the Gorilla UI portable .NET tests
 	make ui-windows-build - Build the real WinUI app and Windows UI test project
 	make windows-integration - Run source-built Windows installer integration
-	make ui-e2e          - Run the current FlaUI Windows UI suite
+	make ui-e2e          - Build and run the current FlaUI Windows UI suite
+	make ui-e2e-test     - Run FlaUI against an existing Windows UI build
 	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary
 
 	make lint           - Compatibility alias for Go format/vet/staticcheck
@@ -208,11 +209,19 @@ else
 	@exit 1
 endif
 
-ui-e2e:
+ui-e2e: ui-windows-build
 ifeq ($(OS), Windows_NT)
-	pwsh -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
+	$(MAKE) ui-e2e-test
 else
 	@echo "ui-e2e requires Windows"
+	@exit 1
+endif
+
+ui-e2e-test:
+ifeq ($(OS), Windows_NT)
+	pwsh -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS) -SkipBuild
+else
+	@echo "ui-e2e-test requires Windows"
 	@exit 1
 endif
 
@@ -242,7 +251,7 @@ endif
 
 verify-e2e: verify-windows
 ifeq ($(OS), Windows_NT)
-	$(MAKE) ui-e2e
+	$(MAKE) ui-e2e-test
 else
 	@echo "verify-e2e requires Windows"
 	@exit 1

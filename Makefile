@@ -2,7 +2,9 @@ all: build
 
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
-	ui-lint ui-test verify
+	ui-lint ui-test ui-windows-build ui-e2e \
+	windows-integration release-integration \
+	verify verify-windows verify-e2e verify-release
 
 ifndef ($(GOPATH))
 	GOPATH = $(HOME)/go
@@ -21,6 +23,10 @@ MANUAL_TEST_DIR = build/manual-test
 MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
 MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
 MANUAL_TEST_BASE_URL ?=
+WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
+RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
+GORILLA_RELEASE_EXE ?=
+UI_E2E_MAX_ATTEMPTS ?= 1
 GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
@@ -55,24 +61,32 @@ define HELP_TEXT
 
   Makefile commands
 
-	make deps          - Install dependent programs and libraries
-	make clean         - Delete all build artifacts
+	make deps           - Install dependent programs and libraries
+	make clean          - Delete all build artifacts
 
-	make build         - Build the code
-	make msi           - Build Windows MSI (requires WiX on Windows)
-	make bootstrap     - Build manual-test assets/server and generate VM scripts
-	make bootstrap-run - Build manual-test assets/server and run local test server
+	make build          - Build the code
+	make msi            - Build Windows MSI (requires WiX on Windows)
+	make bootstrap      - Build manual-test assets/server and generate VM scripts
+	make bootstrap-run  - Build manual-test assets/server and run local test server
 
 	make verify         - Run all portable validation expected before pushing
-	make go-format      - Check Go formatting
-	make go-vet         - Run Go vet for the Windows deployment target
-	make go-staticcheck - Run pinned staticcheck
-	make go-test        - Run Go tests with coverage and race detection
-	make ui-lint        - Run Gorilla UI portable build/analyzer validation
-	make ui-test        - Run the Gorilla UI portable .NET tests
+	make verify-windows - Add Windows build and source integration validation
+	make verify-e2e     - Add the current FlaUI full-application UI suite
+	make verify-release - Validate a supplied released gorilla.exe plus lower layers
 
-	make lint          - Compatibility alias for Go format/vet/staticcheck
-	make test          - Compatibility alias for Go tests
+	make go-format       - Check Go formatting
+	make go-vet          - Run Go vet for the Windows deployment target
+	make go-staticcheck  - Run pinned staticcheck
+	make go-test         - Run Go tests with coverage and race detection
+	make ui-lint         - Run Gorilla UI portable build/analyzer validation
+	make ui-test         - Run the Gorilla UI portable .NET tests
+	make ui-windows-build - Build the real WinUI app and Windows UI test project
+	make windows-integration - Run source-built Windows installer integration
+	make ui-e2e          - Run the current FlaUI Windows UI suite
+	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary
+
+	make lint           - Compatibility alias for Go format/vet/staticcheck
+	make test           - Compatibility alias for Go tests
 
 endef
 
@@ -149,7 +163,7 @@ bootstrap-run: bootstrap
 	./build/manual-test-server -root ${MANUAL_TEST_SERVER_ROOT} -addr :8080
 
 # Portable validation leaf targets. Keep these small so CI and developers can
-# run exactly the layer they need while `verify` composes the complete contract.
+# run exactly the layer they need while the verify targets compose the contract.
 go-format:
 	@UNFORMATTED="$$(git ls-files '*.go' | xargs gofmt -l -s)"; \
 	if [ -n "$$UNFORMATTED" ]; then \
@@ -177,7 +191,69 @@ ui-lint:
 ui-test:
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
 
+ui-windows-build:
+ifeq ($(OS), Windows_NT)
+	dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false -p:PublishTrimmed=false
+	dotnet build gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release
+else
+	@echo "ui-windows-build requires Windows"
+	@exit 1
+endif
+
+windows-integration: build
+ifeq ($(OS), Windows_NT)
+	powershell -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(WINDOWS_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe"
+else
+	@echo "windows-integration requires Windows"
+	@exit 1
+endif
+
+ui-e2e:
+ifeq ($(OS), Windows_NT)
+	powershell -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
+else
+	@echo "ui-e2e requires Windows"
+	@exit 1
+endif
+
+release-integration:
+ifeq ($(OS), Windows_NT)
+	@if "$(GORILLA_RELEASE_EXE)"=="" (echo GORILLA_RELEASE_EXE must point to a produced gorilla.exe release artifact & exit /b 1)
+	powershell -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
+else
+	@echo "release-integration requires Windows"
+	@exit 1
+endif
+
 verify: go-format go-vet go-staticcheck go-test ui-lint ui-test
+
+verify-windows: verify
+ifeq ($(OS), Windows_NT)
+	$(MAKE) ui-windows-build
+	$(MAKE) windows-integration
+else
+	@echo "verify-windows requires Windows"
+	@exit 1
+endif
+
+verify-e2e: verify-windows
+ifeq ($(OS), Windows_NT)
+	$(MAKE) ui-e2e
+else
+	@echo "verify-e2e requires Windows"
+	@exit 1
+endif
+
+# Stage 1 establishes the release-level contract using the released-binary
+# integration that exists today. Stage 7 expands this same target to installed
+# MSI + service + MSIX UI interoperability without changing the public command.
+verify-release: verify-e2e
+ifeq ($(OS), Windows_NT)
+	$(MAKE) release-integration
+else
+	@echo "verify-release requires Windows"
+	@exit 1
+endif
 
 # Backwards-compatible entry points used by existing workflows and contributors.
 lint: go-format go-vet go-staticcheck

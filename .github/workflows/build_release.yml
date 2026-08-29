@@ -93,6 +93,29 @@ jobs:
         echo "MSIX_VERSION=$msixVersion" >> $Env:GITHUB_ENV
         Write-Host "MSIX version: $msixVersion"
 
+    - name: Set MSIX manifest version
+      shell: pwsh
+      run: |
+        $manifestPath = "gorilla-ui/src/Gorilla.UI.App/Package.appxmanifest"
+        [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
+        $identity = $manifest.Package.Identity
+        if ($null -eq $identity) {
+          throw "Package.appxmanifest does not contain an Identity element."
+        }
+
+        $identity.Version = $Env:MSIX_VERSION
+        $settings = New-Object System.Xml.XmlWriterSettings
+        $settings.Indent = $true
+        $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+        $writer = [System.Xml.XmlWriter]::Create((Resolve-Path $manifestPath), $settings)
+        try {
+          $manifest.Save($writer)
+        } finally {
+          $writer.Dispose()
+        }
+
+        Write-Host "Set manifest Identity Version to $Env:MSIX_VERSION"
+
     - name: Build
       working-directory: ./cmd/gorilla
       run: |
@@ -121,10 +144,10 @@ jobs:
           -p:GenerateAppxPackageOnBuild=true `
           -p:PublishReadyToRun=false `
           -p:PublishTrimmed=false `
-          -p:AppxPackageVersion="$Env:MSIX_VERSION" `
           -p:AppxPackageSigningEnabled=false
 
-    - name: Collect unsigned MSIX artifact
+    - name: Collect and validate unsigned MSIX artifact
+      shell: pwsh
       run: |
         $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix |
           Sort-Object LastWriteTime -Descending |
@@ -134,10 +157,38 @@ jobs:
         }
         Copy-Item $msix.FullName "build/Gorilla.UI.App.msix" -Force
 
-        $signature = Get-AuthenticodeSignature -FilePath "build/Gorilla.UI.App.msix"
+        $packagePath = (Resolve-Path "build/Gorilla.UI.App.msix").Path
+        $signature = Get-AuthenticodeSignature -FilePath $packagePath
         if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
           throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)."
         }
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+        try {
+          $manifestEntry = $archive.GetEntry("AppxManifest.xml")
+          if ($null -eq $manifestEntry) {
+            throw "Produced MSIX does not contain AppxManifest.xml."
+          }
+
+          $reader = New-Object System.IO.StreamReader($manifestEntry.Open())
+          try {
+            [xml]$packagedManifest = $reader.ReadToEnd()
+          } finally {
+            $reader.Dispose()
+          }
+        } finally {
+          $archive.Dispose()
+        }
+
+        $packagedVersion = $packagedManifest.Package.Identity.Version
+        if ($packagedVersion -cne $Env:MSIX_VERSION) {
+          throw "Produced MSIX has Identity Version '$packagedVersion'; expected '$Env:MSIX_VERSION'."
+        }
+
+        Write-Host "Validated unsigned MSIX"
+        Write-Host "  Path: $packagePath"
+        Write-Host "  Identity Version: $packagedVersion"
 
     - name: Login to Azure with GitHub OIDC
       uses: Azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2

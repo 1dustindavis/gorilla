@@ -218,8 +218,12 @@ endif
 
 release-integration:
 ifeq ($(OS), Windows_NT)
-	@if "$(GORILLA_RELEASE_EXE)"=="" (echo GORILLA_RELEASE_EXE must point to a produced gorilla.exe release artifact & exit /b 1)
+ifeq ($(strip $(GORILLA_RELEASE_EXE)),)
+	@echo "GORILLA_RELEASE_EXE must point to a produced gorilla.exe release artifact"
+	@exit 1
+else
 	powershell -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
+endif
 else
 	@echo "release-integration requires Windows"
 	@exit 1

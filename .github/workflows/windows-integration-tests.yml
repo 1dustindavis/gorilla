@@ -43,6 +43,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Seed stale fixture sentinel
+        shell: pwsh
+        run: |
+          $toolsDir = "${{ runner.temp }}\gorilla-release-integration\fixture\tools"
+          New-Item -Path $toolsDir -ItemType Directory -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $toolsDir "gorilla-it-sideload.cer") -Value "stale fixture sentinel"
+
       - name: Run Windows integration validation
         shell: pwsh
         env:

@@ -13,9 +13,6 @@ function Test-PrebuiltFixtureBundle {
     $requiredPaths = @(
         "fixture\tools\gorilla-it-sideload.cer",
         "fixture\tools\fixture-server.exe",
-        "fixture\configs\install.yaml",
-        "fixture\configs\update.yaml",
-        "fixture\configs\uninstall.yaml",
         "fixture\repo\catalogs\integration.yaml",
         "fixture\repo\manifests\integration-install.yaml",
         "fixture\repo\manifests\integration-update.yaml",

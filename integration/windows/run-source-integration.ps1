@@ -15,15 +15,24 @@ if (-not (Test-Path -LiteralPath $GorillaExePath)) {
     throw "Gorilla executable not found: $GorillaExePath. Run 'make build' first."
 }
 
-$certPath = Join-Path $WorkRoot "gorilla-it-sideload.cer"
 New-Item -ItemType Directory -Path $WorkRoot -Force | Out-Null
-$thumbprint = & (Join-Path $PSScriptRoot "initialize-msix-test-certificate.ps1") `
-    -CertificatePath $certPath `
-    -Create
 
-& (Join-Path $PSScriptRoot "prepare-release-integration.ps1") `
-    -WorkRoot $WorkRoot `
-    -MsixCertThumbprint $thumbprint
+$prebuiltCertificatePath = Join-Path $WorkRoot "fixture\tools\gorilla-it-sideload.cer"
+if (Test-Path -LiteralPath $prebuiltCertificatePath) {
+    Write-Host "Using prebuilt release integration fixtures from $WorkRoot"
+    & (Join-Path $PSScriptRoot "initialize-msix-test-certificate.ps1") `
+        -CertificatePath $prebuiltCertificatePath | Out-Null
+} else {
+    Write-Host "Preparing release integration fixtures in $WorkRoot"
+    $certPath = Join-Path $WorkRoot "gorilla-it-sideload.cer"
+    $thumbprint = & (Join-Path $PSScriptRoot "initialize-msix-test-certificate.ps1") `
+        -CertificatePath $certPath `
+        -Create
+
+    & (Join-Path $PSScriptRoot "prepare-release-integration.ps1") `
+        -WorkRoot $WorkRoot `
+        -MsixCertThumbprint $thumbprint
+}
 
 & (Join-Path $PSScriptRoot "run-release-integration.ps1") `
     -WorkRoot $WorkRoot `

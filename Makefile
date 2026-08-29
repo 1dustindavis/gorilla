@@ -25,6 +25,7 @@ MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
 MANUAL_TEST_BASE_URL ?=
 WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
+RELEASE_USE_PREBUILT_FIXTURES ?= 0
 GORILLA_RELEASE_EXE ?=
 UI_E2E_MAX_ATTEMPTS ?= 1
 GO111MODULE = on
@@ -231,7 +232,11 @@ ifeq ($(strip $(GORILLA_RELEASE_EXE)),)
 	@echo "GORILLA_RELEASE_EXE must point to a produced gorilla.exe release artifact"
 	@exit 1
 else
+ifeq ($(RELEASE_USE_PREBUILT_FIXTURES),1)
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)" -UsePrebuiltFixtures
+else
 	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
+endif
 endif
 else
 	@echo "release-integration requires Windows"

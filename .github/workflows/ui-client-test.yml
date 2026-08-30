@@ -23,8 +23,14 @@ permissions:
 
 jobs:
   build:
-    name: Verify
-    runs-on: windows-latest
+    name: Verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
     - name: Set Git config

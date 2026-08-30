@@ -29,6 +29,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Create and trust MSIX test certificate
         id: msix_certificate

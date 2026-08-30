@@ -32,14 +32,24 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
-    env:
-      NUGET_PACKAGES: ${{ runner.temp }}/nuget-packages
     steps:
     - name: Set Git config
       run: git config --global core.autocrlf false
 
     - name: Check out code
       uses: actions/checkout@v4
+
+    - name: Configure NuGet package path (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $nugetPackages = Join-Path $env:RUNNER_TEMP 'nuget-packages'
+        "NUGET_PACKAGES=$nugetPackages" >> $env:GITHUB_ENV
+
+    - name: Configure NuGet package path (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: echo "NUGET_PACKAGES=$RUNNER_TEMP/nuget-packages" >> "$GITHUB_ENV"
 
     - name: Set up .NET
       uses: actions/setup-dotnet@v4

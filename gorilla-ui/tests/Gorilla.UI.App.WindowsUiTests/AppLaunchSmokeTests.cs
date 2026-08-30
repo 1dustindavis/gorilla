@@ -14,7 +14,7 @@ namespace Gorilla.UI.App.WindowsUiTests;
 public sealed class AppLaunchSmokeTests
 {
     [Fact]
-    public void AppLaunchesAndShowsHomeHeading()
+    public void AppLaunchesAndExposesStableHomeAutomationContract()
     {
         var appExePath = ResolveAppExePath();
         var artifactsDir = ResolveArtifactsDirectory();
@@ -32,10 +32,11 @@ public sealed class AppLaunchSmokeTests
             Assert.Equal("App Catalog", mainWindow.Title);
 
             var heading = WaitFor(
-                () => mainWindow.FindFirstDescendant(cf => cf.ByText("Available Software")),
+                () => mainWindow.FindFirstDescendant(cf => cf.ByAutomationId("HomeHeading")),
                 TimeSpan.FromSeconds(30)
             );
             Assert.NotNull(heading);
+            Assert.Equal("Available Software", heading.Name);
 
             var textElements = mainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
             Assert.DoesNotContain(
@@ -48,6 +49,7 @@ public sealed class AppLaunchSmokeTests
                 TimeSpan.FromSeconds(30)
             );
             Assert.NotNull(itemsList);
+            Assert.Equal("Available software", itemsList.Name);
         }
         catch (Exception ex)
         {

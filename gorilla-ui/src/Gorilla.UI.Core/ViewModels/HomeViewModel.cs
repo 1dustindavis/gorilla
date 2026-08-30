@@ -10,6 +10,7 @@ namespace Gorilla.UI.Core.ViewModels;
 public sealed class HomeViewModel : INotifyPropertyChanged
 {
     private readonly IGorillaServiceClient _client;
+    private readonly OptionalInstallsCacheCoordinator _cacheCoordinator;
     private readonly OptionalInstallsStartupLoader _startupLoader;
     private readonly OperationTracker _operationTracker;
 
@@ -22,6 +23,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     )
     {
         _client = client;
+        _cacheCoordinator = cacheCoordinator;
         _startupLoader = new OptionalInstallsStartupLoader(cacheCoordinator);
         _operationTracker = operationTracker;
     }
@@ -61,14 +63,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 return;
             }
 
-            try
-            {
-                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                WarningBanner = $"Install queued, but live status stream failed: {ex.Message}";
-            }
+            await TrackAndRefreshAsync(
+                item,
+                accepted.OperationId,
+                streamFailurePrefix: "Install queued, but live status stream failed",
+                cancellationToken
+            );
         }
         finally
         {
@@ -88,14 +88,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 return;
             }
 
-            try
-            {
-                await _operationTracker.TrackAsync(accepted.OperationId, update => ApplyOperationUpdate(item, update), cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                WarningBanner = $"Remove queued, but live status stream failed: {ex.Message}";
-            }
+            await TrackAndRefreshAsync(
+                item,
+                accepted.OperationId,
+                streamFailurePrefix: "Remove queued, but live status stream failed",
+                cancellationToken
+            );
         }
         finally
         {
@@ -111,6 +109,59 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     public void SetWarningBanner(string message)
     {
         WarningBanner = message;
+    }
+
+    private async Task TrackAndRefreshAsync(
+        UiOptionalInstallItem item,
+        string operationId,
+        string streamFailurePrefix,
+        CancellationToken cancellationToken
+    )
+    {
+        var terminalStateObserved = false;
+        try
+        {
+            await _operationTracker.TrackAsync(
+                operationId,
+                update =>
+                {
+                    ApplyOperationUpdate(item, update);
+                    terminalStateObserved |= IsTerminalState(update.State);
+                },
+                cancellationToken
+            );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
+            return;
+        }
+
+        if (!terminalStateObserved)
+        {
+            return;
+        }
+
+        try
+        {
+            var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
+            ApplyItems(refreshed.Items);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (string.IsNullOrWhiteSpace(WarningBanner))
+            {
+                WarningBanner = $"Operation completed, but optional installs refresh failed: {ex.Message}";
+            }
+        }
     }
 
     private void ApplyOperationUpdate(UiOptionalInstallItem item, OperationStatusEvent update)
@@ -130,6 +181,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         {
             WarningBanner = string.Empty;
         }
+    }
+
+    private static bool IsTerminalState(OperationState state)
+    {
+        return state is OperationState.Succeeded or OperationState.Failed or OperationState.Canceled;
     }
 
     private void ApplyItems(IReadOnlyList<OptionalInstallItem> source)

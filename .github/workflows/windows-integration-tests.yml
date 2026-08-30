@@ -12,14 +12,6 @@ on:
       - go.sum
       - .github/workflows/windows-integration-tests.yml
   pull_request:
-    paths:
-      - cmd/**
-      - pkg/**
-      - integration/windows/**
-      - Makefile
-      - go.mod
-      - go.sum
-      - .github/workflows/windows-integration-tests.yml
 
 permissions:
   contents: read

@@ -95,6 +95,7 @@ Run `make help` for the current command summary.
 ## Windows & Integration Notes
 
 - Canonical Windows validation requires PowerShell 7 (`pwsh`).
+- On GitHub-hosted Windows runners, keep write-heavy dependency/build caches on the `RUNNER_TEMP` volume (`D:` today) rather than the slower system `C:` drive. The workflows intentionally place Go's `GOMODCACHE`/`GOCACHE` and NuGet's `NUGET_PACKAGES` there.
 - Be careful with path handling, newlines, and shell behavior differences.
 - Changes that affect service behavior should include/adjust tests in `pkg/service` and `cmd/gorilla` when appropriate.
 - When changing Windows named-pipe/service code paths, add or update Windows-only tests (`//go:build windows`) and validate through the Windows validation layer.

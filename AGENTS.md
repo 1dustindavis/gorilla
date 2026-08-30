@@ -34,7 +34,7 @@ The Makefile is the validation contract for both local development and CI. Prefe
 
 - `make verify`
   - Portable validation expected before pushing.
-  - Includes Go formatting, Windows-targeted `go vet`, pinned `staticcheck`, race-enabled Go tests, portable .NET analyzer/build checks, and UI client tests.
+  - Includes Go formatting, Windows-targeted `go vet`, pinned `staticcheck`, race-enabled Go tests, portable .NET analyzer/build checks, and UI Client/Core tests.
 - `make verify-windows`
   - Windows only.
   - Adds the real WinUI build and source-built Windows installer/integration validation.
@@ -67,7 +67,7 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 ### Which level to use
 
 - Go-only logic: iterate with the relevant Go leaf target(s); run `make verify` before pushing.
-- Portable UI client/protocol changes: iterate with `make ui-lint` / `make ui-test`; run `make verify` before pushing.
+- Portable UI Core/Client changes: iterate with `make ui-lint` / `make ui-test`; run `make verify` before pushing.
 - Windows service, installer, named-pipe, or Windows-specific behavior: require `make verify-windows` in Windows CI.
 - WinUI application behavior: require `make verify-e2e` in Windows CI in addition to portable validation.
 - Release/package interoperability changes: use `make verify-release GORILLA_RELEASE_EXE=<produced artifact>` where the released-binary validation applies; expand this same level rather than inventing a separate release-only validation path.
@@ -120,6 +120,12 @@ Run `make help` for the current command summary.
 - Local tooling prerequisites for Gorilla UI work:
   - macOS: `dotnet-sdk@8`
   - Windows: Visual Studio 2022 with WinUI/Windows App SDK tooling and .NET 8 SDK
+- UI dependency/ownership boundary:
+  - `Gorilla.UI.App` owns XAML, WinUI lifecycle/adapters, Windows runtime paths, and composition.
+  - `Gorilla.UI.Core` owns platform-neutral presentation and workflow behavior and must remain plain `net8.0` without WinUI dependencies.
+  - `Gorilla.UI.Client` owns named-pipe protocol/client contracts, transport, serialization/validation, and client diagnostics.
+  - Runtime dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; App may also reference Client directly at the composition boundary.
+- Do not add App-local copies of Core presentation classes or regenerate the committed `Gorilla.UI.App` directory from starter templates.
 - Keep `cmd/gorilla` service-message commands updated in lockstep with Gorilla UI protocol changes for testing/debugging.
 - `ListOptionalInstalls` should return JSON-safe subset DTOs, not full internal item objects.
 

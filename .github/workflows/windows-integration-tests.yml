@@ -1,4 +1,4 @@
-name: Windows Integration Tests
+name: Windows Integration
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   integration-tests:
-    name: Windows Integration Tests
+    name: Verify
     runs-on: windows-latest
     timeout-minutes: 60
 

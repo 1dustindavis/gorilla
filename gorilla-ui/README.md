@@ -10,15 +10,24 @@ Current workspace:
 - Solution file: `gorilla-ui/Gorilla.UI.sln`
 - Included projects:
   - `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`
+  - `gorilla-ui/src/Gorilla.UI.Core/Gorilla.UI.Core.csproj`
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
+  - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
   - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
 
+Architecture boundary:
+- `Gorilla.UI.App` owns XAML, WinUI lifecycle, navigation/adapters, and Windows runtime composition.
+- `Gorilla.UI.Core` owns platform-neutral presentation and workflow behavior such as view models, presentation models, startup/cache coordination, and install/remove operation tracking.
+- `Gorilla.UI.Client` owns the named-pipe protocol/client boundary: contracts, transport, serialization/validation, and client diagnostics.
+- Dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; Core targets ordinary `net8.0` and must not reference `Microsoft.UI.Xaml` or Windows-specific target frameworks.
+- Filesystem cache paths are chosen by App; the JSON cache implementation is platform-neutral and lives in Core so its behavior remains covered by portable tests.
+
 Validation commands:
-- `make ui-lint` runs `dotnet build -warnaserror` for:
-  - `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`
+- `make ui-lint` runs `dotnet build -warnaserror` for the portable client/core projects, their test projects, and PipeHarness.
+- `make ui-test` runs both portable .NET test projects:
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
-  - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
-- `make ui-test` runs the Gorilla UI .NET test project.
+  - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
+- `make verify` therefore exercises both protocol/client tests and WinUI-independent presentation/workflow tests on macOS/Linux as well as Windows.
 - Windows UI tests (FlaUI):
   - CI workflow: `.github/workflows/windows-ui-test.yml`
   - Runner: `windows-2025`
@@ -30,11 +39,11 @@ Validation commands:
     - Set app path and run Windows UI tests:
       - `$env:GORILLA_UI_APP_EXE = "<path-to-Gorilla.UI.App.exe>"`
       - `dotnet test gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release`
-- Optional local autofix: `dotnet format gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`.
+- Optional local autofix: use `dotnet format` against the relevant portable project.
 
 Windows VM scaffold helper:
 - `pwsh -File gorilla-ui/tools/scaffold-winui.ps1`
-- This scaffolds `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj`, adds a reference to `Gorilla.UI.Client`, and adds the app project to `gorilla-ui/Gorilla.UI.sln`.
+- This scaffolds `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj`, adds references to the portable UI projects, and adds the app project to `gorilla-ui/Gorilla.UI.sln`.
 
 Signed package workflow (Windows VMs):
 - Build VM:

@@ -130,6 +130,10 @@ Run `make help` for the current command summary.
 - Do not add App-local copies of Core presentation classes or regenerate the committed `Gorilla.UI.App` directory from starter templates.
 - Keep `cmd/gorilla` service-message commands updated in lockstep with Gorilla UI protocol changes for testing/debugging.
 - `ListOptionalInstalls` should return JSON-safe subset DTOs, not full internal item objects.
+- Treat explicit WinUI `AutomationProperties.AutomationId` values used by tests as a compatibility surface. Do not rename or remove them casually.
+- Use stable automation IDs for interactive or diagnostically important controls; do not make test identity depend on visible text or layout unless the visible text itself is the behavior under test.
+- Repeated templated controls may reuse an automation ID when tests scope the lookup to the relevant item/container. Do not encode changing item data into automation IDs unless global uniqueness is genuinely required.
+- Automation IDs do not replace accessibility semantics. Preserve meaningful accessible names, roles, keyboard/focus behavior, and state/value exposure when changing UI controls.
 
 ## Diagnostics
 

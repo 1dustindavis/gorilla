@@ -21,6 +21,9 @@ jobs:
     name: Verify
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      GOMODCACHE: ${{ runner.temp }}\go\pkg\mod
+      GOCACHE: ${{ runner.temp }}\go-build
 
     steps:
       - name: Set Git config

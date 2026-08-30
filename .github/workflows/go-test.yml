@@ -1,4 +1,4 @@
-name: go-test
+name: Go Tests
 on:
   push:
     branches:
@@ -29,7 +29,7 @@ permissions:
 jobs:
 
   build:
-    name: Build
+    name: Verify
     runs-on: windows-latest
     timeout-minutes: 25
     steps:

@@ -28,7 +28,7 @@ Validation commands:
 - `make ui-test` runs both portable .NET test projects:
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
   - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
-- `make verify` therefore exercises both protocol/client tests and WinUI-independent presentation/workflow tests on macOS/Linux as well as Windows.
+- `make verify` therefore exercises both protocol/client tests and WinUI-independent presentation/workflow tests. The portable commands can be run on macOS/Linux as well as Windows; CI runs them once on Windows.
 - Windows UI tests (FlaUI):
   - CI workflow: `.github/workflows/windows-ui-test.yml`
   - Runner: `windows-2025`

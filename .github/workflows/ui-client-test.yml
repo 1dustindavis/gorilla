@@ -1,4 +1,4 @@
-name: UI Client Test
+name: UI Client Tests
 
 on:
   push:
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build:
-    name: UI Lint And Test
+    name: Verify
     runs-on: windows-latest
     timeout-minutes: 25
     steps:

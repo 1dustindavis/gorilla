@@ -41,6 +41,10 @@ jobs:
         go-version-file: go.mod
         cache: true
 
+    - name: Configure NuGet package path
+      shell: pwsh
+      run: "NUGET_PACKAGES=$env:RUNNER_TEMP\\nuget-packages" >> $env:GITHUB_ENV
+
     - name: Setup dotnet
       uses: actions/setup-dotnet@v4
       with:
@@ -145,6 +149,7 @@ jobs:
         New-Item -ItemType Directory -Force -Path build | Out-Null
         dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
         dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
+          --no-restore `
           -c Release `
           -p:Platform=x64 `
           -p:GenerateAppxPackageOnBuild=true `

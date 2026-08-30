@@ -12,9 +12,14 @@ $solutionPath = Join-Path $uiRoot "Gorilla.UI.sln"
 $appDir = Join-Path $uiRoot "src/Gorilla.UI.App"
 $appProject = Join-Path $appDir "Gorilla.UI.App.csproj"
 $clientProject = Join-Path $uiRoot "src/Gorilla.UI.Client/Gorilla.UI.Client.csproj"
+$coreProject = Join-Path $uiRoot "src/Gorilla.UI.Core/Gorilla.UI.Core.csproj"
 
 if (-not (Test-Path $solutionPath)) {
     throw "Solution file not found at $solutionPath"
+}
+
+if (-not (Test-Path $coreProject)) {
+    throw "UI core project not found at $coreProject"
 }
 
 $templateAvailable = dotnet new list | Select-String -Pattern "winui3"
@@ -25,9 +30,10 @@ if (-not $templateAvailable) {
 dotnet new winui3 -n Gorilla.UI.App -o $appDir --force
 
 dotnet add $appProject reference $clientProject
+dotnet add $appProject reference $coreProject
 
 dotnet sln $solutionPath add $appProject
 
-Write-Host "WinUI app scaffolded and wired to Gorilla.UI.Client"
+Write-Host "WinUI app scaffolded and wired to Gorilla.UI.Core and Gorilla.UI.Client"
 Write-Host "Project: $appProject"
 Write-Host "Solution: $solutionPath"

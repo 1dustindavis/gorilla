@@ -32,6 +32,9 @@ jobs:
     name: Verify
     runs-on: windows-latest
     timeout-minutes: 25
+    env:
+      GOMODCACHE: ${{ runner.temp }}\go\pkg\mod
+      GOCACHE: ${{ runner.temp }}\go-build
     steps:
     - name: Set Git config
       run: git config --global core.autocrlf false

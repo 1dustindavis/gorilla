@@ -50,7 +50,10 @@ jobs:
       with:
         go-version-file: go.mod
         cache: true
-        cache-dependency-path: go.sum
+        cache-dependency-path: |
+          go.sum
+          Makefile
+          .github/workflows/go-test.yml
 
     - name: Lint
       run: make lint

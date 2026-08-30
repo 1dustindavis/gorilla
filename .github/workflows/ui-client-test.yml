@@ -36,12 +36,13 @@ jobs:
     - name: Configure NuGet package path
       shell: pwsh
       run: |
-        "NUGET_PACKAGES=$env:RUNNER_TEMP\nuget-packages" >> $env:GITHUB_ENV
+        $nugetPackages = Join-Path $env:RUNNER_TEMP 'nuget-packages'
+        "NUGET_PACKAGES=$nugetPackages" >> $env:GITHUB_ENV
 
     - name: Set up .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
 
-    - name: Validate UI client
+    - name: Validate portable UI
       run: make ui-lint ui-test

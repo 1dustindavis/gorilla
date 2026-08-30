@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Gorilla.UI.App.Models;
+namespace Gorilla.UI.Core.Models;
 
 public sealed class UiOptionalInstallItem : INotifyPropertyChanged
 {
@@ -17,7 +17,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public required string Status
     {
         get => _status;
-        init => _status = value;
         set
         {
             _status = value;

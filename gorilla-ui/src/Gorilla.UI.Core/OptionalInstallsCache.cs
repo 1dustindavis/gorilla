@@ -1,6 +1,7 @@
 using System.Text.Json;
+using Gorilla.UI.Client;
 
-namespace Gorilla.UI.Client;
+namespace Gorilla.UI.Core;
 
 public sealed record OptionalInstallsCacheDocument(
     DateTimeOffset CachedAtUtc,

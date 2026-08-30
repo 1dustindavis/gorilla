@@ -1,8 +1,9 @@
 ﻿using System;
 using System.IO;
 using Gorilla.UI.App.Services;
-using Gorilla.UI.App.ViewModels;
 using Gorilla.UI.App.Views;
+using Gorilla.UI.Core.Services;
+using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 
 namespace Gorilla.UI.App

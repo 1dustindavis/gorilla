@@ -27,11 +27,6 @@
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 
-  <!--
-    Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
-    Tools extension to be activated for this project even if the Windows App SDK Nuget
-    package has not yet been restored.
-  -->
   <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
     <ProjectCapability Include="Msix" />
   </ItemGroup>
@@ -41,9 +36,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Gorilla.UI.Client\Gorilla.UI.Client.csproj" />
+    <ProjectReference Include="..\Gorilla.UI.Core\Gorilla.UI.Core.csproj" />
   </ItemGroup>
 
-  <!-- Keep template files in-repo for reference, but do not compile them. -->
   <ItemGroup>
     <Compile Remove="template\**\*.cs" />
     <Page Remove="template\**\*.xaml" />
@@ -51,16 +46,10 @@
     <None Include="template\**\*" />
   </ItemGroup>
 
-  <!--
-    Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
-    Explorer "Package and Publish" context menu entry to be enabled for this project even if
-    the Windows App SDK Nuget package has not yet been restored.
-  -->
   <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
     <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
   </PropertyGroup>
 
-  <!-- Publish Properties -->
   <PropertyGroup>
     <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>

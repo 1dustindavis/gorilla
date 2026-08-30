@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Gorilla.UI.App.Models;
+namespace Gorilla.UI.Core.Models;
 
 public sealed class UiOptionalInstallItem : INotifyPropertyChanged
 {

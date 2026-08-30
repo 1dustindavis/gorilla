@@ -1,4 +1,6 @@
-namespace Gorilla.UI.Client;
+using Gorilla.UI.Client;
+
+namespace Gorilla.UI.Core;
 
 public sealed class OptionalInstallsStartupLoader
 {

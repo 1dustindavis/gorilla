@@ -1,16 +1,11 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using Gorilla.UI.App.Models;
-using Gorilla.UI.App.Services;
 using Gorilla.UI.Client;
+using Gorilla.UI.Core.Models;
+using Gorilla.UI.Core.Services;
 
-namespace Gorilla.UI.App.ViewModels;
+namespace Gorilla.UI.Core.ViewModels;
 
 public sealed class HomeViewModel : INotifyPropertyChanged
 {

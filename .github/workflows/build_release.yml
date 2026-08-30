@@ -22,6 +22,9 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      GOMODCACHE: ${{ runner.temp }}\go\pkg\mod
+      GOCACHE: ${{ runner.temp }}\go-build
 
     steps:
     - name: Checkout

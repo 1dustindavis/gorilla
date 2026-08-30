@@ -41,14 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Gorilla.UI.Client\Gorilla.UI.Client.csproj" />
-  </ItemGroup>
-
-  <!-- Keep template files in-repo for reference, but do not compile them. -->
-  <ItemGroup>
-    <Compile Remove="template\**\*.cs" />
-    <Page Remove="template\**\*.xaml" />
-    <EmbeddedResource Remove="template\**\*" />
-    <None Include="template\**\*" />
+    <ProjectReference Include="..\Gorilla.UI.Core\Gorilla.UI.Core.csproj" />
   </ItemGroup>
 
   <!--

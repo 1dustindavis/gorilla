@@ -10,11 +10,20 @@
   - Stream install/remove status
 
 ## Layout
-- `gorilla-ui/src/Gorilla.UI.App/` WinUI 3 app project (Windows VM scaffold target)
-- `gorilla-ui/src/Gorilla.UI.Client/` pipe client + contracts
-- `gorilla-ui/tests/Gorilla.UI.Client.Tests/` client contract and protocol tests
-- `gorilla-ui/tools/PipeHarness/` CLI harness for pipe protocol validation
-- `gorilla-ui/docs/` protocol examples and notes
+- `gorilla-ui/src/Gorilla.UI.App/` WinUI 3 app: XAML, Windows lifecycle/adapters, cache-path selection, and runtime composition.
+- `gorilla-ui/src/Gorilla.UI.Core/` platform-neutral presentation and workflow behavior: view models, presentation models, startup/cache orchestration, and operation tracking.
+- `gorilla-ui/src/Gorilla.UI.Client/` named-pipe protocol/client boundary: contracts, transport, serialization/validation, and client diagnostics.
+- `gorilla-ui/tests/Gorilla.UI.Core.Tests/` portable presentation/workflow tests.
+- `gorilla-ui/tests/Gorilla.UI.Client.Tests/` portable client contract and protocol tests.
+- `gorilla-ui/tools/PipeHarness/` CLI harness for pipe protocol validation.
+- `gorilla-ui/docs/` protocol examples and notes.
+
+### Dependency rules
+- Runtime dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; App may also reference Client directly at its composition boundary to construct the concrete named-pipe client.
+- `Gorilla.UI.Core` targets ordinary `net8.0` and must not reference `Microsoft.UI.Xaml` or a Windows-specific target framework.
+- `Gorilla.UI.Client` must remain focused on protocol/client concerns and must not depend on Core or App.
+- WinUI-independent presentation and workflow behavior belongs in Core so it can be validated without rendering a window.
+- App chooses Windows-specific runtime paths and lifecycle behavior. Platform-neutral implementations such as JSON cache persistence may live in Core when that keeps them portable and deterministic.
 
 ## Named Pipe Contract
 
@@ -182,7 +191,7 @@ Notes:
 - Standardize correlation fields so UI and service events can be joined during incident triage.
 
 ## Immediate Build Notes
-- WinUI project creation/build happens on Windows VM.
-- This repo can still host shared contracts, docs, and harness code from macOS.
+- The WinUI App project itself is created/built on Windows; Core, Client, their tests, docs, and protocol harness are portable and validated on macOS as well as Windows.
+- `make ui-lint` and `make ui-test` are the canonical portable UI validation entry points and include both Client and Core layers.
 - `cmd/gorilla` CLI commands that talk to the service should be treated as a first-class debug client and updated in lockstep with this API design.
 - Existing CLI message compatibility is not a requirement for this iteration.

@@ -103,9 +103,14 @@ clean:
 	rm -rf build/
 	rm -rf gorilla-ui/src/Gorilla.UI.Client/bin/
 	rm -rf gorilla-ui/src/Gorilla.UI.Client/obj/
+	rm -rf gorilla-ui/src/Gorilla.UI.Core/bin/
+	rm -rf gorilla-ui/src/Gorilla.UI.Core/obj/
 	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/bin/
 	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/obj/
 	rm -rf gorilla-ui/tests/Gorilla.UI.Client.Tests/TestResults/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/bin/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/obj/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/TestResults/
 	rm -rf gorilla-ui/tools/PipeHarness/bin/
 	rm -rf gorilla-ui/tools/PipeHarness/obj/
 	rm -rf gorilla-ui/src/Gorilla.UI.App/AppPackages/
@@ -188,14 +193,17 @@ go-test: gomodcheck
 
 ui-restore:
 	dotnet restore gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
+	dotnet restore gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj
 	dotnet restore gorilla-ui/tools/PipeHarness/PipeHarness.csproj
 
 ui-lint: ui-restore
 	dotnet build gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-restore -warnaserror
+	dotnet build gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-restore -warnaserror
 	dotnet build gorilla-ui/tools/PipeHarness/PipeHarness.csproj --no-restore -warnaserror
 
 ui-test: ui-lint
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-build --no-restore
+	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-build --no-restore
 
 ui-windows-build:
 ifeq ($(OS), Windows_NT)

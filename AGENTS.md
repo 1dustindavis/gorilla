@@ -54,6 +54,7 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - `make go-vet`
 - `make go-staticcheck`
 - `make go-test`
+- `make ui-restore`
 - `make ui-lint`
 - `make ui-test`
 - `make ui-windows-build`

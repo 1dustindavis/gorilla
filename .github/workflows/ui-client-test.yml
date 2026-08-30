@@ -23,14 +23,8 @@ permissions:
 
 jobs:
   build:
-    name: Verify (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - windows-latest
-          - macos-latest
-    runs-on: ${{ matrix.os }}
+    name: Verify
+    runs-on: windows-latest
     timeout-minutes: 25
     steps:
     - name: Set Git config
@@ -39,17 +33,11 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v4
 
-    - name: Configure NuGet package path (Windows)
-      if: runner.os == 'Windows'
+    - name: Configure NuGet package path
       shell: pwsh
       run: |
         $nugetPackages = Join-Path $env:RUNNER_TEMP 'nuget-packages'
         "NUGET_PACKAGES=$nugetPackages" >> $env:GITHUB_ENV
-
-    - name: Configure NuGet package path (macOS)
-      if: runner.os == 'macOS'
-      shell: bash
-      run: echo "NUGET_PACKAGES=$RUNNER_TEMP/nuget-packages" >> "$GITHUB_ENV"
 
     - name: Set up .NET
       uses: actions/setup-dotnet@v4

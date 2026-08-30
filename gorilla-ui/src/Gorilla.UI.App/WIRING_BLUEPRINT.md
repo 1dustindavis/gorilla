@@ -1,84 +1,56 @@
-# Gorilla UI App Wiring Blueprint (v0)
+# Gorilla UI App Wiring Blueprint
 
-This file defines the first implementation pass for wiring WinUI to `Gorilla.UI.Client`.
+This document describes the current composition boundary between the committed WinUI app and the portable UI layers.
 
-## Objective
-- Use cache-first startup:
-  1. load cached `ListOptionalInstalls` data
-  2. render immediately
-  3. refresh from service
-  4. update UI + cache
-- Support action flows:
-  - `InstallItem`
-  - `RemoveItem`
-  - `StreamOperationStatus`
+## Project ownership
+- `Gorilla.UI.App`
+  - XAML and WinUI lifecycle
+  - page/code-behind adapters
+  - Windows runtime paths
+  - application composition in `App.xaml.cs`
+- `Gorilla.UI.Core`
+  - `HomeViewModel`
+  - `UiOptionalInstallItem`
+  - `OperationTracker`
+  - cache-first startup orchestration
+  - cache abstractions and platform-neutral JSON persistence
+- `Gorilla.UI.Client`
+  - named-pipe contracts and transport
+  - protocol serialization/validation
+  - client diagnostics
 
-## Recommended App Structure
-- `App.xaml.cs`
-  - Build app services and assign root page.
-- `Services/GorillaUiServices.cs`
-  - Compose shared client/cache services.
-- `Services/OperationTracker.cs`
-  - Track active operation streams and emit UI updates.
-- `ViewModels/HomeViewModel.cs`
-  - Cache-first load and refresh flow.
-- `ViewModels/ActivityViewModel.cs`
-  - Active/recent operation timeline.
-- `Models/UiOptionalInstallItem.cs`
-  - UI-focused projection from `OptionalInstallItem`.
-- `Views/HomePage.xaml`
-  - Store-style cards + primary install/remove action.
-- `Views/ActivityPage.xaml`
-  - Streamed status lines and operation state.
+## Startup composition
+`App.xaml.cs` owns concrete runtime construction:
 
-## Service Registration
-Register in app startup (`App.xaml.cs`):
+1. Choose the cache path under `%LOCALAPPDATA%\Gorilla\ui`.
+2. Construct `NamedPipeGorillaServiceClient`.
+3. Construct `JsonFileOptionalInstallsCacheStore`.
+4. Construct `OptionalInstallsCacheCoordinator`.
+5. Construct `OperationTracker`.
+6. Construct `HomeViewModel`.
+7. Construct `HomePage` and activate the main window.
 
-1. `NamedPipeClientOptions` (pipe name/timeouts).
-2. `IGorillaServiceClient` -> `NamedPipeGorillaServiceClient`.
-3. `IOptionalInstallsCacheStore` -> `JsonFileOptionalInstallsCacheStore`.
-4. `OptionalInstallsCacheCoordinator`.
-5. View models (`HomeViewModel`, `ActivityViewModel`).
+The App project may reference Client directly for this composition work, but application/presentation behavior must remain in Core.
 
-Cache path recommendation:
-- `%LOCALAPPDATA%\\Gorilla\\ui\\optional-installs-cache.json`
+## Cache-first startup
+`HomeViewModel.InitializeAsync` delegates to Core startup orchestration:
 
-## HomeViewModel Startup Flow
-On page load:
-1. `LoadCachedAsync()`
-2. If cache exists, project to `UiOptionalInstallItem` and render.
-3. Fire `RefreshAsync()` immediately (non-blocking for first paint).
-4. Replace or merge list with fresh results.
-5. If refresh fails:
-   - keep cached data displayed
-   - set non-blocking warning banner (service unavailable/stale)
+1. Load cached `ListOptionalInstalls` data.
+2. Apply cached items immediately when available.
+3. Refresh from the service.
+4. Replace the visible list with fresh data and update the cache.
+5. If refresh fails, retain cached data and expose a non-blocking warning.
 
-## Item Action Flow
-Install:
-1. `InstallItemAsync(itemName)` -> receive `operationId`.
-2. Mark UI item status as pending.
-3. Start `StreamOperationStatusAsync(operationId)` in background.
-4. Update item + activity log per event until terminal.
+## Install/remove flow
+1. App forwards the user action to `HomeViewModel`.
+2. Core calls `InstallItemAsync` or `RemoveItemAsync` through `IGorillaServiceClient`.
+3. Core tracks `StreamOperationStatusAsync` through `OperationTracker`.
+4. Core updates presentation state until the stream completes.
 
-Remove:
-1. `RemoveItemAsync(itemName)` -> receive `operationId`.
-2. Mark UI item status as pending.
-3. Stream status with same flow as install.
+The known post-terminal-state list refresh is intentionally not part of Stage 2 and should be implemented as a separate behavior change.
 
-## Error Handling
-- Cache read/write failure:
-  - log warning
-  - do not block UI.
-- Pipe/service unavailable:
-  - show banner and retry action.
-- Protocol mismatch:
-  - show hard failure message for incompatibility.
-- Stream ends before terminal state:
-  - mark operation failed (`stream_ended`).
-
-## First Windows Implementation Checklist
-1. Run `pwsh -File gorilla-ui/tools/scaffold-winui.ps1` on Windows VM.
-2. Add files/folders above into generated app project.
-3. Wire `HomePage` to `HomeViewModel`.
-4. Add simple action buttons and status text first.
-5. Validate with local service + `PipeHarness` side by side.
+## Rules
+- Do not add App-local copies of Core presentation classes.
+- Do not add WinUI dependencies to Core.
+- Do not move application orchestration into Client.
+- Do not regenerate the committed App directory from starter templates.

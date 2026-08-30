@@ -1,91 +1,43 @@
 # Windows VM Execution Checklist
 
-Use this checklist to complete the remaining WinUI scaffolding/wiring step on Windows.
+The WinUI application is committed source. Do not scaffold or regenerate `gorilla-ui/src/Gorilla.UI.App` before building it.
 
-## 1. Scaffold/refresh WinUI app project
-Run from repo root in Developer PowerShell:
-
-```powershell
-pwsh -File gorilla-ui/tools/scaffold-winui.ps1
-```
-
-Expected result:
-- `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj` exists.
-- `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj` references `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`.
-- `gorilla-ui/Gorilla.UI.sln` includes `Gorilla.UI.App`.
-
-## 2. Apply starter wiring templates
-Run from repo root:
-
-```powershell
-pwsh -File gorilla-ui/tools/apply-winui-templates.ps1
-```
-
-This copies template files into the generated app project (overwriting placeholders as needed):
-
-- `gorilla-ui/src/Gorilla.UI.App/template/Models/UiOptionalInstallItem.cs`
-- `gorilla-ui/src/Gorilla.UI.App/template/Services/GorillaUiServices.cs`
-- `gorilla-ui/src/Gorilla.UI.App/template/Services/OperationTracker.cs`
-- `gorilla-ui/src/Gorilla.UI.App/template/ViewModels/HomeViewModel.cs`
-- `gorilla-ui/src/Gorilla.UI.App/template/Views/HomePage.xaml`
-- `gorilla-ui/src/Gorilla.UI.App/template/Views/HomePage.xaml.cs`
-
-## 3. Wire startup composition in app project
-In generated `App.xaml.cs`:
-- construct `NamedPipeGorillaServiceClient`
-- construct `JsonFileOptionalInstallsCacheStore`
-- construct `OptionalInstallsCacheCoordinator`
-- construct `OperationTracker`
-- construct `HomeViewModel`
-- set startup page to `HomePage` with injected `HomeViewModel`
-
-Recommended cache path:
-- `%LOCALAPPDATA%\\Gorilla\\ui\\optional-installs-cache.json`
-
-## 4. Build and test
-Run from repo root:
+## Build and validate
+From the repository root in Developer PowerShell:
 
 ```powershell
 make ui-test
+make ui-windows-build
 ```
 
-Then build solution:
+For the full Windows validation stack:
 
 ```powershell
-dotnet build gorilla-ui/Gorilla.UI.sln
+make verify-e2e
 ```
 
-## 5. Basic runtime smoke check
-- Start Gorilla service on VM.
-- Launch WinUI app.
+## Expected project boundary
+- `Gorilla.UI.App` references `Gorilla.UI.Core` and `Gorilla.UI.Client`.
+- `Gorilla.UI.Core` is ordinary `net8.0` and contains the platform-neutral presentation/workflow behavior.
+- `Gorilla.UI.Client` contains named-pipe protocol/client concerns.
+
+## Runtime smoke check
+- Start the Gorilla service on the VM.
+- Launch Gorilla UI.
 - Confirm startup behavior:
-  - loads cached list if present
-  - immediately refreshes from service
-- Confirm actions:
-  - install/remove issues request
-  - operationId returned
-  - status stream updates until terminal state
+  - cached list renders when present
+  - fresh service data replaces cached data
+  - a refresh failure leaves cached data visible with a warning
+- Confirm install/remove behavior:
+  - request is accepted or rejected correctly
+  - accepted operations stream status updates
+  - terminal success/failure/cancellation is reflected in presentation state
 
-## 6. Reproducible cache-first startup validation
-Use these exact steps to validate TODO #3 behavior with live service data.
+## Reproducible cache-first validation
+1. Close Gorilla UI.
+2. Seed `%LOCALAPPDATA%\Gorilla\ui\optional-installs-cache.json` with a recognizable stale entry.
+3. Launch with the service running and confirm the cached entry appears before fresh service data replaces it.
+4. Stop the service and relaunch; confirm cached data remains visible and the warning includes `Showing cached data. Refresh failed:`.
+5. Restore the service and relaunch; confirm the warning clears after a successful refresh.
 
-1. Seed cache with a recognizable stale entry.
-   - Close Gorilla UI if open.
-   - Write `%LOCALAPPDATA%\Gorilla\ui\optional-installs-cache.json` with a single item that does not match the live service list (for example `CachedOnlyApp`).
-2. Launch Gorilla UI while service is running.
-   - Expected: `CachedOnlyApp` renders first.
-   - Expected: list is replaced by live `ListOptionalInstalls` results within the refresh window.
-3. Validate stale-data warning path.
-   - Stop Gorilla service.
-   - Relaunch Gorilla UI with the same cache file still present.
-   - Expected: cached items remain visible.
-   - Expected: warning banner includes `Showing cached data. Refresh failed:`.
-4. Restore service and relaunch UI.
-   - Expected: warning clears after successful refresh and list converges to live service data.
-
-Record results in PR notes with:
-- VM image/build identifier
-- cache fixture payload used
-- observed first-render list
-- observed post-refresh list
-- observed stale-data warning text
+Record any manual validation results in the PR notes with the VM image/build identifier and the observed behavior.

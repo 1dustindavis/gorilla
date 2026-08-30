@@ -21,6 +21,7 @@ Architecture boundary:
 - `Gorilla.UI.Client` owns the named-pipe protocol/client boundary: contracts, transport, serialization/validation, and client diagnostics.
 - Dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; Core targets ordinary `net8.0` and must not reference `Microsoft.UI.Xaml` or Windows-specific target frameworks.
 - Filesystem cache paths are chosen by App; the JSON cache implementation is platform-neutral and lives in Core so its behavior remains covered by portable tests.
+- The committed App/Core/Client projects are the source of truth; there is no generated shadow template copy of application code.
 
 Validation commands:
 - `make ui-lint` runs `dotnet build -warnaserror` for the portable client/core projects, their test projects, and PipeHarness.
@@ -40,10 +41,6 @@ Validation commands:
       - `$env:GORILLA_UI_APP_EXE = "<path-to-Gorilla.UI.App.exe>"`
       - `dotnet test gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release`
 - Optional local autofix: use `dotnet format` against the relevant portable project.
-
-Windows VM scaffold helper:
-- `pwsh -File gorilla-ui/tools/scaffold-winui.ps1`
-- This scaffolds `gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj`, adds references to the portable UI projects, and adds the app project to `gorilla-ui/Gorilla.UI.sln`.
 
 Signed package workflow (Windows VMs):
 - Build VM:

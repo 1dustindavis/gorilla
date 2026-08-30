@@ -7,21 +7,52 @@
     mc:Ignorable="d">
 
     <Grid Padding="24" RowDefinitions="Auto,Auto,*">
-        <TextBlock Text="Available Software" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock
+            Text="Available Software"
+            FontSize="28"
+            FontWeight="SemiBold"
+            AutomationProperties.AutomationId="HomeHeading" />
 
-        <TextBlock Grid.Row="1" Margin="0,8,0,0" Text="{Binding WarningBanner}" Foreground="DarkOrange" />
+        <TextBlock
+            Grid.Row="1"
+            Margin="0,8,0,0"
+            Text="{Binding WarningBanner}"
+            Foreground="DarkOrange"
+            AutomationProperties.AutomationId="ServiceWarning"
+            AutomationProperties.LiveSetting="Polite" />
 
-        <ListView Grid.Row="2" Margin="0,16,0,0" x:Name="ItemsList" ItemsSource="{Binding Items}">
+        <ListView
+            Grid.Row="2"
+            Margin="0,16,0,0"
+            x:Name="ItemsList"
+            ItemsSource="{Binding Items}"
+            AutomationProperties.AutomationId="ItemsList"
+            AutomationProperties.Name="Available software">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid ColumnDefinitions="*,Auto,Auto" Padding="0,8">
                         <StackPanel>
                             <TextBlock Text="{Binding DisplayName}" FontSize="18" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding Version}" Opacity="0.7" />
-                            <TextBlock Text="{Binding Status}" Opacity="0.7" />
+                            <TextBlock
+                                Text="{Binding Status}"
+                                Opacity="0.7"
+                                AutomationProperties.AutomationId="ItemStatus" />
                         </StackPanel>
-                        <Button Grid.Column="1" Margin="12,0,0,0" Content="Install" Tag="{Binding ItemName}" Click="InstallButton_Click" />
-                        <Button Grid.Column="2" Margin="8,0,0,0" Content="Remove" Tag="{Binding ItemName}" Click="RemoveButton_Click" />
+                        <Button
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Content="Install"
+                            Tag="{Binding ItemName}"
+                            Click="InstallButton_Click"
+                            AutomationProperties.AutomationId="InstallButton" />
+                        <Button
+                            Grid.Column="2"
+                            Margin="8,0,0,0"
+                            Content="Remove"
+                            Tag="{Binding ItemName}"
+                            Click="RemoveButton_Click"
+                            AutomationProperties.AutomationId="RemoveButton" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

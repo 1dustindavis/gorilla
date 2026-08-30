@@ -34,6 +34,11 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Configure NuGet package path
+        shell: pwsh
+        run: |
+          "NUGET_PACKAGES=$env:RUNNER_TEMP\nuget-packages" >> $env:GITHUB_ENV
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:

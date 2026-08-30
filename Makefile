@@ -2,7 +2,7 @@ all: build
 
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
-	ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
+	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
 	windows-integration release-integration \
 	verify verify-windows verify-e2e verify-release
 
@@ -79,6 +79,7 @@ define HELP_TEXT
 	make go-vet          - Run Go vet for the Windows deployment target
 	make go-staticcheck  - Run pinned staticcheck
 	make go-test         - Run Go tests with coverage and race detection
+	make ui-restore      - Restore portable Gorilla UI .NET dependencies
 	make ui-lint         - Run Gorilla UI portable build/analyzer validation
 	make ui-test         - Run the Gorilla UI portable .NET tests
 	make ui-windows-build - Build the real WinUI app and Windows UI test project
@@ -190,16 +191,19 @@ go-staticcheck: gomodcheck
 go-test: gomodcheck
 	go test -cover -race ./...
 
-ui-lint:
-	dotnet build gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj -warnaserror
-	dotnet build gorilla-ui/src/Gorilla.UI.Core/Gorilla.UI.Core.csproj -warnaserror
-	dotnet build gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj -warnaserror
-	dotnet build gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj -warnaserror
-	dotnet build gorilla-ui/tools/PipeHarness/PipeHarness.csproj -warnaserror
+ui-restore:
+	dotnet restore gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
+	dotnet restore gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj
+	dotnet restore gorilla-ui/tools/PipeHarness/PipeHarness.csproj
 
-ui-test:
-	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj
-	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj
+ui-lint: ui-restore
+	dotnet build gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-restore -warnaserror
+	dotnet build gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-restore -warnaserror
+	dotnet build gorilla-ui/tools/PipeHarness/PipeHarness.csproj --no-restore -warnaserror
+
+ui-test: ui-lint
+	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-build --no-restore
+	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-build --no-restore
 
 ui-windows-build:
 ifeq ($(OS), Windows_NT)

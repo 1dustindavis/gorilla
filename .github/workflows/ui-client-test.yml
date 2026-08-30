@@ -32,6 +32,8 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
+    env:
+      NUGET_PACKAGES: ${{ runner.temp }}/nuget-packages
     steps:
     - name: Set Git config
       run: git config --global core.autocrlf false
@@ -44,8 +46,5 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: UI lint
-      run: make ui-lint
-
-    - name: UI test
-      run: make ui-test
+    - name: Validate portable UI
+      run: make ui-lint ui-test

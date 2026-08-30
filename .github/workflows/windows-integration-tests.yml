@@ -1,4 +1,4 @@
-name: Windows Integration Tests
+name: Windows Integration
 
 on:
   workflow_dispatch:
@@ -7,24 +7,18 @@ on:
       - cmd/**
       - pkg/**
       - integration/windows/**
+      - Makefile
       - go.mod
       - go.sum
       - .github/workflows/windows-integration-tests.yml
   pull_request:
-    paths:
-      - cmd/**
-      - pkg/**
-      - integration/windows/**
-      - go.mod
-      - go.sum
-      - .github/workflows/windows-integration-tests.yml
 
 permissions:
   contents: read
 
 jobs:
   integration-tests:
-    name: Windows Integration Tests
+    name: Verify
     runs-on: windows-latest
     timeout-minutes: 60
 
@@ -35,42 +29,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Configure Go cache paths
+        shell: pwsh
+        run: |
+          "GOMODCACHE=$env:RUNNER_TEMP\go\pkg\mod" >> $env:GITHUB_ENV
+          "GOCACHE=$env:RUNNER_TEMP\go-build" >> $env:GITHUB_ENV
+
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
-      - name: Build gorilla.exe
+      - name: Seed stale fixture sentinel
         shell: pwsh
         run: |
-          $outDir = "${{ runner.temp }}\gorilla-binary"
-          New-Item -Path $outDir -ItemType Directory -Force | Out-Null
-          go build -v -o "$outDir\gorilla.exe" ./cmd/gorilla
+          $toolsDir = "${{ runner.temp }}\gorilla-release-integration\fixture\tools"
+          New-Item -Path $toolsDir -ItemType Directory -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $toolsDir "gorilla-it-sideload.cer") -Value "stale fixture sentinel"
 
-      - name: Create and trust MSIX test certificate
-        id: msix_certificate
+      - name: Run Windows integration validation
         shell: pwsh
-        run: |
-          $certPath = "${{ runner.temp }}\gorilla-it-sideload.cer"
-          $thumbprint = ./integration/windows/initialize-msix-test-certificate.ps1 `
-            -CertificatePath $certPath `
-            -Create
-          "thumbprint=$thumbprint" >> $env:GITHUB_OUTPUT
-
-      - name: Prepare integration fixtures
-        shell: pwsh
-        run: |
-          ./integration/windows/prepare-release-integration.ps1 `
-            -WorkRoot "${{ runner.temp }}\gorilla-release-integration" `
-            -MsixCertThumbprint "${{ steps.msix_certificate.outputs.thumbprint }}"
-
-      - name: Run integration tests
-        shell: pwsh
-        run: |
-          ./integration/windows/run-release-integration.ps1 `
-            -WorkRoot "${{ runner.temp }}\gorilla-release-integration" `
-            -GorillaExePath "${{ runner.temp }}\gorilla-binary\gorilla.exe"
+        env:
+          WINDOWS_INTEGRATION_WORK_ROOT: ${{ runner.temp }}\gorilla-release-integration
+        run: make windows-integration
 
       - name: Upload integration failure diagnostics
         if: failure()

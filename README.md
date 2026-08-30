@@ -23,11 +23,24 @@ After cloning this repo, just run `make build`. A new binary will be created in 
 After cloning this repo, just run `go build -i ./cmd/gorilla`. A new binary will be created in the current directory.
 
 ## Contributing
-Pull Requests are always welcome. Before submitting, lint and test:
+
+Pull requests are welcome. The Makefile provides the same validation entry points used by CI:
+
+```text
+make verify
+    Portable Go + .NET validation expected before pushing.
+
+make verify-windows
+    Windows build and source integration validation.
+
+make verify-e2e
+    Windows validation plus the current FlaUI UI suite.
+
+make verify-release GORILLA_RELEASE_EXE=<path>
+    Current released-binary integration plus the lower validation layers.
 ```
-go fmt ./...
-go test ./...
-```
+
+Use smaller targets such as `make go-test`, `make go-staticcheck`, `make ui-lint`, or `make ui-test` while iterating. See `AGENTS.md` and `make help` for the complete validation contract and guidance on which level applies to a change.
 
 ## Repo Admin Mode
 Gorilla also supports local repo admin workflows:

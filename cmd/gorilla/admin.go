@@ -31,7 +31,7 @@ func adminCheck() (bool, error) {
 		0, 0, 0, 0, 0, 0,
 		&adminSid)
 	if err != nil {
-		return false, fmt.Errorf("SID Error: %v", err)
+		return false, fmt.Errorf("SID error: %v", err)
 	}
 	defer windows.FreeSid(adminSid)
 	// This appears to cast a null pointer so I'm not sure why this
@@ -41,7 +41,7 @@ func adminCheck() (bool, error) {
 
 	admin, err := token.IsMember(adminSid)
 	if err != nil {
-		return false, fmt.Errorf("Token Membership Error: %v", err)
+		return false, fmt.Errorf("token membership error: %v", err)
 	}
 	return admin, nil
 }

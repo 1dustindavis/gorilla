@@ -28,10 +28,6 @@ var (
 	execCommand       = exec.Command
 	statusCheckStatus = status.CheckStatus
 	runCommand        = runCMD
-
-	// Stores url where we will download an item
-	installerURL   string
-	uninstallerURL string
 )
 
 // runCommand executes a command and it's argurments in the CMD environment

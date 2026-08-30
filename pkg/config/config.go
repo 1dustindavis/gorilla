@@ -13,9 +13,6 @@ import (
 )
 
 var (
-	// CachePath is a directory we will use for temporary storage
-	cachePath string
-
 	// Define flag defaults
 	aboutArg          bool
 	aboutDefault      = false

@@ -1,4 +1,4 @@
-name: go-test
+name: Go Tests
 on:
   push:
     branches:
@@ -29,7 +29,7 @@ permissions:
 jobs:
 
   build:
-    name: Build
+    name: Verify
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -39,17 +39,21 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v4
 
+    - name: Configure Go cache paths
+      shell: pwsh
+      run: |
+        "GOMODCACHE=$env:RUNNER_TEMP\go\pkg\mod" >> $env:GITHUB_ENV
+        "GOCACHE=$env:RUNNER_TEMP\go-build" >> $env:GITHUB_ENV
+
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
       with:
         go-version-file: go.mod
         cache: true
-
-    - name: Install staticcheck
-      shell: pwsh
-      run: |
-        go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-        "$(go env GOPATH)\bin" >> $env:GITHUB_PATH
+        cache-dependency-path: |
+          go.sum
+          Makefile
+          .github/workflows/go-test.yml
 
     - name: Lint
       run: make lint

@@ -27,7 +27,6 @@ type RegistryApplication struct {
 // WindowsMetadata contains extended metadata retrieved in the `properties.go`
 type WindowsMetadata struct {
 	productName   string
-	companyName   string
 	versionString string
 	versionMajor  int
 	versionMinor  int

@@ -3,9 +3,10 @@
 ## Goal
 Create a Gorilla UI app that runs as a standard user, communicates with the Gorilla service via named pipes, and delivers a Store-like experience with Managed Software Center-style functionality.
 
-## Repository/Branch Constraints
-- UI development branch: `gorilla-ui`
-- UI code location: `gorilla-ui/`
+## Repository Constraints
+- UI code location: `gorilla-ui/`.
+- The committed App/Core/Client projects are the source of truth; do not regenerate the App project from starter templates.
+- Keep platform-neutral presentation/workflow behavior in `Gorilla.UI.Core`, WinUI-specific behavior in `Gorilla.UI.App`, and protocol/transport behavior in `Gorilla.UI.Client`.
 
 ## First Release Scope
 - Display available items (Gorilla `option_installs`)
@@ -19,10 +20,11 @@ Create a Gorilla UI app that runs as a standard user, communicates with the Gori
 - Language/runtime: C# on .NET 8 LTS
 - Windows stack: Windows App SDK (stable channel)
 - IPC: Named pipes between UI client and Gorilla service
+- Dependency direction: `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`, with App also allowed to reference Client at the composition boundary
 
 ## Development Workflow
 - Hybrid workflow:
-  - macOS: planning, protocol design, docs, CI/workflow authoring, non-UI code where practical
+  - macOS: planning, protocol design, docs, portable Core/Client development and tests
   - Windows VM: WinUI build/run/debug, XAML iteration, packaging validation
 - Prefer CLI-first workflow:
   - `git`, `dotnet`, `msbuild`, `pwsh`, `gh`
@@ -45,21 +47,23 @@ Planned operations:
 - `ListOptionalInstalls` should include per-item status fields (`isInstalled`, status enum, status timestamp, optional last operation id)
 
 ## Validation Strategy
-- Local: command-line build/test flow
-- Automated: Windows GitHub Actions lane for build and tests
-- Integration: Windows smoke tests for list/install/remove/status pipe flows
+- Portable local/CI validation: `make ui-lint` and `make ui-test` for Client/Core on macOS and Windows
+- Canonical portable baseline: `make verify`
+- Windows integration: `make verify-windows`
+- Full WinUI/FlaUI validation: `make verify-e2e`
 - Keep `cmd/gorilla` CLI service-message commands updated in lockstep with UI pipe API changes for testing/debugging
 - Backward compatibility for existing CLI service-message behavior is not required during this UI/API iteration
 
 ## Completed Milestones
-- WinUI app scaffold created under `gorilla-ui/src/Gorilla.UI.App/` and added to `gorilla-ui/Gorilla.UI.sln`.
-- App startup is wired to `HomePage` and `HomeViewModel` with named-pipe client/cache composition.
-- `HomePage` async handlers now fail safely and surface errors in UI warning banner.
-- Template source files under `gorilla-ui/src/Gorilla.UI.App/template/` are excluded from app compilation.
+- WinUI app is committed under `gorilla-ui/src/Gorilla.UI.App/` and included in `gorilla-ui/Gorilla.UI.sln`.
+- App startup is wired to `HomePage` and the Core `HomeViewModel` with named-pipe client/cache composition.
+- `HomePage` async handlers fail safely and surface errors in the UI warning banner.
+- Platform-neutral presentation/workflow behavior is isolated in `Gorilla.UI.Core` and covered by portable tests.
+- Obsolete App-local template copies and scaffold/apply helpers have been removed so there is a single authoritative implementation.
 - Windows VM packaging/install workflow is scripted:
   - `gorilla-ui/tools/build-signed-msix.ps1`
   - `gorilla-ui/tools/install-signed-msix.ps1`
-- Service named-pipe handling now flushes pipe buffers before disconnect to improve response/event delivery reliability.
+- Service named-pipe handling flushes pipe buffers before disconnect to improve response/event delivery reliability.
 - UI client diagnostics are debug-gated and do not create local log directories when diagnostics are disabled.
 - Diagnostics policy + implementation baseline is defined and shipped:
   - `gorilla-ui/ARCHITECTURE.md` includes the diagnostics decision record (defaults, paths, retention, required correlation fields, and deferred follow-ups).
@@ -79,12 +83,12 @@ Planned operations:
 
 3. [Done] Verify `ListOptionalInstalls` load + cache-first startup behavior with live service data.
    - Scope: validate cached render first, then refresh/replace behavior, including stale-data warning behavior.
-   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, cache store/coordinator classes, manual test docs.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.Core/ViewModels/HomeViewModel.cs`, Core cache store/coordinator classes, manual test docs.
    - Done when: startup flow is confirmed on Windows VM with reproducible test notes.
 
 4. Validate `InstallItem` against real service responses.
    - Scope: ensure operation acceptance, `operationId` handling, and item state updates map to actual service behavior.
-   - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
+   - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.Core`.
    - Done when: live install flow works end-to-end and expected output is documented/tested.
 
 5. Define and implement the user-driven remove workflow when an item is not in manifest-managed uninstall paths.
@@ -94,12 +98,12 @@ Planned operations:
 
 6. Validate `RemoveItem` against real service responses.
    - Scope: same as install validation, including operation acceptance and state convergence to removed/not installed.
-   - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.App`.
+   - Primary targets: `pkg/service`, `gorilla-ui/src/Gorilla.UI.Client`, `gorilla-ui/src/Gorilla.UI.Core`.
    - Done when: live remove flow works end-to-end and expected output is documented/tested.
 
 7. Validate `StreamOperationStatus` UI reflection end-to-end.
    - Scope: confirm stream updates are visible in UI state for success/failure/cancel paths.
-   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, `Services/OperationTracker.cs`.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.Core/ViewModels/HomeViewModel.cs`, `gorilla-ui/src/Gorilla.UI.Core/Services/OperationTracker.cs`.
    - Done when: each terminal state is represented correctly in the UI and covered by tests/manual checks.
 
 8. Confirm `cmd/gorilla` service-message commands cover current UI protocol operations.
@@ -114,21 +118,21 @@ Planned operations:
 
 10. Improve item-level status UX for in-progress and terminal operation states.
    - Scope: surface clear pending/progress/success/failure states per item, not just generic status text.
-   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/Models/UiOptionalInstallItem.cs`, view models, `Views/HomePage.xaml`.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.Core/Models/UiOptionalInstallItem.cs`, Core view models, `gorilla-ui/src/Gorilla.UI.App/Views/HomePage.xaml`.
    - Done when: per-item state is visually distinct and stable during operation streaming.
 
 11. Distinguish cached-data banner from action failure banner.
    - Scope: separate stale-data/service-warning messaging from user-initiated action errors.
-   - Primary targets: `HomeViewModel` + `HomePage` bindings.
+   - Primary targets: Core `HomeViewModel` + App `HomePage` bindings.
    - Done when: startup refresh issues and install/remove failures render in different UI channels/messages.
 
 12. Add a manual refresh button for `ListOptionalInstalls`.
    - Scope: allow retry refresh without app restart and preserve safe cancellation/error handling.
-   - Primary targets: `Views/HomePage.xaml`, `Views/HomePage.xaml.cs`, `ViewModels/HomeViewModel.cs`.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/Views/HomePage.xaml`, `HomePage.xaml.cs`, and Core `HomeViewModel`.
    - Done when: refresh can be triggered manually and updates list/banner state correctly.
 
 13. Add Gorilla UI/.NET validation (`make ui-test`) to appropriate GitHub Actions pipelines.
-   - Scope: ensure PR/main pipelines run .NET client tests alongside existing Go checks where relevant.
+   - Scope: ensure PR/main pipelines run .NET client/core tests alongside existing Go checks where relevant.
    - Primary targets: `.github/workflows/*.yml`.
    - Done when: CI executes `make ui-test` in targeted workflows and failures block merges/releases as intended.
 
@@ -149,5 +153,5 @@ Planned operations:
 
 17. Map low-level transport errors to user-friendly UI warnings.
    - Scope: replace raw pipe/IPC exception text (for example, `Pipe is broken`) with actionable language (for example, `Service unavailable`), while preserving detailed diagnostics in logs.
-   - Primary targets: `gorilla-ui/src/Gorilla.UI.App/ViewModels/HomeViewModel.cs`, `gorilla-ui/src/Gorilla.UI.Client` exception handling/mapping layer, and related UI tests.
+   - Primary targets: `gorilla-ui/src/Gorilla.UI.Core/ViewModels/HomeViewModel.cs`, `gorilla-ui/src/Gorilla.UI.Client` exception handling/mapping layer, and related UI tests.
    - Done when: stale-data and action-failure warnings use user-friendly messages and tests cover known transport failure strings.

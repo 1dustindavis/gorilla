@@ -12,8 +12,15 @@ on:
         required: true
         type: string
 
+# Release runs must be serialized so version allocation and publication cannot race.
+# queue: max preserves rapid main pushes rather than replacing pending release runs.
+concurrency:
+  group: gorilla-release-publication
+  queue: max
+
 permissions:
   contents: write
+  pull-requests: read
   id-token: write
 
 env:
@@ -81,21 +88,33 @@ jobs:
 
     - name: Compute automatic prerelease version
       if: github.event_name == 'push'
-      id: create_tag
-      uses: paulhatch/semantic-version@v6.0.2
-      with:
-        tag_prefix: "v"
-        major_pattern: "__NO_AUTOMATIC_MAJOR_BUMP__"
-        minor_pattern: "__NO_AUTOMATIC_MINOR_BUMP__"
-        version_format: "${major}.${minor}.${patch}"
-        namespace: ''
-        bump_each_commit: true
-
-    - name: Set automatic prerelease metadata
-      if: github.event_name == 'push'
       shell: pwsh
       run: |
-        "RELEASE_TAG=${{ steps.create_tag.outputs.version_tag }}" >> $Env:GITHUB_ENV
+        # Allocate exactly one patch version for this main-push release. This is
+        # intentionally independent of how many commits the merged PR contains.
+        $versions = git tag --list |
+          ForEach-Object {
+            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              [version]$Matches[1..3] -join '.'
+            }
+          } |
+          Sort-Object -Descending
+
+        $latestVersion = $versions | Select-Object -First 1
+        if ($null -eq $latestVersion) {
+          throw "No existing vX.Y.Z version tag found."
+        }
+        if ($latestVersion.Build -ge 65535) {
+          throw "Patch version cannot exceed the MSIX version segment limit of 65535."
+        }
+
+        $nextVersion = [version]::new(
+          $latestVersion.Major,
+          $latestVersion.Minor,
+          $latestVersion.Build + 1
+        )
+        "RELEASE_TAG=v$nextVersion" >> $Env:GITHUB_ENV
+        Write-Host "Next prerelease: v$nextVersion"
 
     - name: Set stable release metadata
       if: github.event_name == 'workflow_dispatch'
@@ -115,9 +134,11 @@ jobs:
           throw "Tag $releaseTag already exists."
         }
 
-        $latestVersion = git tag --list 'v[0-9]*.[0-9]*.[0-9]*' |
+        $latestVersion = git tag --list |
           ForEach-Object {
-            try { [version]($_.Substring(1)) } catch { }
+            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              [version]($Matches[1..3] -join '.')
+            }
           } |
           Sort-Object -Descending |
           Select-Object -First 1
@@ -312,9 +333,28 @@ jobs:
     - name: Prepare prerelease notes
       if: github.event_name == 'push'
       shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        $title = git log -1 --pretty=format:"%s"
-        "- $title" | Set-Content -Path release-notes.md -Encoding utf8
+        $headers = @{
+          Accept = "application/vnd.github+json"
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          "X-GitHub-Api-Version" = "2022-11-28"
+        }
+        $pulls = @(Invoke-RestMethod `
+          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/commits/$Env:GITHUB_SHA/pulls" `
+          -Headers $headers)
+        $pr = $pulls |
+          Where-Object { $_.merged_at -and $_.base.ref -eq 'main' } |
+          Sort-Object number -Descending |
+          Select-Object -First 1
+
+        if ($null -ne $pr) {
+          "- $($pr.title) (#$($pr.number))" | Set-Content -Path release-notes.md -Encoding utf8
+        } else {
+          $title = git log -1 --pretty=format:"%s"
+          "- $title" | Set-Content -Path release-notes.md -Encoding utf8
+        }
 
     - name: Cut prerelease
       if: github.event_name == 'push'

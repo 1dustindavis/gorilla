@@ -24,6 +24,7 @@ MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
 MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
 MANUAL_TEST_BASE_URL ?=
 WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
+UI_E2E_WORK_ROOT ?= $(WINDOWS_INTEGRATION_WORK_ROOT)
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
 RELEASE_USE_PREBUILT_FIXTURES ?= 0
 GORILLA_RELEASE_EXE ?=
@@ -32,19 +33,14 @@ GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
 	CURRENT_PLATFORM = linux
-	# If on macOS, set the shell to bash explicitly
 	ifeq ($(shell uname), Darwin)
 		SHELL := /bin/bash
 		CURRENT_PLATFORM = darwin
 	endif
-
-	# To populate version metadata, we use unix tools to get certain data
 	GOVERSION = $(shell go version | awk '{print $$3}')
 	NOW	= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 else
 	CURRENT_PLATFORM = windows
-
-	# To populate version metadata, we use windows tools to get the certain data
 	GOVERSION_CMD = "(go version).Split()[2]"
 	GOVERSION = $(shell powershell $(GOVERSION_CMD))
 	NOW	= $(shell powershell Get-Date -format s)
@@ -72,7 +68,7 @@ define HELP_TEXT
 
 	make verify         - Run all portable validation expected before pushing
 	make verify-windows - Add Windows build and source integration validation
-	make verify-e2e     - Add the current FlaUI full-application UI suite
+	make verify-e2e     - Add source-built service/app integration and critical FlaUI workflows
 	make verify-release - Validate a supplied released gorilla.exe plus lower layers
 
 	make go-format       - Check Go formatting
@@ -84,8 +80,8 @@ define HELP_TEXT
 	make ui-test         - Run the Gorilla UI portable .NET tests
 	make ui-windows-build - Build the real WinUI app and Windows UI test project
 	make windows-integration - Run source-built Windows installer integration
-	make ui-e2e          - Build and run the current FlaUI Windows UI suite
-	make ui-e2e-test     - Run FlaUI against an existing Windows UI build
+	make ui-e2e          - Build source service/UI and run critical FlaUI E2E workflows
+	make ui-e2e-test     - Run critical FlaUI E2E against existing source builds
 	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary
 
 	make lint           - Compatibility alias for Go format/vet/staticcheck
@@ -222,7 +218,7 @@ else
 	@exit 1
 endif
 
-ui-e2e: ui-windows-build
+ui-e2e: build ui-windows-build
 ifeq ($(OS), Windows_NT)
 	$(MAKE) ui-e2e-test
 else
@@ -232,7 +228,7 @@ endif
 
 ui-e2e-test:
 ifeq ($(OS), Windows_NT)
-	pwsh -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/run-tests.ps1 -MaxAttempts $(UI_E2E_MAX_ATTEMPTS) -SkipBuild
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-ui-e2e.ps1 -WorkRoot "$(UI_E2E_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe" -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
 else
 	@echo "ui-e2e-test requires Windows"
 	@exit 1

@@ -29,17 +29,14 @@ Validation commands:
   - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
   - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
 - `make verify` therefore exercises both protocol/client tests and WinUI-independent presentation/workflow tests. The portable commands can be run on macOS/Linux as well as Windows; CI runs them once on Windows.
-- Windows UI tests (FlaUI):
-  - CI workflow: `.github/workflows/windows-ui-test.yml`
-  - Runner: `windows-2025`
-  - Behavior: non-blocking (`continue-on-error: true`) with up to 3 attempts
-  - Artifacts: TRX results and failure screenshots/logs from `gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests`
-  - Local run (Windows):
-    - Build app:
-      - `dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64`
-    - Set app path and run Windows UI tests:
-      - `$env:GORILLA_UI_APP_EXE = "<path-to-Gorilla.UI.App.exe>"`
-      - `dotnet test gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release`
+- Windows UI E2E tests (xUnit + FlaUI + UIA3):
+  - Canonical commands: `make ui-e2e` builds the source service/UI and runs the E2E scenario; `make ui-e2e-test` reuses existing source builds.
+  - Harness: `integration/windows/run-ui-e2e.ps1` installs the source-built `gorilla.exe` as a temporary real Windows service, reuses the existing Windows integration fixture preparation, and owns service/server/cache cleanup.
+  - Critical workflows: healthy startup with fixture software, install + terminal refresh, remove + terminal refresh, and service-unavailable startup using cached data.
+  - CI workflow: `.github/workflows/windows-ui-test.yml` on `windows-latest`.
+  - CI remains non-blocking (`continue-on-error: true`) with up to 3 whole-scenario attempts until the later reliability stage tightens that policy.
+  - Retries recreate the service and test state rather than retrying individual UI interactions against dirty state.
+  - TRX results and existing failure diagnostics are written under the E2E work root (`build/windows-integration/ui-results` and `ui-artifacts` by default).
 - Optional local autofix: use `dotnet format` against the relevant portable project.
 
 UI automation and accessibility contract:

@@ -1,6 +1,12 @@
 package service
 
-import "testing"
+import (
+	"path/filepath"
+	"slices"
+	"testing"
+
+	"github.com/1dustindavis/gorilla/pkg/config"
+)
 
 func TestParseCommandSpecInstallItem(t *testing.T) {
 	cmd, err := parseCommandSpec("InstallItem:GoogleChrome")
@@ -102,5 +108,46 @@ func TestServiceInstallArgs(t *testing.T) {
 	}
 	if got[2] != "-service" {
 		t.Fatalf("expected final arg -service, got %q", got[2])
+	}
+}
+
+func TestServiceManagedInstallAndRemovePersistDesiredState(t *testing.T) {
+	cfg := config.Configuration{AppDataPath: t.TempDir()}
+
+	if err := addServiceManagedInstalls(cfg, []string{"Example"}); err != nil {
+		t.Fatalf("add managed install: %v", err)
+	}
+	entry, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		t.Fatalf("load after install: %v", err)
+	}
+	if !slices.Equal(entry.Installs, []string{"Example"}) || len(entry.Uninstalls) != 0 {
+		t.Fatalf("unexpected install desired state: installs=%v uninstalls=%v", entry.Installs, entry.Uninstalls)
+	}
+
+	if err := removeServiceManagedInstalls(cfg, []string{"Example"}); err != nil {
+		t.Fatalf("remove managed install: %v", err)
+	}
+	entry, err = loadServiceLocalManifest(cfg)
+	if err != nil {
+		t.Fatalf("load after remove: %v", err)
+	}
+	if len(entry.Installs) != 0 || !slices.Equal(entry.Uninstalls, []string{"Example"}) {
+		t.Fatalf("unexpected remove desired state: installs=%v uninstalls=%v", entry.Installs, entry.Uninstalls)
+	}
+
+	if err := addServiceManagedInstalls(cfg, []string{"Example"}); err != nil {
+		t.Fatalf("re-add managed install: %v", err)
+	}
+	entry, err = loadServiceLocalManifest(cfg)
+	if err != nil {
+		t.Fatalf("load after re-add: %v", err)
+	}
+	if !slices.Equal(entry.Installs, []string{"Example"}) || len(entry.Uninstalls) != 0 {
+		t.Fatalf("unexpected re-install desired state: installs=%v uninstalls=%v", entry.Installs, entry.Uninstalls)
+	}
+
+	if filepath.Base(serviceLocalManifestPath(cfg)) != "service-manifest.yaml" {
+		t.Fatalf("unexpected service manifest path: %s", serviceLocalManifestPath(cfg))
 	}
 }

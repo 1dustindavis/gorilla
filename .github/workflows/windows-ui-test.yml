@@ -8,6 +8,10 @@ on:
       - gorilla-ui/**
       - '!gorilla-ui/*.md'
       - '!gorilla-ui/**/*.md'
+      - cmd/gorilla/**
+      - pkg/config/**
+      - pkg/service/**
+      - integration/windows/**
       - Makefile
       - .github/workflows/windows-ui-test.yml
   pull_request:
@@ -15,6 +19,10 @@ on:
       - gorilla-ui/**
       - '!gorilla-ui/*.md'
       - '!gorilla-ui/**/*.md'
+      - cmd/gorilla/**
+      - pkg/config/**
+      - pkg/service/**
+      - integration/windows/**
       - Makefile
       - .github/workflows/windows-ui-test.yml
 
@@ -24,7 +32,7 @@ permissions:
 jobs:
   windows-ui-tests:
     name: Verify
-    runs-on: windows-2025
+    runs-on: windows-latest
     timeout-minutes: 30
     continue-on-error: true
     steps:
@@ -54,5 +62,5 @@ jobs:
         with:
           name: windows-ui-test-results
           path: |
-            gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/TestResults/**
-            gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/artifacts/**
+            build/windows-integration/ui-results/**
+            build/windows-integration/ui-artifacts/**

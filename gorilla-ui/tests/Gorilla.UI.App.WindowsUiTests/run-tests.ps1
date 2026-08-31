@@ -1,6 +1,8 @@
 param(
     [string]$ResultsDirectory = "$PSScriptRoot\TestResults",
     [string]$ArtifactsDirectory = "$PSScriptRoot\artifacts",
+    [string]$TestFilter = "",
+    [string]$ResultPrefix = "windows-ui-test",
     [int]$MaxAttempts = 1,
     [switch]$SkipBuild
 )
@@ -55,14 +57,20 @@ $env:WINDOWS_UI_TEST_ARTIFACTS_DIR = $ArtifactsDirectory
 
 for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     Write-Host "Windows UI test attempt $attempt/$MaxAttempts"
-    & dotnet test $testProject `
-        -c Release `
-        --no-build `
-        --logger "trx;LogFileName=windows-ui-test-attempt-$attempt.trx" `
-        --results-directory $ResultsDirectory
+    $testArgs = @(
+        "test", $testProject,
+        "-c", "Release",
+        "--no-build",
+        "--logger", "trx;LogFileName=$ResultPrefix-attempt-$attempt.trx",
+        "--results-directory", $ResultsDirectory
+    )
+    if (-not [string]::IsNullOrWhiteSpace($TestFilter)) {
+        $testArgs += @("--filter", $TestFilter)
+    }
 
+    & dotnet @testArgs
     if ($LASTEXITCODE -eq 0) {
-        exit 0
+        return
     }
 
     if ($attempt -lt $MaxAttempts) {

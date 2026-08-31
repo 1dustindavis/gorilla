@@ -46,8 +46,7 @@
                             <TextBlock
                                 Text="{Binding Status}"
                                 Opacity="0.7"
-                                AutomationProperties.AutomationId="ItemStatus"
-                                AutomationProperties.Name="{Binding Status}" />
+                                AutomationProperties.AutomationId="ItemStatus" />
                         </StackPanel>
                         <Button
                             Grid.Column="1"

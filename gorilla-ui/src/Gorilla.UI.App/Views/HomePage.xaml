@@ -11,11 +11,13 @@
             Text="Available Software"
             FontSize="28"
             FontWeight="SemiBold"
-            AutomationProperties.AutomationId="HomeHeading" />
+            AutomationProperties.AutomationId="HomeHeading"
+            AutomationProperties.HeadingLevel="Level1" />
 
         <TextBlock
             Grid.Row="1"
             Margin="0,8,0,0"
+            x:Name="ServiceWarning"
             Text="{Binding WarningBanner}"
             Foreground="DarkOrange"
             AutomationProperties.AutomationId="ServiceWarning"

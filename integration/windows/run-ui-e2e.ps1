@@ -33,6 +33,9 @@ $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $uiCachePath = Join-Path $root "ui-state\optional-installs-cache.json"
 $evidenceRoot = Join-Path $root "ui-evidence"
 
+Remove-Item -LiteralPath $evidenceRoot -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+
 if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $catalogPath)) {
     Write-Host "[INFO] Reusing Windows integration fixture preparation for UI E2E"
     & $prepareScript -WorkRoot $root
@@ -208,10 +211,15 @@ debug: true
         Write-Host "UI E2E scenario passed"
         return
     } catch {
-        $_ | Out-String | Set-Content -LiteralPath (Join-Path $attemptDirectory "harness-failure.txt")
-        Write-Warning "UI E2E scenario attempt $scenarioAttempt failed: $_"
+        $originalError = $_
+        try {
+            $originalError | Out-String | Set-Content -LiteralPath (Join-Path $attemptDirectory "harness-failure.txt")
+        } catch {
+            Write-Warning "Unable to capture UI E2E harness failure evidence: $_"
+        }
+        Write-Warning "UI E2E scenario attempt $scenarioAttempt failed: $originalError"
         if ($scenarioAttempt -ge $MaxAttempts) {
-            throw
+            throw $originalError
         }
         Start-Sleep -Seconds (15 * $scenarioAttempt)
     } finally {

@@ -176,6 +176,7 @@ func addServiceManagedInstalls(cfg config.Configuration, items []string) error {
 			entry.Installs = append(entry.Installs, item)
 		}
 	}
+	entry.Uninstalls = withoutItems(entry.Uninstalls, items)
 	slices.Sort(entry.Installs)
 
 	return saveServiceLocalManifest(cfg, entry)
@@ -187,14 +188,24 @@ func removeServiceManagedInstalls(cfg config.Configuration, items []string) erro
 		return err
 	}
 
-	filtered := make([]string, 0, len(entry.Installs))
-	for _, existing := range entry.Installs {
-		if !slices.Contains(items, existing) {
-			filtered = append(filtered, existing)
+	entry.Installs = withoutItems(entry.Installs, items)
+	for _, item := range items {
+		if !slices.Contains(entry.Uninstalls, item) {
+			entry.Uninstalls = append(entry.Uninstalls, item)
 		}
 	}
-	entry.Installs = filtered
+	slices.Sort(entry.Uninstalls)
 	return saveServiceLocalManifest(cfg, entry)
+}
+
+func withoutItems(existing, removed []string) []string {
+	filtered := make([]string, 0, len(existing))
+	for _, item := range existing {
+		if !slices.Contains(removed, item) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 func loadServiceLocalManifest(cfg config.Configuration) (manifest.Item, error) {
@@ -229,7 +240,6 @@ func saveServiceLocalManifest(cfg config.Configuration, entry manifest.Item) err
 	}
 
 	entry.Includes = nil
-	entry.Uninstalls = nil
 	entry.Updates = nil
 	entry.Catalogs = nil
 

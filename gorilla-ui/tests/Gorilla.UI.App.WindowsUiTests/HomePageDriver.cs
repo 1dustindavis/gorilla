@@ -1,5 +1,6 @@
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Exceptions;
 
 namespace Gorilla.UI.App.WindowsUiTests;
 
@@ -15,6 +16,7 @@ internal sealed class HomePageDriver
     public AutomationElement Heading => _session.WaitFor(() => ById("HomeHeading"));
     public AutomationElement ItemsList => _session.WaitFor(() => ById("ItemsList"));
     public AutomationElement ServiceWarning => _session.WaitFor(() => ById("ServiceWarning"));
+    public string WarningText => SafeName(ServiceWarning);
 
     public AutomationElement WaitForItem(string itemName)
     {
@@ -28,7 +30,7 @@ internal sealed class HomePageDriver
     {
         var item = WaitForItem(itemName);
         var status = _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("ItemStatus")));
-        return status.Name;
+        return SafeName(status);
     }
 
     public void WaitForItemStatus(string itemName, string expectedPrefix, TimeSpan? timeout = null)
@@ -42,7 +44,7 @@ internal sealed class HomePageDriver
     public void WaitForWarningContaining(string expected, TimeSpan? timeout = null)
     {
         _session.WaitUntil(
-            () => ServiceWarning.Name.Contains(expected, StringComparison.OrdinalIgnoreCase),
+            () => WarningText.Contains(expected, StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }
@@ -51,7 +53,7 @@ internal sealed class HomePageDriver
     {
         return _session.MainWindow
             .FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
-            .Any(text => text.Name.StartsWith("Operation failed", StringComparison.OrdinalIgnoreCase));
+            .Any(text => SafeName(text).StartsWith("Operation failed", StringComparison.OrdinalIgnoreCase));
     }
 
     private AutomationElement? ById(string automationId)
@@ -63,5 +65,17 @@ internal sealed class HomePageDriver
     {
         var item = WaitForItem(itemName);
         return _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsButton());
+    }
+
+    private static string SafeName(AutomationElement element)
+    {
+        try
+        {
+            return element.Name;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
     }
 }

@@ -26,9 +26,10 @@ $catalogPath = Join-Path $repoFixtureRoot "catalogs\integration.yaml"
 $manifestPath = Join-Path $repoFixtureRoot "manifests\ui-e2e.yaml"
 $configPath = Join-Path $fixtureRoot "configs\ui-e2e.yaml"
 $serviceName = "gorilla-ui-e2e"
+$servicePipeName = "gorilla-ui-e2e"
 $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
-$uiCachePath = Join-Path $env:LOCALAPPDATA "Gorilla\ui\optional-installs-cache.json"
+$uiCachePath = Join-Path $root "ui-state\optional-installs-cache.json"
 $resultsDirectory = Join-Path $root "ui-results"
 $artifactsDirectory = Join-Path $root "ui-artifacts"
 
@@ -122,7 +123,7 @@ for ($scenarioAttempt = 1; $scenarioAttempt -le $MaxAttempts; $scenarioAttempt++
         Remove-TestService
         Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $uiCachePath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
         New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $resultsDirectory, $artifactsDirectory -Force | Out-Null
 
         $serverPort = Get-Random -Minimum 19000 -Maximum 19999
@@ -142,10 +143,12 @@ catalogs:
   - integration
 app_data_path: C:/ProgramData/gorilla-ui-e2e
 service_name: $serviceName
-service_pipe_name: gorilla-service
+service_pipe_name: $servicePipeName
 service_interval: 24h
 "@ | Set-Content -LiteralPath $configPath -NoNewline
 
+        $env:GORILLA_UI_PIPE_NAME = $servicePipeName
+        $env:GORILLA_UI_CACHE_PATH = $uiCachePath
         $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
         $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
 

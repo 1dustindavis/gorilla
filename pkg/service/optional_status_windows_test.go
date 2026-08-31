@@ -22,6 +22,7 @@ func TestBuildOptionalInstallResponseItemsReturnsAuthoritativeStatusAndMetadata(
 	item := catalog.Item{
 		DisplayName: "Fixture App",
 		Version:     "1.2.3",
+		Check:       catalog.InstallCheck{Script: "exit 0"},
 		Installer: catalog.InstallerItem{
 			Type:      "ps1",
 			PackageID: "fixture-package",
@@ -64,10 +65,36 @@ func TestBuildOptionalInstallResponseItemsKeepsUnknownWhenStatusCheckFails(t *te
 
 	cfg := config.Configuration{Catalogs: []string{"apps"}}
 	optionalInstallCatalogGet = func(config.Configuration) (map[int]map[string]catalog.Item, error) {
-		return map[int]map[string]catalog.Item{1: {"Fixture": {DisplayName: "Fixture"}}}, nil
+		return map[int]map[string]catalog.Item{1: {"Fixture": {DisplayName: "Fixture", Check: catalog.InstallCheck{Script: "exit 0"}}}}, nil
 	}
 	optionalInstallStatusCheck = func(catalog.Item, string, string) (bool, error) {
 		return false, errors.New("status unavailable")
+	}
+
+	items, err := buildOptionalInstallResponseItems(cfg, []string{"Fixture"})
+	if err != nil {
+		t.Fatalf("build optional items: %v", err)
+	}
+	if items[0].IsInstalled || items[0].Status != "Unknown" {
+		t.Fatalf("expected unknown status, got installed=%v status=%q", items[0].IsInstalled, items[0].Status)
+	}
+}
+
+func TestBuildOptionalInstallResponseItemsKeepsUnknownWithoutStatusCheck(t *testing.T) {
+	originalCatalogGet := optionalInstallCatalogGet
+	originalStatusCheck := optionalInstallStatusCheck
+	t.Cleanup(func() {
+		optionalInstallCatalogGet = originalCatalogGet
+		optionalInstallStatusCheck = originalStatusCheck
+	})
+
+	cfg := config.Configuration{Catalogs: []string{"apps"}}
+	optionalInstallCatalogGet = func(config.Configuration) (map[int]map[string]catalog.Item, error) {
+		return map[int]map[string]catalog.Item{1: {"Fixture": {DisplayName: "Fixture"}}}, nil
+	}
+	optionalInstallStatusCheck = func(catalog.Item, string, string) (bool, error) {
+		t.Fatal("status checker should not run without a configured check")
+		return false, nil
 	}
 
 	items, err := buildOptionalInstallResponseItems(cfg, []string{"Fixture"})

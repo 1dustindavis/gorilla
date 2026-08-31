@@ -1,13 +1,26 @@
 name: Build Release
 
-# Trigger on every main branch push
+# Every main branch push creates a patch prerelease. Stable releases are cut manually.
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      stable_version:
+        description: "Stable version to release (for example, 2.30.0)"
+        required: true
+        type: string
+
+# Serialize release publication and retain rapid main pushes instead of replacing them.
+concurrency:
+  group: gorilla-release-publication
+  queue: max
 
 permissions:
+  actions: read
   contents: write
+  pull-requests: read
   id-token: write
 
 env:
@@ -24,6 +37,14 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    - name: Require main for stable releases
+      if: github.event_name == 'workflow_dispatch'
+      shell: pwsh
+      run: |
+        if ("${{ github.ref }}" -ne "refs/heads/main") {
+          throw "Stable releases must be run from the main branch."
+        }
+
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -65,22 +86,122 @@ jobs:
         $vers=((go version) -replace "go version go", "" -replace " windows/amd64" )
         echo "GO_VERSION=${vers}" >> $Env:GITHUB_ENV
 
-    - name: Create version tag
-      id: create_tag
-      uses: paulhatch/semantic-version@v6.0.2
-      with:
-        tag_prefix: "v"
-        major_pattern: "(MAJOR)"
-        minor_pattern: "/[\\s]*/"
-        version_format: "${major}.${minor}"
-        namespace: ''
-        bump_each_commit: false
+    - name: Compute automatic prerelease version
+      if: github.event_name == 'push'
+      shell: pwsh
+      env:
+        PREVIOUS_MAIN_SHA: ${{ github.event.before }}
+      run: |
+        # Allocate exactly one patch version for this main-push release. This is
+        # intentionally independent of how many commits the merged PR contains.
+        $latestTag = git tag --list |
+          ForEach-Object {
+            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              [pscustomobject]@{
+                Tag = $_
+                Version = [version]($Matches[1..3] -join '.')
+              }
+            }
+          } |
+          Sort-Object Version -Descending |
+          Select-Object -First 1
+
+        if ($null -eq $latestTag) {
+          throw "No existing vX.Y.Z version tag found."
+        }
+
+        # GitHub's queued concurrency ordering is not guaranteed to match dispatch
+        # ordering. The preceding main commit must already be the latest released
+        # commit; otherwise fail safely and rerun after its release completes.
+        $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
+        if ($latestTaggedCommit -ne $Env:PREVIOUS_MAIN_SHA) {
+          throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
+        }
+
+        if ($latestTag.Version.Build -ge 65535) {
+          throw "Patch version cannot exceed the MSIX version segment limit of 65535."
+        }
+        $nextVersion = [version]::new(
+          $latestTag.Version.Major,
+          $latestTag.Version.Minor,
+          $latestTag.Version.Build + 1
+        )
+        "RELEASE_TAG=v$nextVersion" >> $Env:GITHUB_ENV
+        Write-Host "Next prerelease: v$nextVersion"
+
+    - name: Set stable release metadata
+      if: github.event_name == 'workflow_dispatch'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        STABLE_VERSION: ${{ inputs.stable_version }}
+      run: |
+        $versionText = $Env:STABLE_VERSION.Trim()
+        if ($versionText -notmatch '^\d+\.\d+\.0$') {
+          throw "Stable version must use X.Y.0 format, for example 2.30.0."
+        }
+
+        $headers = @{
+          Accept = "application/vnd.github+json"
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          "X-GitHub-Api-Version" = "2022-11-28"
+        }
+
+        # A stable release is only valid once the current main commit has already
+        # completed its automatic prerelease. This prevents a manual release from
+        # overtaking a main push whose release run has not published yet.
+        $latestTag = git tag --list |
+          ForEach-Object {
+            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              [pscustomobject]@{
+                Tag = $_
+                Version = [version]($Matches[1..3] -join '.')
+              }
+            }
+          } |
+          Sort-Object Version -Descending |
+          Select-Object -First 1
+        if ($null -eq $latestTag) {
+          throw "No existing vX.Y.Z version tag found."
+        }
+        $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
+        if ($latestTaggedCommit -ne $Env:GITHUB_SHA) {
+          throw "Current main commit $Env:GITHUB_SHA has not completed its prerelease yet. Wait for Build Release to finish, then retry the stable release."
+        }
+
+        # Refuse a stable release if a push release is queued behind it. This
+        # covers GitHub's documented lack of dispatch-order guarantees.
+        $activePushRuns = @()
+        foreach ($status in @('queued', 'pending', 'waiting', 'requested')) {
+          $uri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=$status&per_page=100"
+          $response = Invoke-RestMethod -Uri $uri -Headers $headers
+          $activePushRuns += @($response.workflow_runs)
+        }
+        if ($activePushRuns.Count -gt 0) {
+          throw "One or more automatic prerelease runs are still queued. Wait for Build Release to become idle, then retry the stable release."
+        }
+
+        $requestedVersion = [version]$versionText
+        $releaseTag = "v$versionText"
+        if (git tag --list $releaseTag) {
+          throw "Tag $releaseTag already exists."
+        }
+        if ($requestedVersion -le $latestTag.Version) {
+          throw "Stable version $versionText must be newer than existing version $($latestTag.Version)."
+        }
+
+        $latestStable = Invoke-RestMethod `
+          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/releases/latest" `
+          -Headers $headers
+
+        "RELEASE_TAG=$releaseTag" >> $Env:GITHUB_ENV
+        "PREVIOUS_STABLE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
 
     - name: Compute MSIX version from release tag
       run: |
-        $releaseTag = "${{ steps.create_tag.outputs.version_tag }}"
+        $releaseTag = "$Env:RELEASE_TAG"
         if ([string]::IsNullOrWhiteSpace($releaseTag)) {
-          throw "Release tag output is empty."
+          throw "Release tag is empty."
         }
 
         $normalized = $releaseTag -replace '^v', ''
@@ -133,7 +254,7 @@ jobs:
       run: |
         go build -v -ldflags="`
           -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla`
-          -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }}`
+          -X github.com/1dustindavis/gorilla/pkg/version.version=${{ env.RELEASE_TAG }}`
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
           -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
@@ -248,11 +369,55 @@ jobs:
         path: ./build/Gorilla.UI.App.msix
         if-no-files-found: error
 
-    - name: Cut release
+    - name: Prepare prerelease notes
+      if: github.event_name == 'push'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $headers = @{
+          Accept = "application/vnd.github+json"
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          "X-GitHub-Api-Version" = "2022-11-28"
+        }
+        $pulls = @(Invoke-RestMethod `
+          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/commits/$Env:GITHUB_SHA/pulls" `
+          -Headers $headers)
+        $pr = $pulls |
+          Where-Object { $_.merged_at -and $_.base.ref -eq 'main' } |
+          Sort-Object number -Descending |
+          Select-Object -First 1
+
+        if ($null -ne $pr) {
+          "- $($pr.title) (#$($pr.number))" | Set-Content -Path release-notes.md -Encoding utf8
+        } else {
+          $title = git log -1 --pretty=format:"%s"
+          "- $title" | Set-Content -Path release-notes.md -Encoding utf8
+        }
+
+    - name: Cut prerelease
+      if: github.event_name == 'push'
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: false
         prerelease: true
+        makeLatest: false
+        bodyFile: release-notes.md
         artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
-        tag: ${{ steps.create_tag.outputs.version_tag }}
+        commit: ${{ github.sha }}
+        tag: ${{ env.RELEASE_TAG }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Cut stable release
+      if: github.event_name == 'workflow_dispatch'
+      uses: ncipollo/release-action@v1
+      with:
+        allowUpdates: false
+        prerelease: false
+        makeLatest: true
+        generateReleaseNotes: true
+        generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        commit: ${{ github.sha }}
+        tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

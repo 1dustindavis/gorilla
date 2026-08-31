@@ -229,7 +229,7 @@ internal sealed class GorillaAppSession : IDisposable
     {
         try
         {
-            return value();
+            return value() ?? "<null>";
         }
         catch (Exception ex)
         {

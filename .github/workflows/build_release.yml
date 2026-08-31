@@ -1,10 +1,16 @@
 name: Build Release
 
-# Trigger on every main branch push
+# Every main branch push creates a patch prerelease. Stable releases are cut manually.
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      stable_version:
+        description: "Stable version to release (for example, 2.30.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -24,6 +30,14 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    - name: Require main for stable releases
+      if: github.event_name == 'workflow_dispatch'
+      shell: pwsh
+      run: |
+        if ("${{ github.ref }}" -ne "refs/heads/main") {
+          throw "Stable releases must be run from the main branch."
+        }
+
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
@@ -65,22 +79,75 @@ jobs:
         $vers=((go version) -replace "go version go", "" -replace " windows/amd64" )
         echo "GO_VERSION=${vers}" >> $Env:GITHUB_ENV
 
-    - name: Create version tag
+    - name: Compute automatic prerelease version
+      if: github.event_name == 'push'
       id: create_tag
       uses: paulhatch/semantic-version@v6.0.2
       with:
         tag_prefix: "v"
-        major_pattern: "(MAJOR)"
-        minor_pattern: "/[\\s]*/"
-        version_format: "${major}.${minor}"
+        major_pattern: "__NO_AUTOMATIC_MAJOR_BUMP__"
+        minor_pattern: "__NO_AUTOMATIC_MINOR_BUMP__"
+        version_format: "${major}.${minor}.${patch}"
         namespace: ''
-        bump_each_commit: false
+        bump_each_commit: true
+
+    - name: Set automatic prerelease metadata
+      if: github.event_name == 'push'
+      shell: pwsh
+      run: |
+        "RELEASE_TAG=${{ steps.create_tag.outputs.version_tag }}" >> $Env:GITHUB_ENV
+        "PREVIOUS_RELEASE_TAG=v${{ steps.create_tag.outputs.previous_version }}" >> $Env:GITHUB_ENV
+        "IS_PRERELEASE=true" >> $Env:GITHUB_ENV
+        "MAKE_LATEST=false" >> $Env:GITHUB_ENV
+
+    - name: Set stable release metadata
+      if: github.event_name == 'workflow_dispatch'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        STABLE_VERSION: ${{ inputs.stable_version }}
+      run: |
+        $versionText = $Env:STABLE_VERSION.Trim()
+        if ($versionText -notmatch '^\d+\.\d+\.0$') {
+          throw "Stable version must use X.Y.0 format, for example 2.30.0."
+        }
+
+        $requestedVersion = [version]$versionText
+        $releaseTag = "v$versionText"
+        if (git tag --list $releaseTag) {
+          throw "Tag $releaseTag already exists."
+        }
+
+        $latestVersion = git tag --list 'v[0-9]*.[0-9]*.[0-9]*' |
+          ForEach-Object {
+            $parsed = $null
+            if ([version]::TryParse($_.Substring(1), [ref]$parsed)) { $parsed }
+          } |
+          Sort-Object -Descending |
+          Select-Object -First 1
+        if ($null -ne $latestVersion -and $requestedVersion -le $latestVersion) {
+          throw "Stable version $versionText must be newer than existing version $latestVersion."
+        }
+
+        $headers = @{
+          Accept = "application/vnd.github+json"
+          Authorization = "Bearer $Env:GITHUB_TOKEN"
+          "X-GitHub-Api-Version" = "2022-11-28"
+        }
+        $latestStable = Invoke-RestMethod `
+          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/releases/latest" `
+          -Headers $headers
+
+        "RELEASE_TAG=$releaseTag" >> $Env:GITHUB_ENV
+        "PREVIOUS_RELEASE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
+        "IS_PRERELEASE=false" >> $Env:GITHUB_ENV
+        "MAKE_LATEST=true" >> $Env:GITHUB_ENV
 
     - name: Compute MSIX version from release tag
       run: |
-        $releaseTag = "${{ steps.create_tag.outputs.version_tag }}"
+        $releaseTag = "$Env:RELEASE_TAG"
         if ([string]::IsNullOrWhiteSpace($releaseTag)) {
-          throw "Release tag output is empty."
+          throw "Release tag is empty."
         }
 
         $normalized = $releaseTag -replace '^v', ''
@@ -133,7 +200,7 @@ jobs:
       run: |
         go build -v -ldflags="`
           -X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla`
-          -X github.com/1dustindavis/gorilla/pkg/version.version=${{ steps.create_tag.outputs.version_tag }}`
+          -X github.com/1dustindavis/gorilla/pkg/version.version=${{ env.RELEASE_TAG }}`
           -X github.com/1dustindavis/gorilla/pkg/version.branch=${{ env.CURRENT_BRANCH }}`
           -X github.com/1dustindavis/gorilla/pkg/version.buildDate=$(Get-Date -format s)`
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
@@ -252,7 +319,11 @@ jobs:
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: false
-        prerelease: true
+        prerelease: ${{ env.IS_PRERELEASE }}
+        makeLatest: ${{ env.MAKE_LATEST }}
+        generateReleaseNotes: true
+        generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_RELEASE_TAG }}
         artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
-        tag: ${{ steps.create_tag.outputs.version_tag }}
+        commit: ${{ github.sha }}
+        tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

@@ -8,6 +8,10 @@ on:
     types:
       - completed
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: read
@@ -25,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
@@ -44,7 +48,7 @@ jobs:
 
       - name: Download gorilla.exe from Build Release run artifact
         if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -87,7 +91,7 @@ jobs:
 
       - name: Upload integration failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: released-binary-integration-failure-${{ github.run_id }}
           path: |

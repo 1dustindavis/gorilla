@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Configure Go cache paths
         shell: pwsh
@@ -54,7 +54,7 @@ jobs:
             -Destination "$workRoot\fixture\tools\gorilla-it-sideload.cer"
 
       - name: Upload integration fixtures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: gorilla-release-fixtures
           path: ${{ runner.temp }}/gorilla-release-integration/fixture

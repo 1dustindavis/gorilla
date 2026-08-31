@@ -96,9 +96,6 @@ jobs:
       shell: pwsh
       run: |
         "RELEASE_TAG=${{ steps.create_tag.outputs.version_tag }}" >> $Env:GITHUB_ENV
-        "PREVIOUS_RELEASE_TAG=v${{ steps.create_tag.outputs.previous_version }}" >> $Env:GITHUB_ENV
-        "IS_PRERELEASE=true" >> $Env:GITHUB_ENV
-        "MAKE_LATEST=false" >> $Env:GITHUB_ENV
 
     - name: Set stable release metadata
       if: github.event_name == 'workflow_dispatch'
@@ -120,8 +117,7 @@ jobs:
 
         $latestVersion = git tag --list 'v[0-9]*.[0-9]*.[0-9]*' |
           ForEach-Object {
-            $parsed = $null
-            if ([version]::TryParse($_.Substring(1), [ref]$parsed)) { $parsed }
+            try { [version]($_.Substring(1)) } catch { }
           } |
           Sort-Object -Descending |
           Select-Object -First 1
@@ -139,9 +135,7 @@ jobs:
           -Headers $headers
 
         "RELEASE_TAG=$releaseTag" >> $Env:GITHUB_ENV
-        "PREVIOUS_RELEASE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
-        "IS_PRERELEASE=false" >> $Env:GITHUB_ENV
-        "MAKE_LATEST=true" >> $Env:GITHUB_ENV
+        "PREVIOUS_STABLE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
 
     - name: Compute MSIX version from release tag
       run: |
@@ -315,14 +309,35 @@ jobs:
         path: ./build/Gorilla.UI.App.msix
         if-no-files-found: error
 
-    - name: Cut release
+    - name: Prepare prerelease notes
+      if: github.event_name == 'push'
+      shell: pwsh
+      run: |
+        $title = git log -1 --pretty=format:"%s"
+        "- $title" | Set-Content -Path release-notes.md -Encoding utf8
+
+    - name: Cut prerelease
+      if: github.event_name == 'push'
       uses: ncipollo/release-action@v1
       with:
         allowUpdates: false
-        prerelease: ${{ env.IS_PRERELEASE }}
-        makeLatest: ${{ env.MAKE_LATEST }}
+        prerelease: true
+        makeLatest: false
+        bodyFile: release-notes.md
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        commit: ${{ github.sha }}
+        tag: ${{ env.RELEASE_TAG }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Cut stable release
+      if: github.event_name == 'workflow_dispatch'
+      uses: ncipollo/release-action@v1
+      with:
+        allowUpdates: false
+        prerelease: false
+        makeLatest: true
         generateReleaseNotes: true
-        generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_RELEASE_TAG }}
+        generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
         artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}

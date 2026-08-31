@@ -53,8 +53,44 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Run FlaUI Windows UI validation
+        id: ui-e2e
         shell: pwsh
         run: make ui-e2e UI_E2E_MAX_ATTEMPTS=3
+
+      - name: Summarize Windows UI evidence
+        if: always()
+        shell: pwsh
+        run: |
+          try {
+            $evidenceRoot = Join-Path $PWD 'build/windows-integration/ui-evidence'
+            $attempts = @()
+            if (Test-Path $evidenceRoot) {
+              $attempts = @(Get-ChildItem $evidenceRoot -Directory -Filter 'attempt-*' -ErrorAction SilentlyContinue)
+            }
+
+            $attemptCount = $attempts.Count
+            $outcome = '${{ steps.ui-e2e.outcome }}'
+
+            @"
+          ## Windows UI evidence
+
+          **UI E2E outcome:** `$outcome`  
+          **Attempts captured:** `$attemptCount`  
+          **Artifact:** `windows-ui-evidence`
+
+          Download `windows-ui-evidence` from this workflow run's **Artifacts** section. Start with:
+
+          1. `attempt-1/healthy/screenshots/` and `attempt-1/service-unavailable/screenshots/` to see what actually rendered.
+          2. `automation-tree.txt` to inspect the UI Automation hierarchy and exposed state.
+          3. `tests-attempt-*.trx` to identify failing tests and test context.
+          4. `ui-client.log` and `gorilla.log` to correlate client/service requests and operations.
+          5. `process-info.txt` and `service-info.txt` for process, exit, and service state.
+
+          If multiple attempts were captured, inspect the **earliest failed attempt first**; later retries may have succeeded after the original failure.
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          } catch {
+            Write-Warning "Unable to write Windows UI evidence summary: $($_.Exception.Message)"
+          }
 
       - name: Upload Windows UI evidence bundle
         if: always()

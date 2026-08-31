@@ -30,6 +30,12 @@
             ItemsSource="{Binding Items}"
             AutomationProperties.AutomationId="ItemsList"
             AutomationProperties.Name="Available software">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="AutomationProperties.AutomationId" Value="{Binding ItemName}" />
+                    <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid ColumnDefinitions="*,Auto,Auto" Padding="0,8">

@@ -87,6 +87,58 @@ public class ContractsSmokeTests
     }
 
     [Fact]
+    public void ValidateOperationAccepted_RejectsMissingOperationIdWhenAccepted()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: true,
+            QueuedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z")
+        );
+
+        var ex = Assert.Throws<ProtocolValidationException>(
+            () => ProtocolValidation.ValidateOperationAccepted(string.Empty, payload)
+        );
+
+        Assert.Contains("operationId", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateOperationAccepted_RejectsMissingQueuedAtUtcWhenAccepted()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: true,
+            QueuedAtUtc: default
+        );
+
+        var ex = Assert.Throws<ProtocolValidationException>(
+            () => ProtocolValidation.ValidateOperationAccepted("op-1", payload)
+        );
+
+        Assert.Contains("queuedAtUtc", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateOperationAccepted_AllowsCompleteAcceptedResponse()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: true,
+            QueuedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z")
+        );
+
+        ProtocolValidation.ValidateOperationAccepted("op-1", payload);
+    }
+
+    [Fact]
+    public void ValidateOperationAccepted_AllowsRejectedResponseWithoutOperationMetadata()
+    {
+        var payload = new OperationAcceptedResponse(
+            Accepted: false,
+            QueuedAtUtc: default
+        );
+
+        ProtocolValidation.ValidateOperationAccepted(string.Empty, payload);
+    }
+
+    [Fact]
     public void HandleErrorEnvelopeIfPresent_NullPayload_ThrowsProtocolError()
     {
         using var doc = JsonDocument.Parse(

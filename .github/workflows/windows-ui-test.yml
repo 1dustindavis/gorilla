@@ -70,24 +70,24 @@ jobs:
 
             $attemptCount = $attempts.Count
             $outcome = '${{ steps.ui-e2e.outcome }}'
-
-            @"
-          ## Windows UI evidence
-
-          **UI E2E outcome:** $outcome  
-          **Attempts captured:** $attemptCount  
-          **Artifact:** `windows-ui-evidence`
-
-          Download `windows-ui-evidence` from this workflow run's **Artifacts** section. Start with:
-
-          1. `attempt-1/healthy/screenshots/` and `attempt-1/service-unavailable/screenshots/` to see what actually rendered.
-          2. `automation-tree.txt` to inspect the UI Automation hierarchy and exposed state.
-          3. `tests-attempt-*.trx` to identify failing tests and test context.
-          4. `ui-client.log` and `gorilla.log` to correlate client/service requests and operations.
-          5. `process-info.txt` and `service-info.txt` for process, exit, and service state.
-
-          If multiple attempts were captured, inspect the **earliest failed attempt first**; later retries may have succeeded after the original failure.
-          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            $summary = @(
+              '## Windows UI evidence'
+              ''
+              ('**UI E2E outcome:** {0}  ' -f $outcome)
+              ('**Attempts captured:** {0}  ' -f $attemptCount)
+              '**Artifact:** `windows-ui-evidence`'
+              ''
+              'Download `windows-ui-evidence` from this workflow run''s **Artifacts** section. Start with:'
+              ''
+              '1. `attempt-1/healthy/screenshots/` and `attempt-1/service-unavailable/screenshots/` to see what actually rendered.'
+              '2. `automation-tree.txt` to inspect the UI Automation hierarchy and exposed state.'
+              '3. `tests-attempt-*.trx` to identify failing tests and test context.'
+              '4. `ui-client.log` and `gorilla.log` to correlate client/service requests and operations.'
+              '5. `process-info.txt` and `service-info.txt` for process, exit, and service state.'
+              ''
+              'If multiple attempts were captured, inspect the **earliest failed attempt first**; later retries may have succeeded after the original failure.'
+            )
+            $summary | Add-Content -Path $env:GITHUB_STEP_SUMMARY
           } catch {
             Write-Warning "Unable to write Windows UI evidence summary: $($_.Exception.Message)"
           }

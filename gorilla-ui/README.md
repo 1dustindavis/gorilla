@@ -42,6 +42,15 @@ Validation commands:
       - `dotnet test gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release`
 - Optional local autofix: use `dotnet format` against the relevant portable project.
 
+UI automation and accessibility contract:
+- Interactive and diagnostically important WinUI controls that are part of automated tests use explicit `AutomationProperties.AutomationId` values.
+- Automation IDs are stable machine-facing identifiers and are treated as a compatibility surface for tests. Renaming or removing one requires updating and reviewing the affected automation contract.
+- FlaUI selectors should prefer automation properties over visible text, screen position, or layout. Visible text selectors are appropriate when the text itself is the behavior being validated.
+- Each generated optional-install `ListViewItem` uses the protocol-level `ItemName` as its stable automation ID and the human-facing `DisplayName` as its accessible name. Automation should scope to that item container before locating repeated child controls.
+- Repeated controls inside an item template use stable IDs such as `InstallButton` and `RemoveButton`; do not generate their IDs from changing item data.
+- Automation IDs do not replace accessibility metadata. Controls should continue to expose meaningful accessible names, roles, focus/keyboard behavior, and state/value semantics.
+- The current home automation surface includes `HomeHeading`, `ServiceWarning`, `ItemsList`, item containers identified by `ItemName`, `ItemStatus`, `InstallButton`, and `RemoveButton`. Add similarly intentional IDs as new interactive or diagnostically important UI is introduced.
+
 Signed package workflow (Windows VMs):
 - Build VM:
   - Run from repo root (`gorilla/`).

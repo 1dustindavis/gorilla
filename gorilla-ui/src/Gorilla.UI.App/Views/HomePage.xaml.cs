@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Gorilla.UI.App.Views;
@@ -10,6 +11,7 @@ namespace Gorilla.UI.App.Views;
 public sealed partial class HomePage : Page, IDisposable
 {
     private CancellationTokenSource? _cts;
+    private long _serviceWarningTextChangedToken;
 
     public HomeViewModel ViewModel { get; }
 
@@ -20,6 +22,10 @@ public sealed partial class HomePage : Page, IDisposable
         DataContext = ViewModel;
         Loaded += HomePage_Loaded;
         Unloaded += HomePage_Unloaded;
+        _serviceWarningTextChangedToken = ServiceWarning.RegisterPropertyChangedCallback(
+            TextBlock.TextProperty,
+            ServiceWarning_TextChanged
+        );
     }
 
     private async void HomePage_Loaded(object sender, RoutedEventArgs e)
@@ -32,6 +38,18 @@ public sealed partial class HomePage : Page, IDisposable
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
     {
         ResetCancellation();
+    }
+
+    private void ServiceWarning_TextChanged(DependencyObject sender, DependencyProperty dp)
+    {
+        if (string.IsNullOrWhiteSpace(ServiceWarning.Text))
+        {
+            return;
+        }
+
+        var peer = FrameworkElementAutomationPeer.FromElement(ServiceWarning)
+            ?? FrameworkElementAutomationPeer.CreatePeerForElement(ServiceWarning);
+        peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
@@ -96,6 +114,14 @@ public sealed partial class HomePage : Page, IDisposable
     {
         Loaded -= HomePage_Loaded;
         Unloaded -= HomePage_Unloaded;
+        if (_serviceWarningTextChangedToken != 0)
+        {
+            ServiceWarning.UnregisterPropertyChangedCallback(
+                TextBlock.TextProperty,
+                _serviceWarningTextChangedToken
+            );
+            _serviceWarningTextChangedToken = 0;
+        }
         ResetCancellation();
     }
 

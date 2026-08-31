@@ -29,9 +29,9 @@ $serviceName = "gorilla-ui-e2e"
 $servicePipeName = "gorilla-ui-e2e"
 $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
+$serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $uiCachePath = Join-Path $root "ui-state\optional-installs-cache.json"
-$resultsDirectory = Join-Path $root "ui-results"
-$artifactsDirectory = Join-Path $root "ui-artifacts"
+$evidenceRoot = Join-Path $root "ui-evidence"
 
 if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $catalogPath)) {
     Write-Host "[INFO] Reusing Windows integration fixture preparation for UI E2E"
@@ -100,6 +100,33 @@ function Remove-TestService {
     throw "Timed out removing E2E service '$serviceName'"
 }
 
+function Copy-PhaseServiceEvidence {
+    param([Parameter(Mandatory)][string]$PhaseDirectory)
+
+    try {
+        if (Test-Path -LiteralPath $serviceLogPath) {
+            Copy-Item -LiteralPath $serviceLogPath -Destination (Join-Path $PhaseDirectory "gorilla.log") -Force
+        }
+    } catch {
+        Write-Warning "Unable to copy Gorilla service log: $_"
+    }
+
+    try {
+        $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+        if ($service) {
+            @(
+                "Name: $($service.Name)",
+                "State: $($service.State)",
+                "Status: $($service.Status)",
+                "ProcessId: $($service.ProcessId)",
+                "PathName: $($service.PathName)"
+            ) | Set-Content -LiteralPath (Join-Path $PhaseDirectory "service-info.txt")
+        }
+    } catch {
+        Write-Warning "Unable to capture Gorilla service process information: $_"
+    }
+}
+
 function Invoke-TestPhase {
     param(
         [Parameter(Mandatory)][string]$Phase,
@@ -107,24 +134,36 @@ function Invoke-TestPhase {
         [Parameter(Mandatory)][int]$Attempt
     )
 
-    & $uiTestScript `
-        -ResultsDirectory $resultsDirectory `
-        -ArtifactsDirectory $artifactsDirectory `
-        -TestFilter $Filter `
-        -ResultPrefix "windows-ui-$($Phase.ToLowerInvariant())-scenario-$Attempt" `
-        -MaxAttempts 1 `
-        -SkipBuild
+    $phaseDirectory = Join-Path (Join-Path $evidenceRoot "attempt-$Attempt") $Phase
+    New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
+
+    $env:GORILLA_UI_DEBUG = "1"
+    $env:GORILLA_UI_LOG_PATH = Join-Path $phaseDirectory "ui-client.log"
+    try {
+        & $uiTestScript `
+            -ResultsDirectory $phaseDirectory `
+            -ArtifactsDirectory $phaseDirectory `
+            -TestFilter $Filter `
+            -ResultPrefix "tests" `
+            -MaxAttempts 1 `
+            -SkipBuild
+    } finally {
+        Copy-PhaseServiceEvidence -PhaseDirectory $phaseDirectory
+        Remove-Item Env:GORILLA_UI_LOG_PATH -ErrorAction SilentlyContinue
+    }
 }
 
 for ($scenarioAttempt = 1; $scenarioAttempt -le $MaxAttempts; $scenarioAttempt++) {
     Write-Host "UI E2E scenario attempt $scenarioAttempt/$MaxAttempts"
+    $attemptDirectory = Join-Path $evidenceRoot "attempt-$scenarioAttempt"
+    New-Item -ItemType Directory -Path $attemptDirectory -Force | Out-Null
     $serverProc = $null
     try {
         Remove-TestService
         Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $resultsDirectory, $artifactsDirectory -Force | Out-Null
+        New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $evidenceRoot -Force | Out-Null
 
         $serverPort = Get-Random -Minimum 19000 -Maximum 19999
         $serverProc = Start-Process -FilePath $serverExe `
@@ -145,6 +184,7 @@ app_data_path: C:/ProgramData/gorilla-ui-e2e
 service_name: $serviceName
 service_pipe_name: $servicePipeName
 service_interval: 24h
+debug: true
 "@ | Set-Content -LiteralPath $configPath -NoNewline
 
         $env:GORILLA_UI_PIPE_NAME = $servicePipeName
@@ -168,6 +208,7 @@ service_interval: 24h
         Write-Host "UI E2E scenario passed"
         return
     } catch {
+        $_ | Out-String | Set-Content -LiteralPath (Join-Path $attemptDirectory "harness-failure.txt")
         Write-Warning "UI E2E scenario attempt $scenarioAttempt failed: $_"
         if ($scenarioAttempt -ge $MaxAttempts) {
             throw

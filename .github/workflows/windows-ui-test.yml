@@ -56,11 +56,10 @@ jobs:
         shell: pwsh
         run: make ui-e2e UI_E2E_MAX_ATTEMPTS=3
 
-      - name: Upload Windows UI test artifacts
+      - name: Upload Windows UI evidence bundle
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-ui-test-results
-          path: |
-            build/windows-integration/ui-results/**
-            build/windows-integration/ui-artifacts/**
+          name: windows-ui-evidence
+          path: build/windows-integration/ui-evidence/**
+          if-no-files-found: warn

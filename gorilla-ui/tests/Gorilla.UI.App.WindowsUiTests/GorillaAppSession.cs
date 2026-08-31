@@ -120,12 +120,17 @@ internal sealed class GorillaAppSession : IDisposable
 
     public void CaptureAutomationTree(string fileName = "automation-tree.txt")
     {
-        BestEffort(() =>
+        var builder = new StringBuilder();
+        builder.AppendLine("UI Automation tree");
+        try
         {
-            var builder = new StringBuilder();
             AppendAutomationElement(builder, MainWindow, 0);
-            File.WriteAllText(Path.Combine(_artifactsDirectory, fileName), builder.ToString());
-        });
+        }
+        catch (Exception ex)
+        {
+            builder.Append("TreeCaptureError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
+        }
+        BestEffort(() => File.WriteAllText(Path.Combine(_artifactsDirectory, fileName), builder.ToString()));
     }
 
     public void CaptureProcessInfo(string fileName = "process-info.txt")
@@ -185,13 +190,21 @@ internal sealed class GorillaAppSession : IDisposable
         {
             children = element.FindAllChildren();
         }
-        catch
+        catch (Exception ex)
         {
+            builder.Append(indent).Append("  ChildrenError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
             return;
         }
         foreach (var child in children)
         {
-            AppendAutomationElement(builder, child, depth + 1);
+            try
+            {
+                AppendAutomationElement(builder, child, depth + 1);
+            }
+            catch (Exception ex)
+            {
+                builder.Append(indent).Append("  ChildError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
+            }
         }
     }
 

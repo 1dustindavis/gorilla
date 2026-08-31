@@ -51,6 +51,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             requestEnvelope,
             cancellationToken
         );
+        ProtocolValidation.ValidateOperationAccepted(responseEnvelope.OperationId, responseEnvelope.Payload);
 
         return new OperationAccepted(
             OperationId: responseEnvelope.OperationId,
@@ -72,6 +73,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             requestEnvelope,
             cancellationToken
         );
+        ProtocolValidation.ValidateOperationAccepted(responseEnvelope.OperationId, responseEnvelope.Payload);
 
         return new OperationAccepted(
             OperationId: responseEnvelope.OperationId,

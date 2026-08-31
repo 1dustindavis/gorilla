@@ -59,6 +59,10 @@ public sealed partial class HomePage : Page, IDisposable
         ContainerContentChangingEventArgs args
     )
     {
+        if (!ReferenceEquals(sender, ItemsList))
+        {
+            return;
+        }
         if (args.ItemContainer is null || args.Item is not UiOptionalInstallItem item)
         {
             return;

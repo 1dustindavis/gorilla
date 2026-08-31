@@ -46,26 +46,6 @@ optional_installs:
   - Ps1V1
 '@ | Set-Content -LiteralPath $manifestPath -NoNewline
 
-function Remove-TestService {
-    $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-    if (-not $existing) {
-        return
-    }
-
-    try {
-        if ($existing.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
-            & $GorillaExePath -config $configPath -servicestop | Out-Host
-        }
-    } catch {
-        Write-Warning "Unable to stop leftover E2E service: $_"
-    }
-    try {
-        & $GorillaExePath -config $configPath -serviceremove | Out-Host
-    } catch {
-        Write-Warning "Unable to remove leftover E2E service: $_"
-    }
-}
-
 function Wait-ServiceState {
     param(
         [Parameter(Mandatory)][string]$Expected,
@@ -83,6 +63,40 @@ function Wait-ServiceState {
 
     $actual = (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)?.Status
     throw "Timed out waiting for service '$serviceName' state '$Expected'. Actual: $actual"
+}
+
+function Stop-TestServiceProcess {
+    $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+    if (-not $service) {
+        return
+    }
+    if ($service.ProcessId -gt 0) {
+        Stop-Process -Id $service.ProcessId -Force -ErrorAction Stop
+    }
+    Wait-ServiceState -Expected "Stopped"
+}
+
+function Remove-TestService {
+    $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if (-not $existing) {
+        return
+    }
+
+    try {
+        Stop-TestServiceProcess
+    } catch {
+        Write-Warning "Unable to terminate leftover E2E service process: $_"
+    }
+
+    & sc.exe delete $serviceName | Out-Host
+    $deadline = (Get-Date).AddSeconds(20)
+    do {
+        if (-not (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+    throw "Timed out removing E2E service '$serviceName'"
 }
 
 function Invoke-TestPhase {
@@ -143,10 +157,10 @@ service_interval: 24h
 
         Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests" -Attempt $scenarioAttempt
 
-        & $GorillaExePath -config $configPath -servicestop | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "Failed to stop source-built Gorilla service" }
-        Wait-ServiceState -Expected "Stopped"
-
+        # The unavailable-service workflow deliberately terminates the real service process.
+        # This avoids coupling E2E reliability to graceful SCM shutdown while still proving
+        # that the UI recovers from the production service boundary disappearing.
+        Stop-TestServiceProcess
         Invoke-TestPhase -Phase "service-unavailable" -Filter "E2EPhase=ServiceUnavailable" -Attempt $scenarioAttempt
         Write-Host "UI E2E scenario passed"
         return

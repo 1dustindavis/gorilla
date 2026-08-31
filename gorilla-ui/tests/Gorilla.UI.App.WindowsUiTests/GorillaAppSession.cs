@@ -48,8 +48,9 @@ internal sealed class GorillaAppSession : IDisposable
             session.MainWindow = session.WaitForMainWindow(TimeSpan.FromSeconds(30));
             return session;
         }
-        catch
+        catch (Exception ex)
         {
+            session.CaptureFailure(ex, "app-launch");
             session.Dispose();
             throw;
         }
@@ -108,6 +109,10 @@ internal sealed class GorillaAppSession : IDisposable
             {
                 details += $"{Environment.NewLine}ProcessId: {_application.ProcessId}";
                 details += $"{Environment.NewLine}HasExited: {_application.HasExited}";
+                if (_application.HasExited)
+                {
+                    details += $"{Environment.NewLine}ExitCode: {Process.GetProcessById(_application.ProcessId).ExitCode}";
+                }
             }
             catch
             {
@@ -155,13 +160,18 @@ internal sealed class GorillaAppSession : IDisposable
             {
                 return;
             }
+
+            var exitCode = Process.GetProcessById(_application.ProcessId).ExitCode;
+            throw new InvalidOperationException($"Gorilla.UI.App exited unexpectedly. ExitCode={exitCode}.");
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch
         {
             throw new InvalidOperationException("Gorilla.UI.App process is unavailable.");
         }
-
-        throw new InvalidOperationException("Gorilla.UI.App exited unexpectedly.");
     }
 
     public void Dispose()

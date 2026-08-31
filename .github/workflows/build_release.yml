@@ -12,13 +12,14 @@ on:
         required: true
         type: string
 
-# Release runs must be serialized so version allocation and publication cannot race.
+# Release runs share a FIFO queue so version allocation and publication cannot race.
 # queue: max preserves rapid main pushes rather than replacing pending release runs.
 concurrency:
   group: gorilla-release-publication
   queue: max
 
 permissions:
+  actions: read
   contents: write
   pull-requests: read
   id-token: write
@@ -95,7 +96,7 @@ jobs:
         $versions = git tag --list |
           ForEach-Object {
             if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
-              [version]$Matches[1..3] -join '.'
+              [version]($Matches[1..3] -join '.')
             }
           } |
           Sort-Object -Descending
@@ -128,29 +129,57 @@ jobs:
           throw "Stable version must use X.Y.0 format, for example 2.30.0."
         }
 
-        $requestedVersion = [version]$versionText
-        $releaseTag = "v$versionText"
-        if (git tag --list $releaseTag) {
-          throw "Tag $releaseTag already exists."
-        }
-
-        $latestVersion = git tag --list |
-          ForEach-Object {
-            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
-              [version]($Matches[1..3] -join '.')
-            }
-          } |
-          Sort-Object -Descending |
-          Select-Object -First 1
-        if ($null -ne $latestVersion -and $requestedVersion -le $latestVersion) {
-          throw "Stable version $versionText must be newer than existing version $latestVersion."
-        }
-
         $headers = @{
           Accept = "application/vnd.github+json"
           Authorization = "Bearer $Env:GITHUB_TOKEN"
           "X-GitHub-Api-Version" = "2022-11-28"
         }
+
+        # A stable release is only valid once the current main commit has already
+        # completed its automatic prerelease. This prevents a manual release from
+        # overtaking a main push whose release run has not published yet.
+        $latestTag = git tag --list |
+          ForEach-Object {
+            if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              [pscustomobject]@{
+                Tag = $_
+                Version = [version]($Matches[1..3] -join '.')
+              }
+            }
+          } |
+          Sort-Object Version -Descending |
+          Select-Object -First 1
+        if ($null -eq $latestTag) {
+          throw "No existing vX.Y.Z version tag found."
+        }
+        $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
+        if ($latestTaggedCommit -ne $Env:GITHUB_SHA) {
+          throw "Current main commit $Env:GITHUB_SHA has not completed its prerelease yet. Wait for Build Release to finish, then retry the stable release."
+        }
+
+        # GitHub documents that queue ordering is based on when runs begin waiting,
+        # not dispatch time. Refuse a stable release if any push release is still
+        # queued behind it, rather than allowing an older prerelease to publish
+        # after the stable version.
+        $activePushRuns = @()
+        foreach ($status in @('queued', 'pending', 'waiting', 'requested')) {
+          $uri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=$status&per_page=100"
+          $response = Invoke-RestMethod -Uri $uri -Headers $headers
+          $activePushRuns += @($response.workflow_runs)
+        }
+        if ($activePushRuns.Count -gt 0) {
+          throw "One or more automatic prerelease runs are still queued. Wait for Build Release to become idle, then retry the stable release."
+        }
+
+        $requestedVersion = [version]$versionText
+        $releaseTag = "v$versionText"
+        if (git tag --list $releaseTag) {
+          throw "Tag $releaseTag already exists."
+        }
+        if ($requestedVersion -le $latestTag.Version) {
+          throw "Stable version $versionText must be newer than existing version $($latestTag.Version)."
+        }
+
         $latestStable = Invoke-RestMethod `
           -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/releases/latest" `
           -Headers $headers

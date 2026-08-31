@@ -25,7 +25,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
 
@@ -48,7 +48,7 @@ jobs:
         "NUGET_PACKAGES=$env:RUNNER_TEMP\nuget-packages" >> $env:GITHUB_ENV
 
     - name: Setup dotnet
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: '8.0.x'
 
@@ -67,7 +67,7 @@ jobs:
 
     - name: Create version tag
       id: create_tag
-      uses: paulhatch/semantic-version@v5.4.0
+      uses: paulhatch/semantic-version@v6.0.2
       with:
         tag_prefix: "v"
         major_pattern: "(MAJOR)"
@@ -140,7 +140,7 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
 
     - name: Upload gorilla.exe workflow artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: gorilla-exe-release
         path: ./cmd/gorilla/gorilla.exe
@@ -242,7 +242,7 @@ jobs:
         Write-Host "  Valid through: $($signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('u'))"
 
     - name: Upload Gorilla UI MSIX workflow artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: gorilla-ui-msix-release
         path: ./build/Gorilla.UI.App.msix

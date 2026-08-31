@@ -74,8 +74,8 @@ jobs:
             @"
           ## Windows UI evidence
 
-          **UI E2E outcome:** `$outcome`  
-          **Attempts captured:** `$attemptCount`  
+          **UI E2E outcome:** $outcome  
+          **Attempts captured:** $attemptCount  
           **Artifact:** `windows-ui-evidence`
 
           Download `windows-ui-evidence` from this workflow run's **Artifacts** section. Start with:

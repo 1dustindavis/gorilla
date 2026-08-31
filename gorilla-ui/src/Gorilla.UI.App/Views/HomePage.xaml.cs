@@ -1,8 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
@@ -50,6 +52,20 @@ public sealed partial class HomePage : Page, IDisposable
         var peer = FrameworkElementAutomationPeer.FromElement(ServiceWarning)
             ?? FrameworkElementAutomationPeer.CreatePeerForElement(ServiceWarning);
         peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    private void ItemsList_ContainerContentChanging(
+        ListViewBase sender,
+        ContainerContentChangingEventArgs args
+    )
+    {
+        if (args.ItemContainer is null || args.Item is not UiOptionalInstallItem item)
+        {
+            return;
+        }
+
+        AutomationProperties.SetAutomationId(args.ItemContainer, item.ItemName);
+        AutomationProperties.SetName(args.ItemContainer, item.DisplayName);
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)

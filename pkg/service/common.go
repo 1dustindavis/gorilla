@@ -26,11 +26,10 @@ type Command struct {
 }
 
 type CommandResponse struct {
-	Status        string                        `json:"status"`
-	Message       string                        `json:"message,omitempty"`
-	Items         []string                      `json:"items,omitempty"`
-	OptionalItems []optionalInstallResponseItem `json:"optionalItems,omitempty"`
-	OperationID   string                        `json:"operationId,omitempty"`
+	Status      string   `json:"status"`
+	Message     string   `json:"message,omitempty"`
+	Items       []string `json:"items,omitempty"`
+	OperationID string   `json:"operationId,omitempty"`
 }
 
 const (
@@ -147,7 +146,11 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 		if err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok", Items: names, OptionalItems: items}, nil
+		encodedItems, err := encodeResolvedOptionalInstallResponseItems(items)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Status: "ok", Items: encodedItems}, nil
 	case actionStreamOperationStatus:
 		return CommandResponse{
 			Status:  "ok",

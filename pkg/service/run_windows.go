@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -287,7 +286,6 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
-	// Keep correlation keys explicit so request/operation flow can be joined with UI diagnostics.
 	gorillalog.Debug("named pipe request:", req.Operation, "requestId=", req.RequestID, "operationId=", req.OperationID)
 
 	if req.Version != pipeProtocolVersion {
@@ -443,25 +441,10 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) error {
 	switch cmd.Action {
 	case actionListOptionalInstalls:
-		items := make([]optionalInstallResponseItem, 0, len(resp.Items))
-		sorted := append([]string(nil), resp.Items...)
-		slices.Sort(sorted)
-		for _, name := range sorted {
-			items = append(items, optionalInstallResponseItem{
-				ItemName:           name,
-				DisplayName:        name,
-				Version:            "",
-				Catalog:            "",
-				InstallerType:      "",
-				InstallerPackageID: name,
-				InstallerLocation:  "",
-				IsManaged:          true,
-				IsInstalled:        false,
-				Status:             "Unknown",
-				StatusUpdatedAtUTC: nowRFC3339UTC(),
-			})
+		items, err := buildOptionalInstallResponseItems(sr.cfg, resp.Items)
+		if err != nil {
+			return err
 		}
-
 		if err := json.NewEncoder(file).Encode(serviceEnvelope[listOptionalInstallsResponse]{
 			Version:      pipeProtocolVersion,
 			MessageType:  messageTypeResponse,

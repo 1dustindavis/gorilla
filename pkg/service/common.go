@@ -138,19 +138,11 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
 		return CommandResponse{Status: "ok", OperationID: operationID}, nil
 	case actionListOptionalInstalls:
-		names, err := getOptionalItems(cfg)
+		items, err := getOptionalItems(cfg)
 		if err != nil {
 			return CommandResponse{}, err
 		}
-		items, err := buildOptionalInstallResponseItems(cfg, names)
-		if err != nil {
-			return CommandResponse{}, err
-		}
-		encodedItems, err := encodeResolvedOptionalInstallResponseItems(items)
-		if err != nil {
-			return CommandResponse{}, err
-		}
-		return CommandResponse{Status: "ok", Items: encodedItems}, nil
+		return CommandResponse{Status: "ok", Items: items}, nil
 	case actionStreamOperationStatus:
 		return CommandResponse{
 			Status:  "ok",

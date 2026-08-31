@@ -54,18 +54,27 @@ func buildOptionalInstallResponseItems(cfg config.Configuration, names []string)
 		}
 		response.InstallerLocation = catalogItem.Installer.Location
 
-		actionNeeded, checkErr := optionalInstallStatusCheck(catalogItem, "install", cfg.CachePath)
-		if checkErr == nil {
-			response.IsInstalled = !actionNeeded
-			if response.IsInstalled {
-				response.Status = "Installed"
-			} else {
-				response.Status = "NotInstalled"
+		if hasOptionalInstallStatusCheck(catalogItem) {
+			actionNeeded, checkErr := optionalInstallStatusCheck(catalogItem, "install", cfg.CachePath)
+			if checkErr == nil {
+				response.IsInstalled = !actionNeeded
+				if response.IsInstalled {
+					response.Status = "Installed"
+				} else {
+					response.Status = "NotInstalled"
+				}
 			}
 		}
 		items = append(items, response)
 	}
 	return items, nil
+}
+
+func hasOptionalInstallStatusCheck(item catalog.Item) bool {
+	return item.Check.Script != "" ||
+		item.Check.File != nil ||
+		item.Check.Registry.Version != "" ||
+		item.Check.Appx.Name != ""
 }
 
 func findOptionalInstallCatalogItem(

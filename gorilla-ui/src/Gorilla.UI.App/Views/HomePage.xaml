@@ -28,6 +28,7 @@
             Margin="0,16,0,0"
             x:Name="ItemsList"
             ItemsSource="{Binding Items}"
+            ContainerContentChanging="ItemsList_ContainerContentChanging"
             AutomationProperties.AutomationId="ItemsList"
             AutomationProperties.Name="Available software">
             <ListView.ItemContainerStyle>

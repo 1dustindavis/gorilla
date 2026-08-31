@@ -55,6 +55,37 @@ func TestBuildOptionalInstallResponseItemsReturnsAuthoritativeStatusAndMetadata(
 	assertOptionalInstallResponse(t, items[0], true, "Installed")
 }
 
+func TestResolvedOptionalInstallItemsAreSerializationOnly(t *testing.T) {
+	originalCatalogGet := optionalInstallCatalogGet
+	originalStatusCheck := optionalInstallStatusCheck
+	t.Cleanup(func() {
+		optionalInstallCatalogGet = originalCatalogGet
+		optionalInstallStatusCheck = originalStatusCheck
+	})
+
+	want := []optionalInstallResponseItem{{ItemName: "Fixture", DisplayName: "Fixture App", IsManaged: true, IsInstalled: true, Status: "Installed"}}
+	encoded, err := encodeResolvedOptionalInstallResponseItems(want)
+	if err != nil {
+		t.Fatalf("encode resolved items: %v", err)
+	}
+	optionalInstallCatalogGet = func(config.Configuration) (map[int]map[string]catalog.Item, error) {
+		t.Fatal("catalog loading must not run while writing an already-resolved response")
+		return nil, nil
+	}
+	optionalInstallStatusCheck = func(catalog.Item, string, string) (bool, error) {
+		t.Fatal("status checking must not run while writing an already-resolved response")
+		return false, nil
+	}
+
+	got, err := buildOptionalInstallResponseItems(config.Configuration{}, encoded)
+	if err != nil {
+		t.Fatalf("decode resolved items: %v", err)
+	}
+	if len(got) != 1 || got[0].ItemName != want[0].ItemName || got[0].Status != want[0].Status || !got[0].IsInstalled {
+		t.Fatalf("unexpected resolved response: %#v", got)
+	}
+}
+
 func TestBuildOptionalInstallResponseItemsKeepsUnknownWhenStatusCheckFails(t *testing.T) {
 	originalCatalogGet := optionalInstallCatalogGet
 	originalStatusCheck := optionalInstallStatusCheck

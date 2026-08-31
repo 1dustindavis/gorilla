@@ -26,10 +26,11 @@ type Command struct {
 }
 
 type CommandResponse struct {
-	Status      string   `json:"status"`
-	Message     string   `json:"message,omitempty"`
-	Items       []string `json:"items,omitempty"`
-	OperationID string   `json:"operationId,omitempty"`
+	Status        string                        `json:"status"`
+	Message       string                        `json:"message,omitempty"`
+	Items         []string                      `json:"items,omitempty"`
+	OptionalItems []optionalInstallResponseItem `json:"optionalItems,omitempty"`
+	OperationID   string                        `json:"operationId,omitempty"`
 }
 
 const (
@@ -138,11 +139,15 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
 		return CommandResponse{Status: "ok", OperationID: operationID}, nil
 	case actionListOptionalInstalls:
-		items, err := getOptionalItems(cfg)
+		names, err := getOptionalItems(cfg)
 		if err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok", Items: items}, nil
+		items, err := buildOptionalInstallResponseItems(cfg, names)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Status: "ok", Items: names, OptionalItems: items}, nil
 	case actionStreamOperationStatus:
 		return CommandResponse{
 			Status:  "ok",

@@ -12,8 +12,7 @@ on:
         required: true
         type: string
 
-# Release runs share a FIFO queue so version allocation and publication cannot race.
-# queue: max preserves rapid main pushes rather than replacing pending release runs.
+# Serialize release publication and retain rapid main pushes instead of replacing them.
 concurrency:
   group: gorilla-release-publication
   queue: max
@@ -90,29 +89,42 @@ jobs:
     - name: Compute automatic prerelease version
       if: github.event_name == 'push'
       shell: pwsh
+      env:
+        PREVIOUS_MAIN_SHA: ${{ github.event.before }}
       run: |
         # Allocate exactly one patch version for this main-push release. This is
         # intentionally independent of how many commits the merged PR contains.
-        $versions = git tag --list |
+        $latestTag = git tag --list |
           ForEach-Object {
             if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
-              [version]($Matches[1..3] -join '.')
+              [pscustomobject]@{
+                Tag = $_
+                Version = [version]($Matches[1..3] -join '.')
+              }
             }
           } |
-          Sort-Object -Descending
+          Sort-Object Version -Descending |
+          Select-Object -First 1
 
-        $latestVersion = $versions | Select-Object -First 1
-        if ($null -eq $latestVersion) {
+        if ($null -eq $latestTag) {
           throw "No existing vX.Y.Z version tag found."
         }
-        if ($latestVersion.Build -ge 65535) {
-          throw "Patch version cannot exceed the MSIX version segment limit of 65535."
+
+        # GitHub's queued concurrency ordering is not guaranteed to match dispatch
+        # ordering. The preceding main commit must already be the latest released
+        # commit; otherwise fail safely and rerun after its release completes.
+        $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
+        if ($latestTaggedCommit -ne $Env:PREVIOUS_MAIN_SHA) {
+          throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
         }
 
+        if ($latestTag.Version.Build -ge 65535) {
+          throw "Patch version cannot exceed the MSIX version segment limit of 65535."
+        }
         $nextVersion = [version]::new(
-          $latestVersion.Major,
-          $latestVersion.Minor,
-          $latestVersion.Build + 1
+          $latestTag.Version.Major,
+          $latestTag.Version.Minor,
+          $latestTag.Version.Build + 1
         )
         "RELEASE_TAG=v$nextVersion" >> $Env:GITHUB_ENV
         Write-Host "Next prerelease: v$nextVersion"
@@ -157,10 +169,8 @@ jobs:
           throw "Current main commit $Env:GITHUB_SHA has not completed its prerelease yet. Wait for Build Release to finish, then retry the stable release."
         }
 
-        # GitHub documents that queue ordering is based on when runs begin waiting,
-        # not dispatch time. Refuse a stable release if any push release is still
-        # queued behind it, rather than allowing an older prerelease to publish
-        # after the stable version.
+        # Refuse a stable release if a push release is queued behind it. This
+        # covers GitHub's documented lack of dispatch-order guarantees.
         $activePushRuns = @()
         foreach ($status in @('queued', 'pending', 'waiting', 'requested')) {
           $uri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=$status&per_page=100"

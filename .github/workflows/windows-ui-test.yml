@@ -15,16 +15,6 @@ on:
       - Makefile
       - .github/workflows/windows-ui-test.yml
   pull_request:
-    paths:
-      - gorilla-ui/**
-      - '!gorilla-ui/*.md'
-      - '!gorilla-ui/**/*.md'
-      - cmd/gorilla/**
-      - pkg/config/**
-      - pkg/service/**
-      - integration/windows/**
-      - Makefile
-      - .github/workflows/windows-ui-test.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -36,7 +26,7 @@ permissions:
 
 jobs:
   windows-ui-tests:
-    name: Verify
+    name: Windows UI Tests
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -45,24 +35,71 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Determine whether UI E2E is required
+        id: changes
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -ne 'pull_request') {
+            'run=true' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $base = '${{ github.event.pull_request.base.sha }}'
+          $head = '${{ github.event.pull_request.head.sha }}'
+          $files = @(git diff --name-only $base $head)
+          $runUi = $false
+
+          foreach ($file in $files) {
+            $isUiSource = $file -like 'gorilla-ui/*' -and $file -notmatch '\.md$'
+            $isRelevant = $isUiSource -or
+              $file -like 'cmd/gorilla/*' -or
+              $file -like 'pkg/config/*' -or
+              $file -like 'pkg/service/*' -or
+              $file -like 'integration/windows/*' -or
+              $file -eq 'Makefile' -or
+              $file -eq '.github/workflows/windows-ui-test.yml'
+
+            if ($isRelevant) {
+              $runUi = $true
+              break
+            }
+          }
+
+          ('run={0}' -f $runUi.ToString().ToLowerInvariant()) >> $env:GITHUB_OUTPUT
 
       - name: Configure NuGet package path
+        if: steps.changes.outputs.run == 'true'
         shell: pwsh
         run: |
           "NUGET_PACKAGES=$env:RUNNER_TEMP\nuget-packages" >> $env:GITHUB_ENV
 
       - name: Set up .NET
+        if: steps.changes.outputs.run == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
 
       - name: Run FlaUI Windows UI validation
+        if: steps.changes.outputs.run == 'true'
         id: ui-e2e
         shell: pwsh
         run: make ui-e2e
 
+      - name: Summarize skipped Windows UI validation
+        if: steps.changes.outputs.run != 'true'
+        shell: pwsh
+        run: |
+          @(
+            '## Windows UI validation'
+            ''
+            'UI E2E was not required for the files changed by this pull request.'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
       - name: Summarize Windows UI evidence
-        if: always()
+        if: always() && steps.changes.outputs.run == 'true'
         shell: pwsh
         run: |
           try {
@@ -88,7 +125,7 @@ jobs:
 
       - name: Upload Windows UI evidence bundle
         id: upload-evidence
-        if: always()
+        if: always() && steps.changes.outputs.run == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: windows-ui-evidence
@@ -96,7 +133,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Link Windows UI evidence from PR
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.run == 'true'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -28,7 +28,6 @@ UI_E2E_WORK_ROOT ?= $(WINDOWS_INTEGRATION_WORK_ROOT)
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
 RELEASE_USE_PREBUILT_FIXTURES ?= 0
 GORILLA_RELEASE_EXE ?=
-UI_E2E_MAX_ATTEMPTS ?= 1
 GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
@@ -228,7 +227,7 @@ endif
 
 ui-e2e-test:
 ifeq ($(OS), Windows_NT)
-	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-ui-e2e.ps1 -WorkRoot "$(UI_E2E_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe" -MaxAttempts $(UI_E2E_MAX_ATTEMPTS)
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-ui-e2e.ps1 -WorkRoot "$(UI_E2E_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe"
 else
 	@echo "ui-e2e-test requires Windows"
 	@exit 1

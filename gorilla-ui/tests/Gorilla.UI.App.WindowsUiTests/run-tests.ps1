@@ -3,7 +3,6 @@ param(
     [string]$ArtifactsDirectory = "$PSScriptRoot\artifacts",
     [string]$TestFilter = "",
     [string]$ResultPrefix = "windows-ui-test",
-    [int]$MaxAttempts = 1,
     [switch]$SkipBuild
 )
 
@@ -55,27 +54,18 @@ $env:GORILLA_UI_APP_EXE = $appExe
 $env:WINDOWS_UI_TEST_RESULTS_DIR = $ResultsDirectory
 $env:WINDOWS_UI_TEST_ARTIFACTS_DIR = $ArtifactsDirectory
 
-for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-    Write-Host "Windows UI test attempt $attempt/$MaxAttempts"
-    $testArgs = @(
-        "test", $testProject,
-        "-c", "Release",
-        "--no-build",
-        "--logger", "trx;LogFileName=$ResultPrefix-attempt-$attempt.trx",
-        "--results-directory", $ResultsDirectory
-    )
-    if (-not [string]::IsNullOrWhiteSpace($TestFilter)) {
-        $testArgs += @("--filter", $TestFilter)
-    }
-
-    & dotnet @testArgs
-    if ($LASTEXITCODE -eq 0) {
-        return
-    }
-
-    if ($attempt -lt $MaxAttempts) {
-        Start-Sleep -Seconds (15 * $attempt)
-    }
+$testArgs = @(
+    "test", $testProject,
+    "-c", "Release",
+    "--no-build",
+    "--logger", "trx;LogFileName=$ResultPrefix.trx",
+    "--results-directory", $ResultsDirectory
+)
+if (-not [string]::IsNullOrWhiteSpace($TestFilter)) {
+    $testArgs += @("--filter", $TestFilter)
 }
 
-throw "Windows UI tests failed after $MaxAttempts attempt(s)"
+& dotnet @testArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "Windows UI tests failed"
+}

@@ -32,6 +32,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   windows-ui-tests:
@@ -97,9 +98,75 @@ jobs:
           }
 
       - name: Upload Windows UI evidence bundle
+        id: upload-evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: windows-ui-evidence
           path: build/windows-integration/ui-evidence/**
           if-no-files-found: warn
+
+      - name: Link Windows UI evidence from PR
+        if: always() && github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          UI_E2E_OUTCOME: ${{ steps.ui-e2e.outcome }}
+          EVIDENCE_URL: ${{ steps.upload-evidence.outputs.artifact-url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          try {
+            $marker = '<!-- windows-ui-evidence -->'
+            $evidenceRoot = Join-Path $PWD 'build/windows-integration/ui-evidence'
+            $attempts = @()
+            if (Test-Path $evidenceRoot) {
+              $attempts = @(Get-ChildItem $evidenceRoot -Directory -Filter 'attempt-*' -ErrorAction SilentlyContinue)
+            }
+            $attemptCount = $attempts.Count
+            $status = if ($Env:UI_E2E_OUTCOME -eq 'success') { '✅ Passed' } else { '❌ Failed' }
+            $artifactLink = if ([string]::IsNullOrWhiteSpace($Env:EVIDENCE_URL)) {
+              'Evidence artifact was not available for this run.'
+            } else {
+              ('[Download evidence bundle]({0})' -f $Env:EVIDENCE_URL)
+            }
+
+            $body = @(
+              $marker
+              '### Windows UI evidence'
+              ''
+              ('**{0}** · {1} attempt(s) · commit `{2}`' -f $status, $attemptCount, '${{ github.event.pull_request.head.sha }}')
+              ''
+              ('{0} · [View workflow run]({1})' -f $artifactLink, $Env:RUN_URL)
+              ''
+              '**Start here:**'
+              '1. `attempt-1/healthy/screenshots/` and `attempt-1/service-unavailable/screenshots/`'
+              '2. `automation-tree.txt`'
+              '3. `tests-attempt-*.trx`'
+              '4. `ui-client.log` and `gorilla.log`'
+              '5. `process-info.txt` and `service-info.txt`'
+              ''
+              'Representative screenshots include `healthy-startup.png`, `after-install.png`, `after-remove.png`, and `cached-service-unavailable.png`.'
+            ) -join "`n"
+
+            $headers = @{
+              Accept = 'application/vnd.github+json'
+              Authorization = "Bearer $Env:GITHUB_TOKEN"
+              'X-GitHub-Api-Version' = '2022-11-28'
+            }
+            $commentsUri = "https://api.github.com/repos/${{ github.repository }}/issues/$Env:PR_NUMBER/comments?per_page=100"
+            $comments = @(Invoke-RestMethod -Method Get -Uri $commentsUri -Headers $headers)
+            $existing = $comments |
+              Where-Object { $_.body -like "*$marker*" -and $_.user.login -eq 'github-actions[bot]' } |
+              Select-Object -First 1
+            $payload = @{ body = $body } | ConvertTo-Json
+
+            if ($null -ne $existing) {
+              $commentUri = "https://api.github.com/repos/${{ github.repository }}/issues/comments/$($existing.id)"
+              Invoke-RestMethod -Method Patch -Uri $commentUri -Headers $headers -Body $payload -ContentType 'application/json' | Out-Null
+            } else {
+              Invoke-RestMethod -Method Post -Uri $commentsUri -Headers $headers -Body $payload -ContentType 'application/json' | Out-Null
+            }
+          } catch {
+            Write-Warning "Unable to update Windows UI evidence PR comment: $($_.Exception.Message)"
+          }

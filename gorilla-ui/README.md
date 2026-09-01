@@ -34,7 +34,7 @@ Validation commands:
   - Harness: `integration/windows/run-ui-e2e.ps1` installs the source-built `gorilla.exe` as a temporary real Windows service, reuses the existing Windows integration fixture preparation, and owns service/server/cache cleanup.
   - Critical workflows: healthy startup with fixture software, install + terminal refresh, remove + terminal refresh, and service-unavailable startup using cached data.
   - CI workflow: `.github/workflows/windows-ui-test.yml` on `windows-latest`.
-  - CI runs one whole E2E scenario attempt and treats a failure as a workflow failure; it does not retry a failed scenario to turn the check green.
+  - CI runs the E2E scenario once and treats a failure as a workflow failure.
   - Stage 5 evidence capture remains enabled on success and failure so failed runs retain screenshots, automation trees, TRX results, client/service logs, and process/service metadata for diagnosis.
   - TRX results and existing failure diagnostics are written under the E2E work root (`build/windows-integration/ui-results` and `ui-artifacts` by default).
 - Optional local autofix: use `dotnet format` against the relevant portable project.

@@ -1,7 +1,6 @@
 param(
     [string]$WorkRoot = "$env:RUNNER_TEMP\gorilla-ui-e2e",
-    [string]$GorillaExePath = "",
-    [int]$MaxAttempts = 1
+    [string]$GorillaExePath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -133,11 +132,10 @@ function Copy-PhaseServiceEvidence {
 function Invoke-TestPhase {
     param(
         [Parameter(Mandatory)][string]$Phase,
-        [Parameter(Mandatory)][string]$Filter,
-        [Parameter(Mandatory)][int]$Attempt
+        [Parameter(Mandatory)][string]$Filter
     )
 
-    $phaseDirectory = Join-Path (Join-Path $evidenceRoot "attempt-$Attempt") $Phase
+    $phaseDirectory = Join-Path $evidenceRoot $Phase
     New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
 
     $env:GORILLA_UI_DEBUG = "1"
@@ -148,7 +146,6 @@ function Invoke-TestPhase {
             -ArtifactsDirectory $phaseDirectory `
             -TestFilter $Filter `
             -ResultPrefix "tests" `
-            -MaxAttempts 1 `
             -SkipBuild
     } finally {
         Copy-PhaseServiceEvidence -PhaseDirectory $phaseDirectory
@@ -156,29 +153,25 @@ function Invoke-TestPhase {
     }
 }
 
-for ($scenarioAttempt = 1; $scenarioAttempt -le $MaxAttempts; $scenarioAttempt++) {
-    Write-Host "UI E2E scenario attempt $scenarioAttempt/$MaxAttempts"
-    $attemptDirectory = Join-Path $evidenceRoot "attempt-$scenarioAttempt"
-    New-Item -ItemType Directory -Path $attemptDirectory -Force | Out-Null
-    $serverProc = $null
-    try {
-        Remove-TestService
-        Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $evidenceRoot -Force | Out-Null
+$serverProc = $null
+try {
+    Remove-TestService
+    Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $evidenceRoot -Force | Out-Null
 
-        $serverPort = Get-Random -Minimum 19000 -Maximum 19999
-        $serverProc = Start-Process -FilePath $serverExe `
-            -ArgumentList @("-addr", "127.0.0.1:$serverPort", "-root", $repoFixtureRoot) `
-            -PassThru -WindowStyle Hidden
-        Start-Sleep -Seconds 1
-        if ($serverProc.HasExited) {
-            throw "Fixture HTTP server exited during startup"
-        }
+    $serverPort = Get-Random -Minimum 19000 -Maximum 19999
+    $serverProc = Start-Process -FilePath $serverExe `
+        -ArgumentList @("-addr", "127.0.0.1:$serverPort", "-root", $repoFixtureRoot) `
+        -PassThru -WindowStyle Hidden
+    Start-Sleep -Seconds 1
+    if ($serverProc.HasExited) {
+        throw "Fixture HTTP server exited during startup"
+    }
 
-        $fileUrl = "http://127.0.0.1:$serverPort/"
-        @"
+    $fileUrl = "http://127.0.0.1:$serverPort/"
+    @"
 url: $fileUrl
 manifest: ui-e2e
 catalogs:
@@ -190,42 +183,37 @@ service_interval: 24h
 debug: true
 "@ | Set-Content -LiteralPath $configPath -NoNewline
 
-        $env:GORILLA_UI_PIPE_NAME = $servicePipeName
-        $env:GORILLA_UI_CACHE_PATH = $uiCachePath
-        $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
-        $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
+    $env:GORILLA_UI_PIPE_NAME = $servicePipeName
+    $env:GORILLA_UI_CACHE_PATH = $uiCachePath
+    $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
+    $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
 
-        & $GorillaExePath -config $configPath -serviceinstall | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "Failed to install source-built Gorilla service" }
-        & $GorillaExePath -config $configPath -servicestart | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "Failed to start source-built Gorilla service" }
-        Wait-ServiceState -Expected "Running"
+    & $GorillaExePath -config $configPath -serviceinstall | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install source-built Gorilla service" }
+    & $GorillaExePath -config $configPath -servicestart | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Failed to start source-built Gorilla service" }
+    Wait-ServiceState -Expected "Running"
 
-        Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests" -Attempt $scenarioAttempt
+    Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests"
 
-        # The unavailable-service workflow deliberately terminates the real service process.
-        # This avoids coupling E2E reliability to graceful SCM shutdown while still proving
-        # that the UI recovers from the production service boundary disappearing.
-        Stop-TestServiceProcess
-        Invoke-TestPhase -Phase "service-unavailable" -Filter "E2EPhase=ServiceUnavailable" -Attempt $scenarioAttempt
-        Write-Host "UI E2E scenario passed"
-        return
+    # The unavailable-service workflow deliberately terminates the real service process.
+    # This avoids coupling E2E reliability to graceful SCM shutdown while still proving
+    # that the UI recovers from the production service boundary disappearing.
+    Stop-TestServiceProcess
+    Invoke-TestPhase -Phase "service-unavailable" -Filter "E2EPhase=ServiceUnavailable"
+    Write-Host "UI E2E scenario passed"
+} catch {
+    $originalError = $_
+    try {
+        $originalError | Out-String | Set-Content -LiteralPath (Join-Path $evidenceRoot "harness-failure.txt")
     } catch {
-        $originalError = $_
-        try {
-            $originalError | Out-String | Set-Content -LiteralPath (Join-Path $attemptDirectory "harness-failure.txt")
-        } catch {
-            Write-Warning "Unable to capture UI E2E harness failure evidence: $_"
-        }
-        Write-Warning "UI E2E scenario attempt $scenarioAttempt failed: $originalError"
-        if ($scenarioAttempt -ge $MaxAttempts) {
-            throw $originalError
-        }
-        Start-Sleep -Seconds (15 * $scenarioAttempt)
-    } finally {
-        Remove-TestService
-        if ($serverProc -and -not $serverProc.HasExited) {
-            Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
-        }
+        Write-Warning "Unable to capture UI E2E harness failure evidence: $_"
+    }
+    Write-Warning "UI E2E scenario failed: $originalError"
+    throw $originalError
+} finally {
+    Remove-TestService
+    if ($serverProc -and -not $serverProc.HasExited) {
+        Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
     }
 }

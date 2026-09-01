@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   integration-tests:
-    name: Verify
+    name: Windows Integration
     runs-on: windows-latest
     timeout-minutes: 60
 

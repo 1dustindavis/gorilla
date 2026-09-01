@@ -13,15 +13,6 @@ on:
       - go.sum
       - .github/workflows/go-test.yml
   pull_request:
-    paths:
-      - cmd/**
-      - pkg/**
-      - utils/**
-      - integration/**
-      - Makefile
-      - go.mod
-      - go.sum
-      - .github/workflows/go-test.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -33,7 +24,7 @@ permissions:
 jobs:
 
   build:
-    name: Verify
+    name: Go Tests
     runs-on: windows-latest
     timeout-minutes: 25
     steps:

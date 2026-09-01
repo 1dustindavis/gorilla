@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
@@ -10,11 +11,13 @@ internal sealed class GorillaAppSession : IDisposable
 {
     private readonly string _artifactsDirectory;
     private readonly Application _application;
+    private readonly Process _process;
     private readonly UIA3Automation _automation;
 
-    private GorillaAppSession(Application application, UIA3Automation automation, string artifactsDirectory)
+    private GorillaAppSession(Application application, Process process, UIA3Automation automation, string artifactsDirectory)
     {
         _application = application;
+        _process = process;
         _automation = automation;
         _artifactsDirectory = artifactsDirectory;
     }
@@ -41,8 +44,9 @@ internal sealed class GorillaAppSession : IDisposable
         Directory.CreateDirectory(artifactsDirectory);
 
         var application = Application.Launch(appExePath);
+        var process = Process.GetProcessById(application.ProcessId);
         var automation = new UIA3Automation();
-        var session = new GorillaAppSession(application, automation, artifactsDirectory);
+        var session = new GorillaAppSession(application, process, automation, artifactsDirectory);
         try
         {
             session.MainWindow = session.WaitForMainWindow(TimeSpan.FromSeconds(30));
@@ -97,42 +101,139 @@ internal sealed class GorillaAppSession : IDisposable
         }
     }
 
+    public void CaptureCheckpoint(string name, bool includeAutomationTree = false)
+    {
+        BestEffort(() =>
+        {
+            var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
+            Directory.CreateDirectory(screenshotsDirectory);
+            using var image = MainWindow.Capture();
+            image.Save(Path.Combine(screenshotsDirectory, SafeFileName(name) + ".png"));
+        });
+
+        if (includeAutomationTree)
+        {
+            CaptureAutomationTree("automation-tree.txt");
+        }
+        CaptureProcessInfo();
+    }
+
+    public void CaptureAutomationTree(string fileName = "automation-tree.txt")
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("UI Automation tree");
+        try
+        {
+            AppendAutomationElement(builder, MainWindow, 0);
+        }
+        catch (Exception ex)
+        {
+            builder.Append("TreeCaptureError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
+        }
+        BestEffort(() => File.WriteAllText(Path.Combine(_artifactsDirectory, fileName), builder.ToString()));
+    }
+
+    public void CaptureProcessInfo(string fileName = "process-info.txt")
+    {
+        BestEffort(() => File.WriteAllText(Path.Combine(_artifactsDirectory, fileName), BuildProcessInfo()));
+    }
+
     public void CaptureFailure(Exception exception, string testName)
+    {
+        BestEffort(() =>
+        {
+            File.WriteAllText(
+                Path.Combine(_artifactsDirectory, $"failure-{SafeFileName(testName)}.txt"),
+                exception + Environment.NewLine + BuildProcessInfo());
+        });
+        BestEffort(() =>
+        {
+            var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
+            Directory.CreateDirectory(screenshotsDirectory);
+            using var image = MainWindow.Capture();
+            image.Save(Path.Combine(screenshotsDirectory, $"failure-{SafeFileName(testName)}.png"));
+        });
+        CaptureAutomationTree("automation-tree-failure.txt");
+        CaptureProcessInfo();
+    }
+
+    private string BuildProcessInfo()
+    {
+        var lines = new List<string>
+        {
+            $"ProcessId: {_process.Id}",
+            $"ProcessName: {BestEffortValue(() => _process.ProcessName)}",
+            $"StartTimeUtc: {BestEffortValue(() => _process.StartTime.ToUniversalTime().ToString("O"))}",
+            $"HasExited: {BestEffortValue(() => _process.HasExited.ToString())}"
+        };
+        if (BestEffortValue(() => _process.HasExited.ToString()) == bool.TrueString)
+        {
+            lines.Add($"ExitCode: {BestEffortValue(() => _process.ExitCode.ToString())}");
+            lines.Add($"ExitTimeUtc: {BestEffortValue(() => _process.ExitTime.ToUniversalTime().ToString("O"))}");
+        }
+        return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+    }
+
+    private static void AppendAutomationElement(StringBuilder builder, AutomationElement element, int depth)
+    {
+        var indent = new string(' ', depth * 2);
+        builder.Append(indent);
+        builder.Append("ControlType=").Append(BestEffortValue(() => element.ControlType.ToString()));
+        builder.Append(" AutomationId=").Append(Quote(BestEffortValue(() => element.AutomationId)));
+        builder.Append(" Name=").Append(Quote(BestEffortValue(() => element.Name)));
+        builder.Append(" Enabled=").Append(BestEffortValue(() => element.IsEnabled.ToString()));
+        builder.Append(" Offscreen=").Append(BestEffortValue(() => element.IsOffscreen.ToString()));
+        builder.AppendLine();
+
+        AutomationElement[] children;
+        try
+        {
+            children = element.FindAllChildren();
+        }
+        catch (Exception ex)
+        {
+            builder.Append(indent).Append("  ChildrenError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
+            return;
+        }
+        foreach (var child in children)
+        {
+            try
+            {
+                AppendAutomationElement(builder, child, depth + 1);
+            }
+            catch (Exception ex)
+            {
+                builder.Append(indent).Append("  ChildError=").Append(ex.GetType().Name).Append(": ").AppendLine(ex.Message);
+            }
+        }
+    }
+
+    private static string Quote(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
+
+    private static string SafeFileName(string value) =>
+        string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+
+    private static void BestEffort(Action action)
     {
         try
         {
-            var safeName = string.Concat(testName.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
-            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            var prefix = Path.Combine(_artifactsDirectory, $"{safeName}-{stamp}");
-            var details = exception.ToString();
-            try
-            {
-                details += $"{Environment.NewLine}ProcessId: {_application.ProcessId}";
-                details += $"{Environment.NewLine}HasExited: {_application.HasExited}";
-                if (_application.HasExited)
-                {
-                    details += $"{Environment.NewLine}ExitCode: {Process.GetProcessById(_application.ProcessId).ExitCode}";
-                }
-            }
-            catch
-            {
-                // Best-effort diagnostics only.
-            }
-            File.WriteAllText(prefix + ".txt", details);
-
-            try
-            {
-                using var image = MainWindow.Capture();
-                image.Save(prefix + ".png");
-            }
-            catch
-            {
-                // Diagnostics must never mask the original failure.
-            }
+            action();
         }
         catch
         {
-            // Diagnostics must never mask the original failure.
+            // Diagnostics must never mask the original test result.
+        }
+    }
+
+    private static string BestEffortValue(Func<string> value)
+    {
+        try
+        {
+            return value() ?? "<null>";
+        }
+        catch (Exception ex)
+        {
+            return $"<unavailable: {ex.GetType().Name}>";
         }
     }
 
@@ -156,13 +257,11 @@ internal sealed class GorillaAppSession : IDisposable
     {
         try
         {
-            if (!_application.HasExited)
+            if (!_process.HasExited)
             {
                 return;
             }
-
-            var exitCode = Process.GetProcessById(_application.ProcessId).ExitCode;
-            throw new InvalidOperationException($"Gorilla.UI.App exited unexpectedly. ExitCode={exitCode}.");
+            throw new InvalidOperationException($"Gorilla.UI.App exited unexpectedly. ExitCode={_process.ExitCode}.");
         }
         catch (InvalidOperationException)
         {
@@ -198,6 +297,7 @@ internal sealed class GorillaAppSession : IDisposable
         {
             // Best-effort cleanup.
         }
+        _process.Dispose();
         _automation.Dispose();
     }
 }

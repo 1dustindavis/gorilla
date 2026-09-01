@@ -20,6 +20,7 @@ public sealed class CriticalPathTests
             _ = home.WaitForItem(FixtureItemName);
             Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
             Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
+            session.CaptureCheckpoint("healthy-startup", includeAutomationTree: true);
 
             var startupCacheWrite = File.GetLastWriteTimeUtc(cachePath);
             home.InstallButton(FixtureItemName).Invoke();
@@ -29,6 +30,7 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > startupCacheWrite, TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            session.CaptureCheckpoint("after-install");
 
             var installRefreshWrite = File.GetLastWriteTimeUtc(cachePath);
             home.RemoveButton(FixtureItemName).Invoke();
@@ -37,6 +39,7 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > installRefreshWrite, TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            session.CaptureCheckpoint("after-remove");
         });
     }
 
@@ -50,6 +53,7 @@ public sealed class CriticalPathTests
             Assert.Equal("Available Software", home.Heading.Name);
             _ = home.WaitForItem(FixtureItemName);
             home.WaitForWarningContaining("Showing cached data. Refresh failed", TimeSpan.FromSeconds(15));
+            session.CaptureCheckpoint("cached-service-unavailable", includeAutomationTree: true);
         });
     }
 

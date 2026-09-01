@@ -39,7 +39,6 @@ jobs:
     name: Verify
     runs-on: windows-latest
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - name: Set Git config
         run: git config --global core.autocrlf false
@@ -60,7 +59,7 @@ jobs:
       - name: Run FlaUI Windows UI validation
         id: ui-e2e
         shell: pwsh
-        run: make ui-e2e UI_E2E_MAX_ATTEMPTS=3
+        run: make ui-e2e
 
       - name: Summarize Windows UI evidence
         if: always()
@@ -89,8 +88,6 @@ jobs:
               '3. `tests-attempt-*.trx` to identify failing tests and test context.'
               '4. `ui-client.log` and `gorilla.log` to correlate client/service requests and operations.'
               '5. `process-info.txt` and `service-info.txt` for process, exit, and service state.'
-              ''
-              'If multiple attempts were captured, inspect the **earliest failed attempt first**; later retries may have succeeded after the original failure.'
             )
             $summary | Add-Content -Path $env:GITHUB_STEP_SUMMARY
           } catch {

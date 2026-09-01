@@ -6,34 +6,31 @@
 build/windows-integration/ui-evidence/
 ```
 
-Evidence is isolated by whole-scenario attempt and E2E phase so a retry cannot erase the diagnostics from the failed attempt:
+Evidence is isolated by E2E phase:
 
 ```text
 ui-evidence/
-  attempt-1/
-    healthy/
-      screenshots/
-        healthy-startup.png
-        after-install.png
-        after-remove.png
-      automation-tree.txt
-      ui-client.log
-      gorilla.log
-      process-info.txt
-      service-info.txt
-      tests-attempt-1.trx
-    service-unavailable/
-      screenshots/
-        cached-service-unavailable.png
-      automation-tree.txt
-      ui-client.log
-      gorilla.log
-      process-info.txt
-      service-info.txt
-      tests-attempt-1.trx
-    harness-failure.txt       # only when the scenario attempt fails
-  attempt-2/
-    ...                       # present only when a retry runs
+  healthy/
+    screenshots/
+      healthy-startup.png
+      after-install.png
+      after-remove.png
+    automation-tree.txt
+    ui-client.log
+    gorilla.log
+    process-info.txt
+    service-info.txt
+    tests.trx
+  service-unavailable/
+    screenshots/
+      cached-service-unavailable.png
+    automation-tree.txt
+    ui-client.log
+    gorilla.log
+    process-info.txt
+    service-info.txt
+    tests.trx
+  harness-failure.txt       # only when the E2E harness fails outside a phase test
 ```
 
 The exact set is best-effort. A failure that prevents the application or service from starting may naturally make some files unavailable. Diagnostic collection must never replace or hide the original test failure.
@@ -46,6 +43,6 @@ The exact set is best-effort. A failure that prevents the application or service
 - `gorilla.log` is copied from the isolated test service's configured `app_data_path`; E2E also enables service debug logging for protocol troubleshooting.
 - `process-info.txt` records the launched UI process ID and lifecycle/exit metadata when available. Failure-specific text diagnostics also embed this process information.
 - `service-info.txt` records the Windows service state and process metadata at the end of the phase when available.
-- `tests-attempt-1.trx` is the xUnit/.NET test result for that isolated phase. The inner test runner uses one attempt; retries happen at the outer scenario level and therefore get a new `attempt-N` directory.
+- `tests.trx` is the xUnit/.NET test result for that phase.
 
-When diagnosing a retry, inspect the earliest failed `attempt-N` first rather than only the final successful attempt. Correlate `ui-client.log` and `gorilla.log` by request/operation IDs where present, then use the screenshot and automation tree to confirm what WinUI actually exposed at the failing point.
+When diagnosing a failure, start with the affected phase directory. Correlate `ui-client.log` and `gorilla.log` by request/operation IDs where present, then use the screenshot and automation tree to confirm what WinUI actually exposed at the failing point.

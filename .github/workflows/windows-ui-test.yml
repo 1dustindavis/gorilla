@@ -49,7 +49,7 @@ jobs:
 
           $base = '${{ github.event.pull_request.base.sha }}'
           $head = '${{ github.event.pull_request.head.sha }}'
-          $files = @(git diff --name-only $base $head)
+          $files = @(git diff --name-only "$base...$head")
           $runUi = $false
 
           foreach ($file in $files) {

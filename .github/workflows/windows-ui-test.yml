@@ -126,27 +126,18 @@ jobs:
             $attemptCount = $attempts.Count
             $status = if ($Env:UI_E2E_OUTCOME -eq 'success') { '✅ Passed' } else { '❌ Failed' }
             $artifactLink = if ([string]::IsNullOrWhiteSpace($Env:EVIDENCE_URL)) {
-              'Evidence artifact was not available for this run.'
+              'Evidence artifact unavailable'
             } else {
-              ('[Download evidence bundle]({0})' -f $Env:EVIDENCE_URL)
+              ('[Evidence bundle]({0})' -f $Env:EVIDENCE_URL)
             }
 
             $body = @(
               $marker
               '### Windows UI evidence'
-              ''
               ('**{0}** · {1} attempt(s) · commit `{2}`' -f $status, $attemptCount, '${{ github.event.pull_request.head.sha }}')
+              ('{0} · [Workflow run]({1})' -f $artifactLink, $Env:RUN_URL)
               ''
-              ('{0} · [View workflow run]({1})' -f $artifactLink, $Env:RUN_URL)
-              ''
-              '**Start here:**'
-              '1. `attempt-1/healthy/screenshots/` and `attempt-1/service-unavailable/screenshots/`'
-              '2. `automation-tree.txt`'
-              '3. `tests-attempt-*.trx`'
-              '4. `ui-client.log` and `gorilla.log`'
-              '5. `process-info.txt` and `service-info.txt`'
-              ''
-              'Representative screenshots include `healthy-startup.png`, `after-install.png`, `after-remove.png`, and `cached-service-unavailable.png`.'
+              'Includes screenshots, UI automation tree, TRX results, client/service logs, and process/service metadata.'
             ) -join "`n"
 
             $headers = @{

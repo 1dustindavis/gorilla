@@ -289,9 +289,9 @@ jobs:
         if ($null -eq $msix) {
           throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages"
         }
-        Copy-Item $msix.FullName "build/Gorilla.UI.App.msix" -Force
+        Copy-Item $msix.FullName "build/gorilla.msix" -Force
 
-        $packagePath = (Resolve-Path "build/Gorilla.UI.App.msix").Path
+        $packagePath = (Resolve-Path "build/gorilla.msix").Path
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
         if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
           throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)."
@@ -337,14 +337,14 @@ jobs:
         endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
         signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
         certificate-profile-name: ${{ env.ARTIFACT_SIGNING_PROFILE }}
-        files: ${{ github.workspace }}\build\Gorilla.UI.App.msix
+        files: ${{ github.workspace }}\build\gorilla.msix
         file-digest: SHA256
         timestamp-digest: SHA256
 
     - name: Verify signed MSIX
       shell: pwsh
       run: |
-        $packagePath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.msix"
+        $packagePath = "$Env:GITHUB_WORKSPACE\build\gorilla.msix"
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
 
         if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
@@ -366,7 +366,7 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: gorilla-ui-msix-release
-        path: ./build/Gorilla.UI.App.msix
+        path: ./build/gorilla.msix
         if-no-files-found: error
 
     - name: Prepare prerelease notes
@@ -403,7 +403,7 @@ jobs:
         prerelease: true
         makeLatest: false
         bodyFile: release-notes.md
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/gorilla.msix"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -417,7 +417,7 @@ jobs:
         makeLatest: true
         generateReleaseNotes: true
         generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        artifacts: "./cmd/gorilla/gorilla.exe,./build/gorilla.msix"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

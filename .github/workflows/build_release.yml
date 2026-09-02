@@ -92,40 +92,21 @@ jobs:
       env:
         PREVIOUS_MAIN_SHA: ${{ github.event.before }}
       run: |
-        # Allocate exactly one patch version for this main-push release. This is
-        # intentionally independent of how many commits the merged PR contains.
         $latestTag = git tag --list |
           ForEach-Object {
             if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
-              [pscustomobject]@{
-                Tag = $_
-                Version = [version]($Matches[1..3] -join '.')
-              }
+              [pscustomobject]@{ Tag = $_; Version = [version]($Matches[1..3] -join '.') }
             }
           } |
           Sort-Object Version -Descending |
           Select-Object -First 1
-
-        if ($null -eq $latestTag) {
-          throw "No existing vX.Y.Z version tag found."
-        }
-
-        # GitHub's queued concurrency ordering is not guaranteed to match dispatch
-        # ordering. The preceding main commit must already be the latest released
-        # commit; otherwise fail safely and rerun after its release completes.
+        if ($null -eq $latestTag) { throw "No existing vX.Y.Z version tag found." }
         $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
         if ($latestTaggedCommit -ne $Env:PREVIOUS_MAIN_SHA) {
           throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
         }
-
-        if ($latestTag.Version.Build -ge 65535) {
-          throw "Patch version cannot exceed the MSIX version segment limit of 65535."
-        }
-        $nextVersion = [version]::new(
-          $latestTag.Version.Major,
-          $latestTag.Version.Minor,
-          $latestTag.Version.Build + 1
-        )
+        if ($latestTag.Version.Build -ge 65535) { throw "Patch version cannot exceed the MSIX version segment limit of 65535." }
+        $nextVersion = [version]::new($latestTag.Version.Major,$latestTag.Version.Minor,$latestTag.Version.Build + 1)
         "RELEASE_TAG=v$nextVersion" >> $Env:GITHUB_ENV
         Write-Host "Next prerelease: v$nextVersion"
 
@@ -137,91 +118,57 @@ jobs:
         STABLE_VERSION: ${{ inputs.stable_version }}
       run: |
         $versionText = $Env:STABLE_VERSION.Trim()
-        if ($versionText -notmatch '^\d+\.\d+\.0$') {
-          throw "Stable version must use X.Y.0 format, for example 2.30.0."
-        }
-
-        $headers = @{
-          Accept = "application/vnd.github+json"
-          Authorization = "Bearer $Env:GITHUB_TOKEN"
-          "X-GitHub-Api-Version" = "2022-11-28"
-        }
-
-        # A stable release is only valid once the current main commit has already
-        # completed its automatic prerelease. This prevents a manual release from
-        # overtaking a main push whose release run has not published yet.
+        if ($versionText -notmatch '^\d+\.\d+\.0$') { throw "Stable version must use X.Y.0 format, for example 2.30.0." }
+        $headers = @{ Accept = "application/vnd.github+json"; Authorization = "Bearer $Env:GITHUB_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
         $latestTag = git tag --list |
           ForEach-Object {
             if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
-              [pscustomobject]@{
-                Tag = $_
-                Version = [version]($Matches[1..3] -join '.')
-              }
+              [pscustomobject]@{ Tag = $_; Version = [version]($Matches[1..3] -join '.') }
             }
           } |
           Sort-Object Version -Descending |
           Select-Object -First 1
-        if ($null -eq $latestTag) {
-          throw "No existing vX.Y.Z version tag found."
-        }
+        if ($null -eq $latestTag) { throw "No existing vX.Y.Z version tag found." }
         $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
-        if ($latestTaggedCommit -ne $Env:GITHUB_SHA) {
-          throw "Current main commit $Env:GITHUB_SHA has not completed its prerelease yet. Wait for Build Release to finish, then retry the stable release."
-        }
-
-        # Refuse a stable release if a push release is queued behind it. This
-        # covers GitHub's documented lack of dispatch-order guarantees.
+        if ($latestTaggedCommit -ne $Env:GITHUB_SHA) { throw "Current main commit $Env:GITHUB_SHA has not completed its prerelease yet. Wait for Build Release to finish, then retry the stable release." }
         $activePushRuns = @()
         foreach ($status in @('queued', 'pending', 'waiting', 'requested')) {
           $uri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=$status&per_page=100"
           $response = Invoke-RestMethod -Uri $uri -Headers $headers
           $activePushRuns += @($response.workflow_runs)
         }
-        if ($activePushRuns.Count -gt 0) {
-          throw "One or more automatic prerelease runs are still queued. Wait for Build Release to become idle, then retry the stable release."
-        }
-
+        if ($activePushRuns.Count -gt 0) { throw "One or more automatic prerelease runs are still queued. Wait for Build Release to become idle, then retry the stable release." }
         $requestedVersion = [version]$versionText
         $releaseTag = "v$versionText"
-        if (git tag --list $releaseTag) {
-          throw "Tag $releaseTag already exists."
-        }
-        if ($requestedVersion -le $latestTag.Version) {
-          throw "Stable version $versionText must be newer than existing version $($latestTag.Version)."
-        }
-
-        $latestStable = Invoke-RestMethod `
-          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/releases/latest" `
-          -Headers $headers
-
+        if (git tag --list $releaseTag) { throw "Tag $releaseTag already exists." }
+        if ($requestedVersion -le $latestTag.Version) { throw "Stable version $versionText must be newer than existing version $($latestTag.Version)." }
+        $latestStable = Invoke-RestMethod -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/releases/latest" -Headers $headers
         "RELEASE_TAG=$releaseTag" >> $Env:GITHUB_ENV
         "PREVIOUS_STABLE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
+
+    - name: Compute release artifact names
+      shell: pwsh
+      run: |
+        $version = "$Env:RELEASE_TAG" -replace '^v', ''
+        if ([string]::IsNullOrWhiteSpace($version)) { throw "Release version is empty." }
+        "RELEASE_VERSION=$version" >> $Env:GITHUB_ENV
+        "RELEASE_EXE_NAME=gorilla-$version.exe" >> $Env:GITHUB_ENV
+        "RELEASE_MSIX_NAME=gorilla-$version.msix" >> $Env:GITHUB_ENV
 
     - name: Compute MSIX version from release tag
       run: |
         $releaseTag = "$Env:RELEASE_TAG"
-        if ([string]::IsNullOrWhiteSpace($releaseTag)) {
-          throw "Release tag is empty."
-        }
-
+        if ([string]::IsNullOrWhiteSpace($releaseTag)) { throw "Release tag is empty." }
         $normalized = $releaseTag -replace '^v', ''
         $parts = $normalized.Split('.')
-        if ($parts.Count -lt 1 -or $parts.Count -gt 4) {
-          throw "Unsupported release tag format for MSIX version: $releaseTag"
-        }
-
+        if ($parts.Count -lt 1 -or $parts.Count -gt 4) { throw "Unsupported release tag format for MSIX version: $releaseTag" }
         $versionParts = @(0, 0, 0, 0)
         for ($i = 0; $i -lt $parts.Count; $i++) {
           [int]$value = 0
-          if (-not [int]::TryParse($parts[$i], [ref]$value)) {
-            throw "Release tag contains non-numeric segment: $releaseTag"
-          }
-          if ($value -lt 0 -or $value -gt 65535) {
-            throw "MSIX version segment out of range (0-65535): $value"
-          }
+          if (-not [int]::TryParse($parts[$i], [ref]$value)) { throw "Release tag contains non-numeric segment: $releaseTag" }
+          if ($value -lt 0 -or $value -gt 65535) { throw "MSIX version segment out of range (0-65535): $value" }
           $versionParts[$i] = $value
         }
-
         $msixVersion = "{0}.{1}.{2}.{3}" -f $versionParts[0], $versionParts[1], $versionParts[2], $versionParts[3]
         echo "MSIX_VERSION=$msixVersion" >> $Env:GITHUB_ENV
         Write-Host "MSIX version: $msixVersion"
@@ -232,21 +179,13 @@ jobs:
         $manifestPath = "gorilla-ui/src/Gorilla.UI.App/Package.appxmanifest"
         [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
         $identity = $manifest.Package.Identity
-        if ($null -eq $identity) {
-          throw "Package.appxmanifest does not contain an Identity element."
-        }
-
+        if ($null -eq $identity) { throw "Package.appxmanifest does not contain an Identity element." }
         $identity.Version = $Env:MSIX_VERSION
         $settings = New-Object System.Xml.XmlWriterSettings
         $settings.Indent = $true
         $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
         $writer = [System.Xml.XmlWriter]::Create((Resolve-Path $manifestPath), $settings)
-        try {
-          $manifest.Save($writer)
-        } finally {
-          $writer.Dispose()
-        }
-
+        try { $manifest.Save($writer) } finally { $writer.Dispose() }
         Write-Host "Set manifest Identity Version to $Env:MSIX_VERSION"
 
     - name: Build
@@ -260,16 +199,21 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
 
+    - name: Collect versioned gorilla.exe
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        Copy-Item ./cmd/gorilla/gorilla.exe "./build/$Env:RELEASE_EXE_NAME" -Force
+
     - name: Upload gorilla.exe workflow artifact
       uses: actions/upload-artifact@v6
       with:
         name: gorilla-exe-release
-        path: ./cmd/gorilla/gorilla.exe
+        path: ./build/${{ env.RELEASE_EXE_NAME }}
         if-no-files-found: error
 
     - name: Build unsigned Gorilla UI MSIX
       run: |
-        New-Item -ItemType Directory -Force -Path build | Out-Null
         dotnet restore gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj
         dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
           --no-restore `
@@ -283,46 +227,24 @@ jobs:
     - name: Collect and validate unsigned MSIX artifact
       shell: pwsh
       run: |
-        $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix |
-          Sort-Object LastWriteTime -Descending |
-          Select-Object -First 1
-        if ($null -eq $msix) {
-          throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages"
-        }
-        Copy-Item $msix.FullName "build/gorilla.msix" -Force
-
-        $packagePath = (Resolve-Path "build/gorilla.msix").Path
+        $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($null -eq $msix) { throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages" }
+        $outputPath = "build/$Env:RELEASE_MSIX_NAME"
+        Copy-Item $msix.FullName $outputPath -Force
+        $packagePath = (Resolve-Path $outputPath).Path
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
-        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
-          throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)."
-        }
-
+        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) { throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)." }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $archive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
         try {
           $manifestEntry = $archive.GetEntry("AppxManifest.xml")
-          if ($null -eq $manifestEntry) {
-            throw "Produced MSIX does not contain AppxManifest.xml."
-          }
-
+          if ($null -eq $manifestEntry) { throw "Produced MSIX does not contain AppxManifest.xml." }
           $reader = New-Object System.IO.StreamReader($manifestEntry.Open())
-          try {
-            [xml]$packagedManifest = $reader.ReadToEnd()
-          } finally {
-            $reader.Dispose()
-          }
-        } finally {
-          $archive.Dispose()
-        }
-
+          try { [xml]$packagedManifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $archive.Dispose() }
         $packagedVersion = $packagedManifest.Package.Identity.Version
-        if ($packagedVersion -cne $Env:MSIX_VERSION) {
-          throw "Produced MSIX has Identity Version '$packagedVersion'; expected '$Env:MSIX_VERSION'."
-        }
-
-        Write-Host "Validated unsigned MSIX"
-        Write-Host "  Path: $packagePath"
-        Write-Host "  Identity Version: $packagedVersion"
+        if ($packagedVersion -cne $Env:MSIX_VERSION) { throw "Produced MSIX has Identity Version '$packagedVersion'; expected '$Env:MSIX_VERSION'." }
+        Write-Host "Validated unsigned MSIX: $packagePath"
 
     - name: Login to Azure with GitHub OIDC
       uses: Azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
@@ -337,36 +259,24 @@ jobs:
         endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
         signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
         certificate-profile-name: ${{ env.ARTIFACT_SIGNING_PROFILE }}
-        files: ${{ github.workspace }}\build\gorilla.msix
+        files: ${{ github.workspace }}\build\${{ env.RELEASE_MSIX_NAME }}
         file-digest: SHA256
         timestamp-digest: SHA256
 
     - name: Verify signed MSIX
       shell: pwsh
       run: |
-        $packagePath = "$Env:GITHUB_WORKSPACE\build\gorilla.msix"
+        $packagePath = "$Env:GITHUB_WORKSPACE\build\$Env:RELEASE_MSIX_NAME"
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
-
-        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-          throw "Artifact Signing produced an invalid MSIX signature. Status: $($signature.Status); message: $($signature.StatusMessage)"
-        }
-        if ($null -eq $signature.SignerCertificate) {
-          throw "Signed MSIX does not expose a signer certificate."
-        }
-        if ($signature.SignerCertificate.Subject -cne $Env:ARTIFACT_SIGNING_SUBJECT) {
-          throw "Unexpected MSIX signer subject. Expected '$Env:ARTIFACT_SIGNING_SUBJECT'; got '$($signature.SignerCertificate.Subject)'."
-        }
-
-        Write-Host "Verified MSIX signature"
-        Write-Host "  Subject: $($signature.SignerCertificate.Subject)"
-        Write-Host "  Thumbprint: $($signature.SignerCertificate.Thumbprint)"
-        Write-Host "  Valid through: $($signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('u'))"
+        if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) { throw "Artifact Signing produced an invalid MSIX signature. Status: $($signature.Status); message: $($signature.StatusMessage)" }
+        if ($null -eq $signature.SignerCertificate) { throw "Signed MSIX does not expose a signer certificate." }
+        if ($signature.SignerCertificate.Subject -cne $Env:ARTIFACT_SIGNING_SUBJECT) { throw "Unexpected MSIX signer subject. Expected '$Env:ARTIFACT_SIGNING_SUBJECT'; got '$($signature.SignerCertificate.Subject)'." }
 
     - name: Upload Gorilla UI MSIX workflow artifact
       uses: actions/upload-artifact@v6
       with:
         name: gorilla-ui-msix-release
-        path: ./build/gorilla.msix
+        path: ./build/${{ env.RELEASE_MSIX_NAME }}
         if-no-files-found: error
 
     - name: Prepare prerelease notes
@@ -375,25 +285,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        $headers = @{
-          Accept = "application/vnd.github+json"
-          Authorization = "Bearer $Env:GITHUB_TOKEN"
-          "X-GitHub-Api-Version" = "2022-11-28"
-        }
-        $pulls = @(Invoke-RestMethod `
-          -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/commits/$Env:GITHUB_SHA/pulls" `
-          -Headers $headers)
-        $pr = $pulls |
-          Where-Object { $_.merged_at -and $_.base.ref -eq 'main' } |
-          Sort-Object number -Descending |
-          Select-Object -First 1
-
-        if ($null -ne $pr) {
-          "- $($pr.title) (#$($pr.number))" | Set-Content -Path release-notes.md -Encoding utf8
-        } else {
-          $title = git log -1 --pretty=format:"%s"
-          "- $title" | Set-Content -Path release-notes.md -Encoding utf8
-        }
+        $headers = @{ Accept = "application/vnd.github+json"; Authorization = "Bearer $Env:GITHUB_TOKEN"; "X-GitHub-Api-Version" = "2022-11-28" }
+        $pulls = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/commits/$Env:GITHUB_SHA/pulls" -Headers $headers)
+        $pr = $pulls | Where-Object { $_.merged_at -and $_.base.ref -eq 'main' } | Sort-Object number -Descending | Select-Object -First 1
+        if ($null -ne $pr) { "- $($pr.title) (#$($pr.number))" | Set-Content -Path release-notes.md -Encoding utf8 }
+        else { $title = git log -1 --pretty=format:"%s"; "- $title" | Set-Content -Path release-notes.md -Encoding utf8 }
 
     - name: Cut prerelease
       if: github.event_name == 'push'
@@ -403,7 +299,7 @@ jobs:
         prerelease: true
         makeLatest: false
         bodyFile: release-notes.md
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/gorilla.msix"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -417,7 +313,7 @@ jobs:
         makeLatest: true
         generateReleaseNotes: true
         generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/gorilla.msix"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

@@ -11,7 +11,10 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
-    <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\build\gorilla.exe</GorillaServiceExecutable>
+    <GorillaSourceBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\..\build\gorilla.exe</GorillaSourceBuildExecutable>
+    <GorillaReleaseBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\..\cmd\gorilla\gorilla.exe</GorillaReleaseBuildExecutable>
+    <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaSourceBuildExecutable)')">$(GorillaSourceBuildExecutable)</GorillaServiceExecutable>
+    <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaReleaseBuildExecutable)')">$(GorillaReleaseBuildExecutable)</GorillaServiceExecutable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,7 +32,7 @@
   </ItemGroup>
 
   <Target Name="RequireGorillaServiceExecutableForMsix" BeforeTargets="_GenerateAppxPackageFile" Condition="'$(GenerateAppxPackageOnBuild)' == 'true' and !Exists('$(GorillaServiceExecutable)')">
-    <Error Text="Gorilla service executable was not found at '$(GorillaServiceExecutable)'. Build gorilla.exe before producing the MSIX or set GorillaServiceExecutable." />
+    <Error Text="Gorilla service executable was not found. Build gorilla.exe before producing the MSIX or set GorillaServiceExecutable." />
   </Target>
 
   <ItemGroup>

@@ -10,7 +10,7 @@ Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://
 Information related to installing and configuring Gorilla can be found on the [Wiki](https://github.com/1dustindavis/gorilla/wiki).
 For quick manual-test setup helpers on a fresh Windows VM, see [utils/manual-test/README.md](utils/manual-test/README.md).
 
-The official Windows installer is `Gorilla.UI.App.msix` from the releases page. The MSIX requires Windows 10 version 2004 (build 19041) or newer and administrator approval at install time because it installs Gorilla's automatic `LocalSystem` Windows service alongside the WinUI application. The UI itself runs as the signed-in user and communicates with the service over Gorilla's named pipe.
+The official Windows installer is `gorilla.msix` from the releases page. The MSIX requires Windows 10 version 2004 (build 19041) or newer and administrator approval at install time because it installs Gorilla's automatic `LocalSystem` Windows service alongside the WinUI application. The UI itself runs as the signed-in user and communicates with the service over Gorilla's named pipe.
 
 Deploy Gorilla's service configuration at `%ProgramData%\gorilla\config.yaml`. The service intentionally keeps mutable configuration outside the immutable MSIX package. Environments that need custom deployment behavior can use the separately published `gorilla.exe` binary instead of the packaged installer.
 

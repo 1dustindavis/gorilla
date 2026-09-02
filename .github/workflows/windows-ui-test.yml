@@ -88,6 +88,68 @@ jobs:
         shell: pwsh
         run: make ui-e2e
 
+      - name: Build and inspect unsigned packaged product
+        if: steps.changes.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
+            -c Release `
+            -p:Platform=x64 `
+            -p:GenerateAppxPackageOnBuild=true `
+            -p:PublishReadyToRun=false `
+            -p:PublishTrimmed=false `
+            -p:AppxPackageSigningEnabled=false
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unsigned Gorilla MSIX build failed"
+          }
+
+          $msix = Get-ChildItem -Path gorilla-ui/src/Gorilla.UI.App/AppPackages -Recurse -Filter *.msix |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if ($null -eq $msix) {
+            throw "No Gorilla MSIX was produced"
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($msix.FullName)
+          try {
+            if ($null -eq $archive.GetEntry('gorilla.exe')) {
+              throw "Produced MSIX does not contain the Gorilla service executable"
+            }
+
+            $manifestEntry = $archive.GetEntry('AppxManifest.xml')
+            if ($null -eq $manifestEntry) {
+              throw "Produced MSIX does not contain AppxManifest.xml"
+            }
+            $reader = New-Object System.IO.StreamReader($manifestEntry.Open())
+            try {
+              [xml]$packagedManifest = $reader.ReadToEnd()
+            } finally {
+              $reader.Dispose()
+            }
+          } finally {
+            $archive.Dispose()
+          }
+
+          $serviceExtension = @($packagedManifest.Package.Applications.Application.Extensions.Extension) |
+            Where-Object { $_.Category -eq 'windows.service' }
+          if ($serviceExtension.Count -ne 1 -or $serviceExtension[0].Executable -ne 'gorilla.exe') {
+            throw "Produced MSIX does not declare the expected Gorilla packaged service"
+          }
+          $service = $serviceExtension[0].Service
+          if ($service.Name -ne 'gorilla' -or $service.StartupType -ne 'auto' -or $service.StartAccount -ne 'localSystem') {
+            throw "Produced MSIX has unexpected Gorilla service registration metadata"
+          }
+
+          $capabilities = @($packagedManifest.Package.Capabilities.Capability | ForEach-Object { $_.Name })
+          foreach ($required in @('runFullTrust', 'packagedServices', 'localSystemServices')) {
+            if ($required -notin $capabilities) {
+              throw "Produced MSIX is missing required capability '$required'"
+            }
+          }
+
+          Write-Host "Validated packaged Gorilla service payload and manifest"
+
       - name: Summarize skipped Windows UI validation
         if: steps.changes.outputs.run != 'true'
         shell: pwsh

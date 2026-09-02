@@ -14,6 +14,8 @@ Guidance for coding agents working in this repository.
 - CI runs in GitHub Actions and primarily targets Windows (`windows-latest`) to match deployment expectations.
 - Development often happens on macOS: keep macOS build/test/dev workflows working where practical, but do not add major complexity solely to preserve parity.
 - Where appropriate, macOS/non-Windows stub or no-op behavior is acceptable if it keeps development workflows usable.
+- `Gorilla.UI.App.msix` is the official Windows installer. It packages the WinUI app and `gorilla.exe`, and registers the automatic `LocalSystem` Gorilla service. The separately released `gorilla.exe` remains available for custom deployment.
+- The packaged product requires Windows 10 version 2004 / build 19041 or newer. Mutable service configuration belongs at `%ProgramData%\gorilla\config.yaml`, outside the MSIX package.
 
 ## Preferred Workflow
 
@@ -40,11 +42,11 @@ The Makefile is the validation contract for both local development and CI. Prefe
   - Adds the real WinUI build and source-built Windows installer/integration validation.
 - `make verify-e2e`
   - Windows only.
-  - Adds the current FlaUI full-application UI suite.
-- `make verify-release GORILLA_RELEASE_EXE=<path>`
-  - Windows only.
-  - Runs the lower validation levels and the current released-binary integration against the supplied produced `gorilla.exe` artifact.
-  - The release-level contract is intentionally stable; installed MSI + service + MSIX UI coverage will expand behind this command as that infrastructure is added.
+  - Proves source-built Gorilla service + unpackaged/source-built UI + deterministic fixtures + the critical FlaUI workflows.
+- `make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>`
+  - Windows only and intended for a disposable machine.
+  - Runs all lower validation levels, released-binary installer fixture coverage, and installed-product validation against the supplied produced artifacts.
+  - Proves the produced MSIX contains the matching `gorilla.exe`, installs/registers the automatic `LocalSystem` service, communicates over the real named pipe, runs the same critical FlaUI workflows through the installed packaged UI, and removes package/service registration on uninstall.
 
 ### Reusable leaf targets
 
@@ -59,9 +61,10 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - `make ui-test`
 - `make ui-windows-build`
 - `make windows-integration`
-- `make ui-e2e` (build and run the FlaUI suite)
-- `make ui-e2e-test` (run FlaUI against an existing Windows UI build)
+- `make ui-e2e` (build and run source-built FlaUI E2E)
+- `make ui-e2e-test` (run FlaUI against existing source builds)
 - `make release-integration GORILLA_RELEASE_EXE=<path>`
+- `make installed-product-integration GORILLA_RELEASE_MSIX=<path> GORILLA_RELEASE_EXE=<path>`
 
 `make lint` and `make test` remain supported compatibility aliases for Go linting and Go tests respectively. `make lint` includes `staticcheck`.
 
@@ -71,7 +74,8 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - Portable UI Core/Client changes: iterate with `make ui-lint` / `make ui-test`; run `make verify` before pushing.
 - Windows service, installer, named-pipe, or Windows-specific behavior: require `make verify-windows` in Windows CI.
 - WinUI application behavior: require `make verify-e2e` in Windows CI in addition to portable validation.
-- Release/package interoperability changes: use `make verify-release GORILLA_RELEASE_EXE=<produced artifact>` where the released-binary validation applies; expand this same level rather than inventing a separate release-only validation path.
+- Release/package interoperability changes: use and expand `make verify-release GORILLA_RELEASE_EXE=<produced exe> GORILLA_RELEASE_MSIX=<produced msix>` rather than inventing a separate release-only framework.
+- Keep source-built E2E and installed-release validation distinct: source E2E proves source service/UI behavior quickly; installed-product validation proves produced package/service/UI interoperability.
 
 ## Build & Test Commands
 
@@ -81,7 +85,7 @@ Other useful make targets:
 - `make clean`
 - `make bootstrap`
 - `make bootstrap-run`
-- `make msi` (Windows + WiX)
+- `make msi` (legacy Windows + WiX package build; not an official release artifact)
 
 Run `make help` for the current command summary.
 
@@ -105,6 +109,8 @@ Run `make help` for the current command summary.
   - `integration/windows/`
   - `utils/manual-test/`
 - Keep CI-specific setup in workflow YAML only when necessary; the actual build/test/integration behavior should be invoked through repo-owned validation commands or scripts.
+- Installed-product validation deliberately refuses to run when an existing Gorilla MSIX, Gorilla service, or `%ProgramData%\gorilla\config.yaml` is present. Use a disposable Windows runner/VM rather than risking a real installation.
+- Reuse `prepare-release-integration.ps1` fixture semantics and the existing FlaUI critical workflows for installed-product tests so source and release validation do not drift.
 
 ## Config & Examples
 

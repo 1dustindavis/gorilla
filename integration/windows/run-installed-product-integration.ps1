@@ -13,7 +13,6 @@ $prepareScript = Join-Path $PSScriptRoot "prepare-release-integration.ps1"
 $uiTestScript = Join-Path $repoRoot "gorilla-ui\tests\Gorilla.UI.App.WindowsUiTests\run-tests.ps1"
 $packageIdentityName = "133b2116-358b-42fb-8bc8-35009cc5d5af"
 $serviceName = "gorilla"
-$servicePipeName = "gorilla-service"
 $root = [System.IO.Path]::GetFullPath($WorkRoot)
 $msixPath = [System.IO.Path]::GetFullPath($GorillaMsixPath)
 if (-not (Test-Path -LiteralPath $msixPath)) {
@@ -23,13 +22,14 @@ if (-not (Test-Path -LiteralPath $msixPath)) {
 $fixtureRoot = Join-Path $root "fixture"
 $repoFixtureRoot = Join-Path $fixtureRoot "repo"
 $serverExe = Join-Path $fixtureRoot "tools\fixture-server.exe"
-$catalogPath = Join-Path $repoFixtureRoot "catalogs\integration.yaml"
 $manifestPath = Join-Path $repoFixtureRoot "manifests\ui-e2e.yaml"
 $configPath = "C:\ProgramData\gorilla\config.yaml"
+$configDirectory = Split-Path -Parent $configPath
 $appDataPath = "C:\ProgramData\gorilla-it"
 $markerPath = Join-Path $appDataPath "ps1.txt"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $evidenceRoot = Join-Path $root "installed-product-evidence"
+$installedByHarness = $false
 
 function Wait-ServiceState {
     param(
@@ -53,14 +53,29 @@ function Wait-ServiceState {
     throw "Timed out waiting for service '$serviceName' state '$Expected'. Actual: $actual"
 }
 
-function Remove-InstalledPackage {
+function Remove-TestPackage {
+    if (-not $script:installedByHarness) {
+        return
+    }
+
     $packages = @(Get-AppxPackage -Name $packageIdentityName -ErrorAction SilentlyContinue)
     foreach ($package in $packages) {
-        Write-Host "[INFO] Removing leftover Gorilla package $($package.PackageFullName)"
+        Write-Host "[INFO] Removing test-installed Gorilla package $($package.PackageFullName)"
         Remove-AppxPackage -Package $package.PackageFullName -ErrorAction Stop
     }
-    if ($packages.Count -gt 0) {
-        Wait-ServiceState -Expected "Absent"
+    Wait-ServiceState -Expected "Absent"
+    $script:installedByHarness = $false
+}
+
+function Assert-CleanMachine {
+    if (Get-AppxPackage -Name $packageIdentityName -ErrorAction SilentlyContinue) {
+        throw "Installed-product validation requires a disposable machine with no existing Gorilla MSIX installation."
+    }
+    if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+        throw "Installed-product validation requires a disposable machine with no existing '$serviceName' service."
+    }
+    if (Test-Path -LiteralPath $configPath) {
+        throw "Installed-product validation will not overwrite existing Gorilla configuration: $configPath"
     }
 }
 
@@ -122,12 +137,10 @@ function Invoke-TestPhase {
 }
 
 $serverProc = $null
-$installedPackage = $null
 try {
-    Remove-InstalledPackage
+    Assert-CleanMachine
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Split-Path -Parent $configPath) -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $root, $evidenceRoot -Force | Out-Null
 
     Write-Host "[INFO] Reusing Windows integration fixture preparation for installed-product validation"
@@ -151,7 +164,7 @@ optional_installs:
         throw "Fixture HTTP server exited during startup"
     }
 
-    New-Item -ItemType Directory -Path (Split-Path -Parent $configPath) -Force | Out-Null
+    New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
     $fileUrl = "http://127.0.0.1:$serverPort/"
     @"
 url: $fileUrl
@@ -165,6 +178,7 @@ debug: true
 
     Write-Host "[INFO] Installing produced Gorilla MSIX: $msixPath"
     Add-AppxPackage -Path $msixPath -ErrorAction Stop
+    $installedByHarness = $true
     $installedPackage = Get-AppxPackage -Name $packageIdentityName -ErrorAction Stop
     if ($null -eq $installedPackage) {
         throw "Gorilla MSIX installation did not register package identity '$packageIdentityName'"
@@ -191,7 +205,7 @@ debug: true
     if ($null -eq $service) {
         throw "Installing the Gorilla MSIX did not register the '$serviceName' service"
     }
-    if ($service.StartName -notin @("LocalSystem", "LocalSystem")) {
+    if ($service.StartName -ne "LocalSystem") {
         throw "Gorilla service account is '$($service.StartName)'; expected LocalSystem"
     }
     if ($service.StartMode -ne "Auto") {
@@ -201,8 +215,7 @@ debug: true
         throw "Gorilla service is not registered to the packaged executable. PathName: $($service.PathName)"
     }
 
-    $serviceState = Get-Service -Name $serviceName
-    if ($serviceState.Status -ne "Running") {
+    if ((Get-Service -Name $serviceName).Status -ne "Running") {
         Start-Service -Name $serviceName
     }
     Wait-ServiceState -Expected "Running"
@@ -236,13 +249,16 @@ debug: true
     throw $originalError
 } finally {
     try {
-        Remove-InstalledPackage
+        Remove-TestPackage
     } catch {
-        Write-Warning "Unable to remove installed Gorilla package during cleanup: $_"
+        Write-Warning "Unable to remove test-installed Gorilla package during cleanup: $_"
     }
     if ($serverProc -and -not $serverProc.HasExited) {
         Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
     }
     Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Split-Path -Parent $configPath) -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
+    if ((Test-Path -LiteralPath $configDirectory) -and -not (Get-ChildItem -LiteralPath $configDirectory -Force)) {
+        Remove-Item -LiteralPath $configDirectory -Force -ErrorAction SilentlyContinue
+    }
 }

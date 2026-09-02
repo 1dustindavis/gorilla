@@ -3,6 +3,7 @@ param(
     [string]$ArtifactsDirectory = "$PSScriptRoot\artifacts",
     [string]$TestFilter = "",
     [string]$ResultPrefix = "windows-ui-test",
+    [string]$AppUserModelId = "",
     [switch]$SkipBuild
 )
 
@@ -42,15 +43,23 @@ if (-not $SkipBuild) {
     Invoke-DotNet @("build", $testProject, "-c", "Release", "--no-restore")
 }
 
-if (-not (Test-Path -LiteralPath $appExe)) {
-    if ($SkipBuild) {
-        throw "Expected Release x64 Gorilla.UI.App.exe was not found at $appExe. Run the Windows UI build before test execution."
+if ([string]::IsNullOrWhiteSpace($AppUserModelId)) {
+    if (-not (Test-Path -LiteralPath $appExe)) {
+        if ($SkipBuild) {
+            throw "Expected Release x64 Gorilla.UI.App.exe was not found at $appExe. Run the Windows UI build before test execution."
+        }
+        throw "Expected Release x64 Gorilla.UI.App.exe was not found after build: $appExe"
     }
-    throw "Expected Release x64 Gorilla.UI.App.exe was not found after build: $appExe"
+
+    Write-Host "Using Windows UI executable: $appExe"
+    $env:GORILLA_UI_APP_EXE = $appExe
+    Remove-Item Env:GORILLA_UI_APP_ID -ErrorAction SilentlyContinue
+} else {
+    Write-Host "Using installed Windows UI package application: $AppUserModelId"
+    $env:GORILLA_UI_APP_ID = $AppUserModelId
+    Remove-Item Env:GORILLA_UI_APP_EXE -ErrorAction SilentlyContinue
 }
 
-Write-Host "Using Windows UI executable: $appExe"
-$env:GORILLA_UI_APP_EXE = $appExe
 $env:WINDOWS_UI_TEST_RESULTS_DIR = $ResultsDirectory
 $env:WINDOWS_UI_TEST_ARTIFACTS_DIR = $ArtifactsDirectory
 

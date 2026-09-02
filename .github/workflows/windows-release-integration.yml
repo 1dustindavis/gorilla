@@ -144,7 +144,7 @@ jobs:
         shell: pwsh
         run: |
           $exePath = "${{ runner.temp }}\gorilla-artifact\gorilla.exe"
-          $msixPath = "${{ runner.temp }}\gorilla-msix-artifact\Gorilla.UI.App.msix"
+          $msixPath = "${{ runner.temp }}\gorilla-msix-artifact\gorilla.msix"
           if (-not (Test-Path -LiteralPath $exePath)) {
             throw "Unable to resolve produced gorilla.exe artifact"
           }

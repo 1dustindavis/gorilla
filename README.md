@@ -10,9 +10,8 @@ Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://
 Information related to installing and configuring Gorilla can be found on the [Wiki](https://github.com/1dustindavis/gorilla/wiki).
 For quick manual-test setup helpers on a fresh Windows VM, see [utils/manual-test/README.md](utils/manual-test/README.md).
 
-The official Windows installer is published as `gorilla-<version>.msix` on each release (for example, `gorilla-2.30.0.msix`). The MSIX requires Windows 10 version 2004 (build 19041) or newer and administrator approval at install time because it installs Gorilla's automatic `LocalSystem` Windows service alongside the WinUI application. The UI itself runs as the signed-in user and communicates with the service over Gorilla's named pipe.
-
-Deploy Gorilla's service configuration at `%ProgramData%\gorilla\config.yaml`. The service intentionally keeps mutable configuration outside the immutable MSIX package. Environments that need custom deployment behavior can use the separately published `gorilla-<version>.exe` release binary instead of the packaged installer. The executable inside the MSIX remains `gorilla.exe`.
+Releases include `gorilla-<version>.msix` (Windows 10 2004 / build 19041+) and a standalone `gorilla-<version>.exe`.
+Service configuration lives at `%ProgramData%\gorilla\config.yaml`.
 
 ## Building
 
@@ -28,25 +27,16 @@ After cloning this repo, just run `go build -i ./cmd/gorilla`. A new binary will
 
 ## Contributing
 
-Pull requests are welcome. The Makefile provides the same validation entry points used by CI:
+Pull requests are welcome. Key validation targets:
 
 ```text
 make verify
-    Portable Go + .NET validation expected before pushing.
-
 make verify-windows
-    Windows build and source integration validation.
-
 make verify-e2e
-    Source-built Gorilla service + unpackaged UI + deterministic fixtures + critical FlaUI workflows.
-
 make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>
-    Lower validation plus released-binary fixture coverage and full installed-product validation of the produced MSIX/service/UI artifacts.
 ```
 
-`verify-release` requires a disposable Windows machine with no existing Gorilla package, service, or production configuration. Release CI uses the same deterministic fixture and FlaUI workflows as source E2E, then additionally proves package installation, service registration, named-pipe communication, packaged UI behavior, and uninstall cleanup.
-
-Use smaller targets such as `make go-test`, `make go-staticcheck`, `make ui-lint`, `make ui-test`, `make release-integration`, or `make installed-product-integration` while iterating. See `AGENTS.md` and `make help` for the complete validation contract and guidance on which level applies to a change.
+See `AGENTS.md` and `make help` for details.
 
 ## Repo Admin Mode
 Gorilla also supports local repo admin workflows:

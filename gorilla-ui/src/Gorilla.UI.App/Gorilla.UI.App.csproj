@@ -11,8 +11,8 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
-    <GorillaSourceBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\..\build\gorilla.exe</GorillaSourceBuildExecutable>
-    <GorillaReleaseBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\..\cmd\gorilla\gorilla.exe</GorillaReleaseBuildExecutable>
+    <GorillaSourceBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\build\gorilla.exe</GorillaSourceBuildExecutable>
+    <GorillaReleaseBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\cmd\gorilla\gorilla.exe</GorillaReleaseBuildExecutable>
     <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaSourceBuildExecutable)')">$(GorillaSourceBuildExecutable)</GorillaServiceExecutable>
     <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaReleaseBuildExecutable)')">$(GorillaReleaseBuildExecutable)</GorillaServiceExecutable>
   </PropertyGroup>

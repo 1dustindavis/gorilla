@@ -131,17 +131,22 @@ jobs:
             $archive.Dispose()
           }
 
-          $serviceExtension = @($packagedManifest.Package.Applications.Application.Extensions.Extension) |
-            Where-Object { $_.Category -eq 'windows.service' }
-          if ($serviceExtension.Count -ne 1 -or $serviceExtension[0].Executable -ne 'gorilla.exe') {
+          $serviceExtensions = @($packagedManifest.SelectNodes("//*[local-name()='Extension' and @Category='windows.service']"))
+          if ($serviceExtensions.Count -ne 1 -or $serviceExtensions[0].GetAttribute('Executable') -ne 'gorilla.exe') {
             throw "Produced MSIX does not declare the expected Gorilla packaged service"
           }
-          $service = $serviceExtension[0].Service
-          if ($service.Name -ne 'gorilla' -or $service.StartupType -ne 'auto' -or $service.StartAccount -ne 'localSystem') {
+          $service = $serviceExtensions[0].SelectSingleNode("*[local-name()='Service']")
+          if ($null -eq $service -or
+              $service.GetAttribute('Name') -ne 'gorilla' -or
+              $service.GetAttribute('StartupType') -ne 'auto' -or
+              $service.GetAttribute('StartAccount') -ne 'localSystem') {
             throw "Produced MSIX has unexpected Gorilla service registration metadata"
           }
 
-          $capabilities = @($packagedManifest.Package.Capabilities.Capability | ForEach-Object { $_.Name })
+          $capabilities = @(
+            $packagedManifest.SelectNodes("//*[local-name()='Capabilities']/*[local-name()='Capability']") |
+              ForEach-Object { $_.GetAttribute('Name') }
+          )
           foreach ($required in @('runFullTrust', 'packagedServices', 'localSystemServices')) {
             if ($required -notin $capabilities) {
               throw "Produced MSIX is missing required capability '$required'"

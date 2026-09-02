@@ -30,6 +30,9 @@ $markerPath = Join-Path $appDataPath "ps1.txt"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $evidenceRoot = Join-Path $root "installed-product-evidence"
 $installedByHarness = $false
+$configCreatedByHarness = $false
+$configDirectoryCreatedByHarness = $false
+$appDataCreatedByHarness = $false
 
 function Wait-ServiceState {
     param(
@@ -76,6 +79,9 @@ function Assert-CleanMachine {
     }
     if (Test-Path -LiteralPath $configPath) {
         throw "Installed-product validation will not overwrite existing Gorilla configuration: $configPath"
+    }
+    if (Test-Path -LiteralPath $appDataPath) {
+        throw "Installed-product validation will not overwrite existing Gorilla integration data: $appDataPath"
     }
 }
 
@@ -140,7 +146,6 @@ $serverProc = $null
 try {
     Assert-CleanMachine
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $root, $evidenceRoot -Force | Out-Null
 
     Write-Host "[INFO] Reusing Windows integration fixture preparation for installed-product validation"
@@ -164,7 +169,13 @@ optional_installs:
         throw "Fixture HTTP server exited during startup"
     }
 
-    New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $configDirectory)) {
+        New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
+        $configDirectoryCreatedByHarness = $true
+    }
+    New-Item -ItemType Directory -Path $appDataPath -Force | Out-Null
+    $appDataCreatedByHarness = $true
+
     $fileUrl = "http://127.0.0.1:$serverPort/"
     @"
 url: $fileUrl
@@ -175,6 +186,7 @@ app_data_path: C:/ProgramData/gorilla-it
 service_interval: 24h
 debug: true
 "@ | Set-Content -LiteralPath $configPath -NoNewline
+    $configCreatedByHarness = $true
 
     Write-Host "[INFO] Installing produced Gorilla MSIX: $msixPath"
     Add-AppxPackage -Path $msixPath -ErrorAction Stop
@@ -256,9 +268,13 @@ debug: true
     if ($serverProc -and -not $serverProc.HasExited) {
         Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
     }
-    Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
-    if ((Test-Path -LiteralPath $configDirectory) -and -not (Get-ChildItem -LiteralPath $configDirectory -Force)) {
+    if ($appDataCreatedByHarness) {
+        Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($configCreatedByHarness) {
+        Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
+    }
+    if ($configDirectoryCreatedByHarness -and (Test-Path -LiteralPath $configDirectory) -and -not (Get-ChildItem -LiteralPath $configDirectory -Force)) {
         Remove-Item -LiteralPath $configDirectory -Force -ErrorAction SilentlyContinue
     }
 }

@@ -14,7 +14,7 @@ Guidance for coding agents working in this repository.
 - CI runs in GitHub Actions and primarily targets Windows (`windows-latest`) to match deployment expectations.
 - Development often happens on macOS: keep macOS build/test/dev workflows working where practical, but do not add major complexity solely to preserve parity.
 - Where appropriate, macOS/non-Windows stub or no-op behavior is acceptable if it keeps development workflows usable.
-- `gorilla.msix` is the official Windows installer. It packages the WinUI app and `gorilla.exe`, and registers the automatic `LocalSystem` Gorilla service. The separately released `gorilla.exe` remains available for custom deployment.
+- Release assets are published as `gorilla-<version>.msix` (official Windows installer) and `gorilla-<version>.exe` (standalone custom-deployment binary). The MSIX contains the WinUI app plus an internal `gorilla.exe` and registers the automatic `LocalSystem` Gorilla service.
 - The packaged product requires Windows 10 version 2004 / build 19041 or newer. Mutable service configuration belongs at `%ProgramData%\gorilla\config.yaml`, outside the MSIX package.
 
 ## Preferred Workflow

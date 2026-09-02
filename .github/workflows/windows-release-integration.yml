@@ -143,16 +143,23 @@ jobs:
         if: github.event_name == 'workflow_run'
         shell: pwsh
         run: |
-          $exePath = "${{ runner.temp }}\gorilla-artifact\gorilla.exe"
-          $msixPath = "${{ runner.temp }}\gorilla-msix-artifact\gorilla.msix"
-          if (-not (Test-Path -LiteralPath $exePath)) {
-            throw "Unable to resolve produced gorilla.exe artifact"
+          $exeFiles = @(Get-ChildItem -Path "${{ runner.temp }}\gorilla-artifact" -File -Filter 'gorilla-*.exe')
+          $msixFiles = @(Get-ChildItem -Path "${{ runner.temp }}\gorilla-msix-artifact" -File -Filter 'gorilla-*.msix')
+          if ($exeFiles.Count -ne 1) {
+            throw "Expected exactly one versioned gorilla-*.exe artifact; found $($exeFiles.Count)"
           }
-          if (-not (Test-Path -LiteralPath $msixPath)) {
-            throw "Unable to resolve produced Gorilla MSIX artifact"
+          if ($msixFiles.Count -ne 1) {
+            throw "Expected exactly one versioned gorilla-*.msix artifact; found $($msixFiles.Count)"
           }
-          "GORILLA_EXE_PATH=$exePath" >> $env:GITHUB_ENV
-          "GORILLA_MSIX_PATH=$msixPath" >> $env:GITHUB_ENV
+
+          $exeVersion = $exeFiles[0].BaseName -replace '^gorilla-', ''
+          $msixVersion = $msixFiles[0].BaseName -replace '^gorilla-', ''
+          if ($exeVersion -ne $msixVersion) {
+            throw "Release artifact versions do not match: exe=$exeVersion msix=$msixVersion"
+          }
+
+          "GORILLA_EXE_PATH=$($exeFiles[0].FullName)" >> $env:GITHUB_ENV
+          "GORILLA_MSIX_PATH=$($msixFiles[0].FullName)" >> $env:GITHUB_ENV
 
       - name: Resolve PR gorilla.exe path
         if: github.event_name == 'pull_request'

@@ -136,7 +136,9 @@ jobs:
             throw "No test-signed Gorilla MSIX was produced"
           }
 
-          "GORILLA_EXE_PATH=$env:GITHUB_WORKSPACE\build\gorilla.exe" >> $env:GITHUB_ENV
+          $immutableExePath = "$env:RUNNER_TEMP\gorilla-installed-product.exe"
+          Copy-Item -LiteralPath "$env:GITHUB_WORKSPACE\build\gorilla.exe" -Destination $immutableExePath -Force
+          "GORILLA_EXE_PATH=$immutableExePath" >> $env:GITHUB_ENV
           "GORILLA_MSIX_PATH=$($msix.FullName)" >> $env:GITHUB_ENV
 
       - name: Resolve produced release artifact paths

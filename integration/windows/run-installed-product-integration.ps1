@@ -143,6 +143,8 @@ function Invoke-TestPhase {
 }
 
 $serverProc = $null
+$primaryError = $null
+$cleanupError = $null
 try {
     Assert-CleanMachine
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
@@ -247,23 +249,27 @@ debug: true
     Stop-Service -Name $serviceName -Force -ErrorAction Stop
     Wait-ServiceState -Expected "Stopped"
     Invoke-TestPhase -Phase "service-unavailable" -Filter "E2EPhase=ServiceUnavailable" -AppUserModelId $appUserModelId
-
-    Write-Host "Installed-product integration passed"
 } catch {
-    $originalError = $_
+    $primaryError = $_
     try {
         New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
-        $originalError | Out-String | Set-Content -LiteralPath (Join-Path $evidenceRoot "harness-failure.txt")
+        $primaryError | Out-String | Set-Content -LiteralPath (Join-Path $evidenceRoot "harness-failure.txt")
         Copy-InstalledProductEvidence -PhaseDirectory $evidenceRoot
     } catch {
         Write-Warning "Unable to capture installed-product failure evidence: $_"
     }
-    throw $originalError
 } finally {
     try {
         Remove-TestPackage
     } catch {
-        Write-Warning "Unable to remove test-installed Gorilla package during cleanup: $_"
+        $cleanupError = $_
+        try {
+            New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+            $cleanupError | Out-String | Set-Content -LiteralPath (Join-Path $evidenceRoot "cleanup-failure.txt")
+            Copy-InstalledProductEvidence -PhaseDirectory $evidenceRoot
+        } catch {
+            Write-Warning "Unable to capture installed-product cleanup failure evidence: $_"
+        }
     }
     if ($serverProc -and -not $serverProc.HasExited) {
         Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
@@ -278,3 +284,15 @@ debug: true
         Remove-Item -LiteralPath $configDirectory -Force -ErrorAction SilentlyContinue
     }
 }
+
+if ($null -ne $primaryError) {
+    if ($null -ne $cleanupError) {
+        Write-Warning "Installed-product cleanup also failed: $cleanupError"
+    }
+    throw $primaryError
+}
+if ($null -ne $cleanupError) {
+    throw $cleanupError
+}
+
+Write-Host "Installed-product integration passed"

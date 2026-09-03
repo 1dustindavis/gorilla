@@ -83,32 +83,32 @@ Options:
 
 // Configuration stores all of the possible parameters a config file could contain
 type Configuration struct {
-	URL             string   `yaml:"url"`
-	URLPackages     string   `yaml:"url_packages"`
-	Manifest        string   `yaml:"manifest"`
-	LocalManifests  []string `yaml:"local_manifests,omitempty"`
-	Catalogs        []string `yaml:"catalogs"`
-	AppDataPath     string   `yaml:"app_data_path"`
-	Verbose         bool     `yaml:"verbose,omitempty"`
-	Debug           bool     `yaml:"debug,omitempty"`
-	CheckOnly       bool     `yaml:"checkonly,omitempty"`
-	BuildArg        bool
-	ImportArg       string
-	RepoPath        string `yaml:"repo_path,omitempty"`
-	AuthUser        string `yaml:"auth_user,omitempty"`
-	AuthPass        string `yaml:"auth_pass,omitempty"`
-	TLSAuth         bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert   string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey    string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert   string `yaml:"tls_server_cert,omitempty"`
-	CachePath       string
-	ServiceMode     bool `yaml:"service_mode,omitempty"`
-	ServiceCommand  string
-	ServiceInstall  bool
-	ServiceRemove   bool
-	ServiceStart    bool
-	ServiceStop     bool
-	ServiceStatus   bool
+	URL            string   `yaml:"url"`
+	URLPackages    string   `yaml:"url_packages"`
+	Manifest       string   `yaml:"manifest"`
+	LocalManifests []string `yaml:"local_manifests,omitempty"`
+	Catalogs       []string `yaml:"catalogs"`
+	AppDataPath    string   `yaml:"app_data_path"`
+	Verbose        bool     `yaml:"verbose,omitempty"`
+	Debug          bool     `yaml:"debug,omitempty"`
+	CheckOnly      bool     `yaml:"checkonly,omitempty"`
+	BuildArg       bool
+	ImportArg      string
+	RepoPath       string `yaml:"repo_path,omitempty"`
+	AuthUser       string `yaml:"auth_user,omitempty"`
+	AuthPass       string `yaml:"auth_pass,omitempty"`
+	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
+	CachePath      string
+	ServiceMode    bool `yaml:"service_mode,omitempty"`
+	ServiceCommand string
+	ServiceInstall bool
+	ServiceRemove  bool
+	ServiceStart   bool
+	ServiceStop    bool
+	ServiceStatus  bool
 	// ServiceName and ServicePipeName are product identities, not supported
 	// configuration. Tests may still construct Configuration values directly.
 	ServiceName     string `yaml:"-"`

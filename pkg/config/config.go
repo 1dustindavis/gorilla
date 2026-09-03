@@ -41,9 +41,9 @@ var (
 	serviceStartArg   bool
 	serviceStopArg    bool
 	serviceStatusArg  bool
-	// integrationTestServiceIdentityArg is an internal test seam used by the
+	// e2eIdentityArg is an internal test seam used by the
 	// source-built Windows E2E harness. It is intentionally omitted from usage.
-	integrationTestServiceIdentityArg string
+	e2eIdentityArg    string
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -113,10 +113,10 @@ type Configuration struct {
 	ServiceName     string `yaml:"-"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
 	ServicePipeName string `yaml:"-"`
-	// IntegrationTestServiceIdentity carries the source E2E identity into the
+	// E2EIdentity carries the source E2E identity into the
 	// installed service command line. It is never read from YAML.
-	IntegrationTestServiceIdentity string `yaml:"-"`
-	ConfigPath                     string
+	E2EIdentity    string `yaml:"-"`
+	ConfigPath     string
 }
 
 func init() {
@@ -161,7 +161,7 @@ func init() {
 	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
 	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
 	flag.BoolVar(&serviceStatusArg, "servicestatus", false, "")
-	flag.StringVar(&integrationTestServiceIdentityArg, "integration-test-service-identity", "", "")
+	flag.StringVar(&e2eIdentityArg, "integration-test-service-identity", "", "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -290,10 +290,10 @@ func Get() Configuration {
 	// an internal command-line seam for the source-built Windows E2E harness.
 	cfg.ServiceName = CanonicalServiceName
 	cfg.ServicePipeName = CanonicalServicePipeName
-	if integrationTestServiceIdentityArg != "" {
-		cfg.ServiceName = integrationTestServiceIdentityArg
-		cfg.ServicePipeName = integrationTestServiceIdentityArg
-		cfg.IntegrationTestServiceIdentity = integrationTestServiceIdentityArg
+	if e2eIdentityArg != "" {
+		cfg.ServiceName = e2eIdentityArg
+		cfg.ServicePipeName = e2eIdentityArg
+		cfg.E2EIdentity = e2eIdentityArg
 	}
 	if cfg.ServiceInterval == "" {
 		cfg.ServiceInterval = "1h"

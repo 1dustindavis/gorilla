@@ -62,9 +62,7 @@ manifest: $ManifestValue
 catalogs:
 $yamlCatalogs
 app_data_path: $yamlAppDataPath
-# service_name: gorilla
 # service_interval: 1h
-# service_pipe_name: gorilla-service
 "@
 
     Set-Content -Path $ConfigFilePath -Value $content -Encoding ASCII

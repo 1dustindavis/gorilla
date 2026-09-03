@@ -96,7 +96,7 @@ func TestValidateCommandInstallItemRequiresOneArgument(t *testing.T) {
 
 func TestServiceInstallArgs(t *testing.T) {
 	configPath := `C:\ProgramData\gorilla\config.yaml`
-	got := serviceInstallArgs(configPath)
+	got := serviceInstallArgs(configPath, "")
 	if len(got) != 3 {
 		t.Fatalf("expected 3 args, got %d: %#v", len(got), got)
 	}
@@ -108,6 +108,18 @@ func TestServiceInstallArgs(t *testing.T) {
 	}
 	if got[2] != "-service" {
 		t.Fatalf("expected final arg -service, got %q", got[2])
+	}
+}
+
+func TestServiceInstallArgsPreservesIntegrationTestIdentity(t *testing.T) {
+	configPath := `C:\ProgramData\gorilla-ui-e2e\config.yaml`
+	got := serviceInstallArgs(configPath, "gorilla-ui-e2e")
+	want := []string{
+		"-c", configPath, "-service",
+		"-integration-test-service-identity", "gorilla-ui-e2e",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("expected %#v, got %#v", want, got)
 	}
 }
 

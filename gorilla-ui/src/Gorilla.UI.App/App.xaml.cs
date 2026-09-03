@@ -10,7 +10,9 @@ namespace Gorilla.UI.App
 {
     public partial class App : Application
     {
-        private const string PipeNameOverrideVariable = "GORILLA_UI_PIPE_NAME";
+        // Source E2E tests use an isolated service identity. Production always
+        // uses NamedPipeClientOptions.Default (gorilla-service).
+        private const string E2EPipeNameVariable = "GORILLA_UI_E2E_PIPE_NAME";
         private const string CachePathOverrideVariable = "GORILLA_UI_CACHE_PATH";
         private Window? _window;
 
@@ -22,7 +24,7 @@ namespace Gorilla.UI.App
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             var cacheFilePath = BuildCacheFilePath();
-            var pipeName = Environment.GetEnvironmentVariable(PipeNameOverrideVariable);
+            var pipeName = Environment.GetEnvironmentVariable(E2EPipeNameVariable);
             var services = GorillaUiServices.Create(cacheFilePath, pipeName);
             var operationTracker = new OperationTracker(services.Client);
             var homeViewModel = new HomeViewModel(services.Client, services.CacheCoordinator, operationTracker);

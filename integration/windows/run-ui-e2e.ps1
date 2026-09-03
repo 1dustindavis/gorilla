@@ -177,20 +177,18 @@ manifest: ui-e2e
 catalogs:
   - integration
 app_data_path: C:/ProgramData/gorilla-ui-e2e
-service_name: $serviceName
-service_pipe_name: $servicePipeName
 service_interval: 24h
 debug: true
 "@ | Set-Content -LiteralPath $configPath -NoNewline
 
-    $env:GORILLA_UI_PIPE_NAME = $servicePipeName
+    $env:GORILLA_UI_E2E_PIPE_NAME = $servicePipeName
     $env:GORILLA_UI_CACHE_PATH = $uiCachePath
     $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
     $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
 
-    & $GorillaExePath -config $configPath -serviceinstall | Out-Host
+    & $GorillaExePath -config $configPath -integration-test-service-identity $serviceName -serviceinstall | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Failed to install source-built Gorilla service" }
-    & $GorillaExePath -config $configPath -servicestart | Out-Host
+    & $GorillaExePath -config $configPath -integration-test-service-identity $serviceName -servicestart | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Failed to start source-built Gorilla service" }
     Wait-ServiceState -Expected "Running"
 

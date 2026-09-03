@@ -8,6 +8,12 @@ namespace Gorilla.UI.Client.Tests;
 public class ContractsSmokeTests
 {
     [Fact]
+    public void NamedPipeClientOptions_DefaultUsesCanonicalProductPipe()
+    {
+        Assert.Equal("gorilla-service", NamedPipeClientOptions.Default.PipeName);
+    }
+
+    [Fact]
     public void OperationState_HasTerminalValues()
     {
         Assert.Contains(OperationState.Succeeded, Enum.GetValues<OperationState>());

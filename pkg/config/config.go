@@ -41,9 +41,17 @@ var (
 	serviceStartArg   bool
 	serviceStopArg    bool
 	serviceStatusArg  bool
+	// integrationTestServiceIdentityArg is an internal test seam used by the
+	// source-built Windows E2E harness. It is intentionally omitted from usage.
+	integrationTestServiceIdentityArg string
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
+)
+
+const (
+	CanonicalServiceName     = "gorilla"
+	CanonicalServicePipeName = "gorilla-service"
 )
 
 const usage = `
@@ -100,10 +108,15 @@ type Configuration struct {
 	ServiceStart    bool
 	ServiceStop     bool
 	ServiceStatus   bool
-	ServiceName     string `yaml:"service_name,omitempty"`
+	// ServiceName and ServicePipeName are product identities, not supported
+	// configuration. Tests may still construct Configuration values directly.
+	ServiceName     string `yaml:"-"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
-	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
-	ConfigPath      string
+	ServicePipeName string `yaml:"-"`
+	// IntegrationTestServiceIdentity carries the source E2E identity into the
+	// installed service command line. It is never read from YAML.
+	IntegrationTestServiceIdentity string `yaml:"-"`
+	ConfigPath                     string
 }
 
 func init() {
@@ -148,6 +161,7 @@ func init() {
 	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
 	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
 	flag.BoolVar(&serviceStatusArg, "servicestatus", false, "")
+	flag.StringVar(&integrationTestServiceIdentityArg, "integration-test-service-identity", "", "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -272,15 +286,17 @@ func Get() Configuration {
 	report.Items["Manifest"] = cfg.Manifest
 	report.Items["Catalog"] = cfg.Catalogs
 
-	// Configure service defaults.
-	if cfg.ServiceName == "" {
-		cfg.ServiceName = "gorilla"
+	// Service and pipe names are fixed product identities. The only override is
+	// an internal command-line seam for the source-built Windows E2E harness.
+	cfg.ServiceName = CanonicalServiceName
+	cfg.ServicePipeName = CanonicalServicePipeName
+	if integrationTestServiceIdentityArg != "" {
+		cfg.ServiceName = integrationTestServiceIdentityArg
+		cfg.ServicePipeName = integrationTestServiceIdentityArg
+		cfg.IntegrationTestServiceIdentity = integrationTestServiceIdentityArg
 	}
 	if cfg.ServiceInterval == "" {
 		cfg.ServiceInterval = "1h"
-	}
-	if cfg.ServicePipeName == "" {
-		cfg.ServicePipeName = "gorilla-service"
 	}
 
 	return cfg

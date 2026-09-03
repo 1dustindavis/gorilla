@@ -379,6 +379,27 @@ jobs:
         Write-Host "  Thumbprint: $($signature.SignerCertificate.Thumbprint)"
         Write-Host "  Valid through: $($signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('u'))"
 
+    - name: Validate exact release artifacts before publication
+      shell: pwsh
+      run: |
+        make verify-release `
+          GORILLA_RELEASE_EXE="$env:GITHUB_WORKSPACE\build\$env:RELEASE_EXE_NAME" `
+          GORILLA_RELEASE_MSIX="$env:GITHUB_WORKSPACE\build\$env:RELEASE_MSIX_NAME" `
+          RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration" `
+          INSTALLED_PRODUCT_WORK_ROOT="$env:RUNNER_TEMP\gorilla-installed-product"
+
+    - name: Upload release validation failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v6
+      with:
+        name: release-validation-failure-${{ github.run_id }}
+        path: |
+          C:\ProgramData\gorilla-it\cache\gorilla.log
+          ${{ runner.temp }}/gorilla-release-integration/fixture/configs
+          ${{ runner.temp }}/gorilla-installed-product/installed-product-evidence
+        if-no-files-found: warn
+        retention-days: 90
+
     - name: Upload Gorilla UI MSIX workflow artifact
       uses: actions/upload-artifact@v6
       with:

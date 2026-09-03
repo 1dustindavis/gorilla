@@ -175,6 +175,7 @@ go-format:
 	if [ -n "$$UNFORMATTED" ]; then \
 	  echo "Repo contains improperly formatted Go files:"; \
 	  echo "$$UNFORMATTED"; \
+	  gofmt -d -s $$UNFORMATTED; \
 	  exit 1; \
 	else \
 	  echo "All Go files formatted correctly"; \

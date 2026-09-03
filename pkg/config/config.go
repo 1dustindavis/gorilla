@@ -41,9 +41,10 @@ var (
 	serviceStartArg   bool
 	serviceStopArg    bool
 	serviceStatusArg  bool
+
 	// e2eIdentityArg is an internal test seam used by the
 	// source-built Windows E2E harness. It is intentionally omitted from usage.
-	e2eIdentityArg    string
+	e2eIdentityArg string
 
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
@@ -113,10 +114,12 @@ type Configuration struct {
 	ServiceName     string `yaml:"-"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
 	ServicePipeName string `yaml:"-"`
+
 	// E2EIdentity carries the source E2E identity into the
 	// installed service command line. It is never read from YAML.
-	E2EIdentity     string `yaml:"-"`
-	ConfigPath      string
+	E2EIdentity string `yaml:"-"`
+
+	ConfigPath string
 }
 
 func init() {

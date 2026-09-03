@@ -115,8 +115,8 @@ type Configuration struct {
 	ServicePipeName string `yaml:"-"`
 	// E2EIdentity carries the source E2E identity into the
 	// installed service command line. It is never read from YAML.
-	E2EIdentity    string `yaml:"-"`
-	ConfigPath     string
+	E2EIdentity     string `yaml:"-"`
+	ConfigPath      string
 }
 
 func init() {

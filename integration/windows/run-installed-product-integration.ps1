@@ -66,6 +66,9 @@ function Remove-TestPackage {
         Write-Host "[INFO] Removing test-installed Gorilla package $($package.PackageFullName)"
         Remove-AppxPackage -Package $package.PackageFullName -ErrorAction Stop
     }
+    if (Get-AppxPackage -Name $packageIdentityName -ErrorAction SilentlyContinue) {
+        throw "Gorilla MSIX package is still registered after uninstall"
+    }
     Wait-ServiceState -Expected "Absent"
     $script:installedByHarness = $false
 }

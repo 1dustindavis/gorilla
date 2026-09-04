@@ -1,5 +1,6 @@
 ![Gorilla logo](gorilla.png)
-# Gorilla [![Build status](https://github.com/1dustindavis/gorilla/actions/workflows/go-test.yml/badge.svg?branch=main)](https://github.com/1dustindavis/gorilla/actions/workflows/go-test.yml)
+[![Build status](https://github.com/1dustindavis/gorilla/actions/workflows/go-test.yml/badge.svg?branch=main)](https://github.com/1dustindavis/gorilla/actions/workflows/go-test.yml)
+# Gorilla
 
 Munki-like Application Management for Windows
 
@@ -7,11 +8,10 @@ Gorilla is intended to provide application management on Windows using [Munki](h
 Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
 
 ## Getting Started
-See the [Gorilla documentation](docs/README.md) for installation, configuration, catalogs, manifests, the Windows service, and App Catalog.
-For quick manual-test setup helpers on a fresh Windows VM, see [utils/manual-test/README.md](utils/manual-test/README.md).
+See the [Gorilla documentation](docs/README.md).
 
-Releases include `gorilla-<version>.msix` (Windows 10 2004 / build 19041+) and a standalone `gorilla-<version>.exe`.
-Service configuration lives at `%ProgramData%\gorilla\config.yaml`.
+The versioned `gorilla-<version>.msix` is the recommended installation method.
+Config lives at `%ProgramData%\gorilla\config.yaml`.
 
 ## Building
 
@@ -27,16 +27,11 @@ After cloning this repo, just run `go build -i ./cmd/gorilla`. A new binary will
 
 ## Contributing
 
-Pull requests are welcome. Key validation targets:
+Pull requests are welcome. Validate changes with:
 
 ```text
 make verify
-make verify-windows
-make verify-e2e
-make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>
 ```
-
-See `AGENTS.md` and `make help` for details.
 
 ## Repo Admin Mode
 Gorilla also supports local repo admin workflows:

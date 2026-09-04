@@ -82,16 +82,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Run FlaUI Windows UI validation
-        if: steps.changes.outputs.run == 'true'
-        id: ui-e2e
-        shell: pwsh
-        run: make ui-e2e
-
       - name: Build and inspect unsigned packaged product
         if: steps.changes.outputs.run == 'true'
         shell: pwsh
         run: |
+          make build
           dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj `
             -c Release `
             -p:Platform=x64 `
@@ -154,6 +149,12 @@ jobs:
           }
 
           Write-Host "Validated packaged Gorilla service payload and manifest"
+
+      - name: Run FlaUI Windows UI validation
+        if: steps.changes.outputs.run == 'true'
+        id: ui-e2e
+        shell: pwsh
+        run: make ui-e2e
 
       - name: Summarize skipped Windows UI validation
         if: steps.changes.outputs.run != 'true'

@@ -9,8 +9,7 @@ Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://
 ## Getting Started
 See the [Gorilla documentation](docs/README.md).
 
-The versioned `gorilla-<version>.msix` is the recommended installation method.
-Config lives at `%ProgramData%\gorilla\config.yaml`.
+Download the latest version from the [releases page](https://github.com/1dustindavis/gorilla/releases). MSIX is the recommended installation method.
 
 A UI for Gorilla called [App Catalog](docs/app-catalog.md) is still in development and is included with the MSIX.
 

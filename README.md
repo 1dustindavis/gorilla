@@ -4,7 +4,6 @@
 
 Munki-like Application Management for Windows
 
-Gorilla is intended to provide application management on Windows using [Munki](https://github.com/munki/munki) as inspiration.
 Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
 
 ## Getting Started
@@ -12,6 +11,7 @@ See the [Gorilla documentation](docs/README.md).
 
 The versioned `gorilla-<version>.msix` is the recommended installation method.
 Config lives at `%ProgramData%\gorilla\config.yaml`.
+
 A UI for Gorilla called [App Catalog](docs/app-catalog.md) is still in development and is included with the MSIX.
 
 ## Building

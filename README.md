@@ -7,7 +7,7 @@ Gorilla is intended to provide application management on Windows using [Munki](h
 Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://github.com/chocolatey/choco).
 
 ## Getting Started
-Information related to installing and configuring Gorilla can be found on the [Wiki](https://github.com/1dustindavis/gorilla/wiki).
+See the [Gorilla documentation](docs/README.md) for installation, configuration, catalogs, manifests, the Windows service, and App Catalog.
 For quick manual-test setup helpers on a fresh Windows VM, see [utils/manual-test/README.md](utils/manual-test/README.md).
 
 Releases include `gorilla-<version>.msix` (Windows 10 2004 / build 19041+) and a standalone `gorilla-<version>.exe`.

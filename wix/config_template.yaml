@@ -2,7 +2,7 @@
 ##
 ## Gorilla configuration template
 ## Only `url` and `manifest` are required
-## More details at https://github.com/1dustindavis/gorilla/wiki/Client-Configuration
+## More details at https://github.com/1dustindavis/gorilla/blob/main/docs/client-configuration.md
 ##
 
 ## `url` is the path on your server that contains the directories for

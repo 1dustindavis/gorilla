@@ -119,6 +119,7 @@ Run `make help` for the current command summary.
   - `examples/example_catalog.yaml`
   - `examples/example_manifest.yaml`
   - `examples/example_package-info.yaml`
+- Keep user-facing behavior documented under `docs/`; update the relevant page when installation, configuration, manifest, catalog, service, or App Catalog behavior changes.
 - For UI protocol/data shape changes, keep the JSON contract aligned with the YAML model represented in:
   - `examples/example_manifest.yaml`
   - `examples/example_package-info.yaml`

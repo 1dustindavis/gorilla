@@ -12,6 +12,7 @@ See the [Gorilla documentation](docs/README.md).
 
 The versioned `gorilla-<version>.msix` is the recommended installation method.
 Config lives at `%ProgramData%\gorilla\config.yaml`.
+A UI for Gorilla called [App Catalog](docs/app-catalog.md) is still in development and is included with the MSIX.
 
 ## Building
 

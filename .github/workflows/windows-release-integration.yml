@@ -118,6 +118,15 @@ jobs:
             GORILLA_RELEASE_EXE="$env:GORILLA_EXE_PATH" `
             RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration"
 
+      - name: Verify released-binary integration cleanup
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          $integrationData = "C:\ProgramData\gorilla-it"
+          if (Test-Path -LiteralPath $integrationData) {
+            throw "Released-binary integration left test data behind: $integrationData"
+          }
+
       - name: Run manual installed-product validation
         if: github.event_name == 'workflow_dispatch'
         shell: pwsh

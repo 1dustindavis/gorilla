@@ -108,10 +108,12 @@ jobs:
           "GORILLA_EXE_PATH=$immutableExePath" >> $env:GITHUB_ENV
           "GORILLA_MSIX_PATH=$($msix.FullName)" >> $env:GITHUB_ENV
 
-      - name: Run PR released-binary integration
+      - name: Run PR composed released-binary integration
         if: github.event_name == 'pull_request'
         shell: pwsh
         run: |
+          make windows-integration `
+            WINDOWS_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-source-integration"
           make release-integration `
             GORILLA_RELEASE_EXE="$env:GORILLA_EXE_PATH" `
             RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration"

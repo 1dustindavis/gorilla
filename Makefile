@@ -214,7 +214,7 @@ endif
 
 windows-integration: build
 ifeq ($(OS), Windows_NT)
-	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(WINDOWS_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe"
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(WINDOWS_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(CURDIR)/build/gorilla.exe" -FixtureNamespace Source
 else
 	@echo "windows-integration requires Windows"
 	@exit 1
@@ -243,9 +243,9 @@ ifeq ($(strip $(GORILLA_RELEASE_EXE)),)
 	@exit 1
 else
 ifeq ($(RELEASE_USE_PREBUILT_FIXTURES),1)
-	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)" -UsePrebuiltFixtures
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)" -FixtureNamespace Release -UsePrebuiltFixtures
 else
-	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)"
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-source-integration.ps1 -WorkRoot "$(RELEASE_INTEGRATION_WORK_ROOT)" -GorillaExePath "$(GORILLA_RELEASE_EXE)" -FixtureNamespace Release
 endif
 endif
 else

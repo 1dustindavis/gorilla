@@ -1,7 +1,10 @@
 param(
     [string]$WorkRoot = "$env:RUNNER_TEMP\gorilla-release-integration",
     [Parameter(Mandatory = $true)]
-    [string]$GorillaExePath
+    [string]$GorillaExePath,
+    [ValidateLength(1, 10)]
+    [ValidatePattern('^[A-Za-z][A-Za-z0-9]*$')]
+    [string]$FixtureNamespace = "Release"
 )
 
 Set-StrictMode -Version Latest
@@ -113,7 +116,7 @@ if ($missingPreparedPaths.Count -gt 0) {
     }
 
     Write-Host "[INFO] Missing integration preparation output; running prepare-release-integration.ps1"
-    & $prepareScriptPath -WorkRoot $root
+    & $prepareScriptPath -WorkRoot $root -FixtureNamespace $FixtureNamespace
     if ($LASTEXITCODE -ne 0) {
         throw "prepare-release-integration.ps1 failed with exit code $LASTEXITCODE"
     }
@@ -129,8 +132,8 @@ $exeMarker = Join-Path $markerRoot "exe.txt"
 $msiMarker = Join-Path $markerRoot "msi.txt"
 $nupkgMarker = Join-Path $markerRoot "nupkg.txt"
 $ps1Marker = Join-Path $markerRoot "ps1.txt"
-$msixPackageName = "GorillaIntegrationTest"
-$msixNoUninstallerPackageName = "GorillaIntegrationTestNoUninstaller"
+$msixPackageName = "GorillaIntegrationTest$FixtureNamespace"
+$msixNoUninstallerPackageName = "GorillaIntegrationTest${FixtureNamespace}NoUninstaller"
 
 Write-Host "::group::[TEST] Environment setup"
 Remove-Item -LiteralPath $markerRoot -Recurse -Force -ErrorAction SilentlyContinue

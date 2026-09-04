@@ -1,6 +1,9 @@
 param(
     [string]$WorkRoot = "$env:RUNNER_TEMP\gorilla-release-integration",
-    [string]$MsixCertThumbprint = ""
+    [string]$MsixCertThumbprint = "",
+    [ValidateLength(1, 10)]
+    [ValidatePattern('^[A-Za-z][A-Za-z0-9]*$')]
+    [string]$FixtureNamespace = "Release"
 )
 
 Set-StrictMode -Version Latest
@@ -41,8 +44,8 @@ $exeMarker = Join-Path $markerRoot "exe.txt"
 $msiMarker = Join-Path $markerRoot "msi.txt"
 $nupkgMarker = Join-Path $markerRoot "nupkg.txt"
 $ps1Marker = Join-Path $markerRoot "ps1.txt"
-$msixPackageName = "GorillaIntegrationTest"
-$msixNoUninstallerPackageName = "GorillaIntegrationTestNoUninstaller"
+$msixPackageName = "GorillaIntegrationTest$FixtureNamespace"
+$msixNoUninstallerPackageName = "GorillaIntegrationTest${FixtureNamespace}NoUninstaller"
 
 $msixBuildRoot = Join-Path $fixtureRoot "msix"
 

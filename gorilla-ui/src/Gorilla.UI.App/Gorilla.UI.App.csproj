@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>Gorilla.UI.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x86;x64;ARM64</Platforms>
@@ -11,6 +11,10 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <GorillaSourceBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\build\gorilla.exe</GorillaSourceBuildExecutable>
+    <GorillaReleaseBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\cmd\gorilla\gorilla.exe</GorillaReleaseBuildExecutable>
+    <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaSourceBuildExecutable)')">$(GorillaSourceBuildExecutable)</GorillaServiceExecutable>
+    <GorillaServiceExecutable Condition="'$(GorillaServiceExecutable)' == '' and Exists('$(GorillaReleaseBuildExecutable)')">$(GorillaReleaseBuildExecutable)</GorillaServiceExecutable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +25,15 @@
     <Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
+    <Content Include="$(GorillaServiceExecutable)" Link="gorilla.exe" Condition="Exists('$(GorillaServiceExecutable)')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
+
+  <Target Name="RequireGorillaServiceExecutableForMsix" BeforeTargets="_GenerateAppxPackageFile" Condition="'$(GenerateAppxPackageOnBuild)' == 'true' and !Exists('$(GorillaServiceExecutable)')">
+    <Error Text="Gorilla service executable was not found. Build gorilla.exe before producing the MSIX or set GorillaServiceExecutable." />
+  </Target>
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />

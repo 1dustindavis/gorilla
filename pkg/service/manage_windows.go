@@ -155,7 +155,7 @@ func installWindowsService(m *mgr.Mgr, cfg config.Configuration) error {
 		return fmt.Errorf("failed to resolve executable path: %w", err)
 	}
 	exePath = filepath.Clean(exePath)
-	startArgs := serviceInstallArgs(configPath)
+	startArgs := serviceInstallArgs(configPath, cfg.E2EIdentity)
 	serviceVerbose(cfg, "install config: exe=%q config=%q args=%q start_type=automatic account=%q", exePath, configPath, startArgs, "LocalSystem")
 
 	if existing, err := m.OpenService(cfg.ServiceName); err == nil {

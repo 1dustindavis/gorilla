@@ -90,6 +90,7 @@ jobs:
       if: github.event_name == 'push'
       shell: pwsh
       env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PREVIOUS_MAIN_SHA: ${{ github.event.before }}
       run: |
         # Allocate exactly one patch version for this main-push release. This is
@@ -111,11 +112,49 @@ jobs:
         }
 
         # GitHub's queued concurrency ordering is not guaranteed to match dispatch
-        # ordering. The preceding main commit must already be the latest released
-        # commit; otherwise fail safely and rerun after its release completes.
+        # ordering. Normally the preceding main commit must already be the latest
+        # released commit. The one exception is a predecessor that reached and
+        # failed the installed-product gate: because it was never published, the
+        # next main commit may safely reuse the next available patch version.
         $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
+        if ($latestTaggedCommit -eq $Env:GITHUB_SHA) {
+          throw "Current main commit $Env:GITHUB_SHA is already released as $($latestTag.Tag)."
+        }
+        git merge-base --is-ancestor $latestTaggedCommit $Env:GITHUB_SHA
+        if ($LASTEXITCODE -ne 0) {
+          throw "Latest released commit $latestTaggedCommit is not an ancestor of this workflow commit $Env:GITHUB_SHA. Refusing to publish an older commit with a newer version."
+        }
+
         if ($latestTaggedCommit -ne $Env:PREVIOUS_MAIN_SHA) {
-          throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
+          $headers = @{
+            Accept = "application/vnd.github+json"
+            Authorization = "Bearer $Env:GITHUB_TOKEN"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $runsUri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=completed&head_sha=$Env:PREVIOUS_MAIN_SHA&per_page=20"
+          $runResponse = Invoke-RestMethod -Uri $runsUri -Headers $headers
+          $runs = @($runResponse.workflow_runs)
+          $predecessorFailedReleaseGate = $false
+
+          foreach ($run in $runs) {
+            $jobResponse = Invoke-RestMethod -Uri $run.jobs_url -Headers $headers
+            $jobs = @($jobResponse.jobs)
+            foreach ($job in $jobs) {
+              $gate = @($job.steps | Where-Object { $_.name -eq 'Validate exact release artifacts before publication' })
+              if ($gate.Count -gt 0 -and $gate[0].conclusion -eq 'failure') {
+                $predecessorFailedReleaseGate = $true
+                break
+              }
+            }
+            if ($predecessorFailedReleaseGate) {
+              break
+            }
+          }
+
+          if (-not $predecessorFailedReleaseGate) {
+            throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
+          }
+          Write-Warning "Previous main commit $Env:PREVIOUS_MAIN_SHA failed pre-publication release validation and was not released; reusing the next available patch version."
         }
 
         if ($latestTag.Version.Build -ge 65535) {
@@ -197,6 +236,16 @@ jobs:
         "RELEASE_TAG=$releaseTag" >> $Env:GITHUB_ENV
         "PREVIOUS_STABLE_TAG=$($latestStable.tag_name)" >> $Env:GITHUB_ENV
 
+    - name: Compute release artifact names
+      shell: pwsh
+      run: |
+        $version = "$Env:RELEASE_TAG" -replace '^v', ''
+        if ([string]::IsNullOrWhiteSpace($version)) {
+          throw "Release version is empty."
+        }
+        "RELEASE_EXE_NAME=gorilla-$version.exe" >> $Env:GITHUB_ENV
+        "RELEASE_MSIX_NAME=gorilla-$version.msix" >> $Env:GITHUB_ENV
+
     - name: Compute MSIX version from release tag
       run: |
         $releaseTag = "$Env:RELEASE_TAG"
@@ -260,11 +309,17 @@ jobs:
           -X github.com/1dustindavis/gorilla/pkg/version.revision=${{ env.REVISION }}`
           -X github.com/1dustindavis/gorilla/pkg/version.goVersion=${{ env.GO_VERSION }}"`
 
+    - name: Collect versioned gorilla.exe
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        Copy-Item ./cmd/gorilla/gorilla.exe "./build/$Env:RELEASE_EXE_NAME" -Force
+
     - name: Upload gorilla.exe workflow artifact
       uses: actions/upload-artifact@v6
       with:
         name: gorilla-exe-release
-        path: ./cmd/gorilla/gorilla.exe
+        path: ./build/${{ env.RELEASE_EXE_NAME }}
         if-no-files-found: error
 
     - name: Build unsigned Gorilla UI MSIX
@@ -289,9 +344,10 @@ jobs:
         if ($null -eq $msix) {
           throw "No MSIX package found under gorilla-ui/src/Gorilla.UI.App/AppPackages"
         }
-        Copy-Item $msix.FullName "build/Gorilla.UI.App.msix" -Force
+        $outputPath = "build/$Env:RELEASE_MSIX_NAME"
+        Copy-Item $msix.FullName $outputPath -Force
 
-        $packagePath = (Resolve-Path "build/Gorilla.UI.App.msix").Path
+        $packagePath = (Resolve-Path $outputPath).Path
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
         if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
           throw "Expected the packaged MSIX to be unsigned before Artifact Signing, but status was $($signature.Status)."
@@ -337,14 +393,14 @@ jobs:
         endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
         signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
         certificate-profile-name: ${{ env.ARTIFACT_SIGNING_PROFILE }}
-        files: ${{ github.workspace }}\build\Gorilla.UI.App.msix
+        files: ${{ github.workspace }}\build\${{ env.RELEASE_MSIX_NAME }}
         file-digest: SHA256
         timestamp-digest: SHA256
 
     - name: Verify signed MSIX
       shell: pwsh
       run: |
-        $packagePath = "$Env:GITHUB_WORKSPACE\build\Gorilla.UI.App.msix"
+        $packagePath = "$Env:GITHUB_WORKSPACE\build\$Env:RELEASE_MSIX_NAME"
         $signature = Get-AuthenticodeSignature -FilePath $packagePath
 
         if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
@@ -362,11 +418,32 @@ jobs:
         Write-Host "  Thumbprint: $($signature.SignerCertificate.Thumbprint)"
         Write-Host "  Valid through: $($signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('u'))"
 
+    - name: Validate exact release artifacts before publication
+      shell: pwsh
+      run: |
+        make verify-release `
+          GORILLA_RELEASE_EXE="$env:GITHUB_WORKSPACE\build\$env:RELEASE_EXE_NAME" `
+          GORILLA_RELEASE_MSIX="$env:GITHUB_WORKSPACE\build\$env:RELEASE_MSIX_NAME" `
+          RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration" `
+          INSTALLED_PRODUCT_WORK_ROOT="$env:RUNNER_TEMP\gorilla-installed-product"
+
+    - name: Upload release validation failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v6
+      with:
+        name: release-validation-failure-${{ github.run_id }}
+        path: |
+          C:\ProgramData\gorilla-it\cache\gorilla.log
+          ${{ runner.temp }}/gorilla-release-integration/fixture/configs
+          ${{ runner.temp }}/gorilla-installed-product/installed-product-evidence
+        if-no-files-found: warn
+        retention-days: 90
+
     - name: Upload Gorilla UI MSIX workflow artifact
       uses: actions/upload-artifact@v6
       with:
         name: gorilla-ui-msix-release
-        path: ./build/Gorilla.UI.App.msix
+        path: ./build/${{ env.RELEASE_MSIX_NAME }}
         if-no-files-found: error
 
     - name: Prepare prerelease notes
@@ -403,7 +480,7 @@ jobs:
         prerelease: true
         makeLatest: false
         bodyFile: release-notes.md
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -417,7 +494,7 @@ jobs:
         makeLatest: true
         generateReleaseNotes: true
         generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
-        artifacts: "./cmd/gorilla/gorilla.exe,./build/Gorilla.UI.App.msix"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

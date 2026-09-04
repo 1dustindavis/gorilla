@@ -3,7 +3,7 @@ all: build
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
 	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
-	windows-integration release-integration \
+	windows-integration release-integration installed-product-integration \
 	verify verify-windows verify-e2e verify-release
 
 ifndef ($(GOPATH))
@@ -26,8 +26,10 @@ MANUAL_TEST_BASE_URL ?=
 WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
 UI_E2E_WORK_ROOT ?= $(WINDOWS_INTEGRATION_WORK_ROOT)
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
+INSTALLED_PRODUCT_WORK_ROOT ?= $(CURDIR)/build/installed-product-integration
 RELEASE_USE_PREBUILT_FIXTURES ?= 0
 GORILLA_RELEASE_EXE ?=
+GORILLA_RELEASE_MSIX ?=
 GO111MODULE = on
 
 ifneq ($(OS), Windows_NT)
@@ -61,14 +63,14 @@ define HELP_TEXT
 	make clean          - Delete all build artifacts
 
 	make build          - Build the code
-	make msi            - Build Windows MSI (requires WiX on Windows)
+	make msi            - Build legacy Windows MSI (not an official release artifact)
 	make bootstrap      - Build manual-test assets/server and generate VM scripts
 	make bootstrap-run  - Build manual-test assets/server and run local test server
 
 	make verify         - Run all portable validation expected before pushing
 	make verify-windows - Add Windows build and source integration validation
 	make verify-e2e     - Add source-built service/app integration and critical FlaUI workflows
-	make verify-release - Validate a supplied released gorilla.exe plus lower layers
+	make verify-release GORILLA_RELEASE_EXE=... GORILLA_RELEASE_MSIX=... - Validate produced release artifacts as an installed product plus lower layers
 
 	make go-format       - Check Go formatting
 	make go-vet          - Run Go vet for the Windows deployment target
@@ -81,7 +83,8 @@ define HELP_TEXT
 	make windows-integration - Run source-built Windows installer integration
 	make ui-e2e          - Build source service/UI and run critical FlaUI E2E workflows
 	make ui-e2e-test     - Run critical FlaUI E2E against existing source builds
-	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary
+	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary against installer fixtures
+	make installed-product-integration GORILLA_RELEASE_MSIX=... - Install the produced MSIX and validate service/UI/package interoperability
 
 	make lint           - Compatibility alias for Go format/vet/staticcheck
 	make test           - Compatibility alias for Go tests
@@ -250,6 +253,19 @@ else
 	@exit 1
 endif
 
+installed-product-integration:
+ifeq ($(OS), Windows_NT)
+ifeq ($(strip $(GORILLA_RELEASE_MSIX)),)
+	@echo "GORILLA_RELEASE_MSIX must point to the produced Gorilla MSIX release artifact"
+	@exit 1
+else
+	pwsh -NoProfile -ExecutionPolicy Bypass -File integration/windows/run-installed-product-integration.ps1 -WorkRoot "$(INSTALLED_PRODUCT_WORK_ROOT)" -GorillaMsixPath "$(GORILLA_RELEASE_MSIX)" -GorillaReleaseExePath "$(GORILLA_RELEASE_EXE)"
+endif
+else
+	@echo "installed-product-integration requires Windows"
+	@exit 1
+endif
+
 verify: go-format go-vet go-staticcheck go-test ui-lint ui-test
 
 verify-windows: verify
@@ -269,12 +285,14 @@ else
 	@exit 1
 endif
 
-# Stage 1 establishes the release-level contract using the released-binary
-# integration that exists today. Stage 7 expands this same target to installed
-# MSI + service + MSIX UI interoperability without changing the public command.
+# Release validation deliberately composes the same lower layers and fixtures as
+# source E2E, then proves the produced MSIX installs the matching gorilla.exe,
+# registers the LocalSystem service, communicates over the real named pipe, and
+# drives the same critical product workflows through the installed WinUI app.
 verify-release: verify-e2e
 ifeq ($(OS), Windows_NT)
 	$(MAKE) release-integration
+	$(MAKE) installed-product-integration
 else
 	@echo "verify-release requires Windows"
 	@exit 1

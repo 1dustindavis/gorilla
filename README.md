@@ -10,6 +10,9 @@ Gorilla supports `.msi`, `.ps1`, `.exe`, or `.nupkg` [(via chocolatey)](https://
 Information related to installing and configuring Gorilla can be found on the [Wiki](https://github.com/1dustindavis/gorilla/wiki).
 For quick manual-test setup helpers on a fresh Windows VM, see [utils/manual-test/README.md](utils/manual-test/README.md).
 
+Releases include `gorilla-<version>.msix` (Windows 10 2004 / build 19041+) and a standalone `gorilla-<version>.exe`.
+Service configuration lives at `%ProgramData%\gorilla\config.yaml`.
+
 ## Building
 
 If you just want the latest version, download it from the [releases page](https://github.com/1dustindavis/gorilla/releases).
@@ -24,23 +27,16 @@ After cloning this repo, just run `go build -i ./cmd/gorilla`. A new binary will
 
 ## Contributing
 
-Pull requests are welcome. The Makefile provides the same validation entry points used by CI:
+Pull requests are welcome. Key validation targets:
 
 ```text
 make verify
-    Portable Go + .NET validation expected before pushing.
-
 make verify-windows
-    Windows build and source integration validation.
-
 make verify-e2e
-    Windows validation plus the current FlaUI UI suite.
-
-make verify-release GORILLA_RELEASE_EXE=<path>
-    Current released-binary integration plus the lower validation layers.
+make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>
 ```
 
-Use smaller targets such as `make go-test`, `make go-staticcheck`, `make ui-lint`, or `make ui-test` while iterating. See `AGENTS.md` and `make help` for the complete validation contract and guidance on which level applies to a change.
+See `AGENTS.md` and `make help` for details.
 
 ## Repo Admin Mode
 Gorilla also supports local repo admin workflows:

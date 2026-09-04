@@ -117,8 +117,12 @@ func SendCommand(cfg config.Configuration, spec string) (CommandResponse, error)
 	return sendCommand(cfg, cmd)
 }
 
-func serviceInstallArgs(configPath string) []string {
-	return []string{"-c", configPath, "-service"}
+func serviceInstallArgs(configPath string, integrationTestServiceIdentity string) []string {
+	args := []string{"-c", configPath, "-service"}
+	if integrationTestServiceIdentity != "" {
+		args = append(args, "-integration-test-service-identity", integrationTestServiceIdentity)
+	}
+	return args
 }
 
 func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {

@@ -42,8 +42,17 @@ var (
 	serviceStopArg    bool
 	serviceStatusArg  bool
 
+	// e2eIdentityArg is an internal test seam used by the
+	// source-built Windows E2E harness. It is intentionally omitted from usage.
+	e2eIdentityArg string
+
 	// Use a fake function so we can override when testing
 	osExit = os.Exit
+)
+
+const (
+	CanonicalServiceName     = "gorilla"
+	CanonicalServicePipeName = "gorilla-service"
 )
 
 const usage = `
@@ -74,36 +83,43 @@ Options:
 
 // Configuration stores all of the possible parameters a config file could contain
 type Configuration struct {
-	URL             string   `yaml:"url"`
-	URLPackages     string   `yaml:"url_packages"`
-	Manifest        string   `yaml:"manifest"`
-	LocalManifests  []string `yaml:"local_manifests,omitempty"`
-	Catalogs        []string `yaml:"catalogs"`
-	AppDataPath     string   `yaml:"app_data_path"`
-	Verbose         bool     `yaml:"verbose,omitempty"`
-	Debug           bool     `yaml:"debug,omitempty"`
-	CheckOnly       bool     `yaml:"checkonly,omitempty"`
-	BuildArg        bool
-	ImportArg       string
-	RepoPath        string `yaml:"repo_path,omitempty"`
-	AuthUser        string `yaml:"auth_user,omitempty"`
-	AuthPass        string `yaml:"auth_pass,omitempty"`
-	TLSAuth         bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert   string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey    string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert   string `yaml:"tls_server_cert,omitempty"`
-	CachePath       string
-	ServiceMode     bool `yaml:"service_mode,omitempty"`
-	ServiceCommand  string
-	ServiceInstall  bool
-	ServiceRemove   bool
-	ServiceStart    bool
-	ServiceStop     bool
-	ServiceStatus   bool
-	ServiceName     string `yaml:"service_name,omitempty"`
+	URL            string   `yaml:"url"`
+	URLPackages    string   `yaml:"url_packages"`
+	Manifest       string   `yaml:"manifest"`
+	LocalManifests []string `yaml:"local_manifests,omitempty"`
+	Catalogs       []string `yaml:"catalogs"`
+	AppDataPath    string   `yaml:"app_data_path"`
+	Verbose        bool     `yaml:"verbose,omitempty"`
+	Debug          bool     `yaml:"debug,omitempty"`
+	CheckOnly      bool     `yaml:"checkonly,omitempty"`
+	BuildArg       bool
+	ImportArg      string
+	RepoPath       string `yaml:"repo_path,omitempty"`
+	AuthUser       string `yaml:"auth_user,omitempty"`
+	AuthPass       string `yaml:"auth_pass,omitempty"`
+	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
+	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
+	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
+	CachePath      string
+	ServiceMode    bool `yaml:"service_mode,omitempty"`
+	ServiceCommand string
+	ServiceInstall bool
+	ServiceRemove  bool
+	ServiceStart   bool
+	ServiceStop    bool
+	ServiceStatus  bool
+	// ServiceName and ServicePipeName are product identities, not supported
+	// configuration. Tests may still construct Configuration values directly.
+	ServiceName     string `yaml:"-"`
 	ServiceInterval string `yaml:"service_interval,omitempty"`
-	ServicePipeName string `yaml:"service_pipe_name,omitempty"`
-	ConfigPath      string
+	ServicePipeName string `yaml:"-"`
+
+	// E2EIdentity carries the source E2E identity into the
+	// installed service command line. It is never read from YAML.
+	E2EIdentity string `yaml:"-"`
+
+	ConfigPath string
 }
 
 func init() {
@@ -148,6 +164,7 @@ func init() {
 	flag.BoolVar(&serviceStartArg, "servicestart", false, "")
 	flag.BoolVar(&serviceStopArg, "servicestop", false, "")
 	flag.BoolVar(&serviceStatusArg, "servicestatus", false, "")
+	flag.StringVar(&e2eIdentityArg, "integration-test-service-identity", "", "")
 }
 
 func parseArguments() (string, bool, bool, bool, bool, string) {
@@ -272,15 +289,17 @@ func Get() Configuration {
 	report.Items["Manifest"] = cfg.Manifest
 	report.Items["Catalog"] = cfg.Catalogs
 
-	// Configure service defaults.
-	if cfg.ServiceName == "" {
-		cfg.ServiceName = "gorilla"
+	// Service and pipe names are fixed product identities. The only override is
+	// an internal command-line seam for the source-built Windows E2E harness.
+	cfg.ServiceName = CanonicalServiceName
+	cfg.ServicePipeName = CanonicalServicePipeName
+	if e2eIdentityArg != "" {
+		cfg.ServiceName = e2eIdentityArg
+		cfg.ServicePipeName = e2eIdentityArg
+		cfg.E2EIdentity = e2eIdentityArg
 	}
 	if cfg.ServiceInterval == "" {
 		cfg.ServiceInterval = "1h"
-	}
-	if cfg.ServicePipeName == "" {
-		cfg.ServicePipeName = "gorilla-service"
 	}
 
 	return cfg

@@ -12,3 +12,7 @@ auth_pass: pizza
 verbose: true
 debug: true
 checkonly: true
+# Service and pipe names are fixed product identities; these legacy keys must
+# not change them.
+service_name: legacy-service-name
+service_pipe_name: legacy-pipe-name

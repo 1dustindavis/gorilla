@@ -26,12 +26,13 @@ internal sealed class GorillaAppSession : IDisposable
 
     public static GorillaAppSession Launch()
     {
+        var appUserModelId = Environment.GetEnvironmentVariable("GORILLA_UI_APP_ID");
         var appExePath = Environment.GetEnvironmentVariable("GORILLA_UI_APP_EXE");
-        if (string.IsNullOrWhiteSpace(appExePath))
+        if (string.IsNullOrWhiteSpace(appUserModelId) && string.IsNullOrWhiteSpace(appExePath))
         {
-            throw new InvalidOperationException("GORILLA_UI_APP_EXE must be set to the built Gorilla.UI.App.exe path.");
+            throw new InvalidOperationException("Set GORILLA_UI_APP_EXE for source-built UI tests or GORILLA_UI_APP_ID for installed-package UI tests.");
         }
-        if (!File.Exists(appExePath))
+        if (string.IsNullOrWhiteSpace(appUserModelId) && !File.Exists(appExePath))
         {
             throw new FileNotFoundException($"GORILLA_UI_APP_EXE path does not exist: {appExePath}", appExePath);
         }
@@ -43,7 +44,9 @@ internal sealed class GorillaAppSession : IDisposable
         }
         Directory.CreateDirectory(artifactsDirectory);
 
-        var application = Application.Launch(appExePath);
+        var application = !string.IsNullOrWhiteSpace(appUserModelId)
+            ? Application.LaunchStoreApp(appUserModelId)
+            : Application.Launch(appExePath!);
         var process = Process.GetProcessById(application.ProcessId);
         var automation = new UIA3Automation();
         var session = new GorillaAppSession(application, process, automation, artifactsDirectory);

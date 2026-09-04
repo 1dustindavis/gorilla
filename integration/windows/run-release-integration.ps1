@@ -201,6 +201,15 @@ try {
     Assert-Missing -Path $ps1Marker
     Assert-AppxMissing -Name $msixPackageName
     Assert-AppxMissing -Name $msixNoUninstallerPackageName
+
+    # This harness owns the marker root: it removes any prior contents and
+    # recreates the directory during environment setup. Remove it after a
+    # successful run so the next validation layer sees a clean machine. Keep
+    # it on failure so the workflow can upload Gorilla's logs as diagnostics.
+    Remove-Item -LiteralPath $markerRoot -Recurse -Force -ErrorAction Stop
+    Assert-Missing -Path $markerRoot
+    Write-Host "[INFO] Removed integration data directory: $markerRoot"
+
     $results += "[PASS] Uninstall"
 
     Write-Host "========== Integration Test Summary =========="

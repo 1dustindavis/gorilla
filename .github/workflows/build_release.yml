@@ -427,15 +427,27 @@ jobs:
           RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration" `
           INSTALLED_PRODUCT_WORK_ROOT="$env:RUNNER_TEMP\gorilla-installed-product"
 
+    - name: Stage release validation failure diagnostics
+      if: failure()
+      shell: pwsh
+      run: |
+        $diagnostics = "$env:RUNNER_TEMP\release-validation-diagnostics"
+        New-Item -Path $diagnostics -ItemType Directory -Force | Out-Null
+        $gorillaLog = "C:\ProgramData\gorilla-it\cache\gorilla.log"
+        if (Test-Path -LiteralPath $gorillaLog) {
+          Copy-Item -LiteralPath $gorillaLog -Destination $diagnostics -Force
+        }
+
     - name: Upload release validation failure diagnostics
       if: failure()
       uses: actions/upload-artifact@v6
       with:
         name: release-validation-failure-${{ github.run_id }}
         path: |
-          C:\ProgramData\gorilla-it\cache\gorilla.log
+          ${{ runner.temp }}/release-validation-diagnostics
           ${{ runner.temp }}/gorilla-release-integration/fixture/configs
           ${{ runner.temp }}/gorilla-installed-product/installed-product-evidence
+          ${{ github.workspace }}/build/windows-integration/ui-evidence
         if-no-files-found: warn
         retention-days: 90
 

@@ -205,7 +205,7 @@ ui-test: ui-lint
 
 ui-windows-build:
 ifeq ($(OS), Windows_NT)
-	dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -c Release -p:Platform=x64 -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false -p:PublishTrimmed=false
+	dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -t:Rebuild -c Release -p:Platform=x64 -p:WindowsPackageType=None -p:GenerateAppxPackageOnBuild=false -p:AppxPackageSigningEnabled=false -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false -p:PublishTrimmed=false
 	dotnet build gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release
 else
 	@echo "ui-windows-build requires Windows"

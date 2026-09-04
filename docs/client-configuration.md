@@ -33,5 +33,3 @@ service_interval: 1h
 - `tls_auth`: Enables mutual TLS when `true`.
 - `tls_client_cert`, `tls_client_key`, and `tls_server_cert`: PEM paths used for mutual TLS.
 - `verbose`, `debug`, and `checkonly`: Optional runtime behavior flags.
-
-The Windows service name is `gorilla` and its named pipe is `gorilla-service`. These product identities are fixed rather than YAML settings.

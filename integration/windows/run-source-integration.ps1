@@ -1,6 +1,9 @@
 param(
     [string]$WorkRoot = "$env:TEMP\gorilla-source-integration",
     [string]$GorillaExePath = "",
+    [ValidateLength(1, 10)]
+    [ValidatePattern('^[A-Za-z][A-Za-z0-9]*$')]
+    [string]$FixtureNamespace = "Release",
     [switch]$UsePrebuiltFixtures
 )
 
@@ -78,9 +81,11 @@ if ($useValidPrebuiltFixtures) {
 
     & (Join-Path $PSScriptRoot "prepare-release-integration.ps1") `
         -WorkRoot $WorkRoot `
-        -MsixCertThumbprint $thumbprint
+        -MsixCertThumbprint $thumbprint `
+        -FixtureNamespace $FixtureNamespace
 }
 
 & (Join-Path $PSScriptRoot "run-release-integration.ps1") `
     -WorkRoot $WorkRoot `
-    -GorillaExePath $GorillaExePath
+    -GorillaExePath $GorillaExePath `
+    -FixtureNamespace $FixtureNamespace

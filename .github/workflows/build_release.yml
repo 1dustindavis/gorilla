@@ -89,12 +89,10 @@ jobs:
     - name: Compute automatic prerelease version
       if: github.event_name == 'push'
       shell: pwsh
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PREVIOUS_MAIN_SHA: ${{ github.event.before }}
       run: |
-        # Allocate exactly one patch version for this main-push release. This is
-        # intentionally independent of how many commits the merged PR contains.
+        # Allocate exactly one patch version from the latest published vX.Y.Z tag.
+        # Intermediate main commits may be skipped when their release runs are
+        # canceled or fail before publication; only published tags consume versions.
         $latestTag = git tag --list |
           ForEach-Object {
             if ($_ -match '^v(\d+)\.(\d+)\.(\d+)$') {
@@ -111,11 +109,6 @@ jobs:
           throw "No existing vX.Y.Z version tag found."
         }
 
-        # GitHub's queued concurrency ordering is not guaranteed to match dispatch
-        # ordering. Normally the preceding main commit must already be the latest
-        # released commit. The one exception is a predecessor that reached and
-        # failed the installed-product gate: because it was never published, the
-        # next main commit may safely reuse the next available patch version.
         $latestTaggedCommit = (git rev-list -n 1 $latestTag.Tag).Trim()
         if ($latestTaggedCommit -eq $Env:GITHUB_SHA) {
           throw "Current main commit $Env:GITHUB_SHA is already released as $($latestTag.Tag)."
@@ -123,38 +116,6 @@ jobs:
         git merge-base --is-ancestor $latestTaggedCommit $Env:GITHUB_SHA
         if ($LASTEXITCODE -ne 0) {
           throw "Latest released commit $latestTaggedCommit is not an ancestor of this workflow commit $Env:GITHUB_SHA. Refusing to publish an older commit with a newer version."
-        }
-
-        if ($latestTaggedCommit -ne $Env:PREVIOUS_MAIN_SHA) {
-          $headers = @{
-            Accept = "application/vnd.github+json"
-            Authorization = "Bearer $Env:GITHUB_TOKEN"
-            "X-GitHub-Api-Version" = "2022-11-28"
-          }
-          $runsUri = "https://api.github.com/repos/$Env:GITHUB_REPOSITORY/actions/workflows/build_release.yml/runs?event=push&status=completed&head_sha=$Env:PREVIOUS_MAIN_SHA&per_page=20"
-          $runResponse = Invoke-RestMethod -Uri $runsUri -Headers $headers
-          $runs = @($runResponse.workflow_runs)
-          $predecessorFailedReleaseGate = $false
-
-          foreach ($run in $runs) {
-            $jobResponse = Invoke-RestMethod -Uri $run.jobs_url -Headers $headers
-            $jobs = @($jobResponse.jobs)
-            foreach ($job in $jobs) {
-              $gate = @($job.steps | Where-Object { $_.name -eq 'Validate exact release artifacts before publication' })
-              if ($gate.Count -gt 0 -and $gate[0].conclusion -eq 'failure') {
-                $predecessorFailedReleaseGate = $true
-                break
-              }
-            }
-            if ($predecessorFailedReleaseGate) {
-              break
-            }
-          }
-
-          if (-not $predecessorFailedReleaseGate) {
-            throw "Previous main commit $Env:PREVIOUS_MAIN_SHA is not the latest released commit ($latestTaggedCommit). An earlier release must complete first; rerun this workflow afterward."
-          }
-          Write-Warning "Previous main commit $Env:PREVIOUS_MAIN_SHA failed pre-publication release validation and was not released; reusing the next available patch version."
         }
 
         if ($latestTag.Version.Build -ge 65535) {
@@ -166,6 +127,7 @@ jobs:
           $latestTag.Version.Build + 1
         )
         "RELEASE_TAG=v$nextVersion" >> $Env:GITHUB_ENV
+        Write-Host "Latest published tag: $($latestTag.Tag) ($latestTaggedCommit)"
         Write-Host "Next prerelease: v$nextVersion"
 
     - name: Set stable release metadata

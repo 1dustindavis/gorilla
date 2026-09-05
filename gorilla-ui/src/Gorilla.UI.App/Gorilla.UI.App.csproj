@@ -10,6 +10,7 @@
     <PublishProfile>win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Nullable>enable</Nullable>
     <GorillaSourceBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\build\gorilla.exe</GorillaSourceBuildExecutable>
     <GorillaReleaseBuildExecutable>$(MSBuildThisFileDirectory)..\..\..\cmd\gorilla\gorilla.exe</GorillaReleaseBuildExecutable>
@@ -33,6 +34,10 @@
 
   <Target Name="RequireGorillaServiceExecutableForMsix" BeforeTargets="_GenerateAppxPackageFile" Condition="'$(GenerateAppxPackageOnBuild)' == 'true' and !Exists('$(GorillaServiceExecutable)')">
     <Error Text="Gorilla service executable was not found. Build gorilla.exe before producing the MSIX or set GorillaServiceExecutable." />
+  </Target>
+
+  <Target Name="RequireSelfContainedWindowsAppSdkForMsix" BeforeTargets="_GenerateAppxPackageFile" Condition="'$(GenerateAppxPackageOnBuild)' == 'true'">
+    <Error Condition="'$(WindowsAppSDKSelfContained)' != 'true'" Text="Gorilla MSIX packages must include the Windows App SDK runtime. Keep WindowsAppSDKSelfContained=true so installation does not require a separately provisioned Windows App Runtime package." />
   </Target>
 
   <ItemGroup>

@@ -146,11 +146,26 @@ func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, 
 }
 
 func (sr *serviceRunner) stop(ctx context.Context) {
+	// Connect a short-lived client before closing the listener. ConnectNamedPipe is
+	// synchronous, so closing the server handle from another goroutine does not
+	// reliably wake an idle listener. A client connection releases the blocked
+	// accept so the serve loop can observe ctx cancellation and exit.
+	sr.unblockListenerPipe()
 	sr.closeListenerPipe()
 	sr.closeActiveConnections()
-	sr.wg.Wait()
-	gorillalog.Close()
-	_ = ctx
+
+	done := make(chan struct{})
+	go func() {
+		sr.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		gorillalog.Close()
+	case <-ctx.Done():
+		gorillalog.Warn("service runner shutdown timed out:", ctx.Err())
+	}
 }
 
 func (sr *serviceRunner) submit(ctx context.Context, cmd Command) (CommandResponse, error) {
@@ -219,6 +234,10 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 		}
 
 		sr.clearListenerPipe(handle)
+		if ctx.Err() != nil {
+			_ = windows.CloseHandle(handle)
+			return ctx.Err()
+		}
 		select {
 		case sr.handlerSem <- struct{}{}:
 			sr.trackActiveConnection(handle)
@@ -663,6 +682,14 @@ func createNamedPipe(pipePath string) (windows.Handle, error) {
 		0,
 		&sa,
 	)
+}
+
+func (sr *serviceRunner) unblockListenerPipe() {
+	conn, err := openPipe(servicePipePath(sr.cfg.ServicePipeName), 250*time.Millisecond)
+	if err != nil {
+		return
+	}
+	_ = conn.Close()
 }
 
 func (sr *serviceRunner) closeListenerPipe() {

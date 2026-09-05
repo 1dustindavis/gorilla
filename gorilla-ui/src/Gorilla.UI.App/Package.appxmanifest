@@ -4,9 +4,11 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap desktop6 rescap">
+  IgnorableNamespaces="uap uap3 desktop desktop6 rescap">
 
   <Identity
     Name="133b2116-358b-42fb-8bc8-35009cc5d5af"
@@ -44,6 +46,14 @@
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
+        <uap3:Extension
+          Category="windows.appExecutionAlias"
+          Executable="gorilla.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="gorilla.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
         <desktop6:Extension
           Category="windows.service"
           Executable="gorilla.exe"

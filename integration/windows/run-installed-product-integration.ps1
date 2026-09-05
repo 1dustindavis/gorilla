@@ -13,6 +13,8 @@ $prepareScript = Join-Path $PSScriptRoot "prepare-release-integration.ps1"
 $uiTestScript = Join-Path $repoRoot "gorilla-ui\tests\Gorilla.UI.App.WindowsUiTests\run-tests.ps1"
 $packageIdentityName = "133b2116-358b-42fb-8bc8-35009cc5d5af"
 $serviceName = "gorilla"
+$executionAlias = "gorilla.exe"
+$executionAliasPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$executionAlias"
 $root = [System.IO.Path]::GetFullPath($WorkRoot)
 $msixPath = [System.IO.Path]::GetFullPath($GorillaMsixPath)
 if (-not (Test-Path -LiteralPath $msixPath)) {
@@ -54,6 +56,29 @@ function Wait-ServiceState {
 
     $actual = (Get-Service -Name $serviceName -ErrorAction SilentlyContinue)?.Status
     throw "Timed out waiting for service '$serviceName' state '$Expected'. Actual: $actual"
+}
+
+function Wait-ExecutionAlias {
+    param([int]$TimeoutSeconds = 30)
+
+    $expectedPath = [System.IO.Path]::GetFullPath($executionAliasPath)
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $command = Get-Command $executionAlias -CommandType Application -ErrorAction SilentlyContinue
+        if ($command) {
+            $resolvedPath = [System.IO.Path]::GetFullPath($command.Source)
+            if ($resolvedPath -ieq $expectedPath) {
+                return $resolvedPath
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    $resolved = Get-Command $executionAlias -CommandType Application -ErrorAction SilentlyContinue
+    if ($resolved) {
+        throw "Expected Gorilla MSIX execution alias at '$expectedPath', but '$executionAlias' resolves to '$($resolved.Source)'"
+    }
+    throw "Installing the Gorilla MSIX did not expose the expected execution alias at '$expectedPath'"
 }
 
 function Remove-TestPackage {
@@ -237,9 +262,11 @@ debug: true
     }
     Wait-ServiceState -Expected "Running"
 
-    & $installedGorilla -config $configPath -servicecmd ListOptionalInstalls | Out-Host
+    $aliasPath = Wait-ExecutionAlias
+    Write-Host "[INFO] Using installed Gorilla execution alias: $aliasPath"
+    & $aliasPath -config $configPath -servicecmd ListOptionalInstalls | Out-Host
     if ($LASTEXITCODE -ne 0) {
-        throw "Packaged gorilla.exe could not communicate with the installed Gorilla service over the real named pipe"
+        throw "Packaged gorilla.exe execution alias could not communicate with the installed Gorilla service over the real named pipe"
     }
 
     $appUserModelId = "$($installedPackage.PackageFamilyName)!App"

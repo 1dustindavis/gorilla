@@ -497,7 +497,7 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 			RequestID:    req.RequestID,
 			OperationID:  "",
 			TimestampUTC: nowRFC3339UTC(),
-			Payload: listOptionalInstallsResponse{Items: items},
+			Payload:      listOptionalInstallsResponse{Items: items},
 		}); err != nil {
 			return err
 		}

@@ -146,11 +146,26 @@ func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, 
 }
 
 func (sr *serviceRunner) stop(ctx context.Context) {
+	// Connect a short-lived client before closing the listener. ConnectNamedPipe is
+	// synchronous, so closing the server handle from another goroutine does not
+	// reliably wake an idle listener. A client connection releases the blocked
+	// accept so the serve loop can observe ctx cancellation and exit.
+	sr.unblockListenerPipe()
 	sr.closeListenerPipe()
 	sr.closeActiveConnections()
-	sr.wg.Wait()
-	gorillalog.Close()
-	_ = ctx
+
+	done := make(chan struct{})
+	go func() {
+		sr.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		gorillalog.Close()
+	case <-ctx.Done():
+		gorillalog.Warn("service runner shutdown timed out:", ctx.Err())
+	}
 }
 
 func (sr *serviceRunner) submit(ctx context.Context, cmd Command) (CommandResponse, error) {
@@ -207,8 +222,9 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 
 		err = windows.ConnectNamedPipe(handle, nil)
 		if err != nil && !errors.Is(err, windows.ERROR_PIPE_CONNECTED) {
-			windows.CloseHandle(handle)
-			sr.clearListenerPipe(handle)
+			if sr.takeListenerPipe(handle) {
+				_ = windows.CloseHandle(handle)
+			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -218,7 +234,19 @@ func (sr *serviceRunner) serveNamedPipe(ctx context.Context) error {
 			return fmt.Errorf("connect pipe: %w", err)
 		}
 
-		sr.clearListenerPipe(handle)
+		// A successfully connected pipe stops being the listener and is handed to
+		// either the request handler or the shutdown path. If shutdown already took
+		// the registered listener handle, it also owns closing that raw handle.
+		if !sr.takeListenerPipe(handle) {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return errors.New("named pipe listener handle ownership was lost unexpectedly")
+		}
+		if ctx.Err() != nil {
+			_ = windows.CloseHandle(handle)
+			return ctx.Err()
+		}
 		select {
 		case sr.handlerSem <- struct{}{}:
 			sr.trackActiveConnection(handle)
@@ -665,12 +693,32 @@ func createNamedPipe(pipePath string) (windows.Handle, error) {
 	)
 }
 
-func (sr *serviceRunner) closeListenerPipe() {
+func (sr *serviceRunner) unblockListenerPipe() {
+	conn, err := openPipe(servicePipePath(sr.cfg.ServicePipeName), 250*time.Millisecond)
+	if err != nil {
+		return
+	}
+	_ = conn.Close()
+}
+
+func (sr *serviceRunner) takeListenerPipe(handle windows.Handle) bool {
 	sr.pipeListenerMu.Lock()
 	defer sr.pipeListenerMu.Unlock()
-	if sr.pipeListenerHandle != 0 && sr.pipeListenerHandle != windows.InvalidHandle {
-		_ = windows.CloseHandle(sr.pipeListenerHandle)
-		sr.pipeListenerHandle = 0
+	if sr.pipeListenerHandle != handle {
+		return false
+	}
+	sr.pipeListenerHandle = 0
+	return true
+}
+
+func (sr *serviceRunner) closeListenerPipe() {
+	sr.pipeListenerMu.Lock()
+	handle := sr.pipeListenerHandle
+	sr.pipeListenerHandle = 0
+	sr.pipeListenerMu.Unlock()
+
+	if handle != 0 && handle != windows.InvalidHandle {
+		_ = windows.CloseHandle(handle)
 	}
 }
 
@@ -691,14 +739,6 @@ func (sr *serviceRunner) closeActiveConnections() {
 	defer sr.activeConnMu.Unlock()
 	for handle := range sr.activeConns {
 		_ = windows.CloseHandle(handle)
-	}
-}
-
-func (sr *serviceRunner) clearListenerPipe(handle windows.Handle) {
-	sr.pipeListenerMu.Lock()
-	defer sr.pipeListenerMu.Unlock()
-	if sr.pipeListenerHandle == handle {
-		sr.pipeListenerHandle = 0
 	}
 }
 

@@ -58,6 +58,68 @@ function Wait-ServiceState {
     throw "Timed out waiting for service '$serviceName' state '$Expected'. Actual: $actual"
 }
 
+function Stop-ServiceBounded {
+    param(
+        [int]$RequestTimeoutSeconds = 5,
+        [int]$StopTimeoutSeconds = 30
+    )
+
+    $stdoutPath = Join-Path $evidenceRoot "service-stop-sc.stdout.txt"
+    $stderrPath = Join-Path $evidenceRoot "service-stop-sc.stderr.txt"
+    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+
+    Write-Host "[INFO] Requesting stop for service '$serviceName' with a bounded SCM request"
+    $process = Start-Process -FilePath (Join-Path $env:SystemRoot "System32\sc.exe") `
+        -ArgumentList @("stop", $serviceName) `
+        -PassThru `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath
+
+    if (-not $process.WaitForExit($RequestTimeoutSeconds * 1000)) {
+        try {
+            $process.Kill()
+        } catch {
+            Write-Warning "Unable to terminate hung sc.exe stop request: $_"
+        }
+        throw "Timed out after $RequestTimeoutSeconds seconds while asking SCM to stop service '$serviceName'"
+    }
+
+    $stdout = ""
+    if (Test-Path -LiteralPath $stdoutPath) {
+        $stdoutContent = Get-Content -LiteralPath $stdoutPath -Raw
+        if ($null -ne $stdoutContent) {
+            $stdout = $stdoutContent.Trim()
+        }
+    }
+
+    $stderr = ""
+    if (Test-Path -LiteralPath $stderrPath) {
+        $stderrContent = Get-Content -LiteralPath $stderrPath -Raw
+        if ($null -ne $stderrContent) {
+            $stderr = $stderrContent.Trim()
+        }
+    }
+    if ($stdout) {
+        Write-Host $stdout
+    }
+    if ($stderr) {
+        Write-Warning $stderr
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "SCM stop request for service '$serviceName' failed with sc.exe exit code $($process.ExitCode). stdout='$stdout' stderr='$stderr'"
+    }
+
+    try {
+        Wait-ServiceState -Expected "Stopped" -TimeoutSeconds $StopTimeoutSeconds
+    } catch {
+        $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+        $state = if ($service) { $service.State } else { "Absent" }
+        $processId = if ($service) { $service.ProcessId } else { 0 }
+        throw "Service '$serviceName' did not stop within $StopTimeoutSeconds seconds after SCM accepted the stop request. State=$state ProcessId=$processId. $($_.Exception.Message)"
+    }
+}
+
 function Wait-ExecutionAlias {
     param([int]$TimeoutSeconds = 30)
 
@@ -276,8 +338,7 @@ debug: true
 
     Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests" -AppUserModelId $appUserModelId
 
-    Stop-Service -Name $serviceName -Force -ErrorAction Stop
-    Wait-ServiceState -Expected "Stopped"
+    Stop-ServiceBounded
     Invoke-TestPhase -Phase "service-unavailable" -Filter "E2EPhase=ServiceUnavailable" -AppUserModelId $appUserModelId
 } catch {
     $primaryError = $_

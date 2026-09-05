@@ -48,14 +48,14 @@ func TestServiceRunnerStopUnblocksIdleNamedPipeListener(t *testing.T) {
 
 			cancel()
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer stopCancel()
 
 			started := time.Now()
 			sr.stop(stopCtx)
 			elapsed := time.Since(started)
-			stopCancel()
 
-			if stopCtx.Err() != context.Canceled {
-				t.Fatalf("expected completed shutdown context to be canceled after cleanup, got %v", stopCtx.Err())
+			if stopCtx.Err() != nil {
+				t.Fatalf("service shutdown hit its context deadline instead of unblocking the idle pipe listener: %v", stopCtx.Err())
 			}
 			if elapsed >= 2*time.Second {
 				t.Fatalf("service shutdown took %v; expected idle pipe listener to unblock promptly", elapsed)

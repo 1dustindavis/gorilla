@@ -358,7 +358,7 @@ func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	cmdSuccess := cmd.ProcessState.Success()
+	cmdSuccess := cmd.ProcessState != nil && cmd.ProcessState.Success()
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
@@ -395,7 +395,7 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	cmdSuccess := cmd.ProcessState.Success()
+	cmdSuccess := cmd.ProcessState != nil && cmd.ProcessState.Success()
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script

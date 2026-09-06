@@ -113,7 +113,7 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	cmdSuccess := cmd.ProcessState.Success()
+	cmdSuccess := cmd.ProcessState != nil && cmd.ProcessState.Success()
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
@@ -125,6 +125,10 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	gorillalog.Debug("Command Error:", err)
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
+
+	if cmd.ProcessState == nil {
+		return false, err
+	}
 
 	actionNeeded = false
 	// Application not installed if exit 0

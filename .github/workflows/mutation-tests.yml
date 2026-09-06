@@ -46,7 +46,19 @@ jobs:
             .github/workflows/mutation-tests.yml
 
       - name: Run Go mutation tests
-        run: make mutation-go
+        shell: pwsh
+        run: |
+          make mutation-go 2>&1 | Tee-Object -FilePath gremlins-output.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Gremlins output
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: gremlins-output-${{ github.run_id }}
+          path: gremlins-output.txt
+          if-no-files-found: warn
+          retention-days: 14
 
   ui:
     name: UI Core mutation tests

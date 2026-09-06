@@ -113,7 +113,7 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	cmdSuccess := cmd.ProcessState.Success()
+	cmdSuccess := cmd.ProcessState != nil && cmd.ProcessState.Success()
 	outStr, errStr := stdout.String(), stderr.String()
 
 	// Delete the temporary script
@@ -125,6 +125,10 @@ func checkScript(catalogItem catalog.Item, cachePath string, installType string)
 	gorillalog.Debug("Command Error:", err)
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
+
+	if cmd.ProcessState == nil {
+		return false, err
+	}
 
 	actionNeeded = false
 	// Application not installed if exit 0
@@ -143,7 +147,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 	// Iterate through all file provided paths
 	for _, checkFile := range catalogItem.Check.File {
 		path := filepath.Clean(checkFile.Path)
-		gorillalog.Debug("Check file path:", path)
+		gorillalog.Debug("Check file path:", checkFile.Path)
 		_, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -155,7 +159,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 					break
 				}
 
-				// When doing an update or uninstall, and the file path does
+				// When doing an update or uninstall, and the path does
 				// not exist, do nothing
 				if installType == "update" || installType == "uninstall" {
 					gorillalog.Debug("No action needed: Install type is", installType)

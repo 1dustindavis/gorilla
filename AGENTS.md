@@ -66,6 +66,15 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - `make release-integration GORILLA_RELEASE_EXE=<path>`
 - `make installed-product-integration GORILLA_RELEASE_MSIX=<path> GORILLA_RELEASE_EXE=<path>`
 
+Mutation testing is an opt-in quality tool rather than a canonical validation level:
+
+- `make mutation-go` runs pinned Gremlins against the selected pure-Go mutation scope.
+- `make mutation-ui` restores the repository-local Stryker.NET tool and mutates selected `Gorilla.UI.Core` logic.
+- `make mutation` composes both mutation suites.
+- Do not add mutation testing to `verify*` or make it an every-PR gate unless measured runtime and signal quality justify that policy later.
+- Treat useful surviving mutants as prompts to improve behavioral assertions. Do not change production behavior merely to improve mutation score; address real defects separately.
+- See `docs/mutation-testing.md` for current scope and interpretation guidance.
+
 `make lint` and `make test` remain supported compatibility aliases for Go linting and Go tests respectively. `make lint` includes `staticcheck`.
 
 ### Which level to use

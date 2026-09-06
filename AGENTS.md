@@ -59,12 +59,24 @@ Use these for fast focused iteration or CI jobs that own one validation layer:
 - `make ui-restore`
 - `make ui-lint`
 - `make ui-test`
+- `make coverage-go`
+- `make coverage-ui`
+- `make coverage` (compose Go + portable .NET coverage reporting)
 - `make ui-windows-build`
 - `make windows-integration`
 - `make ui-e2e` (build and run source-built FlaUI E2E)
 - `make ui-e2e-test` (run FlaUI against existing source builds)
 - `make release-integration GORILLA_RELEASE_EXE=<path>`
 - `make installed-product-integration GORILLA_RELEASE_MSIX=<path> GORILLA_RELEASE_EXE=<path>`
+
+Coverage reporting is non-blocking baseline infrastructure:
+
+- `make coverage-go` writes the Go coverage profile and function summary under `build/coverage/go/`.
+- `make coverage-ui` writes Cobertura reports for the portable UI Client/Core test projects under `build/coverage/ui/`.
+- CI publishes coverage summaries and machine-readable artifacts, but no coverage percentage currently fails validation.
+- Treat coverage as a regression/review signal. Do not add tests or production changes solely to raise a repository-wide percentage.
+- Any future coverage ratchet should be introduced only after the baseline is reviewed, and should prefer important package/project-level regression protection over an arbitrary global threshold.
+- See `docs/coverage.md` for output locations and interpretation guidance.
 
 Mutation testing is an opt-in quality tool rather than a canonical validation level:
 

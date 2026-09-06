@@ -91,10 +91,12 @@ func getNupkgIDsWithRunner(nupkgDir, versionArg string, runner commandRunner) ([
 	ids := make([]string, 0, len(outputLines))
 	for _, line := range outputLines {
 		candidate := strings.TrimSpace(line)
-		if candidate != "" {
-			ids = append(ids, candidate)
+		if candidate == "" {
+			continue
 		}
+		ids = append(ids, candidate)
 	}
+
 	return ids, cmdErr
 }
 
@@ -107,19 +109,24 @@ func resolveNupkgIDWithRunner(itemName, nupkgDir, versionArg, packageID string, 
 	if explicitID != "" {
 		return explicitID, nil
 	}
+
 	if versionArg == "" {
 		return "", nil
 	}
+
 	ids, cmdErr := getNupkgIDsWithRunner(nupkgDir, versionArg, runner)
 	if cmdErr != nil {
 		return "", cmdErr
 	}
+
 	if len(ids) == 0 {
 		return "", fmt.Errorf("no package id was found for %s; set installer/uninstaller.package_id", itemName)
 	}
+
 	if len(ids) > 1 {
 		return "", fmt.Errorf("multiple package ids were found for %s: %s; set installer/uninstaller.package_id", itemName, strings.Join(ids, ", "))
 	}
+
 	return ids[0], nil
 }
 
@@ -153,9 +160,11 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 		// Since choco recommends the source is a directory,
 		// we need to pass a version to filter unexpected nupkgs (if we have a version)
 		var versionArg string
+		var nupkgID string
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 		}
+
 		nupkgID, err := resolveNupkgIDWithRunner(item.DisplayName, nupkgDir, versionArg, item.Installer.PackageID, runner)
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
@@ -173,19 +182,23 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 			// If we dont have an id and version, fallback to the method choco doesn't recommend (but works)
 			installArgs = []string{"install", absFile, "-f", "-y", "-r"}
 		}
+
 	} else if item.Installer.Type == "msi" {
 		gorillalog.Info("Installing msi for", item.DisplayName)
 		installCmd = commandMsi
 		installArgs = []string{"/i", absFile, "/qn", "/norestart"}
 		installArgs = append(installArgs, item.Installer.Arguments...)
+
 	} else if item.Installer.Type == "exe" {
 		gorillalog.Info("Installing exe for", item.DisplayName)
 		installCmd = absFile
 		installArgs = item.Installer.Arguments
+
 	} else if item.Installer.Type == "ps1" {
 		gorillalog.Info("Installing ps1 for", item.DisplayName)
 		installCmd = commandPs1
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
 	} else if item.Installer.Type == "msix" {
 		gorillalog.Info("Installing msix for", item.DisplayName)
 		installCmd = commandPs1
@@ -194,6 +207,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 			psCommand += " " + strings.Join(item.Installer.Arguments, " ")
 		}
 		installArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", psCommand}
+
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
@@ -202,6 +216,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 
 	// Run the command
 	installerOut, errOut := runner(installCmd, installArgs)
+
 	// Write success/failure event to log
 	if errOut != nil {
 		gorillalog.Warn(item.DisplayName, item.Version, "Installation FAILED")
@@ -235,7 +250,6 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 		)
 		uninstallCmd := commandPs1
 		uninstallArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", removeCmd}
-		// Run the command
 		uninstallerOut, errOut := runner(uninstallCmd, uninstallArgs)
 		if errOut != nil {
 			gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
@@ -262,6 +276,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 	// Determine the uninstall type and build the command
 	var uninstallCmd string
 	var uninstallArgs []string
+
 	if item.Uninstaller.Type == "nupkg" {
 		// choco wants the "id" and parent dir when we uninstall, so we need to determine both
 		gorillalog.Info("Determining nupkg id for", item.DisplayName)
@@ -270,9 +285,11 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 		// Since choco recommends the source is a directory,
 		// we need to pass a version to filter unexpected nupkgs (if we have a version)
 		var versionArg string
+		var nupkgID string
 		if item.Version != "" {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 		}
+
 		nupkgID, err := resolveNupkgIDWithRunner(item.DisplayName, nupkgDir, versionArg, item.Uninstaller.PackageID, runner)
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
@@ -290,18 +307,22 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 			// If we dont have an id and version, fallback to the method choco doesn't recommend (but works)
 			uninstallArgs = []string{"uninstall", absFile, "-f", "-y", "-r"}
 		}
+
 	} else if item.Uninstaller.Type == "msi" {
 		gorillalog.Info("Uninstalling msi for", item.DisplayName)
 		uninstallCmd = commandMsi
 		uninstallArgs = []string{"/x", absFile, "/qn", "/norestart"}
+
 	} else if item.Uninstaller.Type == "exe" {
 		gorillalog.Info("Uninstalling exe for", item.DisplayName)
 		uninstallCmd = absFile
 		uninstallArgs = item.Uninstaller.Arguments
+
 	} else if item.Uninstaller.Type == "ps1" {
 		gorillalog.Info("Uninstalling ps1 for", item.DisplayName)
 		uninstallCmd = commandPs1
 		uninstallArgs = []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", absFile}
+
 	} else {
 		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
 		gorillalog.Warn(msg)
@@ -310,6 +331,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 
 	// Run the command
 	uninstallerOut, errOut := runner(uninstallCmd, uninstallArgs)
+
 	// Write success/failure event to log
 	if errOut != nil {
 		gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
@@ -356,6 +378,7 @@ func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded 
 	gorillalog.Debug("Command Error:", err)
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
+
 	return cmdSuccess, err
 }
 
@@ -392,6 +415,7 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 	gorillalog.Debug("Command Error:", err)
 	gorillalog.Debug("stdout:", outStr)
 	gorillalog.Debug("stderr:", errStr)
+
 	return cmdSuccess, err
 }
 
@@ -425,27 +449,30 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
 			// Check only mode doesn't perform any action, return
 			return "Check only enabled"
-		}
-		// Compile the item's URL
-		itemURL := urlPackages + item.Installer.Location
-		// Run PreInstall_Script if needed
-		if item.PreScript != "" {
-			gorillalog.Info("Running Pre-Install script for", item.DisplayName)
-			preScriptSuccess, err := preinstallScript(item, cachePath)
-			if !preScriptSuccess {
-				gorillalog.Error("Pre-Install script error:", err)
-				return "PreInstall-Script error"
+		} else {
+			// Compile the item's URL
+			itemURL := urlPackages + item.Installer.Location
+			// Run PreInstall_Script if needed
+			if item.PreScript != "" {
+				gorillalog.Info("Running Pre-Install script for", item.DisplayName)
+				preScriptSuccess, err := preinstallScript(item, cachePath)
+				if !preScriptSuccess {
+					gorillalog.Error("Pre-Install script error:", err)
+					return "PreInstall-Script error"
+				}
 			}
-		}
-		// Run the installer
-		installItemFunc(item, itemURL, cachePath)
-		// Run PostInstall_Script if needed
-		if item.PostScript != "" {
-			gorillalog.Info("Running Post-Install script for", item.DisplayName)
-			postScriptSuccess, err := postinstallScript(item, cachePath)
-			if !postScriptSuccess {
-				gorillalog.Error("Post-Install script error:", err)
-				return "PostInstall-Script error"
+
+			// Run the installer
+			installItemFunc(item, itemURL, cachePath)
+
+			// Run PostInstall_Script if needed
+			if item.PostScript != "" {
+				gorillalog.Info("Running Post-Install script for", item.DisplayName)
+				postScriptSuccess, err := postinstallScript(item, cachePath)
+				if !postScriptSuccess {
+					gorillalog.Error("Post-Install script error:", err)
+					return "PostInstall-Script error"
+				}
 			}
 		}
 	} else if installerType == "uninstall" {
@@ -454,14 +481,17 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
 			// Check only mode doesn't perform any action, return
 			return "Check only enabled"
+		} else {
+			// Compile the item's URL
+			itemURL := urlPackages + item.Uninstaller.Location
+			// Run the installer
+			uninstallItemFunc(item, itemURL, cachePath)
 		}
-		// Compile the item's URL
-		itemURL := urlPackages + item.Uninstaller.Location
-		// Run the installer
-		uninstallItemFunc(item, itemURL, cachePath)
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
 		return "Unsupported item type"
+
 	}
+
 	return ""
 }

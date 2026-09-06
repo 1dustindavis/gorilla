@@ -487,7 +487,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			// Run the installer
 			_, err := callItemAction(installItemFunc, item, itemURL, cachePath)
 			if err != nil {
-				gorillalog.Error("Installation error:", err)
+				gorillalog.Warn("Installation error:", err)
 				return fmt.Sprintf("Installation error: %v", err)
 			}
 
@@ -513,7 +513,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			// Run the installer
 			_, err := callItemAction(uninstallItemFunc, item, itemURL, cachePath)
 			if err != nil {
-				gorillalog.Error("Uninstallation error:", err)
+				gorillalog.Warn("Uninstallation error:", err)
 				return fmt.Sprintf("Uninstallation error: %v", err)
 			}
 		}

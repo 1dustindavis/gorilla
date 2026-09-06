@@ -3,6 +3,7 @@ all: build
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
 	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
+	coverage coverage-go coverage-ui \
 	mutation mutation-go mutation-ui \
 	windows-integration release-integration installed-product-integration \
 	verify verify-windows verify-e2e verify-release
@@ -30,6 +31,11 @@ WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
 UI_E2E_WORK_ROOT ?= $(WINDOWS_INTEGRATION_WORK_ROOT)
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
 INSTALLED_PRODUCT_WORK_ROOT ?= $(CURDIR)/build/installed-product-integration
+COVERAGE_ROOT ?= $(CURDIR)/build/coverage
+GO_COVERAGE_DIR ?= $(COVERAGE_ROOT)/go
+UI_COVERAGE_DIR ?= $(COVERAGE_ROOT)/ui
+GO_COVERAGE_PROFILE ?= $(GO_COVERAGE_DIR)/coverage.out
+GO_COVERAGE_SUMMARY ?= $(GO_COVERAGE_DIR)/summary.txt
 RELEASE_USE_PREBUILT_FIXTURES ?= 0
 GORILLA_RELEASE_EXE ?=
 GORILLA_RELEASE_MSIX ?=
@@ -82,6 +88,9 @@ define HELP_TEXT
 	make ui-restore      - Restore portable Gorilla UI .NET dependencies
 	make ui-lint         - Run Gorilla UI portable build/analyzer validation
 	make ui-test         - Run the Gorilla UI portable .NET tests
+	make coverage        - Produce Go and portable .NET coverage reports
+	make coverage-go     - Produce Go coverage profile and summary
+	make coverage-ui     - Produce portable .NET Cobertura coverage reports
 	make ui-windows-build - Build the real WinUI app and Windows UI test project
 	make windows-integration - Run source-built Windows installer integration
 	make ui-e2e          - Build source service/UI and run critical FlaUI E2E workflows
@@ -210,6 +219,21 @@ ui-lint: ui-restore
 ui-test: ui-lint
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-build --no-restore
 	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-build --no-restore
+
+# Coverage is a reporting signal, not a blocking percentage gate. Keep it out
+# of verify* until a reviewed baseline justifies a separate ratcheting policy.
+coverage-go: gomodcheck
+	mkdir -p "$(GO_COVERAGE_DIR)"
+	go test -race -covermode=atomic -coverprofile="$(GO_COVERAGE_PROFILE)" ./...
+	go tool cover -func="$(GO_COVERAGE_PROFILE)" | tee "$(GO_COVERAGE_SUMMARY)"
+
+coverage-ui: ui-lint
+	rm -rf "$(UI_COVERAGE_DIR)"
+	mkdir -p "$(UI_COVERAGE_DIR)/client" "$(UI_COVERAGE_DIR)/core"
+	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-build --no-restore --collect:"XPlat Code Coverage" --results-directory "$(UI_COVERAGE_DIR)/client" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-build --no-restore --collect:"XPlat Code Coverage" --results-directory "$(UI_COVERAGE_DIR)/core" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+coverage: coverage-go coverage-ui
 
 # Mutation testing is an explicitly opt-in quality tool. It is deliberately
 # excluded from verify/verify-windows/verify-e2e/verify-release until runtime

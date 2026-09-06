@@ -31,6 +31,7 @@ var (
 )
 
 type commandRunner func(command string, arguments []string) (string, error)
+type itemAction func(catalog.Item, string, string) (string, error)
 
 // runCommand executes a command and it's argurments in the CMD environment
 func runCMD(command string, arguments []string) (string, error) {
@@ -127,6 +128,15 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 }
 
 func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) string {
+	installerOut, _ := installItemResultWithRunner(item, itemURL, cachePath, runner)
+	return installerOut
+}
+
+func installItemResult(item catalog.Item, itemURL, cachePath string) (string, error) {
+	return installItemResultWithRunner(item, itemURL, cachePath, runCommand)
+}
+
+func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) (string, error) {
 
 	// Determine the paths needed for download and install
 	relPath, fileName := path.Split(item.Installer.Location)
@@ -138,7 +148,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg
+		return msg, nil
 	}
 
 	// Determine the install type and command to pass
@@ -161,7 +171,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
-			return msg
+			return msg, err
 		}
 
 		// Now pass the id along with the parent directory
@@ -203,7 +213,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
-		return msg
+		return msg, nil
 	}
 
 	// Run the command
@@ -219,7 +229,7 @@ func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner 
 	// Add the item to InstalledItems in GorillaReport
 	report.InstalledItems = append(report.InstalledItems, item)
 
-	return installerOut
+	return installerOut, errOut
 }
 
 func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
@@ -227,6 +237,15 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 }
 
 func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) string {
+	uninstallerOut, _ := uninstallItemResultWithRunner(item, itemURL, cachePath, runner)
+	return uninstallerOut
+}
+
+func uninstallItemResult(item catalog.Item, itemURL, cachePath string) (string, error) {
+	return uninstallItemResultWithRunner(item, itemURL, cachePath, runCommand)
+}
+
+func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) (string, error) {
 
 	// msix uninstall only needs the package name, no file download required
 	if item.Uninstaller.Type == "msix" || (item.Uninstaller.Type == "" && item.Installer.Type == "msix") {
@@ -234,7 +253,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 		if item.Check.Appx.Name == "" {
 			msg := fmt.Sprintf("Check.Appx.Name is required for msix uninstall of %s", item.DisplayName)
 			gorillalog.Warn(msg)
-			return msg
+			return msg, nil
 		}
 		removeCmd := fmt.Sprintf(
 			"$pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq '%s' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name '%s' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue",
@@ -249,7 +268,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 			gorillalog.Info(item.DisplayName, item.Version, "Uninstallation SUCCESSFUL")
 		}
 		report.UninstalledItems = append(report.UninstalledItems, item)
-		return uninstallerOut
+		return uninstallerOut, errOut
 	}
 
 	// Determine the paths needed for download and uinstall
@@ -262,7 +281,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg
+		return msg, nil
 	}
 
 	// Determine the uninstall type and build the command
@@ -286,7 +305,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
-			return msg
+			return msg, err
 		}
 
 		// Now pass the id along with the parent directory
@@ -318,7 +337,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 	} else {
 		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
 		gorillalog.Warn(msg)
-		return msg
+		return msg, nil
 	}
 
 	// Run the command
@@ -334,7 +353,7 @@ func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runne
 	// Add the item to InstalledItems in GorillaReport
 	report.UninstalledItems = append(report.UninstalledItems, item)
 
-	return uninstallerOut
+	return uninstallerOut, errOut
 }
 
 func preinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded bool, checkErr error) {
@@ -412,9 +431,9 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 }
 
 var (
-	// By putting the functions in a variable, we can override later in tests
-	installItemFunc   = installItem
-	uninstallItemFunc = uninstallItem
+	// By putting the functions in a variable, we can override later in tests.
+	installItemFunc   itemAction = installItemResult
+	uninstallItemFunc itemAction = uninstallItemResult
 )
 
 // Install determines if action needs to be taken on a item and then
@@ -455,7 +474,11 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			}
 
 			// Run the installer
-			installItemFunc(item, itemURL, cachePath)
+			_, err := installItemFunc(item, itemURL, cachePath)
+			if err != nil {
+				gorillalog.Warn("Installation error:", err)
+				return fmt.Sprintf("Installation error: %v", err)
+			}
 
 			// Run PostInstall_Script if needed
 			if item.PostScript != "" {
@@ -477,7 +500,11 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			// Compile the item's URL
 			itemURL := urlPackages + item.Uninstaller.Location
 			// Run the installer
-			uninstallItemFunc(item, itemURL, cachePath)
+			_, err := uninstallItemFunc(item, itemURL, cachePath)
+			if err != nil {
+				gorillalog.Warn("Uninstallation error:", err)
+				return fmt.Sprintf("Uninstallation error: %v", err)
+			}
 		}
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)

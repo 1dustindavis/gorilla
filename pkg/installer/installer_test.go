@@ -664,9 +664,9 @@ func TestInstallReport(t *testing.T) {
 
 }
 
-func fakeInstallItem(item catalog.Item, itemURL, cachePath string) string {
+func fakeInstallItem(item catalog.Item, itemURL, cachePath string) (string, error) {
 	installItemURL = itemURL
-	return ""
+	return "", nil
 }
 
 // TestInstallURL validates that the url for an installer is properly generated
@@ -696,9 +696,9 @@ func TestInstallURL(t *testing.T) {
 	}
 }
 
-func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) string {
+func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) (string, error) {
 	uninstallItemURL = itemURL
-	return ""
+	return "", nil
 }
 
 // TestUninstallURL validates that the url for an installer is properly generated

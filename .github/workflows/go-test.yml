@@ -61,9 +61,9 @@ jobs:
       shell: pwsh
       run: |
         "## Go coverage" | Add-Content $env:GITHUB_STEP_SUMMARY
-        "```text" | Add-Content $env:GITHUB_STEP_SUMMARY
-        Get-Content build/coverage/go/summary.txt | Add-Content $env:GITHUB_STEP_SUMMARY
-        "```" | Add-Content $env:GITHUB_STEP_SUMMARY
+        Get-Content build/coverage/go/summary.txt | ForEach-Object {
+          "    $_" | Add-Content $env:GITHUB_STEP_SUMMARY
+        }
 
     - name: Upload Go coverage
       if: always()

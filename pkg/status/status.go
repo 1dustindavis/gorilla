@@ -147,7 +147,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 	// Iterate through all file provided paths
 	for _, checkFile := range catalogItem.Check.File {
 		path := filepath.Clean(checkFile.Path)
-		gorillalog.Debug("Check file path:", checkFile.Path)
+		gorillalog.Debug("Check file path:", path)
 		_, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -159,7 +159,7 @@ func checkPath(catalogItem catalog.Item, installType string) (actionNeeded bool,
 					break
 				}
 
-				// When doing an update or uninstall, and the path does
+				// When doing an update or uninstall, and the file path does
 				// not exist, do nothing
 				if installType == "update" || installType == "uninstall" {
 					gorillalog.Debug("No action needed: Install type is", installType)

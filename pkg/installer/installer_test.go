@@ -410,7 +410,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	ps1Item.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualPs1 := uninstallItemWithRunner(ps1Item, urlPackages, cachePath, runner)
+	actualPs1 := uninstallItemWithRunner(msiItem, urlPackages, cachePath, runner)
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")
@@ -589,7 +589,7 @@ func TestUninstallStatusTrue(t *testing.T) {
 	// Run the msi uninstaller with this status bypass to make status return true
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualOutput := Install(msiItem, "uninstall", "https://example.com/", "testdata/", checkOnlyMode)
+	actualOutput := Install(msiItem, "uninstall", "https://example.com", "testdata/", checkOnlyMode)
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -629,7 +629,7 @@ func TestUpdateStatusFalse(t *testing.T) {
 	// Run the msi installer with this status bypass to make status return dalse
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Update
-	actualOutput := Install(msiItem, "update", "https://example.com/", "testdata/", checkOnlyMode)
+	actualOutput := Install(msiItem, "update", "https://example.com", "testdata/", checkOnlyMode)
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {

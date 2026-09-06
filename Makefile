@@ -214,7 +214,7 @@ ui-test: ui-lint
 # excluded from verify/verify-windows/verify-e2e/verify-release until runtime
 # and signal quality justify a stricter cadence.
 mutation-go: gomodcheck
-	go run github.com/go-gremlins/gremlins@$(GREMLINS_VERSION) unleash ./pkg/manifest
+	go run github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION) unleash ./pkg/manifest
 
 mutation-ui:
 	dotnet tool restore

@@ -430,10 +430,22 @@ func postinstallScript(catalogItem catalog.Item, cachePath string) (actionNeeded
 }
 
 var (
-	// By putting the functions in a variable, we can override later in tests
-	installItemFunc   = installItemResult
-	uninstallItemFunc = uninstallItemResult
+	// By putting the functions in a variable, we can override later in tests.
+	// The legacy string-returning form remains accepted for existing test doubles.
+	installItemFunc   any = installItemResult
+	uninstallItemFunc any = uninstallItemResult
 )
+
+func callItemAction(action any, item catalog.Item, itemURL, cachePath string) (string, error) {
+	switch fn := action.(type) {
+	case func(catalog.Item, string, string) (string, error):
+		return fn(item, itemURL, cachePath)
+	case func(catalog.Item, string, string) string:
+		return fn(item, itemURL, cachePath), nil
+	default:
+		return "", fmt.Errorf("unsupported installer action function %T", action)
+	}
+}
 
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
@@ -473,7 +485,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			}
 
 			// Run the installer
-			_, err := installItemFunc(item, itemURL, cachePath)
+			_, err := callItemAction(installItemFunc, item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Error("Installation error:", err)
 				return fmt.Sprintf("Installation error: %v", err)
@@ -499,7 +511,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			// Compile the item's URL
 			itemURL := urlPackages + item.Uninstaller.Location
 			// Run the installer
-			_, err := uninstallItemFunc(item, itemURL, cachePath)
+			_, err := callItemAction(uninstallItemFunc, item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Error("Uninstallation error:", err)
 				return fmt.Sprintf("Uninstallation error: %v", err)

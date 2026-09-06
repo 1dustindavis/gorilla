@@ -1,10 +1,12 @@
 # Coverage reporting
 
-Gorilla uses coverage as a regression and review signal, not as a repository-wide score target. Stage 10 of the automated-testing work deliberately starts by measuring and publishing the current baseline without introducing a blocking coverage threshold.
+Gorilla collects coverage so we can spot places where a change may have reduced useful test coverage. It is not meant to be a score we optimize across the whole repository.
 
-## Run locally
+For now, coverage is informational. We are collecting a baseline before deciding whether any future regression checks would be useful.
 
-Coverage uses the same Makefile validation interface as the rest of the repository:
+## Run it locally
+
+Use the same Makefile interface as the rest of Gorilla's validation:
 
 ```sh
 make coverage-go
@@ -12,32 +14,32 @@ make coverage-ui
 make coverage
 ```
 
-`coverage-go` runs the race-enabled Go suite and writes:
+`make coverage-go` runs the race-enabled Go tests and writes:
 
-- `build/coverage/go/coverage.out` — Go's machine-readable coverage profile.
-- `build/coverage/go/summary.txt` — `go tool cover -func` output for quick review.
+- `build/coverage/go/coverage.out` — the Go coverage profile.
+- `build/coverage/go/summary.txt` — a readable `go tool cover -func` summary.
 
-`coverage-ui` builds the portable UI test projects and writes Cobertura XML reports beneath:
+`make coverage-ui` runs the portable UI tests and writes Cobertura reports under:
 
 - `build/coverage/ui/client/`
 - `build/coverage/ui/core/`
 
-The generated files are under `build/`, which is already treated as disposable repository output.
+Everything goes under `build/`, so the reports are disposable local output.
 
-## CI behavior
+## In CI
 
-The existing Go and portable UI workflows collect coverage while running their normal test suites. They publish concise coverage information to the GitHub Actions step summary and upload the machine-readable reports as 14-day workflow artifacts.
+The normal Go and portable UI workflows collect coverage while they run the tests. GitHub Actions shows a short summary and keeps the full reports as 14-day artifacts.
 
-Coverage reporting does **not** add a separate pass/fail percentage. A test failure still fails validation normally; a lower coverage percentage by itself does not.
+There is no coverage threshold. Tests can still fail the workflow normally, but a lower coverage percentage by itself will not.
 
-## Interpreting coverage
+## How to use the reports
 
-Use coverage to answer questions such as:
+Coverage is most useful for questions like:
 
-- Did a change accidentally make important behavior less tested?
-- Is a pure-logic package or UI Core workflow missing meaningful cases?
-- Does a new branch represent behavior that deserves a deterministic unit test?
+- Did this change make an important code path less tested?
+- Is a pure-logic package or UI Core workflow missing a useful test case?
+- Did we add a branch that should have a deterministic unit test?
 
-Do not add tests solely to increase a number, and do not change production behavior merely to improve coverage. Windows adapters, generated/stub code, and integration-oriented boundaries can have different useful coverage characteristics than pure application logic.
+Don't add tests just to make the percentage go up, and don't change production code just to improve coverage. Windows adapters, generated or stub code, and integration-heavy code may naturally have very different coverage from pure application logic.
 
-The current reports establish the baseline needed for a future ratchet. Any later enforcement should be introduced separately, after the baseline is reviewed, and should prefer important package/project-level regression protection over an arbitrary repository-wide target.
+These reports give us a baseline. If we add a coverage ratchet later, it should be based on what the data shows and should probably focus on important packages or projects instead of one repository-wide percentage.

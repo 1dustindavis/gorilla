@@ -10,6 +10,87 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/report"
 )
 
+func failingCommandRunner(runnerErr error) commandRunner {
+	return func(command string, arguments []string) (string, error) {
+		if command == commandNupkg && len(arguments) > 0 && arguments[0] == "list" {
+			return "chef-client", nil
+		}
+		return "runner output", runnerErr
+	}
+}
+
+func TestInstallerCommandErrorsPropagateForAllTypes(t *testing.T) {
+	download.SetConfig(downloadCfg)
+	runnerErr := errors.New("deliberate installer failure")
+
+	tests := []struct {
+		name string
+		item catalog.Item
+		url  string
+	}{
+		{"nupkg", nupkgItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64.nupkg"},
+		{"msi", msiItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64.msi"},
+		{"exe", exeItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64.exe"},
+		{"ps1", ps1Item, "https://example.com/chef-client/chef-client-14.3.37-1-x64.ps1"},
+		{"msix", msixItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64.msix"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origInstalledItems := report.InstalledItems
+			defer func() { report.InstalledItems = origInstalledItems }()
+			report.InstalledItems = nil
+
+			output, err := installItemResultWithRunner(tt.item, tt.url, "testdata/", failingCommandRunner(runnerErr))
+			if !errors.Is(err, runnerErr) {
+				t.Fatalf("expected runner error, got %v", err)
+			}
+			if output != "runner output" {
+				t.Fatalf("expected runner output, got %q", output)
+			}
+			if len(report.InstalledItems) != 1 {
+				t.Fatalf("expected failed installation attempt in report, got %d items", len(report.InstalledItems))
+			}
+		})
+	}
+}
+
+func TestUninstallerCommandErrorsPropagateForAllTypes(t *testing.T) {
+	download.SetConfig(downloadCfg)
+	runnerErr := errors.New("deliberate uninstaller failure")
+
+	tests := []struct {
+		name string
+		item catalog.Item
+		url  string
+	}{
+		{"nupkg", nupkgItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64uninst.nupkg"},
+		{"msi", msiItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64uninst.msi"},
+		{"exe", exeItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64uninst.exe"},
+		{"ps1", ps1Item, "https://example.com/chef-client/chef-client-14.3.37-1-x64uninst.ps1"},
+		{"msix", msixItem, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origUninstalledItems := report.UninstalledItems
+			defer func() { report.UninstalledItems = origUninstalledItems }()
+			report.UninstalledItems = nil
+
+			output, err := uninstallItemResultWithRunner(tt.item, tt.url, "testdata/", failingCommandRunner(runnerErr))
+			if !errors.Is(err, runnerErr) {
+				t.Fatalf("expected runner error, got %v", err)
+			}
+			if output != "runner output" {
+				t.Fatalf("expected runner output, got %q", output)
+			}
+			if len(report.UninstalledItems) != 1 {
+				t.Fatalf("expected failed uninstallation attempt in report, got %d items", len(report.UninstalledItems))
+			}
+		})
+	}
+}
+
 func TestInstallReturnsInstallerCommandError(t *testing.T) {
 	origStatus := statusCheckStatus
 	origRunner := runCommand

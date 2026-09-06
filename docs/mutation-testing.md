@@ -1,10 +1,10 @@
 # Mutation testing
 
-Gorilla uses mutation testing selectively to assess whether focused unit tests detect meaningful changes in high-value pure logic. Mutation testing is a diagnostic quality tool, not part of the required `verify*` validation contract.
+Mutation testing helps us find tests that run code without really proving its behavior. It is optional and is not part of the normal `verify*` checks.
 
-## Commands
+## Run it
 
-Run the selected suites from the repository root:
+From the repo root:
 
 ```text
 make mutation-go
@@ -12,51 +12,43 @@ make mutation-ui
 make mutation
 ```
 
-- `make mutation-go` runs pinned Gremlins against `pkg/manifest`.
-- `make mutation-ui` restores the repository-local Stryker.NET tool and runs it against selected `Gorilla.UI.Core` behavior.
-- `make mutation` composes both suites.
+- `make mutation-go` runs Gremlins against `pkg/manifest`.
+- `make mutation-ui` runs Stryker.NET against selected `Gorilla.UI.Core` logic.
+- `make mutation` runs both.
 
-The Go tool version is pinned by `GREMLINS_VERSION` in the Makefile. Stryker.NET is pinned in `.config/dotnet-tools.json` and configured by `gorilla-ui/tests/Gorilla.UI.Core.Tests/stryker-config.json`.
+You can also run the manual **Mutation Tests** workflow in GitHub Actions and choose `all`, `go`, or `ui`. The workflow is manual-only and does not run on pushes or pull requests.
 
-## Manual GitHub Actions runs
+## What we mutate
 
-After `.github/workflows/mutation-tests.yml` is present on the default branch, use **Actions > Mutation Tests > Run workflow** to run mutation testing without making it part of normal PR validation.
+Keep the scope small and useful.
 
-The workflow accepts a `suite` choice:
+Go:
 
-- `all` runs both mutation suites.
-- `go` runs only Gremlins.
-- `ui` runs only Stryker.NET.
+- `pkg/manifest`
 
-The workflow can be dispatched against a selected branch or tag, so after this workflow is merged you can still choose a later PR branch when you want to investigate its mutation behavior. Each mutation job has a 60-minute timeout. Gremlins console output and Stryker reports are uploaded as workflow artifacts and retained for 14 days.
-
-The workflow has no `push`, `pull_request`, or scheduled trigger. It is intentionally manual-only and is not a required status check.
-
-## Scope
-
-Keep mutation scope deliberately narrow. Prefer deterministic, branch-heavy logic whose behavior should already be described by ordinary unit tests.
-
-The initial Go scope is `pkg/manifest`. The initial .NET scope covers:
+.NET:
 
 - `OptionalInstallsStartupLoader`
 - `OperationTracker`
 - `HomeViewModel`
 
-Do not expand mutation testing simply to increase the number of mutants. Avoid Windows service wrappers, installer/process adapters, WinUI code-behind, generated files, and FlaUI tests unless a concrete future need justifies the cost and signal quality.
+Avoid mutating Windows service wrappers, installer/process adapters, WinUI code-behind, generated files, and FlaUI tests unless there is a good reason to expand the scope.
 
-## Interpreting survivors
+## What to do with survivors
 
-A surviving mutant is a prompt to inspect the behavior, not an automatic failure requiring production changes.
+A surviving mutant means a test did not catch a code change. Check whether that change matters.
 
-For each useful survivor:
+- If it represents real behavior, improve the test.
+- If it is equivalent or meaningless, ignore it or exclude it narrowly if that makes the results easier to use.
+- If it exposes a real product bug, fix the bug separately instead of changing production code just to improve the mutation score.
 
-1. Determine whether the mutation represents meaningful observable behavior.
-2. If an existing test should distinguish it, strengthen the assertion or add the missing behavioral case.
-3. If the mutant is equivalent or otherwise not behaviorally meaningful, leave it alone or exclude it narrowly only when the exclusion improves signal.
-4. If investigation exposes a real product defect or ambiguous product contract, fix that behavior separately rather than changing production code merely to improve mutation score.
+We are not enforcing a mutation score or running mutation tests on every PR. We can revisit that after we have enough runtime and signal data.
 
-Do not target a repository-wide mutation percentage and do not make mutation testing an every-PR gate unless measured runtime and signal quality justify that policy later.
+## Reports
 
-## Reports and cleanup
+The GitHub Actions workflow keeps mutation artifacts for 14 days.
 
-Stryker writes local reports under `StrykerOutput/`; these outputs are ignored by Git and removed by `make clean`. Local Gremlins runs report results directly to the console. Manual GitHub Actions runs preserve both suites' output as workflow artifacts for investigation.
+- Gremlins output is saved from the Go job.
+- Stryker reports are saved from `StrykerOutput/`.
+
+Local Stryker output is ignored by Git and removed by `make clean`.

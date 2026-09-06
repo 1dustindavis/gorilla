@@ -3,6 +3,7 @@ package installer
 import (
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
@@ -88,6 +89,43 @@ func TestUninstallerCommandErrorsPropagateForAllTypes(t *testing.T) {
 				t.Fatalf("expected failed uninstallation attempt in report, got %d items", len(report.UninstalledItems))
 			}
 		})
+	}
+}
+
+func TestNupkgLookupErrorsPropagateBeforeActionAttempt(t *testing.T) {
+	download.SetConfig(downloadCfg)
+	lookupErr := errors.New("deliberate nupkg lookup failure")
+	runner := func(string, []string) (string, error) { return "", lookupErr }
+
+	origInstalledItems := report.InstalledItems
+	origUninstalledItems := report.UninstalledItems
+	defer func() {
+		report.InstalledItems = origInstalledItems
+		report.UninstalledItems = origUninstalledItems
+	}()
+	report.InstalledItems = nil
+	report.UninstalledItems = nil
+
+	installOutput, err := installItemResultWithRunner(nupkgItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64.nupkg", "testdata/", runner)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("expected install lookup error, got %v", err)
+	}
+	if !strings.Contains(installOutput, "Unable to determine nupkg id") {
+		t.Fatalf("expected nupkg lookup failure output, got %q", installOutput)
+	}
+	if len(report.InstalledItems) != 0 {
+		t.Fatalf("expected no install attempt in report, got %d items", len(report.InstalledItems))
+	}
+
+	uninstallOutput, err := uninstallItemResultWithRunner(nupkgItem, "https://example.com/chef-client/chef-client-14.3.37-1-x64uninst.nupkg", "testdata/", runner)
+	if !errors.Is(err, lookupErr) {
+		t.Fatalf("expected uninstall lookup error, got %v", err)
+	}
+	if !strings.Contains(uninstallOutput, "Unable to determine nupkg id") {
+		t.Fatalf("expected nupkg lookup failure output, got %q", uninstallOutput)
+	}
+	if len(report.UninstalledItems) != 0 {
+		t.Fatalf("expected no uninstall attempt in report, got %d items", len(report.UninstalledItems))
 	}
 }
 

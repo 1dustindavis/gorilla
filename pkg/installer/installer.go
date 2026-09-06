@@ -30,6 +30,8 @@ var (
 	runCommand        = runCMD
 )
 
+type commandRunner func(command string, arguments []string) (string, error)
+
 // runCommand executes a command and it's argurments in the CMD environment
 func runCMD(command string, arguments []string) (string, error) {
 	cmd := execCommand(command, arguments...)
@@ -73,14 +75,14 @@ func runCMD(command string, arguments []string) (string, error) {
 }
 
 // Get a Nupkg's id using `choco list`
-func getNupkgIDs(nupkgDir, versionArg string) ([]string, error) {
+func getNupkgIDsWithRunner(nupkgDir, versionArg string, runner commandRunner) ([]string, error) {
 
 	// Compile the arguments needed to get the id
 	command := commandNupkg
 	arguments := []string{"list", versionArg, "--id-only", "-r", "-s", nupkgDir}
 
 	// Run the command and parse each non-empty line as a candidate id
-	cmdOut, cmdErr := runCommand(command, arguments)
+	cmdOut, cmdErr := runner(command, arguments)
 	outputLines := strings.Split(cmdOut, "\n")
 	ids := make([]string, 0, len(outputLines))
 	for _, line := range outputLines {
@@ -94,7 +96,7 @@ func getNupkgIDs(nupkgDir, versionArg string) ([]string, error) {
 	return ids, cmdErr
 }
 
-func resolveNupkgID(itemName, nupkgDir, versionArg, packageID string) (string, error) {
+func resolveNupkgIDWithRunner(itemName, nupkgDir, versionArg, packageID string, runner commandRunner) (string, error) {
 	explicitID := strings.TrimSpace(packageID)
 	if explicitID != "" {
 		return explicitID, nil
@@ -104,7 +106,7 @@ func resolveNupkgID(itemName, nupkgDir, versionArg, packageID string) (string, e
 		return "", nil
 	}
 
-	ids, cmdErr := getNupkgIDs(nupkgDir, versionArg)
+	ids, cmdErr := getNupkgIDsWithRunner(nupkgDir, versionArg, runner)
 	if cmdErr != nil {
 		return "", cmdErr
 	}
@@ -121,6 +123,10 @@ func resolveNupkgID(itemName, nupkgDir, versionArg, packageID string) (string, e
 }
 
 func installItem(item catalog.Item, itemURL, cachePath string) string {
+	return installItemWithRunner(item, itemURL, cachePath, runCommand)
+}
+
+func installItemWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) string {
 
 	// Determine the paths needed for download and install
 	relPath, fileName := path.Split(item.Installer.Location)
@@ -151,7 +157,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 		}
 
-		nupkgID, err := resolveNupkgID(item.DisplayName, nupkgDir, versionArg, item.Installer.PackageID)
+		nupkgID, err := resolveNupkgIDWithRunner(item.DisplayName, nupkgDir, versionArg, item.Installer.PackageID, runner)
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
@@ -201,7 +207,7 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	installerOut, errOut := runCommand(installCmd, installArgs)
+	installerOut, errOut := runner(installCmd, installArgs)
 
 	// Write success/failure event to log
 	if errOut != nil {
@@ -217,6 +223,10 @@ func installItem(item catalog.Item, itemURL, cachePath string) string {
 }
 
 func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
+	return uninstallItemWithRunner(item, itemURL, cachePath, runCommand)
+}
+
+func uninstallItemWithRunner(item catalog.Item, itemURL, cachePath string, runner commandRunner) string {
 
 	// msix uninstall only needs the package name, no file download required
 	if item.Uninstaller.Type == "msix" || (item.Uninstaller.Type == "" && item.Installer.Type == "msix") {
@@ -232,7 +242,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 		)
 		uninstallCmd := commandPs1
 		uninstallArgs := []string{"-NoProfile", "-NoLogo", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", removeCmd}
-		uninstallerOut, errOut := runCommand(uninstallCmd, uninstallArgs)
+		uninstallerOut, errOut := runner(uninstallCmd, uninstallArgs)
 		if errOut != nil {
 			gorillalog.Warn(item.DisplayName, item.Version, "Uninstallation FAILED")
 		} else {
@@ -272,7 +282,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 			versionArg = fmt.Sprintf("--version=%s", item.Version)
 		}
 
-		nupkgID, err := resolveNupkgID(item.DisplayName, nupkgDir, versionArg, item.Uninstaller.PackageID)
+		nupkgID, err := resolveNupkgIDWithRunner(item.DisplayName, nupkgDir, versionArg, item.Uninstaller.PackageID, runner)
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
@@ -312,7 +322,7 @@ func uninstallItem(item catalog.Item, itemURL, cachePath string) string {
 	}
 
 	// Run the command
-	uninstallerOut, errOut := runCommand(uninstallCmd, uninstallArgs)
+	uninstallerOut, errOut := runner(uninstallCmd, uninstallArgs)
 
 	// Write success/failure event to log
 	if errOut != nil {

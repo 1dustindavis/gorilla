@@ -3,6 +3,7 @@
 **/obj/
 .vs/
 **/TestResults/
+**/StrykerOutput/
 **/*.user
 **/*.rsuser
 **/*.suo

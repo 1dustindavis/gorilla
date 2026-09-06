@@ -1,0 +1,14 @@
+{
+  "stryker-config": {
+    "mutate": [
+      "OptionalInstallsStartupLoader.cs",
+      "Services/OperationTracker.cs",
+      "ViewModels/HomeViewModel.cs"
+    ],
+    "reporters": [
+      "progress",
+      "json",
+      "html"
+    ]
+  }
+}

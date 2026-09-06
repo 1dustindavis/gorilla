@@ -75,10 +75,6 @@ func runCMD(command string, arguments []string) (string, error) {
 }
 
 // Get a Nupkg's id using `choco list`
-func getNupkgIDs(nupkgDir, versionArg string) ([]string, error) {
-	return getNupkgIDsWithRunner(nupkgDir, versionArg, runCommand)
-}
-
 func getNupkgIDsWithRunner(nupkgDir, versionArg string, runner commandRunner) ([]string, error) {
 
 	// Compile the arguments needed to get the id
@@ -98,10 +94,6 @@ func getNupkgIDsWithRunner(nupkgDir, versionArg string, runner commandRunner) ([
 	}
 
 	return ids, cmdErr
-}
-
-func resolveNupkgID(itemName, nupkgDir, versionArg, packageID string) (string, error) {
-	return resolveNupkgIDWithRunner(itemName, nupkgDir, versionArg, packageID, runCommand)
 }
 
 func resolveNupkgIDWithRunner(itemName, nupkgDir, versionArg, packageID string, runner commandRunner) (string, error) {

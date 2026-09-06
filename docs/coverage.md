@@ -4,12 +4,12 @@ Gorilla uses coverage as a regression and review signal, not as a repository-wid
 
 ## Run locally
 
-Coverage targets compose with the main Makefile so they can reuse the same restore/build prerequisites as normal validation:
+Coverage uses the same Makefile validation interface as the rest of the repository:
 
 ```sh
-make -f Makefile -f coverage.mk coverage-go
-make -f Makefile -f coverage.mk coverage-ui
-make -f Makefile -f coverage.mk coverage
+make coverage-go
+make coverage-ui
+make coverage
 ```
 
 `coverage-go` runs the race-enabled Go suite and writes:

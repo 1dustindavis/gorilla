@@ -9,7 +9,6 @@ on:
       - '!gorilla-ui/*.md'
       - '!gorilla-ui/**/*.md'
       - Makefile
-      - coverage.mk
       - .github/workflows/ui-client-test.yml
   pull_request:
 
@@ -44,7 +43,7 @@ jobs:
         dotnet-version: 8.0.x
 
     - name: Validate portable UI with coverage
-      run: make -f Makefile -f coverage.mk coverage-ui
+      run: make coverage-ui
 
     - name: Add coverage summary
       if: always() && hashFiles('build/coverage/ui/**/coverage.cobertura.xml') != ''

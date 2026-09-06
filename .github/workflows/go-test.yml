@@ -9,7 +9,6 @@ on:
       - utils/**
       - integration/**
       - Makefile
-      - coverage.mk
       - go.mod
       - go.sum
       - .github/workflows/go-test.yml
@@ -49,14 +48,13 @@ jobs:
         cache-dependency-path: |
           go.sum
           Makefile
-          coverage.mk
           .github/workflows/go-test.yml
 
     - name: Lint
       run: make lint
 
     - name: Test with coverage
-      run: make -f Makefile -f coverage.mk coverage-go
+      run: make coverage-go
 
     - name: Add coverage summary
       if: always() && hashFiles('build/coverage/go/summary.txt') != ''

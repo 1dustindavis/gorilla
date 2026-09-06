@@ -3,6 +3,7 @@ all: build
 .PHONY: build bootstrap bootstrap-run manual-test-server clean help \
 	go-format go-vet go-staticcheck go-test lint test \
 	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
+	mutation mutation-go mutation-ui \
 	windows-integration release-integration installed-product-integration \
 	verify verify-windows verify-e2e verify-release
 
@@ -19,6 +20,7 @@ REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 STATICCHECK_VERSION ?= v0.7.0
+GREMLINS_VERSION ?= v0.6.0
 MANUAL_TEST_DIR = build/manual-test
 MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
 MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
@@ -86,6 +88,10 @@ define HELP_TEXT
 	make release-integration GORILLA_RELEASE_EXE=... - Test a supplied release binary against installer fixtures
 	make installed-product-integration GORILLA_RELEASE_MSIX=... - Install the produced MSIX and validate service/UI/package interoperability
 
+	make mutation        - Run the selected Go and UI Core mutation suites
+	make mutation-go     - Run Gremlins against selected pure Go logic
+	make mutation-ui     - Run Stryker.NET against selected Gorilla.UI.Core logic
+
 	make lint           - Compatibility alias for Go format/vet/staticcheck
 	make test           - Compatibility alias for Go tests
 
@@ -109,6 +115,7 @@ clean:
 	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/bin/
 	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/obj/
 	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/TestResults/
+	rm -rf gorilla-ui/tests/Gorilla.UI.Core.Tests/StrykerOutput/
 	rm -rf gorilla-ui/tools/PipeHarness/bin/
 	rm -rf gorilla-ui/tools/PipeHarness/obj/
 	rm -rf gorilla-ui/src/Gorilla.UI.App/AppPackages/
@@ -202,6 +209,18 @@ ui-lint: ui-restore
 ui-test: ui-lint
 	dotnet test gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj --no-build --no-restore
 	dotnet test gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj --no-build --no-restore
+
+# Mutation testing is an explicitly opt-in quality tool. It is deliberately
+# excluded from verify/verify-windows/verify-e2e/verify-release until runtime
+# and signal quality justify a stricter cadence.
+mutation-go: gomodcheck
+	go run github.com/go-gremlins/gremlins@$(GREMLINS_VERSION) unleash ./pkg/manifest
+
+mutation-ui:
+	dotnet tool restore
+	cd gorilla-ui/tests/Gorilla.UI.Core.Tests && dotnet stryker
+
+mutation: mutation-go mutation-ui
 
 ui-windows-build:
 ifeq ($(OS), Windows_NT)

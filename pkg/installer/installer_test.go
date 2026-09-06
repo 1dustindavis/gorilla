@@ -143,6 +143,15 @@ func fakeRunCommand(command string, arguments []string) (string, error) {
 	return cmdOutput, err
 }
 
+func fakeInstallerRunner(nupkgID string) commandRunner {
+	return func(command string, arguments []string) (string, error) {
+		if command == commandNupkg && len(arguments) > 0 && arguments[0] == "list" {
+			return nupkgID, nil
+		}
+		return fmt.Sprint(append([]string{command}, arguments...)), nil
+	}
+}
+
 // TestHelperProcess processes the commands passed to fakeExecCommand
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
@@ -200,16 +209,10 @@ func TestRunCommand(t *testing.T) {
 	}
 }
 
-// TestInstallItem validate the command that is passed to
-// exec.Command for each installer type
+// TestInstallItem validates the command selected for each installer type.
 func TestInstallItem(t *testing.T) {
-	// Override execCommand and checkStatus with our fake versions
-	execCommand = fakeExecCommand
-	statusCheckStatus = fakeCheckStatus
-	defer func() {
-		execCommand = origExec
-		statusCheckStatus = origCheckStatus
-	}()
+	download.SetConfig(downloadCfg)
+	runner := fakeInstallerRunner("chef-client")
 
 	// Set shared testing variables
 	cachePath := "testdata/"
@@ -224,14 +227,13 @@ func TestInstallItem(t *testing.T) {
 	nupkgURL := urlPackages + nupkgPath
 
 	// Run Install
-	actualNupkg := installItem(nupkgItem, nupkgURL, cachePath)
+	actualNupkg := installItemWithRunner(nupkgItem, nupkgURL, cachePath, runner)
 
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
 	nupkgDir := filepath.Dir(nupkgFile)
-	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
-	expectedNupkg := fmt.Sprintf("[%s install %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
+	expectedNupkg := fmt.Sprintf("[%s install chef-client -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -244,7 +246,7 @@ func TestInstallItem(t *testing.T) {
 	msiURL := urlPackages + msiPath
 
 	// Run Install
-	actualMsi := installItem(msiItem, msiURL, cachePath)
+	actualMsi := installItemWithRunner(msiItem, msiURL, cachePath, runner)
 
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
@@ -262,7 +264,7 @@ func TestInstallItem(t *testing.T) {
 	exeURL := urlPackages + exePath
 
 	// Run Install
-	actualExe := installItem(exeItem, exeURL, cachePath)
+	actualExe := installItemWithRunner(exeItem, exeURL, cachePath, runner)
 
 	// Check the result
 	exeFile := filepath.Join(pkgCache, exePath)
@@ -279,7 +281,7 @@ func TestInstallItem(t *testing.T) {
 	ps1URL := urlPackages + ps1Path
 
 	// Run Install
-	actualPs1 := installItem(ps1Item, ps1URL, cachePath)
+	actualPs1 := installItemWithRunner(ps1Item, ps1URL, cachePath, runner)
 
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
@@ -297,7 +299,7 @@ func TestInstallItem(t *testing.T) {
 	msixURL := urlPackages + msixPath
 
 	// Run Install
-	actualMsix := installItem(msixItem, msixURL, cachePath)
+	actualMsix := installItemWithRunner(msixItem, msixURL, cachePath, runner)
 
 	// Check the result
 	msixCmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
@@ -349,17 +351,10 @@ func TestInstallStatusFalse(t *testing.T) {
 
 }
 
-// TestUninstallItem validate the command that is passed to
-// exec.Command for each installer type
+// TestUninstallItem validates the command selected for each installer type.
 func TestUninstallItem(t *testing.T) {
-	// Override execCommand and checkStatus with our fake versions
-	execCommand = fakeExecCommand
-	statusCheckStatus = fakeCheckStatus
 	download.SetConfig(downloadCfg)
-	defer func() {
-		execCommand = origExec
-		statusCheckStatus = origCheckStatus
-	}()
+	runner := fakeInstallerRunner("chef-client")
 
 	// Set shared testing variables
 	cachePath := "testdata/"
@@ -373,13 +368,12 @@ func TestUninstallItem(t *testing.T) {
 	nupkgPath := "chef-client/chef-client-14.3.37-1-x64uninst.nupkg"
 	nupkgURL := urlPackages + nupkgPath
 	// Run Uninstall
-	actualNupkg := uninstallItem(nupkgItem, nupkgURL, cachePath)
+	actualNupkg := uninstallItemWithRunner(nupkgItem, nupkgURL, cachePath, runner)
 	// Check the result
 	nupkgCmd := filepath.Join(os.Getenv("ProgramData"), "chocolatey/bin/choco.exe")
 	nupkgFile := filepath.Join(pkgCache, nupkgPath)
 	nupkgDir := filepath.Dir(nupkgFile)
-	nupkgID := fmt.Sprintf("[%s list --version=1.2.3 --id-only -r -s %s]", nupkgCmd, nupkgDir)
-	expectedNupkg := fmt.Sprintf("[%s uninstall %s -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgID, nupkgDir)
+	expectedNupkg := fmt.Sprintf("[%s uninstall chef-client -s %s --version=1.2.3 -f -y -r]", nupkgCmd, nupkgDir)
 	if have, want := actualNupkg, expectedNupkg; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
 	}
@@ -389,7 +383,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualMsi := uninstallItem(msiItem, urlPackages, cachePath)
+	actualMsi := uninstallItemWithRunner(msiItem, urlPackages, cachePath, runner)
 	// Check the result
 	msiCmd := filepath.Join(os.Getenv("WINDIR"), "system32/msiexec.exe")
 	msiPath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.msi")
@@ -403,7 +397,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	exeItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualExe := uninstallItem(exeItem, urlPackages, cachePath)
+	actualExe := uninstallItemWithRunner(exeItem, urlPackages, cachePath, runner)
 	// Check the result
 	exePath := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.exe")
 	expectedExe := "[" + exePath + " /U=1033 /S]"
@@ -416,7 +410,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	ps1Item.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualPs1 := uninstallItem(ps1Item, urlPackages, cachePath)
+	actualPs1 := uninstallItemWithRunner(ps1Item, urlPackages, cachePath, runner)
 	// Check the result
 	ps1Cmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	ps1Path := filepath.Clean("testdata/packages/chef-client/chef-client-14.3.37-1-x64uninst.ps1")
@@ -430,7 +424,7 @@ func TestUninstallItem(t *testing.T) {
 	//
 	msixItem.DisplayName = statusNoActionNoError
 	// Run Uninstall (msix uses Check.Appx.Name, no file download needed)
-	actualMsix := uninstallItem(msixItem, "", cachePath)
+	actualMsix := uninstallItemWithRunner(msixItem, "", cachePath, runner)
 	// Check the result
 	msixCmd := filepath.Join(os.Getenv("WINDIR"), "system32/WindowsPowershell/v1.0/powershell.exe")
 	expectedMsix := "[" + msixCmd + " -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command $pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq 'Gorilla.Test.App' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name 'Gorilla.Test.App' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue]"

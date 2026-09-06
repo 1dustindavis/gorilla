@@ -151,22 +151,28 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_NonTerminalStream_DoesNotRefreshItems()
+    public async Task InstallAsync_NonTerminalUpdateWhileTracking_DoesNotRefreshOrClearWarning()
     {
+        var updateApplied = NewSignal();
+        using var cancellation = new CancellationTokenSource();
         var client = new FakeClient
         {
             InstallAsync = (_, _) => Task.FromResult(new OperationAccepted("op-1", true, Now)),
-            StreamAsync = (_, _) => Stream(
-                new OperationStatusEvent("op-1", OperationState.Installing, 50, "Copying files", Now)
-            ),
+            StreamAsync = (_, token) => ActiveNonTerminalStream(updateApplied, token),
         };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
+        viewModel.SetWarningBanner("existing warning");
 
-        await viewModel.InstallAsync(item, CancellationToken.None);
+        var installTask = viewModel.InstallAsync(item, cancellation.Token);
+        await updateApplied.Task;
 
-        Assert.Equal(0, client.ListCalls);
         Assert.Equal("Installing: Copying files", item.Status);
+        Assert.Equal("existing warning", viewModel.WarningBanner);
+        Assert.Equal(0, client.ListCalls);
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => installTask);
     }
 
     [Fact]
@@ -316,6 +322,15 @@ public class HomeViewModelMutationTests
         started.TrySetResult(true);
         await release.Task;
         yield return new OperationStatusEvent("op", terminalState, 100, "done", Now);
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> ActiveNonTerminalStream(
+        TaskCompletionSource<bool> updateApplied,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new OperationStatusEvent("op-1", OperationState.Installing, 50, "Copying files", Now);
+        updateApplied.TrySetResult(true);
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
     private static async IAsyncEnumerable<OperationStatusEvent> WaitForCancellationStream(

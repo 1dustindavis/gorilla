@@ -18,6 +18,20 @@ make mutation
 
 The Go tool version is pinned by `GREMLINS_VERSION` in the Makefile. Stryker.NET is pinned in `.config/dotnet-tools.json` and configured by `gorilla-ui/tests/Gorilla.UI.Core.Tests/stryker-config.json`.
 
+## Manual GitHub Actions runs
+
+After `.github/workflows/mutation-tests.yml` is present on the default branch, use **Actions > Mutation Tests > Run workflow** to run mutation testing without making it part of normal PR validation.
+
+The workflow accepts a `suite` choice:
+
+- `all` runs both mutation suites.
+- `go` runs only Gremlins.
+- `ui` runs only Stryker.NET.
+
+The workflow can be dispatched against a selected branch or tag, so after this workflow is merged you can still choose a later PR branch when you want to investigate its mutation behavior. Each mutation job has a 60-minute timeout. Gremlins console output and Stryker reports are uploaded as workflow artifacts and retained for 14 days.
+
+The workflow has no `push`, `pull_request`, or scheduled trigger. It is intentionally manual-only and is not a required status check.
+
 ## Scope
 
 Keep mutation scope deliberately narrow. Prefer deterministic, branch-heavy logic whose behavior should already be described by ordinary unit tests.
@@ -45,4 +59,4 @@ Do not target a repository-wide mutation percentage and do not make mutation tes
 
 ## Reports and cleanup
 
-Stryker writes reports under `StrykerOutput/`; these outputs are ignored by Git and removed by `make clean`. Gremlins reports results directly during the run.
+Stryker writes local reports under `StrykerOutput/`; these outputs are ignored by Git and removed by `make clean`. Local Gremlins runs report results directly to the console. Manual GitHub Actions runs preserve both suites' output as workflow artifacts for investigation.

@@ -28,7 +28,7 @@ func TestInstallReturnsInstallerCommandError(t *testing.T) {
 	statusCheckStatus = func(catalog.Item, string, string) (bool, error) { return true, nil }
 	runnerErr := errors.New("deliberate installer failure")
 	runCommand = func(string, []string) (string, error) { return "runner output", runnerErr }
-	installItemFunc = installItem
+	installItemFunc = installItemResult
 	report.InstalledItems = nil
 
 	postInstallRan := false
@@ -70,7 +70,7 @@ func TestInstallReturnsUninstallerCommandError(t *testing.T) {
 	statusCheckStatus = func(catalog.Item, string, string) (bool, error) { return true, nil }
 	runnerErr := errors.New("deliberate uninstaller failure")
 	runCommand = func(string, []string) (string, error) { return "runner output", runnerErr }
-	uninstallItemFunc = uninstallItem
+	uninstallItemFunc = uninstallItemResult
 	report.UninstalledItems = nil
 
 	item := msiItem

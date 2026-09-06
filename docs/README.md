@@ -29,5 +29,6 @@ By default, logs are written to `%ProgramData%\gorilla\gorilla.log` and the run 
 - [App Catalog](app-catalog.md)
 - [Repository administration](repo-admin-tools.md)
 - [Mutation testing](mutation-testing.md)
+- [Coverage reporting](coverage.md)
 - [Installing Chocolatey with Gorilla](installing-chocolatey.md)
 - [Community](community.md)

@@ -53,5 +53,23 @@ jobs:
     - name: Lint
       run: make lint
 
-    - name: Test
-      run: make test
+    - name: Test with coverage
+      run: make coverage-go
+
+    - name: Add coverage summary
+      if: always() && hashFiles('build/coverage/go/summary.txt') != ''
+      shell: pwsh
+      run: |
+        "## Go coverage" | Add-Content $env:GITHUB_STEP_SUMMARY
+        Get-Content build/coverage/go/summary.txt | ForEach-Object {
+          "    $_" | Add-Content $env:GITHUB_STEP_SUMMARY
+        }
+
+    - name: Upload Go coverage
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: go-coverage
+        path: build/coverage/go/**
+        if-no-files-found: ignore
+        retention-days: 14

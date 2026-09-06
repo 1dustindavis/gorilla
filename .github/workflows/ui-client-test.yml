@@ -42,5 +42,29 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Validate portable UI
-      run: make ui-lint ui-test
+    - name: Validate portable UI with coverage
+      run: make coverage-ui
+
+    - name: Add coverage summary
+      if: always() && hashFiles('build/coverage/ui/**/coverage.cobertura.xml') != ''
+      shell: pwsh
+      run: |
+        "## Portable .NET coverage" | Add-Content $env:GITHUB_STEP_SUMMARY
+        "| Project | Line coverage | Branch coverage |" | Add-Content $env:GITHUB_STEP_SUMMARY
+        "| --- | ---: | ---: |" | Add-Content $env:GITHUB_STEP_SUMMARY
+        Get-ChildItem build/coverage/ui -Recurse -Filter coverage.cobertura.xml | Sort-Object FullName | ForEach-Object {
+          [xml]$report = Get-Content $_.FullName
+          $project = if ($_.FullName -match '[\\/]client[\\/]') { 'Gorilla.UI.Client' } else { 'Gorilla.UI.Core' }
+          $line = '{0:P2}' -f [double]$report.coverage.'line-rate'
+          $branch = '{0:P2}' -f [double]$report.coverage.'branch-rate'
+          "| $project | $line | $branch |" | Add-Content $env:GITHUB_STEP_SUMMARY
+        }
+
+    - name: Upload portable .NET coverage
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: portable-dotnet-coverage
+        path: build/coverage/ui/**
+        if-no-files-found: ignore
+        retention-days: 14

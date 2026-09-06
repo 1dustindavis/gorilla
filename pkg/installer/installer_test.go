@@ -589,7 +589,7 @@ func TestUninstallStatusTrue(t *testing.T) {
 	// Run the msi uninstaller with this status bypass to make status return true
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Uninstall
-	actualOutput := Install(msiItem, "uninstall", "https://example.com", "testdata/", checkOnlyMode)
+	actualOutput := Install(msiItem, "uninstall", "https://example.com/", "testdata/", checkOnlyMode)
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -629,7 +629,7 @@ func TestUpdateStatusFalse(t *testing.T) {
 	// Run the msi installer with this status bypass to make status return dalse
 	msiItem.DisplayName = statusNoActionNoError
 	// Run Update
-	actualOutput := Install(msiItem, "update", "https://example.com", "testdata/", checkOnlyMode)
+	actualOutput := Install(msiItem, "update", "https://example.com/", "testdata/", checkOnlyMode)
 	// Check the result
 	expectedOutput := "Item not needed"
 	if have, want := actualOutput, expectedOutput; have != want {
@@ -664,9 +664,9 @@ func TestInstallReport(t *testing.T) {
 
 }
 
-func fakeInstallItem(item catalog.Item, itemURL, cachePath string) string {
+func fakeInstallItem(item catalog.Item, itemURL, cachePath string) (string, error) {
 	installItemURL = itemURL
-	return ""
+	return "", nil
 }
 
 // TestInstallURL validates that the url for an installer is properly generated
@@ -696,9 +696,9 @@ func TestInstallURL(t *testing.T) {
 	}
 }
 
-func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) string {
+func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) (string, error) {
 	uninstallItemURL = itemURL
-	return ""
+	return "", nil
 }
 
 // TestUninstallURL validates that the url for an installer is properly generated

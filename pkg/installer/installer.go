@@ -170,7 +170,7 @@ func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, r
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
-			return msg, nil
+			return msg, err
 		}
 
 		// Now pass the id along with the parent directory
@@ -304,7 +304,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 		if err != nil {
 			msg := fmt.Sprintf("Unable to determine nupkg id for %s: %v", item.DisplayName, err)
 			gorillalog.Warn(msg)
-			return msg, nil
+			return msg, err
 		}
 
 		// Now pass the id along with the parent directory

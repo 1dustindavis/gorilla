@@ -21,6 +21,7 @@ REVSHORT = $(shell git rev-parse --short HEAD)
 APP_NAME = gorilla
 STATICCHECK_VERSION ?= v0.7.0
 GREMLINS_VERSION ?= v0.6.0
+MUTATION_GO_PACKAGES := ./pkg/manifest ./pkg/catalog ./pkg/process ./pkg/admin
 MANUAL_TEST_DIR = build/manual-test
 MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
 MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
@@ -214,7 +215,10 @@ ui-test: ui-lint
 # excluded from verify/verify-windows/verify-e2e/verify-release until runtime
 # and signal quality justify a stricter cadence.
 mutation-go: gomodcheck
-	go run github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION) unleash ./pkg/manifest
+	@for package in $(MUTATION_GO_PACKAGES); do \
+		echo "Running Gremlins against $$package"; \
+		go run github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION) unleash --workers 1 --timeout-coefficient 20 $$package || exit $$?; \
+	done
 
 mutation-ui:
 	dotnet tool restore

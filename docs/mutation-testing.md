@@ -12,7 +12,7 @@ make mutation-ui
 make mutation
 ```
 
-- `make mutation-go` runs Gremlins against `pkg/manifest`.
+- `make mutation-go` runs Gremlins sequentially against the selected Go packages. It uses one worker and a larger timeout coefficient so fast package baselines do not produce load-sensitive false timeouts.
 - `make mutation-ui` runs Stryker.NET against selected `Gorilla.UI.Core` logic.
 - `make mutation` runs both.
 
@@ -25,6 +25,9 @@ Keep the scope small and useful.
 Go:
 
 - `pkg/manifest`
+- `pkg/catalog`
+- `pkg/process`
+- `pkg/admin`
 
 .NET:
 
@@ -32,7 +35,9 @@ Go:
 - `OperationTracker`
 - `HomeViewModel`
 
-Avoid mutating Windows service wrappers, installer/process adapters, WinUI code-behind, generated files, and FlaUI tests unless there is a good reason to expand the scope.
+The Go scope covers manifest and catalog loading, catalog selection and operation orchestration, and catalog-building behavior. Despite its name, `pkg/process` contains portable orchestration logic rather than OS process-management adapters.
+
+Avoid mutating Windows service/process wrappers, installer adapters, WinUI code-behind, generated files, and FlaUI tests unless there is a good reason to expand the scope.
 
 ## What to do with survivors
 

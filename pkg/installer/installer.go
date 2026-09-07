@@ -3,6 +3,7 @@ package installer
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,6 +33,29 @@ var (
 
 type commandRunner func(command string, arguments []string) (string, error)
 type itemAction func(catalog.Item, string, string) (string, error)
+
+// Outcome describes the result of processing a single catalog item. It is
+// deliberately separate from the text returned by the legacy Install function:
+// callers that need to make a policy decision must not have to parse logs or a
+// human-readable message.
+type Outcome string
+
+const (
+	OutcomeSucceeded      Outcome = "succeeded"
+	OutcomeAlreadyCurrent Outcome = "already_current"
+	OutcomeFailed         Outcome = "failed"
+)
+
+// Result is the structured result of one install, update, or uninstall
+// attempt. ErrorCode is stable enough for service/UI branching; Message keeps
+// the actionable diagnostic for logs and users.
+type Result struct {
+	ItemName  string
+	Action    string
+	Outcome   Outcome
+	ErrorCode string
+	Message   string
+}
 
 // runCommand executes a command and it's argurments in the CMD environment
 func runCMD(command string, arguments []string) (string, error) {
@@ -148,7 +172,7 @@ func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, r
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg, nil
+		return msg, errors.New(msg)
 	}
 
 	// Determine the install type and command to pass
@@ -213,7 +237,7 @@ func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, r
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
-		return msg, nil
+		return msg, errors.New(msg)
 	}
 
 	// Run the command
@@ -253,7 +277,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 		if item.Check.Appx.Name == "" {
 			msg := fmt.Sprintf("Check.Appx.Name is required for msix uninstall of %s", item.DisplayName)
 			gorillalog.Warn(msg)
-			return msg, nil
+			return msg, errors.New(msg)
 		}
 		removeCmd := fmt.Sprintf(
 			"$pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq '%s' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name '%s' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue",
@@ -281,7 +305,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg, nil
+		return msg, errors.New(msg)
 	}
 
 	// Determine the uninstall type and build the command
@@ -337,7 +361,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 	} else {
 		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
 		gorillalog.Warn(msg)
-		return msg, nil
+		return msg, errors.New(msg)
 	}
 
 	// Run the command
@@ -439,17 +463,25 @@ var (
 // Install determines if action needs to be taken on a item and then
 // calls the appropriate function to install or uninstall
 func Install(item catalog.Item, installerType, urlPackages, cachePath string, checkOnly bool) string {
+	return InstallResult(item, installerType, urlPackages, cachePath, checkOnly).Message
+}
+
+// InstallResult determines whether action is needed, executes it when needed,
+// and reports a structured per-item outcome. Install remains as a compatibility
+// wrapper for existing CLI callers.
+func InstallResult(item catalog.Item, installerType, urlPackages, cachePath string, checkOnly bool) Result {
+	result := Result{ItemName: item.DisplayName, Action: installerType}
 	// Check the status and determine if any action is needed for this item
 	actionNeeded, err := statusCheckStatus(item, installerType, cachePath)
 	if err != nil {
 		msg := fmt.Sprint("Unable to check status: ", err)
 		gorillalog.Warn(msg)
-		return msg
+		return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "detection_failed", Message: msg}
 	}
 
 	// If no action is needed, return
 	if !actionNeeded {
-		return "Item not needed"
+		return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeAlreadyCurrent, Message: "Item not needed"}
 	}
 
 	// Install or uninstall the item
@@ -459,7 +491,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			report.InstalledItems = append(report.InstalledItems, item)
 			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
 			// Check only mode doesn't perform any action, return
-			return "Check only enabled"
+			return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeSucceeded, Message: "Check only enabled"}
 		} else {
 			// Compile the item's URL
 			itemURL := urlPackages + item.Installer.Location
@@ -469,7 +501,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 				preScriptSuccess, err := preinstallScript(item, cachePath)
 				if !preScriptSuccess {
 					gorillalog.Error("Pre-Install script error:", err)
-					return "PreInstall-Script error"
+					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "preinstall_script_failed", Message: "PreInstall-Script error"}
 				}
 			}
 
@@ -477,7 +509,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			_, err := installItemFunc(item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Warn("Installation error:", err)
-				return fmt.Sprintf("Installation error: %v", err)
+				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "installer_failed", Message: fmt.Sprintf("Installation error: %v", err)}
 			}
 
 			// Run PostInstall_Script if needed
@@ -486,7 +518,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 				postScriptSuccess, err := postinstallScript(item, cachePath)
 				if !postScriptSuccess {
 					gorillalog.Error("Post-Install script error:", err)
-					return "PostInstall-Script error"
+					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "postinstall_script_failed", Message: "PostInstall-Script error"}
 				}
 			}
 		}
@@ -495,7 +527,7 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			report.InstalledItems = append(report.InstalledItems, item)
 			gorillalog.Info("[CHECK ONLY] Skipping actions for", item.DisplayName)
 			// Check only mode doesn't perform any action, return
-			return "Check only enabled"
+			return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeSucceeded, Message: "Check only enabled"}
 		} else {
 			// Compile the item's URL
 			itemURL := urlPackages + item.Uninstaller.Location
@@ -503,14 +535,15 @@ func Install(item catalog.Item, installerType, urlPackages, cachePath string, ch
 			_, err := uninstallItemFunc(item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Warn("Uninstallation error:", err)
-				return fmt.Sprintf("Uninstallation error: %v", err)
+				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "uninstaller_failed", Message: fmt.Sprintf("Uninstallation error: %v", err)}
 			}
 		}
 	} else {
 		gorillalog.Warn("Unsupported item type", item.DisplayName, installerType)
-		return "Unsupported item type"
+		return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "unsupported_action", Message: "Unsupported item type"}
 
 	}
 
-	return ""
+	result.Outcome = OutcomeSucceeded
+	return result
 }

@@ -259,6 +259,9 @@ func TestListEnvelopeCarriesRealContractData(t *testing.T) {
 	if err := json.NewDecoder(file).Decode(&envelope); err != nil {
 		t.Fatal(err)
 	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
 	got := envelope.Payload.Items[0]
 	if got.DisplayName != "Example App" || got.Version != "2.0" || got.Catalog != "production" || !got.IsInstalled || got.Status != "UpdateAvailable" {
 		t.Fatalf("legacy fields lost real data: %+v", got)

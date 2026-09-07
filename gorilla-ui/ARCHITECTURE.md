@@ -1,5 +1,7 @@
 # Gorilla UI Architecture (v0)
 
+This page describes the v1 implementation and earlier design intentions. The [stage 1 App Catalog contract](docs/app-catalog-contract.md) defines the next state/action/result model; it is not yet enabled in the live service.
+
 ## Objectives
 - Run Gorilla UI as a standard user process.
 - Communicate with Gorilla service over named pipes.

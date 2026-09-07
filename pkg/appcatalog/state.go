@@ -28,7 +28,6 @@ type Selection string
 const (
 	NoSelection   Selection = "None"
 	KeepInstalled Selection = "Install"
-	KeepRemoved   Selection = "Remove"
 )
 
 // Policy must be resolved from trusted manifests, excluding the service's

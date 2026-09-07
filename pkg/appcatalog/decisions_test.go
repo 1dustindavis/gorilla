@@ -131,7 +131,7 @@ func TestContractResultExamples(t *testing.T) {
 
 func TestPolicySafetyAcrossStatesAndSelections(t *testing.T) {
 	for _, state := range []ObservedState{Absent, Installed, UpdateAvailable, Unknown, DetectionFailed, "future"} {
-		for _, selection := range []Selection{NoSelection, KeepInstalled, KeepRemoved, ""} {
+		for _, selection := range []Selection{NoSelection, KeepInstalled, "Remove", ""} {
 			for _, caps := range []Capabilities{{}, {CanInstall: true}, {CanRemove: true}, {true, true}} {
 				policies := []Policy{
 					{Selection: selection}, // Not optional, regardless of state.

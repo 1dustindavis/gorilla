@@ -20,16 +20,21 @@ v1 data as v2 or infer new state from its placeholder fields.
   with invalid metadata visible with an explanation, but do not allow actions.
 - Install persists the item in the device's local `managed_installs`, removes a
   local removal selection, and requests convergence to the catalog target.
-- Remove withdraws that install selection and persists `managed_uninstalls`.
-  This is a persistent removal request, not just forgetting the installation.
+- Remove clears the local install selection and requests one uninstall. It does
+  not create a persistent local `managed_uninstalls` entry. Afterward, the app is
+  unselected: reinstalling it outside Gorilla must not cause Gorilla to remove it.
+  A failed removal keeps a failure result and permits an explicit retry; it does
+  not restore the install selection or schedule recurring removal attempts.
+  Administrator-controlled `managed_uninstalls` remain independent policy.
 - Optional apps selected for installation update automatically. The first UI has
   no separate Update action. An unselected installed app can be adopted through
   Install; a selected app that is absent can be retried through Install.
 - Administrator policy takes precedence over user selection. Conflicting
   administrator instructions are reported rather than resolved by execution order.
-- Optional requests use the same serialized executor as scheduled work but run
-  only the requested item and its necessary dependencies. They do not initiate
-  an unrelated full managed run. Scheduled runs still converge all managed items.
+- Preferred direction: optional requests share the serialized executor and run
+  only the requested item and its necessary dependencies. This is conditional on
+  the execution-scope validation below; stage 1 does not establish that narrowing
+  the run is safe. Scheduled runs must continue to converge all managed items.
 - Managed-update notifications, installer cancellation, and automatic dependency
   garbage collection are outside this scope.
 
@@ -42,7 +47,7 @@ and does not enforce these action rules.
 | Kind | Meaning | Examples |
 | --- | --- | --- |
 | Observation | What fresh detection established on the device | Absent, Installed, UpdateAvailable, Unknown, DetectionFailed |
-| Policy/selection | What administrators require and what the user selected | Required install, required removal, local Install/Remove/None |
+| Policy/selection | What administrators require and what the user selected | Required install, required removal, local Install/None |
 | Operation | What a particular accepted request is doing or how it ended | Queued, Running, Completed with a result |
 
 A selected app can be absent. An installed app can be unselected. A failed
@@ -70,8 +75,18 @@ presence or terminal operation outcomes.
 
 ### Detection adapters to implement in stage 2
 
-Reuse Gorilla's check precedence and catalog resolution, but introduce explicit
-observations rather than repurposing `CheckStatus`'s action-needed boolean.
+The UI retrieves observations from the Go service. There must be one shared Go
+detection implementation for CLI, scheduled runs, and App Catalog. Extend/refactor
+`pkg/status` to expose the evidence its existing checks already gather; retain
+`CheckStatus` as the action-needed interface backed by that shared implementation.
+Do not create separate registry/file/script/AppX checks in C#, the service, or
+`pkg/appcatalog`. The new package defines data and pure action/result decisions;
+it does not detect installation. Reuse the existing Go catalog resolver as well.
+
+The current boolean answers whether an action is needed, not why: installation
+may be needed because an app is absent, outdated, or fails a hash check. It cannot
+alone populate all the proposed UI fields. Expose richer evidence in Go and send
+it over the pipe, preserving CLI behavior through regression tests.
 
 | Check | Observation rules |
 | --- | --- |
@@ -96,7 +111,12 @@ acceptance and again before execution. Cached allowed actions are not authority.
 
 Resolve `requiredInstall` and `requiredUninstall` from administrator-controlled
 manifests, excluding the service-generated selection manifest. Local selection
-is separately `None`, `Install`, or `Remove`; conflicting local entries are invalid.
+is separately `None` or `Install`. A Remove operation is not a third selection.
+Stage 2 must explicitly migrate legacy removal entries from the service-generated
+selection manifest so they do not keep enforcing removal. Do not delete
+administrator-authored uninstall policy or synthesize new removal jobs from old
+entries during migration.
+
 `managed_updates` alone does not require presence and does not block optional
 removal. Preserve exact catalog item identity; do not authorize by display name.
 
@@ -167,14 +187,50 @@ observe the operation.
 
 Verification includes the persisted selection and requested target, not just
 presence. For Install, presence alone does not prove that a required version,
-hash, or dependency requirement is met. For Remove, absence and removal selection
-must be established. A cache write is not verification. A legacy “not needed”
-return alone is not verification. Selection persistence errors are execution failures.
+hash, or dependency requirement is met. For Remove, absence and cleared local
+install selection must be established, without a persistent local uninstall entry.
+A cache write is not verification. A legacy “not needed” return alone is not
+verification. Selection persistence errors are execution failures.
 
 Stage 3 will carry diagnostic detail (underlying error, failing dependency,
 installer/script stage) alongside the stable result classification. Do not turn
 an installer error into success merely because the app is now present. No-op
-adoption/withdrawal still persists the requested selection before reporting success.
+adoption/withdrawal still persists the requested install selection (or its
+withdrawal) before reporting success.
+
+## Execution-scope investigation and activation gate
+
+The preference is item-only work, but a direct call to an installer is not an
+adequate replacement for `managedRun`. Source review establishes these couplings:
+
+| Current behavior | Risk that narrowed execution must address |
+| --- | --- |
+| `cmd/gorilla/managed_run.go` configures downloads, initializes logging/cache, resolves manifests and catalogs, starts/ends reporting, and cleans the cache | Bypassing this setup can use stale configuration, omit policy/catalog inputs, or lose lifecycle/reporting work. Reuse a shared run lifecycle. |
+| The same function processes installs, then uninstalls, then updates | An unrelated pending change may affect shared dependencies or a package's preconditions. Declared dependency/policy interactions must be tested; arbitrary package scripts can have undocumented assumptions. |
+| `pkg/process.Installs` processes direct dependencies and then the target | Calling only `installer.Install` skips dependency handling. Current processing also skips missing dependencies and ignores returned failure strings; a full run does not guarantee dependency success either. |
+| `pkg/report` uses global report state and one `GorillaReport.json`; Start does not clear item arrays | A partial run needs honest scope/result reporting and per-run isolation. It must not pretend to be a full inventory/convergence run. This shared-state concern already exists for repeated full runs. |
+| `pkg/status` caches registry entries globally without a production invalidation path | Fresh post-install observations need explicit refresh/invalidation in the shared Go implementation. Running the entire pipeline again does not itself fix this. |
+| `pkg/service` serializes commands and separately schedules startup/periodic full runs | Preserve this ordering and schedule; catalog reads/observations must not race shared state or starve managed work. |
+
+I found no end-of-run commit/transaction that makes unrelated installs, removals,
+and updates intrinsically mandatory after every optional action. That is a
+source-review conclusion, not proof of equivalence for every catalog or script.
+
+Before activating item-only execution in stage 3:
+
+- Extract/reuse the common Go lifecycle and catalog/status/execution code; do not
+  build a parallel UI-specific installer path.
+- Test the requested app with dependencies, missing/failed dependencies, pending
+  administrator install/uninstall/update policy, and another selected dependent.
+- Verify configuration, reporting scope, cache cleanup, and fresh status across
+  consecutive full and item-only runs.
+- Verify one-time Remove followed by external reinstall and a scheduled run:
+  user removal must not be enforced again. Keep administrator policy tests separate.
+- Demonstrate that skipped unrelated work still runs on the normal schedule.
+
+If these checks reveal a necessary broader scope, document the concrete failing
+scenario and settle it before activation. Stage 1 records the preference and gate,
+not an unconditional switch away from full runs.
 
 ## Protocol and CLI transition
 
@@ -224,7 +280,10 @@ window and at most 512 completed operations, without evicting active work. An
 expired ID returns unknown/expired, never synthetic success; the client refreshes
 and explains uncertainty instead of automatically submitting again. A failed
 journal write prevents acceptance. Reconcile the journal and local selection
-after a crash so intent is not silently dropped or duplicated.
+after a crash so intent is not silently dropped or duplicated. A retained Remove
+operation is an execution/history record, not recurring managed-uninstall policy.
+Clear selection durably at acceptance so scheduled installs cannot race the
+removal. Do not automatically retry a failed or ambiguously interrupted removal.
 
 On service restart, reconcile unfinished operations before finalizing their
 results. Without trustworthy completion evidence, finalize as Interrupted; do

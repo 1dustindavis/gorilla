@@ -2,7 +2,7 @@
 namespace Gorilla.UI.Client.AppCatalog;
 
 public enum ObservedState { Absent, Installed, UpdateAvailable, Unknown, DetectionFailed }
-public enum Selection { None, Install, Remove }
+public enum Selection { None, Install }
 public enum Action { Install, Remove }
 public enum OperationPhase { Queued, Running, Completed }
 public enum Outcome { Succeeded, AlreadySatisfied, Failed, Unverified, Interrupted }

@@ -22,7 +22,7 @@ func DecideActions(observed ObservedState, policy Policy, capabilities Capabilit
 	if busy {
 		return denyBoth("operation_active")
 	}
-	if policy.Selection != NoSelection && policy.Selection != KeepInstalled && policy.Selection != KeepRemoved {
+	if policy.Selection != NoSelection && policy.Selection != KeepInstalled {
 		return denyBoth("invalid_selection")
 	}
 	switch observed {

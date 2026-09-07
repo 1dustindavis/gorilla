@@ -20,6 +20,15 @@ public sealed class AppCatalogContractTests
     );
 
     [Fact]
+    public void RemoveIsAnOperationButNotAPersistentSelection()
+    {
+        Assert.Equal(Gorilla.UI.Client.AppCatalog.Action.Remove,
+            JsonSerializer.Deserialize<Gorilla.UI.Client.AppCatalog.Action>("\"Remove\"", Options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Selection>("\"Remove\"", Options));
+        Assert.Equal(Selection.None, JsonSerializer.Deserialize<Selection>("\"None\"", Options));
+    }
+
+    [Fact]
     public void SharedGoExamplesPreservePresenceSelectionAndOperationIndependently()
     {
         using var examples = LoadExamples();

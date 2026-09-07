@@ -47,7 +47,7 @@ The App project may reference Client directly for this composition work, but app
 3. Core tracks `StreamOperationStatusAsync` through `OperationTracker`.
 4. Core updates presentation state until the stream completes.
 
-The known post-terminal-state list refresh is intentionally not part of Stage 2 and should be implemented as a separate behavior change.
+After a terminal event, Core refreshes the list and cache. This does not itself establish correct installed state: the current v1 service still returns placeholder observations. See the [next App Catalog contract](../../docs/app-catalog-contract.md).
 
 ## Rules
 - Do not add App-local copies of Core presentation classes.

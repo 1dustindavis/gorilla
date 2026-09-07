@@ -1,5 +1,7 @@
 # Gorilla UI Plan
 
+The active completion plan is [issue #208](https://github.com/1dustindavis/gorilla/issues/208). Its [stage 1 contract](docs/app-catalog-contract.md) defines the next state/action model. The checklist below is historical and must be checked against current code.
+
 ## Goal
 Create a Gorilla UI app that runs as a standard user, communicates with the Gorilla service via named pipes, and delivers a Store-like experience with Managed Software Center-style functionality.
 

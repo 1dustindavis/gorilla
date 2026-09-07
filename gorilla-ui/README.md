@@ -1,5 +1,7 @@
 # Gorilla UI
 
+See the [App Catalog completion plan](https://github.com/1dustindavis/gorilla/issues/208) and [stage 1 contract](docs/app-catalog-contract.md) for the next state/action/result model and its implementation boundary.
+
 This folder contains all UI app related code for the Gorilla WinUI client.
 
 Tooling requirements:

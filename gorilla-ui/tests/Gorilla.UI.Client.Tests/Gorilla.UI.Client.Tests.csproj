@@ -18,5 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Gorilla.UI.Client/Gorilla.UI.Client.csproj" />
+    <None Include="../../../pkg/appcatalog/testdata/contract.json" Link="app-catalog-contract.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,7 @@
 # Windows service
 
+The [next App Catalog contract](../gorilla-ui/docs/app-catalog-contract.md) defines planned state, action, and CLI changes. The commands documented here still use the current v1 implementation.
+
 The Gorilla service runs managed application processing on a schedule and exposes a named-pipe endpoint for App Catalog and command-line requests.
 
 - Service name: `gorilla`

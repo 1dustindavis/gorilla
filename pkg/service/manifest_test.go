@@ -5,8 +5,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
+	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
 func TestServiceLocalManifestAddRemoveList(t *testing.T) {
@@ -42,40 +44,6 @@ func TestServiceLocalManifestAddRemoveList(t *testing.T) {
 	}
 }
 
-func TestGetOptionalItems(t *testing.T) {
-	origManifestGet := manifestGet
-	defer func() { manifestGet = origManifestGet }()
-
-	cfg := config.Configuration{
-		AppDataPath: filepath.Clean(t.TempDir()),
-	}
-	if err := addServiceManagedInstalls(cfg, []string{"GoogleChrome"}); err != nil {
-		t.Fatalf("addServiceManagedInstalls failed: %v", err)
-	}
-
-	manifestGet = func(_ config.Configuration) ([]manifest.Item, []string, error) {
-		return []manifest.Item{
-			{
-				Name:             "base",
-				OptionalInstalls: []string{"GoogleChrome", "7zip", "Firefox"},
-			},
-			{
-				Name:             "extra",
-				OptionalInstalls: []string{"7zip", "VSCode"},
-			},
-		}, nil, nil
-	}
-
-	items, err := getOptionalItems(cfg)
-	if err != nil {
-		t.Fatalf("getOptionalItems failed: %v", err)
-	}
-	expected := []string{"7zip", "Firefox", "GoogleChrome", "VSCode"}
-	if !reflect.DeepEqual(expected, items) {
-		t.Fatalf("unexpected optional items, expected %#v, got %#v", expected, items)
-	}
-}
-
 func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
 	cfg := config.Configuration{
 		AppDataPath:    filepath.Clean(t.TempDir()),
@@ -101,9 +69,24 @@ func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
 }
 
 func TestExecuteCommandInstallWritesManifestAndDoesNotRunInline(t *testing.T) {
+	originalManifestGet, originalCatalogGet, originalObserve := manifestGet, catalogGet, statusObserve
+	t.Cleanup(func() {
+		manifestGet, catalogGet, statusObserve = originalManifestGet, originalCatalogGet, originalObserve
+	})
 	cfg := config.Configuration{
 		AppDataPath:    filepath.Clean(t.TempDir()),
 		LocalManifests: []string{"already-local.yaml"},
+	}
+	manifestGet = func(config.Configuration) ([]manifest.Item, []string, error) {
+		return []manifest.Item{{OptionalInstalls: []string{"GoogleChrome"}}}, nil, nil
+	}
+	catalogGet = func(config.Configuration) (map[int]map[string]catalog.Item, error) {
+		return map[int]map[string]catalog.Item{1: {"GoogleChrome": {
+			DisplayName: "Google Chrome", Installer: catalog.InstallerItem{Type: "msi", Location: "chrome.msi"},
+		}}}, nil
+	}
+	statusObserve = func(catalog.Item, string, string) (status.Observation, error) {
+		return status.Observation{State: status.Absent}, nil
 	}
 
 	managedRunCalled := false

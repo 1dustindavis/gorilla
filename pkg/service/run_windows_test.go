@@ -13,7 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/1dustindavis/gorilla/pkg/appcatalog"
+	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/manifest"
+	"github.com/1dustindavis/gorilla/pkg/status"
 	"golang.org/x/sys/windows"
 )
 
@@ -48,6 +52,7 @@ func TestFlushAndDisconnectNamedPipeStillDisconnectsWhenFlushReportsBrokenPipe(t
 }
 
 func TestNamedPipeStreamStatusReliability(t *testing.T) {
+	stubOptionalSlack(t)
 	tempDir := t.TempDir()
 	cfg := config.Configuration{
 		AppDataPath:     tempDir,
@@ -130,6 +135,7 @@ func TestStreamOperationStatusUnknownOperationIDReturnsError(t *testing.T) {
 }
 
 func TestStreamOperationStatusFailedLifecycle(t *testing.T) {
+	stubOptionalSlack(t)
 	tempDir := t.TempDir()
 	cfg := config.Configuration{
 		AppDataPath:     tempDir,
@@ -161,6 +167,17 @@ func TestStreamOperationStatusFailedLifecycle(t *testing.T) {
 	}
 }
 
+func stubOptionalSlack(t *testing.T) {
+	t.Helper()
+	stubOptionalCatalog(t,
+		[]manifest.Item{{OptionalInstalls: []string{"Slack"}}},
+		map[int]map[string]catalog.Item{1: {"Slack": {
+			DisplayName: "Slack", Installer: catalog.InstallerItem{Type: "msi", Location: "slack.msi"},
+		}}},
+		map[string]status.Observation{"Slack": {State: status.Absent, CheckedAtUTC: time.Now().UTC()}},
+	)
+}
+
 func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
 	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
 	operationID := "op-canceled"
@@ -169,7 +186,7 @@ func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	sr.scheduleRunAfterMutation(canceledCtx, actionInstallItem, operationID)
+	sr.scheduleRunAfterMutation(canceledCtx, actionInstallItem, CommandResponse{OperationID: operationID})
 	sr.wg.Wait()
 
 	events, done, ok := sr.snapshotTrackedOperation(operationID)
@@ -185,6 +202,41 @@ func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
 	}
 	if last.CanceledBy != "service" {
 		t.Fatalf("expected canceledBy=service, got %s", last.CanceledBy)
+	}
+}
+
+func TestListEnvelopeCarriesRealContractData(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "list-response-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)
+	target, installed := "2.0", "1.7"
+	contract := appcatalog.Item{
+		ItemName: "Example", DisplayName: "Example App", Catalog: "production", TargetVersion: &target,
+		Observation: appcatalog.Observation{State: appcatalog.UpdateAvailable, InstalledVersion: &installed, CheckedAtUTC: &now},
+		Policy:      appcatalog.Policy{Optional: true},
+	}
+	contract.Actions = appcatalog.DecideActions(contract.Observation.State, contract.Policy, appcatalog.Capabilities{CanInstall: true, CanRemove: true}, false)
+	sr := &serviceRunner{}
+	req := serviceEnvelope[json.RawMessage]{RequestID: "req-list", Operation: actionListOptionalInstalls}
+	resp := CommandResponse{OptionalItems: []optionalItemDetails{{Contract: contract, InstallerType: "msi", InstallerLocation: "example.msi"}}}
+	if err := sr.writeSuccessEnvelope(file, req, Command{Action: actionListOptionalInstalls}, resp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	var envelope serviceEnvelope[listOptionalInstallsResponse]
+	if err := json.NewDecoder(file).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	got := envelope.Payload.Items[0]
+	if got.DisplayName != "Example App" || got.Version != "2.0" || got.Catalog != "production" || !got.IsInstalled || got.Status != "UpdateAvailable" {
+		t.Fatalf("legacy fields lost real data: %+v", got)
+	}
+	if got.Observation.State != appcatalog.UpdateAvailable || got.Policy.Optional != true || !got.Actions.Install.Allowed || !got.Actions.Remove.Allowed {
+		t.Fatalf("contract fields missing: %+v", got)
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"time"
+
+	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 )
 
 const (
@@ -38,18 +40,22 @@ type removeItemRequest struct {
 type streamOperationStatusRequest struct{}
 
 type optionalInstallResponseItem struct {
-	ItemName           string `json:"itemName"`
-	DisplayName        string `json:"displayName"`
-	Version            string `json:"version"`
-	Catalog            string `json:"catalog"`
-	InstallerType      string `json:"installerType"`
-	InstallerPackageID string `json:"installerPackageId"`
-	InstallerLocation  string `json:"installerLocation"`
-	IsManaged          bool   `json:"isManaged"`
-	IsInstalled        bool   `json:"isInstalled"`
-	Status             string `json:"status"`
-	StatusUpdatedAtUTC string `json:"statusUpdatedAtUtc"`
-	LastOperationID    string `json:"lastOperationId,omitempty"`
+	ItemName           string                 `json:"itemName"`
+	DisplayName        string                 `json:"displayName"`
+	Version            string                 `json:"version"`
+	Catalog            string                 `json:"catalog"`
+	InstallerType      string                 `json:"installerType"`
+	InstallerPackageID string                 `json:"installerPackageId"`
+	InstallerLocation  string                 `json:"installerLocation"`
+	IsManaged          bool                   `json:"isManaged"`
+	IsInstalled        bool                   `json:"isInstalled"`
+	Status             string                 `json:"status"`
+	StatusUpdatedAtUTC string                 `json:"statusUpdatedAtUtc"`
+	LastOperationID    string                 `json:"lastOperationId,omitempty"`
+	TargetVersion      *string                `json:"targetVersion"`
+	Observation        appcatalog.Observation `json:"observation"`
+	Policy             appcatalog.Policy      `json:"policy"`
+	Actions            appcatalog.Actions     `json:"actions"`
 }
 
 type listOptionalInstallsResponse struct {

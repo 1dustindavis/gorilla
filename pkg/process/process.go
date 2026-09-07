@@ -15,9 +15,9 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
-// firstItem returns the first valid occurrence of an item in a map of catalogs.
-// It logs warnings for invalid/missing items and returns false when no valid item is found.
-func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, bool) {
+// ResolveItem returns the first valid occurrence and its ordered catalog index.
+// Managed processing and service presentation share this precedence and validity.
+func ResolveItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, int, bool) {
 	// Get the keys in the map and sort them so we can loop over them in order
 	keys := make([]int, 0)
 	for k := range catalogsMap {
@@ -38,7 +38,7 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 				item.Installer.Type == "msix"
 
 			if validInstallItem || validUninstallItem {
-				return item, true
+				return item, k, true
 			}
 
 			missing := []string{}
@@ -65,11 +65,16 @@ func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (ca
 			itemName,
 			strings.Join(invalidReasons, "; "),
 		))
-		return catalog.Item{}, false
+		return catalog.Item{}, 0, false
 	}
 	gorillalog.Warn(fmt.Sprintf("skipping item %q because it was not found in any catalog", itemName))
-	return catalog.Item{}, false
+	return catalog.Item{}, 0, false
 
+}
+
+func firstItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, bool) {
+	item, _, ok := ResolveItem(itemName, catalogsMap)
+	return item, ok
 }
 
 // Manifests iterates though the first manifest and any included manifests

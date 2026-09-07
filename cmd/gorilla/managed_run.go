@@ -14,6 +14,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 	"github.com/1dustindavis/gorilla/pkg/report"
+	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
 var (
@@ -93,6 +94,9 @@ func managedRun(cfg config.Configuration) error {
 	}
 
 	// Process the manifests into install type groups
+	// Each managed run gets fresh registry evidence while still sharing a single
+	// enumeration across all checks performed during this run.
+	status.ResetRegistryCache()
 	gorillalog.Info("Processing manifest...")
 	installs, uninstalls, updates := process.Manifests(manifests, catalogs)
 

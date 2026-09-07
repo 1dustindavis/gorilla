@@ -8,6 +8,8 @@ App Catalog is Gorilla's pre-release Windows UI for on-demand software actions. 
 - Installs and removes optional items through the Gorilla service.
 - Streams operation status updates.
 - Loads cached data at startup, then refreshes it from the service.
+- Receives catalog display/version data, installed-state observations, policy,
+  and allowed actions from the privileged service.
 
 Install the versioned `gorilla-<version>.msix` from [Gorilla releases](https://github.com/1dustindavis/gorilla/releases):
 

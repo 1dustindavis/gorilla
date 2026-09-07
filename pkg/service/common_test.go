@@ -144,7 +144,7 @@ func TestServiceManagedInstallAndRemovePersistDesiredState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load after remove: %v", err)
 	}
-	if len(entry.Installs) != 0 || !slices.Equal(entry.Uninstalls, []string{"Example"}) {
+	if len(entry.Installs) != 0 || len(entry.Uninstalls) != 0 {
 		t.Fatalf("unexpected remove desired state: installs=%v uninstalls=%v", entry.Installs, entry.Uninstalls)
 	}
 

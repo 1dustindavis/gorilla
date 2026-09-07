@@ -7,10 +7,13 @@ UI. `pkg/appcatalog` implements the pure action/result decisions; Client's
 `AppCatalog` namespace defines matching payload records. Shared examples in
 `pkg/appcatalog/testdata/contract.json` are exercised by Go and .NET tests.
 
-**Implementation boundary:** the running service, CLI, cache, and WinUI app still
-use v1. These types do not change current behavior or fix current placeholder
-responses. Stages 2–3 supply real observations, enforce policy, and connect item
-results to execution. Stage 4 supplies durable tracking/recovery. Enable v2 only
+**Implementation boundary:** stage 2 keeps the v1 envelope and operation lifecycle
+while replacing placeholder list data with real catalog metadata and shared Go
+observations. Its transitional list item includes the v2 observation, policy, and
+action objects alongside fields consumed by the current UI. The service enforces
+those actions. Stage 3 connects item results to execution and moves the whole live
+client/service exchange to the complete v2 operation contract. Stage 4 supplies
+durable tracking/recovery. Enable the v2 envelope only
 when service, CLI, and UI can use the complete contract together; do not label
 v1 data as v2 or infer new state from its placeholder fields.
 
@@ -38,9 +41,9 @@ v1 data as v2 or infer new state from its placeholder fields.
 - Managed-update notifications, installer cancellation, and automatic dependency
   garbage collection are outside this scope.
 
-These are reviewable design decisions for this PR. They are not descriptions of
-the old service's behavior: it currently schedules a full managed run per request
-and does not enforce these action rules.
+The running stage 2 service still schedules a full managed run per accepted
+request. It now enforces these action rules before mutation; stage 3 retains the
+documented validation gate before narrowing execution.
 
 ## Three independent kinds of state
 
@@ -113,6 +116,10 @@ detection implementation for CLI, scheduled runs, and App Catalog. Extend/refact
 Do not create separate registry/file/script/AppX checks in C#, the service, or
 `pkg/appcatalog`. The new package defines data and pure action/result decisions;
 it does not detect installation. Reuse the existing Go catalog resolver as well.
+
+Stage 2 resets the shared registry cache once at the start of each catalog
+observation pass and managed run. Registry enumeration remains shared within a
+pass, while a later refresh or run cannot reuse the earlier snapshot.
 
 The current boolean answers whether an action is needed, not why: installation
 may be needed because an app is absent, outdated, or fails a hash check. It cannot

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"go.yaml.in/yaml/v4"
@@ -21,16 +22,24 @@ var (
 )
 
 type Command struct {
-	Action string   `json:"action"`
-	Items  []string `json:"items,omitempty"`
+	Action    string                `json:"action"`
+	Items     []string              `json:"items,omitempty"`
+	RunConfig *config.Configuration `json:"-"`
 }
 
 type CommandResponse struct {
-	Status      string   `json:"status"`
-	Message     string   `json:"message,omitempty"`
-	Items       []string `json:"items,omitempty"`
-	OperationID string   `json:"operationId,omitempty"`
+	Status        string                `json:"status"`
+	Message       string                `json:"message,omitempty"`
+	Items         []string              `json:"items,omitempty"`
+	OperationID   string                `json:"operationId,omitempty"`
+	OptionalItems []optionalItemDetails `json:"-"`
+	RunConfig     *config.Configuration `json:"-"`
+	CleanupPath   string                `json:"-"`
 }
+
+type actionDeniedError struct{ reason string }
+
+func (e actionDeniedError) Error() string { return "action is not allowed: " + e.reason }
 
 const (
 	actionRun                   = "run"
@@ -128,25 +137,55 @@ func serviceInstallArgs(configPath string, integrationTestServiceIdentity string
 func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
 	switch cmd.Action {
 	case actionRun:
+		if cmd.RunConfig != nil {
+			cfg = *cmd.RunConfig
+		}
 		return CommandResponse{Status: "ok"}, managedRun(cfg)
 	case actionInstallItem:
+		details, err := getOptionalItemDetails(cfg)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		item, ok := findOptionalItem(details, cmd.Items[0])
+		if !ok {
+			return CommandResponse{}, actionDeniedError{"not_optional"}
+		}
+		if !item.Contract.Actions.Install.Allowed {
+			return CommandResponse{}, actionDeniedError{item.Contract.Actions.Install.Reason}
+		}
 		if err := addServiceManagedInstalls(cfg, cmd.Items); err != nil {
 			return CommandResponse{}, err
 		}
 		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
 		return CommandResponse{Status: "ok", OperationID: operationID}, nil
 	case actionRemoveItem:
-		if err := removeServiceManagedInstalls(cfg, cmd.Items); err != nil {
-			return CommandResponse{}, err
-		}
-		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
-		return CommandResponse{Status: "ok", OperationID: operationID}, nil
-	case actionListOptionalInstalls:
-		items, err := getOptionalItems(cfg)
+		details, err := getOptionalItemDetails(cfg)
 		if err != nil {
 			return CommandResponse{}, err
 		}
-		return CommandResponse{Status: "ok", Items: items}, nil
+		item, ok := findOptionalItem(details, cmd.Items[0])
+		if !ok {
+			return CommandResponse{}, actionDeniedError{"not_optional"}
+		}
+		if !item.Contract.Actions.Remove.Allowed {
+			return CommandResponse{}, actionDeniedError{item.Contract.Actions.Remove.Reason}
+		}
+		operationID := strconv.FormatInt(time.Now().UnixNano(), 10)
+		runCfg, cleanupPath, err := prepareOneTimeRemoval(cfg, cmd.Items[0], operationID, item.Contract.Observation.State != appcatalog.Absent)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		return CommandResponse{Status: "ok", OperationID: operationID, RunConfig: &runCfg, CleanupPath: cleanupPath}, nil
+	case actionListOptionalInstalls:
+		details, err := getOptionalItemDetails(cfg)
+		if err != nil {
+			return CommandResponse{}, err
+		}
+		items := make([]string, 0, len(details))
+		for _, item := range details {
+			items = append(items, item.Contract.ItemName)
+		}
+		return CommandResponse{Status: "ok", Items: items, OptionalItems: details}, nil
 	case actionStreamOperationStatus:
 		return CommandResponse{
 			Status:  "ok",
@@ -193,12 +232,46 @@ func removeServiceManagedInstalls(cfg config.Configuration, items []string) erro
 	}
 
 	entry.Installs = withoutItems(entry.Installs, items)
-	for _, item := range items {
-		if !slices.Contains(entry.Uninstalls, item) {
-			entry.Uninstalls = append(entry.Uninstalls, item)
-		}
+	// User removal is a one-time request. Clear old service-generated uninstall
+	// policy rather than persisting a desired-absent state.
+	entry.Uninstalls = nil
+	return saveServiceLocalManifest(cfg, entry)
+}
+
+func prepareOneTimeRemoval(cfg config.Configuration, item, operationID string, needsUninstall bool) (config.Configuration, string, error) {
+	if !needsUninstall {
+		return cfg, "", removeServiceManagedInstalls(cfg, []string{item})
 	}
-	slices.Sort(entry.Uninstalls)
+	dir := filepath.Join(cfg.AppDataPath, "operations")
+	if err := mkdirAll(filepath.Clean(dir), 0755); err != nil {
+		return cfg, "", err
+	}
+	path := filepath.Join(dir, operationID+"-remove.yaml")
+	data, err := yaml.Marshal(manifest.Item{Name: "one-time-removal", Uninstalls: []string{item}})
+	if err != nil {
+		return cfg, "", err
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return cfg, "", err
+	}
+	if err := removeServiceManagedInstalls(cfg, []string{item}); err != nil {
+		_ = os.Remove(path)
+		return cfg, "", err
+	}
+	runCfg := cfg
+	runCfg.LocalManifests = append(append([]string(nil), cfg.LocalManifests...), path)
+	return runCfg, path, nil
+}
+
+func clearLegacyServiceUninstalls(cfg config.Configuration) error {
+	entry, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		return err
+	}
+	if len(entry.Uninstalls) == 0 {
+		return nil
+	}
+	entry.Uninstalls = nil
 	return saveServiceLocalManifest(cfg, entry)
 }
 
@@ -255,24 +328,4 @@ func saveServiceLocalManifest(cfg config.Configuration, entry manifest.Item) err
 		return fmt.Errorf("unable to write service local manifest %s: %w", path, err)
 	}
 	return nil
-}
-
-func getOptionalItems(cfg config.Configuration) ([]string, error) {
-	manifests, _, err := manifestGet(cfg)
-	if err != nil {
-		return nil, err
-	}
-	options := make([]string, 0)
-	seen := make(map[string]bool)
-	for _, m := range manifests {
-		for _, item := range m.OptionalInstalls {
-			if item == "" || seen[item] {
-				continue
-			}
-			seen[item] = true
-			options = append(options, item)
-		}
-	}
-	slices.Sort(options)
-	return options, nil
 }

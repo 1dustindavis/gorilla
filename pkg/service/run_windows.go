@@ -80,7 +80,7 @@ func newServiceRunner(cfg config.Configuration, managedRun func(config.Configura
 func (sr *serviceRunner) start(ctx context.Context) error {
 	if err := clearLegacyServiceUninstalls(sr.cfg); err != nil {
 		return fmt.Errorf(
-			"Gorilla could not remove persistent uninstall requests created by an older App Catalog version from %q; the service will not start because retaining them could repeatedly uninstall software: %w",
+			"could not remove persistent uninstall requests created by an older App Catalog version from %q; the service will not start because retaining them could repeatedly uninstall software: %w",
 			serviceLocalManifestPath(sr.cfg),
 			err,
 		)

@@ -516,21 +516,21 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 				packageID = item.ItemName
 			}
 			items = append(items, optionalInstallResponseItem{
-				ItemName:            item.ItemName,
-				DisplayName:         item.DisplayName,
-				Version:             version,
-				Catalog:             item.Catalog,
-				InstallerType:       detail.InstallerType,
-				InstallerPackageID:  packageID,
-				InstallerLocation:   detail.InstallerLocation,
-				IsManaged:           item.Policy.Selection == appcatalog.KeepInstalled,
-				IsInstalled:         installed,
-				Status:              legacyStatus,
-				StatusUpdatedAtUTC:  updated,
-				TargetVersion:       item.TargetVersion,
-				Observation:         item.Observation,
-				Policy:              item.Policy,
-				Actions:             item.Actions,
+				ItemName:           item.ItemName,
+				DisplayName:        item.DisplayName,
+				Version:            version,
+				Catalog:            item.Catalog,
+				InstallerType:      detail.InstallerType,
+				InstallerPackageID: packageID,
+				InstallerLocation:  detail.InstallerLocation,
+				IsManaged:          item.Policy.Selection == appcatalog.KeepInstalled,
+				IsInstalled:        installed,
+				Status:             legacyStatus,
+				StatusUpdatedAtUTC: updated,
+				TargetVersion:      item.TargetVersion,
+				Observation:        item.Observation,
+				Policy:             item.Policy,
+				Actions:            item.Actions,
 			})
 		}
 

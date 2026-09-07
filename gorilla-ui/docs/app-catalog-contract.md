@@ -226,10 +226,12 @@ and explains uncertainty instead of automatically submitting again. A failed
 journal write prevents acceptance. Reconcile the journal and local selection
 after a crash so intent is not silently dropped or duplicated.
 
-On service restart, unfinished operations become Interrupted until reconciliation
-establishes evidence; do not replay an old installer blindly. Normal scheduled
-convergence may later satisfy persistent selections as separate work. Retention,
-lookup transport, and crash reconciliation tests belong to stage 4.
+On service restart, reconcile unfinished operations before finalizing their
+results. Without trustworthy completion evidence, finalize as Interrupted; do
+not replay an old installer blindly or later rewrite that terminal result.
+Normal scheduled convergence may later satisfy persistent selections as separate
+work, with a new observation/result. Retention, lookup transport, and crash
+reconciliation tests belong to stage 4.
 
 ## Stage boundary and validation
 

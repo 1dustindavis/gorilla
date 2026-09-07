@@ -75,6 +75,51 @@ func TestOptionalDetailsUseCatalogPrecedenceObservationAndPolicy(t *testing.T) {
 	}
 }
 
+func TestOptionalScriptRequirementAllowsActionsWithoutClaimingPresence(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		actionNeeded     bool
+		wantRequirement  appcatalog.RequirementState
+		wantRemove       bool
+		wantRemoveReason string
+	}{
+		{"requirement not satisfied", true, appcatalog.RequirementNotSatisfied, false, "already_absent"},
+		{"requirement satisfied", false, appcatalog.RequirementSatisfied, true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stubOptionalCatalog(t,
+				[]manifest.Item{{OptionalInstalls: []string{"Scripted"}}},
+				map[int]map[string]catalog.Item{1: {"Scripted": {
+					DisplayName: "Scripted",
+					Check: catalog.InstallCheck{
+						Script: "selected-script-check",
+						File:   []catalog.FileCheck{{Path: "ignored-lower-priority-check"}},
+					},
+					Installer:   catalog.InstallerItem{Type: "exe", Location: "scripted.exe"},
+					Uninstaller: catalog.InstallerItem{Type: "exe", Location: "remove-scripted.exe"},
+				}}},
+				map[string]status.Observation{"Scripted": {
+					State:        status.Unknown,
+					ActionNeeded: tc.actionNeeded,
+					CheckedAtUTC: time.Now().UTC(),
+				}},
+			)
+
+			details, err := getOptionalItemDetails(config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			item := details[0].Contract
+			if item.Observation.State != appcatalog.Unknown || item.Observation.InstallRequirement != tc.wantRequirement {
+				t.Fatalf("script requirement was converted into physical presence: %+v", item.Observation)
+			}
+			if !item.Actions.Install.Allowed || item.Actions.Remove.Allowed != tc.wantRemove || item.Actions.Remove.Reason != tc.wantRemoveReason {
+				t.Fatalf("unexpected script actions: %+v", item.Actions)
+			}
+		})
+	}
+}
+
 func TestInstallRejectsNonOptionalBeforeMutation(t *testing.T) {
 	stubOptionalCatalog(t, []manifest.Item{{OptionalInstalls: []string{"Allowed"}}}, map[int]map[string]catalog.Item{}, map[string]status.Observation{})
 	cfg := config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}}

@@ -80,13 +80,21 @@ func TestObserveDoesNotInventScriptPresence(t *testing.T) {
 	previous := execCommand
 	t.Cleanup(func() { execCommand = previous })
 	execCommand = fakeExecCommand
-	item := catalog.Item{DisplayName: "Script", Check: catalog.InstallCheck{Script: "exit 0"}}
+	item := catalog.Item{
+		DisplayName: "Script",
+		Check: catalog.InstallCheck{
+			Script: "exit 0",
+			// A lower-priority file check must not replace or supplement
+			// the selected script check.
+			File: []catalog.FileCheck{{Path: "testdata/does-not-exist"}},
+		},
+	}
 	got, err := Observe(item, "install", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.State != Unknown || got.DetailCode != "script_check_no_presence_evidence" {
-		t.Fatalf("script invented presence: %+v", got)
+	if got.State != Unknown || !got.ActionNeeded || got.DetailCode != "script_requirement_not_satisfied" {
+		t.Fatalf("script observation or precedence changed: %+v", got)
 	}
 }
 

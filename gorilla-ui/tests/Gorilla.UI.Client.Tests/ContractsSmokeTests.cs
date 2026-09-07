@@ -70,7 +70,7 @@ public class ContractsSmokeTests
           "installerType":"msi","installerPackageId":"Example","installerLocation":"example.msi",
           "isManaged":false,"isInstalled":true,"status":"UpdateAvailable",
           "statusUpdatedAtUtc":"2026-09-07T08:00:00Z","lastOperationId":null,"targetVersion":"2.0",
-          "observation":{"state":"UpdateAvailable","installedVersion":"1.7","checkedAtUtc":"2026-09-07T08:00:00Z","detailCode":""},
+          "observation":{"state":"UpdateAvailable","installedVersion":"1.7","checkedAtUtc":"2026-09-07T08:00:00Z","detailCode":"","installRequirement":"NotSatisfied"},
           "policy":{"optional":true,"requiredInstall":false,"requiredUninstall":false,"requiredDependency":false,"selection":"None"},
           "actions":{"install":{"allowed":true,"reason":""},"remove":{"allowed":true,"reason":""}}
         }
@@ -79,6 +79,7 @@ public class ContractsSmokeTests
         var item = JsonSerializer.Deserialize<OptionalInstallItem>(json, ProtocolJson.Options)!;
         Assert.Equal(OptionalInstallStatus.UpdateAvailable, item.Status);
         Assert.Equal(ObservedState.UpdateAvailable, item.Observation!.State);
+        Assert.Equal(RequirementState.NotSatisfied, item.Observation.InstallRequirement);
         Assert.Equal("1.7", item.Observation.InstalledVersion);
         Assert.Equal(Selection.None, item.Policy!.Selection);
         Assert.True(item.Actions!.Install.Allowed);

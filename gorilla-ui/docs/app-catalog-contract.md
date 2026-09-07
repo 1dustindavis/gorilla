@@ -74,6 +74,10 @@ presence or terminal operation outcomes.
   target into the installed version or compare these DTO fields to derive state.
 - `checkedAtUtc` is the observation/attempt time, not response construction time.
   It is null before an attempt. `detailCode` explains uncertainty or failed detection.
+- `installRequirement` records whether the selected check says installation
+  work is `Satisfied`, `NotSatisfied`, or `Unknown`. It does not establish
+  physical presence or version. This distinction lets legacy script checks
+  authorize installation without being mislabeled as Absent or Installed.
 - Installed with an unknown version is valid. Do not label it “up to date.”
 - An installed version meeting or exceeding the selected check's requirement is
   not an available update or a reason to downgrade.
@@ -131,15 +135,15 @@ it over the pipe, preserving CLI behavior through regression tests.
 | Registry | Establish presence from matching uninstall entries; expose a parseable observed version when available. A registry read failure is DetectionFailed. Ambiguous matches cannot justify a version claim. |
 | File | A readable required file establishes evidence; all required files present can establish Installed. All absent can establish Absent. Partial presence is Unknown. Access errors are DetectionFailed. Do not invent one app version from conflicting file versions. |
 | AppX/MSIX | Observe provisioned package presence/version, matching Gorilla's machine-level scope. Do not present it as proof of launchability for each user's registration. |
-| Legacy script | Existing exit codes describe whether action is needed, not necessarily presence or version. Do not translate zero into Absent or nonzero into Installed. Keep Unknown unless an explicit observation contract can establish presence; process-start/read errors are DetectionFailed. |
+| Legacy script | Existing exit codes describe whether installation work is needed, not necessarily presence or version. Keep physical state Unknown, expose the result as a Satisfied or NotSatisfied install requirement, and allow actions from that requirement. Process-start/read errors are DetectionFailed. |
 | Missing/unsupported check | Unknown with an explanation. |
 
-Stage 2 must settle any additional script observation schema alongside examples
-and tests. This plan intentionally disables actions when presence is Unknown or
-DetectionFailed; a legacy script-only app may therefore remain unavailable in the
-new UI until reliable observation is supplied. CLI/scheduled legacy behavior is
-not changed by this stage. Revisit this explicit conservative choice if the
-desired product behavior is to offer an unverified action instead.
+Check selection remains script, file, registry, then AppX. Do not execute a
+lower-priority check as supplemental evidence when a script is selected; doing
+so would silently change long-standing catalog semantics. A script-only item can
+be installed from NotSatisfied and adopted/removed from Satisfied while its
+physical state remains Unknown. DetectionFailed and Unknown requirement evidence
+remain unavailable. CLI/scheduled legacy behavior is unchanged.
 
 ## Action policy
 

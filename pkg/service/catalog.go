@@ -151,7 +151,11 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 		}
 		resolved := resolveCatalogItem(name, catalogs, cfg.Catalogs)
 		if !resolved.found {
-			observation := appcatalog.Observation{State: appcatalog.Unknown, DetailCode: catalogDetailCode}
+			observation := appcatalog.Observation{
+				State:              appcatalog.Unknown,
+				DetailCode:         catalogDetailCode,
+				InstallRequirement: appcatalog.RequirementUnknown,
+			}
 			contract := appcatalog.Item{ItemName: name, DisplayName: name, Observation: observation, Policy: policy}
 			contract.Actions = appcatalog.DecideActions(observation.State, policy, appcatalog.Capabilities{}, false)
 			details = append(details, optionalItemDetails{Contract: contract})
@@ -166,8 +170,11 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 		}
 		checked := observed.CheckedAtUTC
 		observation := appcatalog.Observation{
-			State: state, InstalledVersion: observed.InstalledVersion,
-			CheckedAtUTC: &checked, DetailCode: detailCode,
+			State:              state,
+			InstalledVersion:   observed.InstalledVersion,
+			CheckedAtUTC:       &checked,
+			DetailCode:         detailCode,
+			InstallRequirement: installRequirement(resolved.item, observed, observeErr),
 		}
 		canInstall := resolved.item.Installer.Type != "" && resolved.item.Installer.Location != ""
 		canRemove := (resolved.item.Uninstaller.Type != "" && resolved.item.Uninstaller.Location != "") ||
@@ -185,7 +192,13 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 			ItemName: name, DisplayName: displayName, Catalog: resolved.catalog,
 			TargetVersion: target, Observation: observation, Policy: policy,
 		}
-		contract.Actions = appcatalog.DecideActions(state, policy, appcatalog.Capabilities{CanInstall: canInstall, CanRemove: canRemove}, false)
+		contract.Actions = appcatalog.DecideActionsWithRequirement(
+			state,
+			observation.InstallRequirement,
+			policy,
+			appcatalog.Capabilities{CanInstall: canInstall, CanRemove: canRemove},
+			false,
+		)
 		details = append(details, optionalItemDetails{
 			Contract: contract, InstallerType: resolved.item.Installer.Type,
 			InstallerPackageID: resolved.item.Installer.PackageID,
@@ -193,6 +206,27 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 		})
 	}
 	return details, nil
+}
+
+func installRequirement(item catalog.Item, observed status.Observation, observeErr error) appcatalog.RequirementState {
+	if observeErr != nil || observed.State == status.DetectionFailed {
+		return appcatalog.RequirementUnknown
+	}
+	// Check selection remains script, file, registry, then AppX. A script result
+	// can establish requirement satisfaction even though it cannot prove presence.
+	if item.Check.Script != "" {
+		if observed.ActionNeeded {
+			return appcatalog.RequirementNotSatisfied
+		}
+		return appcatalog.RequirementSatisfied
+	}
+	if observed.State == status.Unknown {
+		return appcatalog.RequirementUnknown
+	}
+	if observed.ActionNeeded {
+		return appcatalog.RequirementNotSatisfied
+	}
+	return appcatalog.RequirementSatisfied
 }
 
 func findOptionalItem(details []optionalItemDetails, name string) (optionalItemDetails, bool) {

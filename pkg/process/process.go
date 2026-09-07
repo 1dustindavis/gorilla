@@ -15,10 +15,13 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
-// ResolveItem returns the first valid occurrence and its ordered catalog index.
-// Managed processing and service presentation share this precedence and validity.
+// ResolveItem searches catalogs in configured order and returns the first item
+// with enough installer or uninstaller metadata to be actionable. The returned
+// map key identifies the catalog that supplied the item. Managed processing and
+// App Catalog both use this resolver so duplicate names and invalid definitions
+// follow the same precedence rules.
 func ResolveItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (catalog.Item, int, bool) {
-	// Get the keys in the map and sort them so we can loop over them in order
+	// Map iteration is unordered, so sort catalog keys before resolving.
 	keys := make([]int, 0)
 	for k := range catalogsMap {
 		keys = append(keys, k)
@@ -27,11 +30,10 @@ func ResolveItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (
 
 	var invalidReasons []string
 
-	// loop through each catalog and return if we find a match
+	// The first valid definition wins. Keep invalid-definition details so a
+	// missing item can be distinguished from an unusable one in diagnostics.
 	for _, k := range keys {
-		// If
 		if item, exists := catalogsMap[k][itemName]; exists {
-			// If it does exist, we should confirm it is a valid item
 			validInstallItem := (item.Installer.Type != "" && item.Installer.Location != "")
 			validUninstallItem := (item.Uninstaller.Type != "" && item.Uninstaller.Location != "") ||
 				item.Uninstaller.Type == "msix" ||
@@ -58,7 +60,6 @@ func ResolveItem(itemName string, catalogsMap map[int]map[string]catalog.Item) (
 		}
 	}
 
-	// No valid item found. Log why and continue processing other items.
 	if len(invalidReasons) > 0 {
 		gorillalog.Warn(fmt.Sprintf(
 			"skipping catalog item %q because it is missing required installer/uninstaller type/location fields (%s)",

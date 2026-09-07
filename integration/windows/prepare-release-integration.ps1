@@ -479,6 +479,8 @@ $(Build-CheckScript -Path $nupkgMarker -Target "2.0.0" | ForEach-Object { "     
 Ps1V1:
   display_name: Ps1V1
   check:
+    # File presence gives App Catalog deterministic presence evidence. Script
+    # requirement checks are covered separately so check precedence is unchanged.
     file:
       - path: '$ps1Marker'
   installer:

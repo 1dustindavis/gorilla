@@ -316,7 +316,10 @@ func Observe(catalogItem catalog.Item, installType, cachePath string) (Observati
 		gorillalog.Info("Checking status via script:", catalogItem.DisplayName)
 		actionNeeded, err := checkScript(catalogItem, cachePath, installType)
 		state := Unknown
-		detail := "script_check_no_presence_evidence"
+		detail := "script_requirement_satisfied"
+		if actionNeeded {
+			detail = "script_requirement_not_satisfied"
+		}
 		if err != nil {
 			state, detail = DetectionFailed, "check_failed"
 		}

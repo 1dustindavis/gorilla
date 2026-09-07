@@ -51,6 +51,31 @@ func TestFlushAndDisconnectNamedPipeStillDisconnectsWhenFlushReportsBrokenPipe(t
 	}
 }
 
+func TestServiceStartExplainsLegacyUninstallMigrationFailure(t *testing.T) {
+	cfg := config.Configuration{AppDataPath: t.TempDir()}
+	path := serviceLocalManifestPath(cfg)
+	if err := os.WriteFile(path, []byte("name: ["), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := newServiceRunner(cfg, func(config.Configuration) error { return nil }).start(context.Background())
+	if err == nil {
+		t.Fatal("expected invalid legacy service manifest to stop startup")
+	}
+	message := err.Error()
+	for _, expected := range []string{
+		"persistent uninstall requests created by an older App Catalog version",
+		path,
+		"service will not start",
+		"repeatedly uninstall software",
+		"unable to parse service local manifest",
+	} {
+		if !strings.Contains(message, expected) {
+			t.Fatalf("startup error %q does not explain %q", message, expected)
+		}
+	}
+}
+
 func TestNamedPipeStreamStatusReliability(t *testing.T) {
 	stubOptionalSlack(t)
 	tempDir := t.TempDir()
@@ -214,7 +239,10 @@ func TestListEnvelopeCarriesRealContractData(t *testing.T) {
 	target, installed := "2.0", "1.7"
 	contract := appcatalog.Item{
 		ItemName: "Example", DisplayName: "Example App", Catalog: "production", TargetVersion: &target,
-		Observation: appcatalog.Observation{State: appcatalog.UpdateAvailable, InstalledVersion: &installed, CheckedAtUTC: &now},
+		Observation: appcatalog.Observation{
+			State: appcatalog.UpdateAvailable, InstalledVersion: &installed, CheckedAtUTC: &now,
+			InstallRequirement: appcatalog.RequirementNotSatisfied,
+		},
 		Policy:      appcatalog.Policy{Optional: true, Selection: appcatalog.NoSelection},
 	}
 	contract.Actions = appcatalog.DecideActions(contract.Observation.State, contract.Policy, appcatalog.Capabilities{CanInstall: true, CanRemove: true}, false)

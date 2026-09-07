@@ -18,6 +18,7 @@ public enum OptionalInstallStatus
     NotInstalled,
     InstallPending,
     RemovePending,
+    UpdateAvailable,
     Unknown,
 }
 
@@ -33,7 +34,11 @@ public sealed record OptionalInstallItem(
     bool IsInstalled,
     OptionalInstallStatus Status,
     DateTimeOffset StatusUpdatedAtUtc,
-    string? LastOperationId
+    string? LastOperationId,
+    string? TargetVersion = null,
+    AppCatalog.Observation? Observation = null,
+    AppCatalog.Policy? Policy = null,
+    AppCatalog.Actions? Actions = null
 );
 
 public sealed record OperationAccepted(

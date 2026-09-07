@@ -2,6 +2,7 @@
 namespace Gorilla.UI.Client.AppCatalog;
 
 public enum ObservedState { Absent, Installed, UpdateAvailable, Unknown, DetectionFailed }
+public enum RequirementState { Unknown, Satisfied, NotSatisfied }
 public enum Selection { None, Install }
 public enum Action { Install, Remove }
 public enum OperationPhase { Queued, Running, Completed }
@@ -11,7 +12,8 @@ public sealed record Observation(
     ObservedState State,
     string? InstalledVersion,
     DateTimeOffset? CheckedAtUtc,
-    string DetailCode
+    string DetailCode,
+    RequirementState InstallRequirement
 );
 
 public sealed record Policy(

@@ -14,13 +14,25 @@ const (
 	DetectionFailed ObservedState = "DetectionFailed"
 )
 
+// RequirementState records whether the selected check says installation work
+// is needed. It is separate from observed presence because a script can
+// establish satisfaction without distinguishing absence from an older install.
+type RequirementState string
+
+const (
+	RequirementUnknown      RequirementState = "Unknown"
+	RequirementSatisfied    RequirementState = "Satisfied"
+	RequirementNotSatisfied RequirementState = "NotSatisfied"
+)
+
 // Observation describes evidence, not policy or a pending operation. Installed
 // establishes presence only; it does not imply a known version or target match.
 type Observation struct {
-	State            ObservedState `json:"state"`
-	InstalledVersion *string       `json:"installedVersion"`
-	CheckedAtUTC     *time.Time    `json:"checkedAtUtc"`
-	DetailCode       string        `json:"detailCode"`
+	State              ObservedState    `json:"state"`
+	InstalledVersion   *string          `json:"installedVersion"`
+	CheckedAtUTC       *time.Time       `json:"checkedAtUtc"`
+	DetailCode         string           `json:"detailCode"`
+	InstallRequirement RequirementState `json:"installRequirement"`
 }
 
 type Selection string

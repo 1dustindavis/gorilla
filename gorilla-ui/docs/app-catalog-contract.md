@@ -7,10 +7,13 @@ UI. `pkg/appcatalog` implements the pure action/result decisions; Client's
 `AppCatalog` namespace defines matching payload records. Shared examples in
 `pkg/appcatalog/testdata/contract.json` are exercised by Go and .NET tests.
 
-**Implementation boundary:** the running service, CLI, cache, and WinUI app still
-use v1. These types do not change current behavior or fix current placeholder
-responses. Stages 2–3 supply real observations, enforce policy, and connect item
-results to execution. Stage 4 supplies durable tracking/recovery. Enable v2 only
+**Implementation boundary:** stage 2 keeps the v1 envelope and operation lifecycle
+while replacing placeholder list data with real catalog metadata and shared Go
+observations. Its transitional list item includes the v2 observation, policy, and
+action objects alongside fields consumed by the current UI. The service enforces
+those actions. Stage 3 connects item results to execution and moves the whole live
+client/service exchange to the complete v2 operation contract. Stage 4 supplies
+durable tracking/recovery. Enable the v2 envelope only
 when service, CLI, and UI can use the complete contract together; do not label
 v1 data as v2 or infer new state from its placeholder fields.
 
@@ -38,9 +41,9 @@ v1 data as v2 or infer new state from its placeholder fields.
 - Managed-update notifications, installer cancellation, and automatic dependency
   garbage collection are outside this scope.
 
-These are reviewable design decisions for this PR. They are not descriptions of
-the old service's behavior: it currently schedules a full managed run per request
-and does not enforce these action rules.
+The running stage 2 service still schedules a full managed run per accepted
+request. It now enforces these action rules before mutation; stage 3 retains the
+documented validation gate before narrowing execution.
 
 ## Three independent kinds of state
 
@@ -71,6 +74,10 @@ presence or terminal operation outcomes.
   target into the installed version or compare these DTO fields to derive state.
 - `checkedAtUtc` is the observation/attempt time, not response construction time.
   It is null before an attempt. `detailCode` explains uncertainty or failed detection.
+- `installRequirement` records whether the selected check says installation
+  work is `Satisfied`, `NotSatisfied`, or `Unknown`. It does not establish
+  physical presence or version. This distinction lets legacy script checks
+  authorize installation without being mislabeled as Absent or Installed.
 - Installed with an unknown version is valid. Do not label it “up to date.”
 - An installed version meeting or exceeding the selected check's requirement is
   not an available update or a reason to downgrade.
@@ -113,6 +120,13 @@ detection implementation for CLI, scheduled runs, and App Catalog. Extend/refact
 Do not create separate registry/file/script/AppX checks in C#, the service, or
 `pkg/appcatalog`. The new package defines data and pure action/result decisions;
 it does not detect installation. Reuse the existing Go catalog resolver as well.
+For ambiguous registry substring matches, the rich adapter returns Unknown with
+no version. The legacy `CheckStatus` interface retains its historical first-match
+action decision so stage 2 does not change CLI or scheduled convergence behavior.
+
+Stage 2 resets the shared registry cache once at the start of each catalog
+observation pass and managed run. Registry enumeration remains shared within a
+pass, while a later refresh or run cannot reuse the earlier snapshot.
 
 The current boolean answers whether an action is needed, not why: installation
 may be needed because an app is absent, outdated, or fails a hash check. It cannot
@@ -124,15 +138,15 @@ it over the pipe, preserving CLI behavior through regression tests.
 | Registry | Establish presence from matching uninstall entries; expose a parseable observed version when available. A registry read failure is DetectionFailed. Ambiguous matches cannot justify a version claim. |
 | File | A readable required file establishes evidence; all required files present can establish Installed. All absent can establish Absent. Partial presence is Unknown. Access errors are DetectionFailed. Do not invent one app version from conflicting file versions. |
 | AppX/MSIX | Observe provisioned package presence/version, matching Gorilla's machine-level scope. Do not present it as proof of launchability for each user's registration. |
-| Legacy script | Existing exit codes describe whether action is needed, not necessarily presence or version. Do not translate zero into Absent or nonzero into Installed. Keep Unknown unless an explicit observation contract can establish presence; process-start/read errors are DetectionFailed. |
+| Legacy script | Existing exit codes describe whether installation work is needed, not necessarily presence or version. Keep physical state Unknown, expose the result as a Satisfied or NotSatisfied install requirement, and allow actions from that requirement. Process-start/read errors are DetectionFailed. |
 | Missing/unsupported check | Unknown with an explanation. |
 
-Stage 2 must settle any additional script observation schema alongside examples
-and tests. This plan intentionally disables actions when presence is Unknown or
-DetectionFailed; a legacy script-only app may therefore remain unavailable in the
-new UI until reliable observation is supplied. CLI/scheduled legacy behavior is
-not changed by this stage. Revisit this explicit conservative choice if the
-desired product behavior is to offer an unverified action instead.
+Check selection remains script, file, registry, then AppX. Do not execute a
+lower-priority check as supplemental evidence when a script is selected; doing
+so would silently change long-standing catalog semantics. A script-only item can
+be installed from NotSatisfied and adopted/removed from Satisfied while its
+physical state remains Unknown. DetectionFailed and Unknown requirement evidence
+remain unavailable. CLI/scheduled legacy behavior is unchanged.
 
 ## Action policy
 
@@ -192,7 +206,9 @@ without reinstalling an already satisfied app.
 Policy changes can invalidate old selection. Administrator policy must suppress
 conflicting persisted selections in both optional execution and scheduled
 convergence; simply rejecting new clicks would not fix that conflict. Implement
-this reconciliation in stages 2–3 with scheduled-run regression tests.
+this reconciliation before every stage-2 service-managed run. Stage 2 also
+validates the full dependency graph before authorizing a new Install selection;
+legacy CLI dependency execution remains unchanged.
 
 ## Per-item execution and results
 

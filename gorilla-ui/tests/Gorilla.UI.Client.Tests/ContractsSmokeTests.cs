@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Reflection;
 using Gorilla.UI.Client;
+using Gorilla.UI.Client.AppCatalog;
 using Xunit;
 
 namespace Gorilla.UI.Client.Tests;
@@ -58,6 +59,31 @@ public class ContractsSmokeTests
         Assert.Equal(ProtocolConstants.Operation.ListOptionalInstalls, copy.Operation);
         Assert.Single(copy.Payload.Items);
         Assert.Equal(OptionalInstallStatus.NotInstalled, copy.Payload.Items[0].Status);
+    }
+
+    [Fact]
+    public void TransitionalListItem_ExposesServiceOwnedObservationPolicyAndActions()
+    {
+        const string json = """
+        {
+          "itemName":"Example","displayName":"Example App","version":"2.0","catalog":"production",
+          "installerType":"msi","installerPackageId":"Example","installerLocation":"example.msi",
+          "isManaged":false,"isInstalled":true,"status":"UpdateAvailable",
+          "statusUpdatedAtUtc":"2026-09-07T08:00:00Z","lastOperationId":null,"targetVersion":"2.0",
+          "observation":{"state":"UpdateAvailable","installedVersion":"1.7","checkedAtUtc":"2026-09-07T08:00:00Z","detailCode":"","installRequirement":"NotSatisfied"},
+          "policy":{"optional":true,"requiredInstall":false,"requiredUninstall":false,"requiredDependency":false,"selection":"None"},
+          "actions":{"install":{"allowed":true,"reason":""},"remove":{"allowed":true,"reason":""}}
+        }
+        """;
+
+        var item = JsonSerializer.Deserialize<OptionalInstallItem>(json, ProtocolJson.Options)!;
+        Assert.Equal(OptionalInstallStatus.UpdateAvailable, item.Status);
+        Assert.Equal(ObservedState.UpdateAvailable, item.Observation!.State);
+        Assert.Equal(RequirementState.NotSatisfied, item.Observation.InstallRequirement);
+        Assert.Equal("1.7", item.Observation.InstalledVersion);
+        Assert.Equal(Selection.None, item.Policy!.Selection);
+        Assert.True(item.Actions!.Install.Allowed);
+        Assert.True(item.Actions.Remove.Allowed);
     }
 
     [Fact]

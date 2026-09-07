@@ -18,6 +18,7 @@ public sealed class CriticalPathTests
 
             Assert.Equal("Available Software", home.Heading.Name);
             _ = home.WaitForItem(FixtureItemName);
+            home.WaitForItemStatus(FixtureItemName, "NotInstalled");
             Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
             Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
             session.CaptureCheckpoint("healthy-startup", includeAutomationTree: true);
@@ -28,6 +29,7 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
             // Core refreshes the authoritative list/cache only after the operation stream reaches a terminal state.
             session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > startupCacheWrite, TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("after-install");
@@ -37,6 +39,7 @@ public sealed class CriticalPathTests
 
             session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(60));
             session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > installRefreshWrite, TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("after-remove");

@@ -5,6 +5,14 @@ package appcatalog
 // adopted, and an absent selected app can have its selection withdrawn.
 // Callers must resolve fresh policy/capabilities and recheck before mutation.
 func DecideActions(observed ObservedState, policy Policy, capabilities Capabilities, busy bool) Actions {
+	return DecideActionsWithRequirement(observed, RequirementUnknown, policy, capabilities, busy)
+}
+
+// DecideActionsWithRequirement allows a selected check to authorize actions
+// from requirement satisfaction without claiming physical presence. This is
+// used for legacy script checks, whose exit code is authoritative for whether
+// installation work is needed but not for absence, presence, or version.
+func DecideActionsWithRequirement(observed ObservedState, requirement RequirementState, policy Policy, capabilities Capabilities, busy bool) Actions {
 	deny := func(reason string) ActionDecision { return ActionDecision{Reason: reason} }
 	denyBoth := func(reason string) Actions { return Actions{deny(reason), deny(reason)} }
 	if !policy.Optional {
@@ -27,7 +35,16 @@ func DecideActions(observed ObservedState, policy Policy, capabilities Capabilit
 	}
 	switch observed {
 	case Unknown:
-		return denyBoth("state_unknown")
+		switch requirement {
+		case RequirementNotSatisfied:
+			// Use absent action behavior without changing the observation.
+			observed = Absent
+		case RequirementSatisfied:
+			// Use installed action behavior without claiming observed presence.
+			observed = Installed
+		default:
+			return denyBoth("state_unknown")
+		}
 	case DetectionFailed:
 		return denyBoth("detection_failed")
 	case Absent, Installed, UpdateAvailable:

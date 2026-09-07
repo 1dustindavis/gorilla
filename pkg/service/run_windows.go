@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"golang.org/x/sys/windows"
@@ -78,6 +78,13 @@ func newServiceRunner(cfg config.Configuration, managedRun func(config.Configura
 }
 
 func (sr *serviceRunner) start(ctx context.Context) error {
+	if err := clearLegacyServiceUninstalls(sr.cfg); err != nil {
+		return fmt.Errorf(
+			"could not remove persistent uninstall requests created by an older App Catalog version from %q; the service will not start because retaining them could repeatedly uninstall software: %w",
+			serviceLocalManifestPath(sr.cfg),
+			err,
+		)
+	}
 	if err := gorillalog.NewLog(sr.cfg); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
 	}
@@ -357,7 +364,12 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 			result = "error"
 		}
 		gorillalog.Warn("command execution failed:", err)
-		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "command_failed", err.Error())
+		code := "command_failed"
+		var denied actionDeniedError
+		if errors.As(err, &denied) {
+			code = denied.reason
+		}
+		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, code, err.Error())
 		return
 	}
 	if cmd.Action == actionInstallItem || cmd.Action == actionRemoveItem {
@@ -371,17 +383,21 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		result = "ok"
 		gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
 	}
-	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp.OperationID)
+	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp)
 }
 
-func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action, operationID string) {
+func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string, resp CommandResponse) {
 	if action != actionInstallItem && action != actionRemoveItem {
 		return
 	}
+	operationID := resp.OperationID
 
 	sr.wg.Add(1)
 	go func() {
 		defer sr.wg.Done()
+		if resp.CleanupPath != "" {
+			defer os.Remove(resp.CleanupPath)
+		}
 		sr.appendOperationEvent(operationID, operationStatusEventPayload{
 			State:           "Validating",
 			ProgressPercent: 20,
@@ -396,7 +412,7 @@ func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action, o
 			ProgressPercent: 60,
 			Message:         fmt.Sprintf("%s item via managed run", inProgressState),
 		})
-		if _, err := sr.submit(ctx, Command{Action: actionRun}); err != nil {
+		if _, err := sr.submit(ctx, Command{Action: actionRun, RunConfig: resp.RunConfig}); err != nil {
 			if errors.Is(err, context.Canceled) {
 				sr.appendOperationEvent(operationID, operationStatusEventPayload{
 					State:           "Canceled",
@@ -471,22 +487,50 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) error {
 	switch cmd.Action {
 	case actionListOptionalInstalls:
-		items := make([]optionalInstallResponseItem, 0, len(resp.Items))
-		sorted := append([]string(nil), resp.Items...)
-		slices.Sort(sorted)
-		for _, name := range sorted {
+		items := make([]optionalInstallResponseItem, 0, len(resp.OptionalItems))
+		for _, detail := range resp.OptionalItems {
+			item := detail.Contract
+			version := ""
+			if item.TargetVersion != nil {
+				version = *item.TargetVersion
+			}
+			updated := ""
+			if item.Observation.CheckedAtUTC != nil {
+				updated = item.Observation.CheckedAtUTC.Format(time.RFC3339)
+			}
+			if updated == "" {
+				updated = nowRFC3339UTC()
+			}
+			installed := item.Observation.State == appcatalog.Installed || item.Observation.State == appcatalog.UpdateAvailable
+			legacyStatus := "Unknown"
+			switch item.Observation.State {
+			case appcatalog.Absent:
+				legacyStatus = "NotInstalled"
+			case appcatalog.Installed:
+				legacyStatus = "Installed"
+			case appcatalog.UpdateAvailable:
+				legacyStatus = "UpdateAvailable"
+			}
+			packageID := detail.InstallerPackageID
+			if packageID == "" {
+				packageID = item.ItemName
+			}
 			items = append(items, optionalInstallResponseItem{
-				ItemName:           name,
-				DisplayName:        name,
-				Version:            "",
-				Catalog:            "",
-				InstallerType:      "",
-				InstallerPackageID: name,
-				InstallerLocation:  "",
-				IsManaged:          true,
-				IsInstalled:        false,
-				Status:             "Unknown",
-				StatusUpdatedAtUTC: nowRFC3339UTC(),
+				ItemName:           item.ItemName,
+				DisplayName:        item.DisplayName,
+				Version:            version,
+				Catalog:            item.Catalog,
+				InstallerType:      detail.InstallerType,
+				InstallerPackageID: packageID,
+				InstallerLocation:  detail.InstallerLocation,
+				IsManaged:          item.Policy.Selection == appcatalog.KeepInstalled,
+				IsInstalled:        installed,
+				Status:             legacyStatus,
+				StatusUpdatedAtUTC: updated,
+				TargetVersion:      item.TargetVersion,
+				Observation:        item.Observation,
+				Policy:             item.Policy,
+				Actions:            item.Actions,
 			})
 		}
 

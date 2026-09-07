@@ -76,12 +76,13 @@ func TestPlannedProtocolExamples(t *testing.T) {
 
 type contractExamples struct {
 	PolicyCases []struct {
-		Name         string        `json:"name"`
-		State        ObservedState `json:"state"`
-		Policy       Policy        `json:"policy"`
-		Capabilities Capabilities  `json:"capabilities"`
-		Busy         bool          `json:"busy"`
-		Expected     Actions       `json:"expected"`
+		Name         string           `json:"name"`
+		State        ObservedState    `json:"state"`
+		Requirement  RequirementState `json:"requirement"`
+		Policy       Policy           `json:"policy"`
+		Capabilities Capabilities     `json:"capabilities"`
+		Busy         bool             `json:"busy"`
+		Expected     Actions          `json:"expected"`
 	} `json:"policyCases"`
 	ResultCases []struct {
 		Name         string       `json:"name"`
@@ -111,11 +112,31 @@ func loadExamples(t *testing.T) contractExamples {
 func TestContractPolicyExamples(t *testing.T) {
 	for _, example := range loadExamples(t).PolicyCases {
 		t.Run(example.Name, func(t *testing.T) {
-			got := DecideActions(example.State, example.Policy, example.Capabilities, example.Busy)
+			got := DecideActionsWithRequirement(example.State, example.Requirement, example.Policy, example.Capabilities, example.Busy)
 			if got != example.Expected {
 				t.Fatalf("got %+v, want %+v", got, example.Expected)
 			}
 		})
+	}
+}
+
+func TestScriptRequirementCanAuthorizeActionsWithoutClaimingPresence(t *testing.T) {
+	policy := Policy{Optional: true, Selection: NoSelection}
+	caps := Capabilities{CanInstall: true, CanRemove: true}
+
+	needed := DecideActionsWithRequirement(Unknown, RequirementNotSatisfied, policy, caps, false)
+	if !needed.Install.Allowed || needed.Remove.Allowed {
+		t.Fatalf("not-satisfied script result produced wrong actions: %+v", needed)
+	}
+
+	satisfied := DecideActionsWithRequirement(Unknown, RequirementSatisfied, policy, caps, false)
+	if !satisfied.Install.Allowed || !satisfied.Remove.Allowed {
+		t.Fatalf("satisfied script result produced wrong actions: %+v", satisfied)
+	}
+
+	failed := DecideActionsWithRequirement(DetectionFailed, RequirementNotSatisfied, policy, caps, false)
+	if failed.Install.Allowed || failed.Remove.Allowed || failed.Install.Reason != "detection_failed" {
+		t.Fatalf("detection failure did not fail closed: %+v", failed)
 	}
 }
 

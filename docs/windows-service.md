@@ -1,6 +1,6 @@
 # Windows service
 
-The [next App Catalog contract](../gorilla-ui/docs/app-catalog-contract.md) defines planned state, action, and CLI changes. The commands documented here still use the current v1 implementation.
+The [App Catalog contract](../gorilla-ui/docs/app-catalog-contract.md) defines state, action, and CLI changes. Stage 2 keeps the v1 envelope while returning real catalog metadata, shared Go observations, policy, and service-owned allowed actions. The complete v2 operation lifecycle follows in stage 3.
 
 The Gorilla service runs managed application processing on a schedule and exposes a named-pipe endpoint for App Catalog and command-line requests.
 
@@ -51,3 +51,29 @@ gorilla.exe -S StreamOperationStatus:<operationId>
 ```
 
 Process logs are written to `<app_data_path>\gorilla.log`, which defaults to `%ProgramData%\gorilla\gorilla.log`.
+
+`ListOptionalInstalls` resolves effective optional assignments using manifest and
+catalog precedence. Missing or invalid entries remain visible with an unknown
+state and disabled actions. Detection failures remain distinct from absence.
+Multiple plausible registry substring matches are reported as unknown without
+an installed version instead of exposing a map-order-dependent match.
+`installRequirement` separately carries the selected check's Satisfied or
+NotSatisfied result. This allows script-check items to remain installable without
+claiming that the script proved physical presence or a version. Gorilla's
+script-first check precedence is unchanged.
+`InstallItem` and `RemoveItem` re-resolve policy before changing local selection,
+so the same restrictions apply to App Catalog and direct command-line requests.
+Install authorization validates the complete dependency graph and rejects
+missing or invalid dependencies, cycles, and dependencies assigned to managed
+uninstall. Before each scheduled or requested managed run, the service removes
+local install selections superseded by administrator-managed uninstall policy.
+
+Installing adds a persistent local managed install. Removing clears that
+selection and supplies a service-owned temporary uninstall manifest to the next
+serialized managed run. The temporary manifest is removed after the run and is
+not added to configured local manifests. Old `managed_uninstalls` written inside
+`service-manifest.yaml` are cleared when the service starts; administrator-owned
+managed uninstalls in other manifests are unchanged. This automatic migration
+prevents an old UI removal request from repeatedly uninstalling software. If the
+service-owned manifest cannot be read, parsed, or rewritten, startup stops with
+the manifest path, reason for the migration, and underlying filesystem/YAML error.

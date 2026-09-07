@@ -35,6 +35,7 @@ public sealed class AppCatalogContractTests
         var items = examples.RootElement.GetProperty("items").Deserialize<Item[]>(Options)!;
         var installed = Assert.Single(items, item => item.ItemName == "Example");
         Assert.Equal(ObservedState.Installed, installed.Observation.State);
+        Assert.Equal(RequirementState.Satisfied, installed.Observation.InstallRequirement);
         Assert.Null(installed.Observation.InstalledVersion);
         Assert.Equal("2.0", installed.TargetVersion);
         Assert.Equal(Selection.Install, installed.Policy.Selection);
@@ -51,6 +52,7 @@ public sealed class AppCatalogContractTests
 
         var pending = Assert.Single(items, item => item.ItemName == "Pending");
         Assert.Equal(ObservedState.Absent, pending.Observation.State);
+        Assert.Equal(RequirementState.NotSatisfied, pending.Observation.InstallRequirement);
         Assert.Equal(Selection.Install, pending.Policy.Selection);
         Assert.Equal(OperationPhase.Queued, pending.ActiveOperation!.Phase);
         Assert.Null(pending.ActiveOperation.ProgressPercent);
@@ -60,6 +62,7 @@ public sealed class AppCatalogContractTests
 
         var unknown = Assert.Single(items, item => item.ItemName == "Uncertain");
         Assert.Equal(ObservedState.Unknown, unknown.Observation.State);
+        Assert.Equal(RequirementState.Unknown, unknown.Observation.InstallRequirement);
         Assert.Null(unknown.Observation.CheckedAtUtc);
         Assert.Null(unknown.TargetVersion);
         Assert.Equal("state_unknown", unknown.Actions.Install.Reason);

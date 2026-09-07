@@ -100,6 +100,8 @@ type Operation struct {
 
 // Item is the planned v2 list item. Nil fields serialize as null intentionally
 // so unknown evidence is distinguishable from a supplied value.
+// TargetVersion is catalog display metadata, not a detection or verification
+// threshold. The selected pkg/status check owns version requirements.
 type Item struct {
 	ItemName        string      `json:"itemName"`
 	DisplayName     string      `json:"displayName"`

@@ -77,6 +77,7 @@ const (
 // DecideResult never promotes execution errors to success based on observation.
 // Verification covers the requested target state AND persisted selection; it
 // must come from fresh evidence, not the legacy actionNeeded boolean alone.
+// Version satisfaction follows the selected detection check, not TargetVersion.
 func DecideResult(execution Execution, verification Verification) Result {
 	switch execution {
 	case ExecutionFailed:

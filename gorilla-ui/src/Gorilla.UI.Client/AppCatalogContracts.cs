@@ -35,6 +35,8 @@ public sealed record Operation(
     Result? Result
 );
 
+// TargetVersion is catalog display metadata. State and verification come from
+// the service's selected Go detection check; clients must not compare versions.
 public sealed record Item(
     string ItemName,
     string DisplayName,

@@ -61,17 +61,48 @@ presence or terminal operation outcomes.
 | --- | --- | --- |
 | Absent | Successful applicable detection establishes absence | That no app with a similar display name exists |
 | Installed | Successful detection establishes presence | A known installed version, latest version, or satisfied target |
-| UpdateAvailable | Presence plus a valid version comparison establishes an older installed version | That an installer has started |
+| UpdateAvailable | Presence plus the selected detection check's valid version comparison establishes an unmet version requirement | That an installer has started |
 | Unknown | No check, not checked yet, unsupported or ambiguous evidence | Absence or an installation failure |
 | DetectionFailed | An attempted check failed to execute/read/parse reliably | Absence or an installation failure |
 
-- `targetVersion` comes from catalog `version`; `installedVersion` is observed
-  evidence. Either can be null. Never copy the target into the installed version.
+- `targetVersion` comes from top-level catalog `version` and is display metadata
+  for the offered package, not the authoritative detection threshold.
+  `installedVersion` is observed evidence. Either can be null. Never copy the
+  target into the installed version or compare these DTO fields to derive state.
 - `checkedAtUtc` is the observation/attempt time, not response construction time.
   It is null before an attempt. `detailCode` explains uncertainty or failed detection.
 - Installed with an unknown version is valid. Do not label it “up to date.”
-- A newer installed version is not an available update or a reason to downgrade.
+- An installed version meeting or exceeding the selected check's requirement is
+  not an available update or a reason to downgrade.
 - Hash/repair requirements are not version-based update availability.
+
+### Version authority
+
+The selected detection check is authoritative for update state and Install
+postcondition verification, using existing `pkg/status.CheckStatus` precedence
+(script, file, registry with a version, then AppX) and comparison semantics.
+Version requirements come from `check.registry.version`, each applicable
+`check.file[].version`, or `check.appx.version`. Top-level catalog `version` does
+not override or supplement those requirements; there is no equality invariant.
+Missing, invalid, or ambiguous check evidence must not fall back to comparing
+against `targetVersion`.
+
+For multiple file checks, retain each file's requirements and existing evaluation
+semantics in the shared Go implementation. Do not collapse component versions
+into one app-wide threshold. A version-based UpdateAvailable observation needs
+reliable presence and unmet version evidence; other unmet requirements, such as
+hash checks, do not independently establish UpdateAvailable. Script checks retain
+the evidence limits below. C# displays the service's state without comparing
+version strings.
+
+For example, catalog version `2.0`, registry requirement `1.5`, and installed
+version `1.7` means Installed, not UpdateAvailable. With fresh, unambiguous registry
+evidence and no other unmet requirements, Install verification can be Satisfied
+once selection is persisted. Conversely, catalog version `1.5`, registry
+requirement `2.0`, and installed version `1.7` means UpdateAvailable and an unmet
+Install postcondition. `TestCheckStatusRegistryVersionAuthority` locks down both
+directions through the existing Go check. Stage 2 must carry these same cases
+through the richer observation adapter; stage 3 must cover their postconditions.
 
 ### Detection adapters to implement in stage 2
 
@@ -186,8 +217,10 @@ observe the operation.
 | Unknown execution evidence | Any | Unverified / execution_unknown |
 
 Verification includes the persisted selection and requested target, not just
-presence. For Install, presence alone does not prove that a required version,
-hash, or dependency requirement is met. For Remove, absence and cleared local
+presence. For Install, the selected detection check's requirements are authoritative
+as defined above; top-level catalog `version` is not a verification threshold.
+Presence alone does not prove that a required version, hash, or dependency
+requirement is met. For Remove, absence and cleared local
 install selection must be established, without a persistent local uninstall entry.
 A cache write is not verification. A legacy “not needed” return alone is not
 verification. Selection persistence errors are execution failures.

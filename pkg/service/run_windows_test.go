@@ -215,7 +215,7 @@ func TestListEnvelopeCarriesRealContractData(t *testing.T) {
 	contract := appcatalog.Item{
 		ItemName: "Example", DisplayName: "Example App", Catalog: "production", TargetVersion: &target,
 		Observation: appcatalog.Observation{State: appcatalog.UpdateAvailable, InstalledVersion: &installed, CheckedAtUTC: &now},
-		Policy:      appcatalog.Policy{Optional: true},
+		Policy:      appcatalog.Policy{Optional: true, Selection: appcatalog.NoSelection},
 	}
 	contract.Actions = appcatalog.DecideActions(contract.Observation.State, contract.Policy, appcatalog.Capabilities{CanInstall: true, CanRemove: true}, false)
 	sr := &serviceRunner{}

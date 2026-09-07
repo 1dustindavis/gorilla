@@ -2,8 +2,10 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -155,7 +157,7 @@ func TestCatalogLoadFailureKeepsOptionalEntryUnavailable(t *testing.T) {
 func TestAdministratorPolicyStillWinsWhenServiceSelectionMatches(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}}
 	cfg.LocalManifests = []string{serviceLocalManifestPath(cfg)}
-	selection := manifest.Item{Name: "service-manifest", Installs: []string{"Required"}, Uninstalls: []string{"Forbidden"}}
+	selection := manifest.Item{Name: "service-manifest", Installs: []string{"Required", "Forbidden"}}
 	if err := saveServiceLocalManifest(cfg, selection); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +184,154 @@ func TestAdministratorPolicyStillWinsWhenServiceSelectionMatches(t *testing.T) {
 	}
 	if !forbidden.Contract.Policy.RequiredUninstall || forbidden.Contract.Actions.Install.Reason != "managed_uninstall" {
 		t.Fatalf("administrator uninstall was subtracted: %+v", forbidden.Contract.Policy)
+	}
+	if forbidden.Contract.Policy.Selection != appcatalog.NoSelection {
+		t.Fatalf("conflicting local selection was not suppressed: %+v", forbidden.Contract.Policy)
+	}
+	persisted, err := loadServiceLocalManifest(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(persisted.Installs, []string{"Required"}) {
+		t.Fatalf("conflicting local selection was not removed: %v", persisted.Installs)
+	}
+}
+
+func TestScheduledRunRemovesSelectionOverriddenByAdministratorUninstall(t *testing.T) {
+	cfg := config.Configuration{AppDataPath: t.TempDir()}
+	cfg.LocalManifests = []string{serviceLocalManifestPath(cfg)}
+	selection := manifest.Item{Name: "service-manifest", Installs: []string{"Conflict", "Keep"}}
+	if err := saveServiceLocalManifest(cfg, selection); err != nil {
+		t.Fatal(err)
+	}
+
+	originalManifestGet := manifestGet
+	t.Cleanup(func() { manifestGet = originalManifestGet })
+	manifestGet = func(config.Configuration) ([]manifest.Item, []string, error) {
+		return []manifest.Item{
+			{Name: "administrator", Uninstalls: []string{"Conflict"}},
+			selection,
+		}, nil, nil
+	}
+
+	managedRunCalled := false
+	_, err := executeCommand(cfg, Command{Action: actionRun}, func(config.Configuration) error {
+		managedRunCalled = true
+		got, loadErr := loadServiceLocalManifest(cfg)
+		if loadErr != nil {
+			return loadErr
+		}
+		if !slices.Equal(got.Installs, []string{"Keep"}) {
+			return fmt.Errorf("managed run saw unreconciled selections: %v", got.Installs)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !managedRunCalled {
+		t.Fatal("scheduled managed run was not called")
+	}
+}
+
+func TestInstallRejectsUnsatisfiableDependencyGraphs(t *testing.T) {
+	valid := func(name string, dependencies ...string) catalog.Item {
+		return catalog.Item{
+			DisplayName:  name,
+			Dependencies: dependencies,
+			Installer:    catalog.InstallerItem{Type: "exe", Location: name + ".exe"},
+		}
+	}
+
+	for _, tc := range []struct {
+		name      string
+		manifests []manifest.Item
+		catalogs  map[int]map[string]catalog.Item
+		allowed   bool
+	}{
+		{
+			name:      "valid nested dependencies",
+			manifests: []manifest.Item{{OptionalInstalls: []string{"Parent"}}},
+			catalogs: map[int]map[string]catalog.Item{1: {
+				"Parent":     valid("Parent", "Child"),
+				"Child":      valid("Child", "Grandchild"),
+				"Grandchild": valid("Grandchild"),
+			}},
+			allowed: true,
+		},
+		{
+			name:      "missing dependency",
+			manifests: []manifest.Item{{OptionalInstalls: []string{"Parent"}}},
+			catalogs:  map[int]map[string]catalog.Item{1: {"Parent": valid("Parent", "Missing")}},
+		},
+		{
+			name:      "invalid dependency",
+			manifests: []manifest.Item{{OptionalInstalls: []string{"Parent"}}},
+			catalogs: map[int]map[string]catalog.Item{1: {
+				"Parent":  valid("Parent", "Invalid"),
+				"Invalid": {DisplayName: "Invalid"},
+			}},
+		},
+		{
+			name:      "dependency cycle",
+			manifests: []manifest.Item{{OptionalInstalls: []string{"Parent"}}},
+			catalogs: map[int]map[string]catalog.Item{1: {
+				"Parent": valid("Parent", "Child"),
+				"Child":  valid("Child", "Parent"),
+			}},
+		},
+		{
+			name: "dependency forced absent",
+			manifests: []manifest.Item{{
+				OptionalInstalls: []string{"Parent"},
+				Uninstalls:       []string{"Child"},
+			}},
+			catalogs: map[int]map[string]catalog.Item{1: {
+				"Parent": valid("Parent", "Child"),
+				"Child":  valid("Child"),
+			}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stubOptionalCatalog(t, tc.manifests, tc.catalogs, map[string]status.Observation{
+				"Parent": {State: status.Absent, ActionNeeded: true, CheckedAtUTC: time.Now().UTC()},
+			})
+			details, err := getOptionalItemDetails(config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent := details[0].Contract
+			if parent.Actions.Install.Allowed != tc.allowed {
+				t.Fatalf("dependency feasibility produced wrong install decision: %+v", parent.Actions.Install)
+			}
+			if !tc.allowed && parent.Actions.Install.Reason != "install_unavailable" {
+				t.Fatalf("unsatisfiable dependency graph used wrong reason: %+v", parent.Actions.Install)
+			}
+		})
+	}
+}
+
+func TestInstallRejectsUnsatisfiableDependencyBeforePersistingSelection(t *testing.T) {
+	cfg := config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}}
+	stubOptionalCatalog(t,
+		[]manifest.Item{{OptionalInstalls: []string{"Parent"}}},
+		map[int]map[string]catalog.Item{1: {"Parent": {
+			DisplayName:  "Parent",
+			Dependencies: []string{"Missing"},
+			Installer:    catalog.InstallerItem{Type: "exe", Location: "parent.exe"},
+		}}},
+		map[string]status.Observation{"Parent": {
+			State: status.Absent, ActionNeeded: true, CheckedAtUTC: time.Now().UTC(),
+		}},
+	)
+
+	_, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"Parent"}}, func(config.Configuration) error { return nil })
+	var denied actionDeniedError
+	if !errors.As(err, &denied) || denied.reason != "install_unavailable" {
+		t.Fatalf("got %v", err)
+	}
+	if _, statErr := os.Stat(serviceLocalManifestPath(cfg)); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("dependency failure persisted a selection: %v", statErr)
 	}
 }
 

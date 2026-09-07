@@ -9,6 +9,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
@@ -69,68 +70,20 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 	status.ResetRegistryCache()
 
 	optional := map[string]bool{}
-	requiredInstalls := map[string]int{}
-	requiredUninstalls := map[string]int{}
 	for _, entry := range manifests {
 		for _, name := range entry.OptionalInstalls {
 			if strings.TrimSpace(name) != "" {
 				optional[name] = true
 			}
 		}
-		for _, name := range entry.Installs {
-			requiredInstalls[name]++
-		}
-		for _, name := range entry.Uninstalls {
-			requiredUninstalls[name]++
-		}
 	}
-	// manifest.Get includes the service-owned manifest. Remove exactly its own
-	// contribution so an administrator entry for the same item still wins.
-	serviceManifestIncluded := false
-	servicePath := filepath.Clean(serviceLocalManifestPath(cfg))
-	for _, localPath := range cfg.LocalManifests {
-		if filepath.Clean(localPath) == servicePath {
-			serviceManifestIncluded = true
-			break
-		}
-	}
-	if serviceManifestIncluded {
-		for _, name := range selection.Installs {
-			requiredInstalls[name]--
-		}
-		for _, name := range selection.Uninstalls {
-			requiredUninstalls[name]--
-		}
+	requiredInstalls, requiredUninstalls := administratorRequirements(cfg, manifests, selection)
+	selection, err = reconcileServiceSelection(cfg, selection, requiredUninstalls)
+	if err != nil {
+		return nil, err
 	}
 
-	dependencyRoots := map[string]bool{}
-	for name, count := range requiredInstalls {
-		dependencyRoots[name] = count > 0
-	}
-	for _, name := range selection.Installs {
-		dependencyRoots[name] = true
-	}
-	dependencies := map[string]bool{}
-	var visit func(string, map[string]bool)
-	visit = func(name string, visiting map[string]bool) {
-		if visiting[name] {
-			return
-		}
-		visiting[name] = true
-		resolved := resolveCatalogItem(name, catalogs, cfg.Catalogs)
-		if resolved.found {
-			for _, dependency := range resolved.item.Dependencies {
-				dependencies[dependency] = true
-				visit(dependency, visiting)
-			}
-		}
-		delete(visiting, name)
-	}
-	for name, active := range dependencyRoots {
-		if active {
-			visit(name, map[string]bool{})
-		}
-	}
+	dependencies := requiredDependencies(requiredInstalls, selection, catalogs, cfg.Catalogs)
 
 	names := make([]string, 0, len(optional))
 	for name := range optional {
@@ -176,7 +129,8 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 			DetailCode:         detailCode,
 			InstallRequirement: installRequirement(resolved.item, observed, observeErr),
 		}
-		canInstall := resolved.item.Installer.Type != "" && resolved.item.Installer.Location != ""
+		canInstall := resolved.item.Installer.Type != "" && resolved.item.Installer.Location != "" &&
+			dependenciesFeasible(name, catalogs, requiredUninstalls)
 		canRemove := (resolved.item.Uninstaller.Type != "" && resolved.item.Uninstaller.Location != "") ||
 			resolved.item.Uninstaller.Type == "msix" || resolved.item.Installer.Type == "msix"
 		targetVersion := resolved.item.Version
@@ -206,6 +160,105 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 		})
 	}
 	return details, nil
+}
+
+func administratorRequirements(cfg config.Configuration, manifests []manifest.Item, selection manifest.Item) (map[string]int, map[string]int) {
+	requiredInstalls := map[string]int{}
+	requiredUninstalls := map[string]int{}
+	for _, entry := range manifests {
+		for _, name := range entry.Installs {
+			requiredInstalls[name]++
+		}
+		for _, name := range entry.Uninstalls {
+			requiredUninstalls[name]++
+		}
+	}
+	// manifest.Get includes the service-owned manifest. Remove exactly its own
+	// contribution so an administrator entry for the same item still wins.
+	serviceManifestIncluded := false
+	servicePath := filepath.Clean(serviceLocalManifestPath(cfg))
+	for _, localPath := range cfg.LocalManifests {
+		if filepath.Clean(localPath) == servicePath {
+			serviceManifestIncluded = true
+			break
+		}
+	}
+	if serviceManifestIncluded {
+		for _, name := range selection.Installs {
+			requiredInstalls[name]--
+		}
+		for _, name := range selection.Uninstalls {
+			requiredUninstalls[name]--
+		}
+	}
+	return requiredInstalls, requiredUninstalls
+}
+
+func requiredDependencies(requiredInstalls map[string]int, selection manifest.Item, catalogs map[int]map[string]catalog.Item, catalogNames []string) map[string]bool {
+	dependencyRoots := map[string]bool{}
+	for name, count := range requiredInstalls {
+		dependencyRoots[name] = count > 0
+	}
+	for _, name := range selection.Installs {
+		dependencyRoots[name] = true
+	}
+	dependencies := map[string]bool{}
+	var visit func(string, string, map[string]bool)
+	visit = func(name, root string, visiting map[string]bool) {
+		if visiting[name] {
+			return
+		}
+		visiting[name] = true
+		resolved := resolveCatalogItem(name, catalogs, catalogNames)
+		if resolved.found {
+			for _, dependency := range resolved.item.Dependencies {
+				if dependency != root {
+					dependencies[dependency] = true
+				}
+				visit(dependency, root, visiting)
+			}
+		}
+		delete(visiting, name)
+	}
+	for name, active := range dependencyRoots {
+		if active {
+			visit(name, name, map[string]bool{})
+		}
+	}
+	return dependencies
+}
+
+func dependenciesFeasible(root string, catalogs map[int]map[string]catalog.Item, requiredUninstalls map[string]int) bool {
+	const (
+		visiting = iota + 1
+		visited
+	)
+	states := map[string]int{}
+	var visit func(string, bool) bool
+	visit = func(name string, dependency bool) bool {
+		if states[name] == visiting {
+			return false
+		}
+		if states[name] == visited {
+			return true
+		}
+		if dependency && requiredUninstalls[name] > 0 {
+			return false
+		}
+		item, _, found := process.ResolveItem(name, catalogs)
+		if !found || (dependency && (item.Installer.Type == "" || item.Installer.Location == "")) {
+			return false
+		}
+		states[name] = visiting
+		for _, child := range item.Dependencies {
+			if !visit(child, true) {
+				return false
+			}
+		}
+		states[name] = visited
+		return true
+	}
+	return visit(root, false)
 }
 
 func installRequirement(item catalog.Item, observed status.Observation, observeErr error) appcatalog.RequirementState {

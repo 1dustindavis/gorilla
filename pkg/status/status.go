@@ -303,7 +303,7 @@ func checkAppxEvidence(catalogItem catalog.Item, installType string) (actionNeed
 
 // CheckStatus determines the method for checking status
 func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actionNeeded bool, checkErr error) {
-	result, err := Observe(catalogItem, installType, cachePath)
+	result, err := observe(catalogItem, installType, cachePath, false)
 	return result.ActionNeeded, err
 }
 
@@ -311,6 +311,14 @@ func CheckStatus(catalogItem catalog.Item, installType, cachePath string) (actio
 // evidence needed by service consumers. Selection precedence is intentionally
 // identical to the historical CheckStatus implementation.
 func Observe(catalogItem catalog.Item, installType, cachePath string) (Observation, error) {
+	return observe(catalogItem, installType, cachePath, true)
+}
+
+// conservativeRegistry affects only the evidence returned for ambiguous
+// registry substring matches. CheckStatus keeps its historical first-match
+// action decision; the richer service observation must not expose that
+// nondeterministic match as authoritative presence or version evidence.
+func observe(catalogItem catalog.Item, installType, cachePath string, conservativeRegistry bool) (Observation, error) {
 
 	if catalogItem.Check.Script != "" {
 		gorillalog.Info("Checking status via script:", catalogItem.DisplayName)
@@ -332,6 +340,9 @@ func Observe(catalogItem catalog.Item, installType, cachePath string) (Observati
 
 	} else if catalogItem.Check.Registry.Version != "" {
 		gorillalog.Info("Checking status via registry:", catalogItem.DisplayName)
+		if conservativeRegistry {
+			return observeRegistry(catalogItem, installType)
+		}
 		actionNeeded, installed, installedVersion, err := checkRegistryEvidence(catalogItem, installType)
 		if err != nil {
 			return observation(DetectionFailed, "", "check_failed", actionNeeded), err
@@ -364,4 +375,48 @@ func Observe(catalogItem catalog.Item, installType, cachePath string) (Observati
 	gorillalog.Warn("Not enough data to check the current status:", catalogItem.DisplayName)
 	return observation(Unknown, "", "no_check", false), nil
 
+}
+
+func observeRegistry(catalogItem catalog.Item, installType string) (Observation, error) {
+	checkReg := catalogItem.Check.Registry
+	wantedVersion, err := version.NewVersion(checkReg.Version)
+	if err != nil {
+		return observation(DetectionFailed, "", "check_failed", true), err
+	}
+	if len(RegistryItems) == 0 {
+		RegistryItems, err = getUninstallKeys()
+		if err != nil {
+			return observation(DetectionFailed, "", "check_failed", true), err
+		}
+	}
+
+	matches := make([]RegistryApplication, 0, 1)
+	for _, item := range RegistryItems {
+		if strings.Contains(item.Name, checkReg.Name) {
+			matches = append(matches, item)
+		}
+	}
+	if len(matches) == 0 {
+		actionNeeded := installType == "install"
+		return observation(Absent, "", "", actionNeeded), nil
+	}
+	if len(matches) > 1 {
+		return observation(Unknown, "", "ambiguous_registry_match", false), nil
+	}
+
+	installedVersion := matches[0].Version
+	currentVersion, err := version.NewVersion(installedVersion)
+	if err != nil {
+		return observation(DetectionFailed, "", "check_failed", true), err
+	}
+	versionSatisfied := !currentVersion.LessThan(wantedVersion)
+	actionNeeded := !versionSatisfied
+	if installType == "uninstall" {
+		actionNeeded = true
+	}
+	state := Installed
+	if !versionSatisfied && installType != "uninstall" {
+		state = UpdateAvailable
+	}
+	return observation(state, installedVersion, "", actionNeeded), nil
 }

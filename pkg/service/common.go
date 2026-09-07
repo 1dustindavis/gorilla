@@ -140,6 +140,9 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 		if cmd.RunConfig != nil {
 			cfg = *cmd.RunConfig
 		}
+		if err := reconcileServiceManagedInstalls(cfg); err != nil {
+			return CommandResponse{}, fmt.Errorf("reconcile App Catalog install selections: %w", err)
+		}
 		return CommandResponse{Status: "ok"}, managedRun(cfg)
 	case actionInstallItem:
 		details, err := getOptionalItemDetails(cfg)
@@ -273,6 +276,37 @@ func clearLegacyServiceUninstalls(cfg config.Configuration) error {
 	}
 	entry.Uninstalls = nil
 	return saveServiceLocalManifest(cfg, entry)
+}
+
+func reconcileServiceManagedInstalls(cfg config.Configuration) error {
+	selection, err := loadServiceLocalManifest(cfg)
+	if err != nil || len(selection.Installs) == 0 {
+		return err
+	}
+	manifests, _, err := manifestGet(cfg)
+	if err != nil {
+		return fmt.Errorf("retrieve manifests: %w", err)
+	}
+	_, requiredUninstalls := administratorRequirements(cfg, manifests, selection)
+	_, err = reconcileServiceSelection(cfg, selection, requiredUninstalls)
+	return err
+}
+
+func reconcileServiceSelection(cfg config.Configuration, selection manifest.Item, requiredUninstalls map[string]int) (manifest.Item, error) {
+	conflicts := make([]string, 0)
+	for _, name := range selection.Installs {
+		if requiredUninstalls[name] > 0 {
+			conflicts = append(conflicts, name)
+		}
+	}
+	if len(conflicts) == 0 {
+		return selection, nil
+	}
+	selection.Installs = withoutItems(selection.Installs, conflicts)
+	if err := saveServiceLocalManifest(cfg, selection); err != nil {
+		return manifest.Item{}, fmt.Errorf("remove selections overridden by administrator uninstall policy: %w", err)
+	}
+	return selection, nil
 }
 
 func withoutItems(existing, removed []string) []string {

@@ -76,6 +76,61 @@ func TestObserveRegistryVersionAuthority(t *testing.T) {
 	}
 }
 
+func TestObserveRegistryAmbiguityDoesNotExposeArbitraryVersion(t *testing.T) {
+	previous := RegistryItems
+	t.Cleanup(func() { RegistryItems = previous })
+	RegistryItems = map[string]RegistryApplication{
+		"example-old": {Name: "Example", Version: "1.5"},
+		"example-new": {Name: "Example Helper", Version: "2.5"},
+	}
+	item := catalog.Item{
+		DisplayName: "Example",
+		Check: catalog.InstallCheck{
+			Registry: catalog.RegCheck{Name: "Example", Version: "2.0"},
+		},
+	}
+
+	for i := 0; i < 20; i++ {
+		got, err := Observe(item, "install", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.State != Unknown || got.InstalledVersion != nil || got.ActionNeeded || got.DetailCode != "ambiguous_registry_match" {
+			t.Fatalf("ambiguous registry observation was not conservative: %+v", got)
+		}
+	}
+}
+
+func TestCheckStatusPreservesLegacyAmbiguousRegistryDecision(t *testing.T) {
+	previous := RegistryItems
+	t.Cleanup(func() { RegistryItems = previous })
+	RegistryItems = map[string]RegistryApplication{
+		"example-one": {Name: "Example", Version: "1.0"},
+		"example-two": {Name: "Example Helper", Version: "1.5"},
+	}
+	item := catalog.Item{
+		DisplayName: "Example",
+		Check: catalog.InstallCheck{
+			Registry: catalog.RegCheck{Name: "Example", Version: "2.0"},
+		},
+	}
+
+	actionNeeded, err := CheckStatus(item, "install", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !actionNeeded {
+		t.Fatal("legacy CheckStatus no longer requested installation for matching outdated entries")
+	}
+	observed, err := Observe(item, "install", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.State != Unknown || observed.DetailCode != "ambiguous_registry_match" {
+		t.Fatalf("rich observation did not remain conservative: %+v", observed)
+	}
+}
+
 func TestObserveDoesNotInventScriptPresence(t *testing.T) {
 	previous := execCommand
 	t.Cleanup(func() { execCommand = previous })

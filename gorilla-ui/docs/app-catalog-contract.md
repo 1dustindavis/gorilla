@@ -120,6 +120,9 @@ detection implementation for CLI, scheduled runs, and App Catalog. Extend/refact
 Do not create separate registry/file/script/AppX checks in C#, the service, or
 `pkg/appcatalog`. The new package defines data and pure action/result decisions;
 it does not detect installation. Reuse the existing Go catalog resolver as well.
+For ambiguous registry substring matches, the rich adapter returns Unknown with
+no version. The legacy `CheckStatus` interface retains its historical first-match
+action decision so stage 2 does not change CLI or scheduled convergence behavior.
 
 Stage 2 resets the shared registry cache once at the start of each catalog
 observation pass and managed run. Registry enumeration remains shared within a
@@ -203,7 +206,9 @@ without reinstalling an already satisfied app.
 Policy changes can invalidate old selection. Administrator policy must suppress
 conflicting persisted selections in both optional execution and scheduled
 convergence; simply rejecting new clicks would not fix that conflict. Implement
-this reconciliation in stages 2–3 with scheduled-run regression tests.
+this reconciliation before every stage-2 service-managed run. Stage 2 also
+validates the full dependency graph before authorizing a new Install selection;
+legacy CLI dependency execution remains unchanged.
 
 ## Per-item execution and results
 

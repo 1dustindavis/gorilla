@@ -55,12 +55,18 @@ Process logs are written to `<app_data_path>\gorilla.log`, which defaults to `%P
 `ListOptionalInstalls` resolves effective optional assignments using manifest and
 catalog precedence. Missing or invalid entries remain visible with an unknown
 state and disabled actions. Detection failures remain distinct from absence.
+Multiple plausible registry substring matches are reported as unknown without
+an installed version instead of exposing a map-order-dependent match.
 `installRequirement` separately carries the selected check's Satisfied or
 NotSatisfied result. This allows script-check items to remain installable without
 claiming that the script proved physical presence or a version. Gorilla's
 script-first check precedence is unchanged.
 `InstallItem` and `RemoveItem` re-resolve policy before changing local selection,
 so the same restrictions apply to App Catalog and direct command-line requests.
+Install authorization validates the complete dependency graph and rejects
+missing or invalid dependencies, cycles, and dependencies assigned to managed
+uninstall. Before each scheduled or requested managed run, the service removes
+local install selections superseded by administrator-managed uninstall policy.
 
 Installing adds a persistent local managed install. Removing clears that
 selection and supplies a service-owned temporary uninstall manifest to the next

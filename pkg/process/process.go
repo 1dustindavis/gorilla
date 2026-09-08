@@ -122,28 +122,108 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 // This abstraction allows us to override when testing
 var installerInstall = installer.Install
 
+// ItemResult preserves the catalog key that was requested as well as the
+// installer outcome. Display names are presentation metadata and are not a
+// stable identifier for service operations.
+type ItemResult struct {
+	ItemName string
+	Result   installer.Result
+}
+
+var installerInstallResult = installer.InstallResult
+
 // Installs prepares and then installs an array of items
 func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	// Iterate through the installs array, install dependencies, and then the item itself
-	for _, item := range installs {
-		// Get the first valid item from our catalogs
-		// Continue to the next item in the loop if we get an error
-		validItem, ok := firstItem(item, catalogsMap)
-		if !ok {
-			continue
+	executeInstallClosure(installs, catalogsMap, func(itemName string, item catalog.Item) {
+		installerInstall(item, "install", urlPackages, cachePath, CheckOnly)
+	})
+}
+
+// InstallResults executes each requested item and its transitive dependencies
+// once, in dependency-first order. A parent is not executed when a dependency
+// cannot be resolved or fails. The legacy Installs function uses the same
+// closure while discarding results for CLI compatibility.
+func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	results := make([]ItemResult, 0, len(installs))
+	state := make(map[string]visitState)
+
+	var execute func(string) installer.Result
+	execute = func(itemName string) installer.Result {
+		switch state[itemName] {
+		case visitDone:
+			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeAlreadyCurrent, Message: "Dependency already processed"}
+		case visitActive:
+			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_cycle", Message: "Dependency cycle detected"}
 		}
-		// Check for dependencies and install if found
-		if len(validItem.Dependencies) > 0 {
-			for _, dependency := range validItem.Dependencies {
-				validDependency, ok := firstItem(dependency, catalogsMap)
-				if !ok {
-					continue
-				}
-				installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
+
+		item, ok := firstItem(itemName, catalogsMap)
+		if !ok || item.Installer.Type == "" || item.Installer.Location == "" {
+			result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "invalid_dependency", Message: "Catalog item has no valid installer"}
+			results = append(results, ItemResult{ItemName: itemName, Result: result})
+			state[itemName] = visitDone
+			return result
+		}
+
+		state[itemName] = visitActive
+		for _, dependency := range item.Dependencies {
+			dependencyResult := execute(dependency)
+			if dependencyResult.Outcome == installer.OutcomeFailed {
+				result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_failed", Message: fmt.Sprintf("Dependency %s did not complete: %s", dependency, dependencyResult.Message)}
+				results = append(results, ItemResult{ItemName: itemName, Result: result})
+				state[itemName] = visitDone
+				return result
 			}
 		}
-		// Install the item
-		installerInstall(validItem, "install", urlPackages, cachePath, CheckOnly)
+
+		result := installerInstallResult(item, "install", urlPackages, cachePath, checkOnly)
+		if result.ItemName == "" {
+			result.ItemName = item.DisplayName
+		}
+		if result.Action == "" {
+			result.Action = "install"
+		}
+		results = append(results, ItemResult{ItemName: itemName, Result: result})
+		state[itemName] = visitDone
+		return result
+	}
+
+	for _, itemName := range installs {
+		if state[itemName] != visitDone {
+			execute(itemName)
+		}
+	}
+	return results
+}
+
+type visitState uint8
+
+const (
+	visitNone visitState = iota
+	visitActive
+	visitDone
+)
+
+func executeInstallClosure(installs []string, catalogsMap map[int]map[string]catalog.Item, execute func(string, catalog.Item)) {
+	state := make(map[string]visitState)
+	var visit func(string)
+	visit = func(itemName string) {
+		if state[itemName] != visitNone {
+			return
+		}
+		item, ok := firstItem(itemName, catalogsMap)
+		if !ok || item.Installer.Type == "" || item.Installer.Location == "" {
+			state[itemName] = visitDone
+			return
+		}
+		state[itemName] = visitActive
+		for _, dependency := range item.Dependencies {
+			visit(dependency)
+		}
+		state[itemName] = visitDone
+		execute(itemName, item)
+	}
+	for _, itemName := range installs {
+		visit(itemName)
 	}
 }
 

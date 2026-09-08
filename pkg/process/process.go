@@ -242,6 +242,12 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 	}
 }
 
+// UninstallResults reports every selected uninstall attempt. It deliberately
+// does not infer success from the managed run as a whole.
+func UninstallResults(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	return actionResults(uninstalls, "uninstall", catalogsMap, urlPackages, cachePath, checkOnly)
+}
+
 // Updates prepares and then installs an array of items
 func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the updates array and update the item **if it is already installed**
@@ -254,6 +260,54 @@ func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlP
 		}
 		// Update the item
 		installerInstall(validItem, "update", urlPackages, cachePath, CheckOnly)
+	}
+}
+
+// UpdateResults reports every selected update attempt. Dependency installation
+// remains the responsibility of install selections; an update does not silently
+// install an otherwise unselected dependency tree.
+func UpdateResults(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	return actionResults(updates, "update", catalogsMap, urlPackages, cachePath, checkOnly)
+}
+
+func actionResults(items []string, action string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	results := make([]ItemResult, 0, len(items))
+	for _, itemName := range items {
+		item, ok := firstItem(itemName, catalogsMap)
+		if !ok || !actionableFor(item, action) {
+			results = append(results, ItemResult{
+				ItemName: itemName,
+				Result: installer.Result{
+					ItemName:  itemName,
+					Action:    action,
+					Outcome:   installer.OutcomeFailed,
+					ErrorCode: "invalid_catalog_item",
+					Message:   "Catalog item is not actionable",
+				},
+			})
+			continue
+		}
+		result := installerInstallResult(item, action, urlPackages, cachePath, checkOnly)
+		if result.ItemName == "" {
+			result.ItemName = item.DisplayName
+		}
+		if result.Action == "" {
+			result.Action = action
+		}
+		results = append(results, ItemResult{ItemName: itemName, Result: result})
+	}
+	return results
+}
+
+func actionableFor(item catalog.Item, action string) bool {
+	switch action {
+	case "install", "update":
+		return item.Installer.Type != "" && item.Installer.Location != ""
+	case "uninstall":
+		return (item.Uninstaller.Type != "" && item.Uninstaller.Location != "") ||
+			item.Uninstaller.Type == "msix" || item.Installer.Type == "msix"
+	default:
+		return false
 	}
 }
 

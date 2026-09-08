@@ -370,6 +370,26 @@ func TestInstallResultsDetectsDependencyCycle(t *testing.T) {
 	}
 }
 
+func TestUninstallResultsKeepsFailureWithItsItem(t *testing.T) {
+	previous := installerInstallResult
+	t.Cleanup(func() { installerInstallResult = previous })
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"Good": {DisplayName: "Good", Uninstaller: catalog.InstallerItem{Type: "msi", Location: "good.msi"}},
+		"Bad":  {DisplayName: "Bad"},
+	}}
+	installerInstallResult = func(item catalog.Item, action, _, _ string, _ bool) installer.Result {
+		return installer.Result{ItemName: item.DisplayName, Action: action, Outcome: installer.OutcomeSucceeded}
+	}
+
+	results := UninstallResults([]string{"Good", "Bad"}, catalogs, "", "", false)
+	if len(results) != 2 || results[0].ItemName != "Good" || results[0].Result.Outcome != installer.OutcomeSucceeded {
+		t.Fatalf("successful uninstall result was not retained: %+v", results)
+	}
+	if results[1].ItemName != "Bad" || results[1].Result.ErrorCode != "invalid_catalog_item" {
+		t.Fatalf("invalid uninstall result was not retained: %+v", results)
+	}
+}
+
 // TestUninstalls tests if uninstall items are processed correctly
 func TestUninstalls(t *testing.T) {
 

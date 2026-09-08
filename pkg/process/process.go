@@ -146,12 +146,13 @@ func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, ur
 func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
 	results := make([]ItemResult, 0, len(installs))
 	state := make(map[string]visitState)
+	completed := make(map[string]installer.Result)
 
 	var execute func(string) installer.Result
 	execute = func(itemName string) installer.Result {
 		switch state[itemName] {
 		case visitDone:
-			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeAlreadyCurrent, Message: "Dependency already processed"}
+			return completed[itemName]
 		case visitActive:
 			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_cycle", Message: "Dependency cycle detected"}
 		}
@@ -160,6 +161,7 @@ func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.It
 		if !ok || item.Installer.Type == "" || item.Installer.Location == "" {
 			result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "invalid_dependency", Message: "Catalog item has no valid installer"}
 			results = append(results, ItemResult{ItemName: itemName, Result: result})
+			completed[itemName] = result
 			state[itemName] = visitDone
 			return result
 		}
@@ -170,6 +172,7 @@ func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.It
 			if dependencyResult.Outcome == installer.OutcomeFailed {
 				result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_failed", Message: fmt.Sprintf("Dependency %s did not complete: %s", dependency, dependencyResult.Message)}
 				results = append(results, ItemResult{ItemName: itemName, Result: result})
+				completed[itemName] = result
 				state[itemName] = visitDone
 				return result
 			}
@@ -183,6 +186,7 @@ func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.It
 			result.Action = "install"
 		}
 		results = append(results, ItemResult{ItemName: itemName, Result: result})
+		completed[itemName] = result
 		state[itemName] = visitDone
 		return result
 	}

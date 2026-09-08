@@ -722,6 +722,15 @@ func TestInstallResultReportsStructuredOutcomes(t *testing.T) {
 	}
 }
 
+func TestResultErrorCodePreservesExecutionBoundary(t *testing.T) {
+	if got := resultErrorCode(executionError{code: "download_failed", message: "bad hash"}, "installer_failed"); got != "download_failed" {
+		t.Fatalf("execution error code was lost: %q", got)
+	}
+	if got := resultErrorCode(errors.New("exit code 1"), "installer_failed"); got != "installer_failed" {
+		t.Fatalf("unexpected fallback code: %q", got)
+	}
+}
+
 func fakeUninstallItem(item catalog.Item, itemURL, cachePath string) (string, error) {
 	uninstallItemURL = itemURL
 	return "", nil

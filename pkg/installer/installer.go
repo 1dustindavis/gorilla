@@ -57,6 +57,21 @@ type Result struct {
 	Message   string
 }
 
+type executionError struct {
+	code    string
+	message string
+}
+
+func (e executionError) Error() string { return e.message }
+
+func resultErrorCode(err error, fallback string) string {
+	var executionErr executionError
+	if errors.As(err, &executionErr) {
+		return executionErr.code
+	}
+	return fallback
+}
+
 // runCommand executes a command and it's argurments in the CMD environment
 func runCMD(command string, arguments []string) (string, error) {
 	cmd := execCommand(command, arguments...)
@@ -172,7 +187,7 @@ func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, r
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg, errors.New(msg)
+		return msg, executionError{code: "download_failed", message: msg}
 	}
 
 	// Determine the install type and command to pass
@@ -237,7 +252,7 @@ func installItemResultWithRunner(item catalog.Item, itemURL, cachePath string, r
 	} else {
 		msg := fmt.Sprint("Unsupported installer type", item.Installer.Type)
 		gorillalog.Warn(msg)
-		return msg, errors.New(msg)
+		return msg, executionError{code: "unsupported_installer", message: msg}
 	}
 
 	// Run the command
@@ -277,7 +292,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 		if item.Check.Appx.Name == "" {
 			msg := fmt.Sprintf("Check.Appx.Name is required for msix uninstall of %s", item.DisplayName)
 			gorillalog.Warn(msg)
-			return msg, errors.New(msg)
+			return msg, executionError{code: "invalid_uninstall_definition", message: msg}
 		}
 		removeCmd := fmt.Sprintf(
 			"$pkg = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq '%s' }; if ($pkg) { Remove-AppxProvisionedPackage -Online -PackageName $pkg.PackageName }; Get-AppxPackage -Name '%s' -AllUsers | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue",
@@ -305,7 +320,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 	if !valid {
 		msg := fmt.Sprint("Unable to download valid file: ", itemURL)
 		gorillalog.Warn(msg)
-		return msg, errors.New(msg)
+		return msg, executionError{code: "download_failed", message: msg}
 	}
 
 	// Determine the uninstall type and build the command
@@ -361,7 +376,7 @@ func uninstallItemResultWithRunner(item catalog.Item, itemURL, cachePath string,
 	} else {
 		msg := fmt.Sprint("Unsupported uninstaller type", item.Uninstaller.Type)
 		gorillalog.Warn(msg)
-		return msg, errors.New(msg)
+		return msg, executionError{code: "unsupported_uninstaller", message: msg}
 	}
 
 	// Run the command
@@ -509,7 +524,7 @@ func InstallResult(item catalog.Item, installerType, urlPackages, cachePath stri
 			_, err := installItemFunc(item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Warn("Installation error:", err)
-				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "installer_failed", Message: fmt.Sprintf("Installation error: %v", err)}
+				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: resultErrorCode(err, "installer_failed"), Message: fmt.Sprintf("Installation error: %v", err)}
 			}
 
 			// Run PostInstall_Script if needed
@@ -535,7 +550,7 @@ func InstallResult(item catalog.Item, installerType, urlPackages, cachePath stri
 			_, err := uninstallItemFunc(item, itemURL, cachePath)
 			if err != nil {
 				gorillalog.Warn("Uninstallation error:", err)
-				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "uninstaller_failed", Message: fmt.Sprintf("Uninstallation error: %v", err)}
+				return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: resultErrorCode(err, "uninstaller_failed"), Message: fmt.Sprintf("Uninstallation error: %v", err)}
 			}
 		}
 	} else {

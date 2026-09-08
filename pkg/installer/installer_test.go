@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -693,6 +694,40 @@ func TestInstallURL(t *testing.T) {
 
 	if have, want := installItemURL, expectedURL; have != want {
 		t.Errorf("\n-----\nhave\n%s\nwant\n%s\n-----", have, want)
+	}
+}
+
+func TestInstallResultReportsStructuredOutcomes(t *testing.T) {
+	previousStatus := statusCheckStatus
+	previousInstall := installItemFunc
+	t.Cleanup(func() {
+		statusCheckStatus = previousStatus
+		installItemFunc = previousInstall
+	})
+
+	item := msiItem
+	item.DisplayName = "Example"
+
+	statusCheckStatus = func(catalog.Item, string, string) (bool, error) { return false, nil }
+	result := InstallResult(item, "install", "https://example.com/", "testdata/", false)
+	if result.Outcome != OutcomeAlreadyCurrent || result.ErrorCode != "" || result.Message != "Item not needed" {
+		t.Fatalf("unexpected no-action result: %+v", result)
+	}
+
+	statusCheckStatus = func(catalog.Item, string, string) (bool, error) { return true, nil }
+	installItemFunc = func(catalog.Item, string, string) (string, error) { return "", errors.New("exit code 1") }
+	result = InstallResult(item, "install", "https://example.com/", "testdata/", false)
+	if result.Outcome != OutcomeFailed || result.ErrorCode != "installer_failed" || !strings.Contains(result.Message, "exit code 1") {
+		t.Fatalf("unexpected installer failure result: %+v", result)
+	}
+}
+
+func TestResultErrorCodePreservesExecutionBoundary(t *testing.T) {
+	if got := resultErrorCode(executionError{code: "download_failed", message: "bad hash"}, "installer_failed"); got != "download_failed" {
+		t.Fatalf("execution error code was lost: %q", got)
+	}
+	if got := resultErrorCode(errors.New("exit code 1"), "installer_failed"); got != "installer_failed" {
+		t.Fatalf("unexpected fallback code: %q", got)
 	}
 }
 

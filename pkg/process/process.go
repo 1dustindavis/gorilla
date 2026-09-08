@@ -122,30 +122,107 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 // This abstraction allows us to override when testing
 var installerInstall = installer.Install
 
-// Installs prepares and then installs an array of items
+// ItemResult preserves the catalog key that was requested as well as the
+// installer outcome. Display names are presentation metadata and are not a
+// stable identifier for service operations.
+type ItemResult struct {
+	ItemName string
+	Result   installer.Result
+}
+
+var installerInstallResult = installer.InstallResult
+
+// Installs preserves the legacy managed-run dependency behavior: each selected
+// item processes only its direct dependencies, without closure-wide deduplication.
+// Item-scoped recursive dependency execution lives in InstallResults and must not
+// alter scheduled/CLI convergence before the item-only activation gate is met.
 func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	// Iterate through the installs array, install dependencies, and then the item itself
-	for _, item := range installs {
-		// Get the first valid item from our catalogs
-		// Continue to the next item in the loop if we get an error
-		validItem, ok := firstItem(item, catalogsMap)
+	for _, itemName := range installs {
+		validItem, ok := firstItem(itemName, catalogsMap)
 		if !ok {
 			continue
 		}
-		// Check for dependencies and install if found
-		if len(validItem.Dependencies) > 0 {
-			for _, dependency := range validItem.Dependencies {
-				validDependency, ok := firstItem(dependency, catalogsMap)
-				if !ok {
-					continue
-				}
-				installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
+		for _, dependency := range validItem.Dependencies {
+			validDependency, ok := firstItem(dependency, catalogsMap)
+			if !ok {
+				continue
 			}
+			installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
 		}
-		// Install the item
 		installerInstall(validItem, "install", urlPackages, cachePath, CheckOnly)
 	}
 }
+
+// InstallResults executes each requested item and its transitive dependencies
+// once, in dependency-first order. A parent is not executed when a dependency
+// cannot be resolved or fails.
+func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	results := make([]ItemResult, 0, len(installs))
+	state := make(map[string]visitState)
+	completed := make(map[string]installer.Result)
+
+	var execute func(string) installer.Result
+	execute = func(itemName string) installer.Result {
+		switch state[itemName] {
+		case visitDone:
+			return completed[itemName]
+		case visitActive:
+			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_cycle", Message: "Dependency cycle detected"}
+		}
+
+		item, ok := firstItem(itemName, catalogsMap)
+		if !ok || item.Installer.Type == "" || item.Installer.Location == "" {
+			result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "invalid_dependency", Message: "Catalog item has no valid installer"}
+			results = append(results, ItemResult{ItemName: itemName, Result: result})
+			completed[itemName] = result
+			state[itemName] = visitDone
+			return result
+		}
+
+		state[itemName] = visitActive
+		for _, dependency := range item.Dependencies {
+			dependencyResult := execute(dependency)
+			if dependencyResult.Outcome == installer.OutcomeFailed {
+				errorCode := "dependency_failed"
+				if dependencyResult.ErrorCode == "dependency_cycle" {
+					errorCode = "dependency_cycle"
+				}
+				result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: errorCode, Message: fmt.Sprintf("Dependency %s did not complete: %s", dependency, dependencyResult.Message)}
+				results = append(results, ItemResult{ItemName: itemName, Result: result})
+				completed[itemName] = result
+				state[itemName] = visitDone
+				return result
+			}
+		}
+
+		result := installerInstallResult(item, "install", urlPackages, cachePath, checkOnly)
+		if result.ItemName == "" {
+			result.ItemName = item.DisplayName
+		}
+		if result.Action == "" {
+			result.Action = "install"
+		}
+		results = append(results, ItemResult{ItemName: itemName, Result: result})
+		completed[itemName] = result
+		state[itemName] = visitDone
+		return result
+	}
+
+	for _, itemName := range installs {
+		if state[itemName] != visitDone {
+			execute(itemName)
+		}
+	}
+	return results
+}
+
+type visitState uint8
+
+const (
+	visitNone visitState = iota
+	visitActive
+	visitDone
+)
 
 // Uninstalls prepares and then installs an array of items
 func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
@@ -162,6 +239,12 @@ func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item
 	}
 }
 
+// UninstallResults reports every selected uninstall attempt. It deliberately
+// does not infer success from the managed run as a whole.
+func UninstallResults(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	return actionResults(uninstalls, "uninstall", catalogsMap, urlPackages, cachePath, checkOnly)
+}
+
 // Updates prepares and then installs an array of items
 func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the updates array and update the item **if it is already installed**
@@ -174,6 +257,54 @@ func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlP
 		}
 		// Update the item
 		installerInstall(validItem, "update", urlPackages, cachePath, CheckOnly)
+	}
+}
+
+// UpdateResults reports every selected update attempt. Dependency installation
+// remains the responsibility of install selections; an update does not silently
+// install an otherwise unselected dependency tree.
+func UpdateResults(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	return actionResults(updates, "update", catalogsMap, urlPackages, cachePath, checkOnly)
+}
+
+func actionResults(items []string, action string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
+	results := make([]ItemResult, 0, len(items))
+	for _, itemName := range items {
+		item, ok := firstItem(itemName, catalogsMap)
+		if !ok || !actionableFor(item, action) {
+			results = append(results, ItemResult{
+				ItemName: itemName,
+				Result: installer.Result{
+					ItemName:  itemName,
+					Action:    action,
+					Outcome:   installer.OutcomeFailed,
+					ErrorCode: "invalid_catalog_item",
+					Message:   "Catalog item is not actionable",
+				},
+			})
+			continue
+		}
+		result := installerInstallResult(item, action, urlPackages, cachePath, checkOnly)
+		if result.ItemName == "" {
+			result.ItemName = item.DisplayName
+		}
+		if result.Action == "" {
+			result.Action = action
+		}
+		results = append(results, ItemResult{ItemName: itemName, Result: result})
+	}
+	return results
+}
+
+func actionableFor(item catalog.Item, action string) bool {
+	switch action {
+	case "install", "update":
+		return item.Installer.Type != "" && item.Installer.Location != ""
+	case "uninstall":
+		return (item.Uninstaller.Type != "" && item.Uninstaller.Location != "") ||
+			item.Uninstaller.Type == "msix" || item.Installer.Type == "msix"
+	default:
+		return false
 	}
 }
 

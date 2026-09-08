@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/installer"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 )
 
@@ -301,6 +302,91 @@ func TestInstalls(t *testing.T) {
 	// Fail if we dont match
 	if !matchItems {
 		t.Errorf("\nExpected: %#v\nActual: %#v", expectedItems, actualInstalledItems)
+	}
+}
+
+func TestInstallResultsExecutesTransitiveDependenciesOnce(t *testing.T) {
+	previous := installerInstallResult
+	t.Cleanup(func() { installerInstallResult = previous })
+
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"Parent": {
+			DisplayName:  "Parent",
+			Dependencies: []string{"Child"},
+			Installer:    catalog.InstallerItem{Type: "msi", Location: "parent.msi"},
+		},
+		"Child": {
+			DisplayName:  "Child",
+			Dependencies: []string{"Grandchild"},
+			Installer:    catalog.InstallerItem{Type: "msi", Location: "child.msi"},
+		},
+		"Grandchild": {
+			DisplayName: "Grandchild",
+			Installer:   catalog.InstallerItem{Type: "msi", Location: "grandchild.msi"},
+		},
+	}}
+	var executed []string
+	installerInstallResult = func(item catalog.Item, action, _, _ string, _ bool) installer.Result {
+		executed = append(executed, item.DisplayName)
+		return installer.Result{ItemName: item.DisplayName, Action: action, Outcome: installer.OutcomeSucceeded}
+	}
+
+	results := InstallResults([]string{"Parent", "Child"}, catalogs, "", "", false)
+	if want := []string{"Grandchild", "Child", "Parent"}; !reflect.DeepEqual(executed, want) {
+		t.Fatalf("unexpected execution order: got %v, want %v", executed, want)
+	}
+	if len(results) != 3 || results[2].ItemName != "Parent" || results[2].Result.Outcome != installer.OutcomeSucceeded {
+		t.Fatalf("unexpected results: %+v", results)
+	}
+}
+
+func TestInstallResultsFailsParentWhenDependencyIsUnsatisfiable(t *testing.T) {
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"Parent": {
+			DisplayName:  "Parent",
+			Dependencies: []string{"Missing"},
+			Installer:    catalog.InstallerItem{Type: "msi", Location: "parent.msi"},
+		},
+	}}
+
+	results := InstallResults([]string{"Parent"}, catalogs, "", "", false)
+	if len(results) != 2 || results[0].ItemName != "Missing" || results[0].Result.ErrorCode != "invalid_dependency" {
+		t.Fatalf("missing dependency was not reported: %+v", results)
+	}
+	if results[1].ItemName != "Parent" || results[1].Result.ErrorCode != "dependency_failed" {
+		t.Fatalf("parent was not blocked by dependency failure: %+v", results)
+	}
+}
+
+func TestInstallResultsDetectsDependencyCycle(t *testing.T) {
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"A": {DisplayName: "A", Dependencies: []string{"B"}, Installer: catalog.InstallerItem{Type: "msi", Location: "a.msi"}},
+		"B": {DisplayName: "B", Dependencies: []string{"A"}, Installer: catalog.InstallerItem{Type: "msi", Location: "b.msi"}},
+	}}
+
+	results := InstallResults([]string{"A"}, catalogs, "", "", false)
+	if len(results) != 2 || results[0].ItemName != "B" || results[0].Result.ErrorCode != "dependency_cycle" || results[1].ItemName != "A" || results[1].Result.ErrorCode != "dependency_cycle" {
+		t.Fatalf("dependency cycle was not reported deterministically: %+v", results)
+	}
+}
+
+func TestUninstallResultsKeepsFailureWithItsItem(t *testing.T) {
+	previous := installerInstallResult
+	t.Cleanup(func() { installerInstallResult = previous })
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"Good": {DisplayName: "Good", Uninstaller: catalog.InstallerItem{Type: "msi", Location: "good.msi"}},
+		"Bad":  {DisplayName: "Bad"},
+	}}
+	installerInstallResult = func(item catalog.Item, action, _, _ string, _ bool) installer.Result {
+		return installer.Result{ItemName: item.DisplayName, Action: action, Outcome: installer.OutcomeSucceeded}
+	}
+
+	results := UninstallResults([]string{"Good", "Bad"}, catalogs, "", "", false)
+	if len(results) != 2 || results[0].ItemName != "Good" || results[0].Result.Outcome != installer.OutcomeSucceeded {
+		t.Fatalf("successful uninstall result was not retained: %+v", results)
+	}
+	if results[1].ItemName != "Bad" || results[1].Result.ErrorCode != "invalid_catalog_item" {
+		t.Fatalf("invalid uninstall result was not retained: %+v", results)
 	}
 }
 

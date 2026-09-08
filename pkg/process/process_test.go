@@ -365,7 +365,7 @@ func TestInstallResultsDetectsDependencyCycle(t *testing.T) {
 	}}
 
 	results := InstallResults([]string{"A"}, catalogs, "", "", false)
-	if len(results) != 2 || results[0].ItemName != "B" || results[0].Result.ErrorCode != "dependency_failed" || results[1].ItemName != "A" || results[1].Result.ErrorCode != "dependency_failed" {
+	if len(results) != 2 || results[0].ItemName != "B" || results[0].Result.ErrorCode != "dependency_cycle" || results[1].ItemName != "A" || results[1].Result.ErrorCode != "dependency_cycle" {
 		t.Fatalf("dependency cycle was not reported deterministically: %+v", results)
 	}
 }

@@ -132,17 +132,30 @@ type ItemResult struct {
 
 var installerInstallResult = installer.InstallResult
 
-// Installs prepares and then installs an array of items
+// Installs preserves the legacy managed-run dependency behavior: each selected
+// item processes only its direct dependencies, without closure-wide deduplication.
+// Item-scoped recursive dependency execution lives in InstallResults and must not
+// alter scheduled/CLI convergence before the item-only activation gate is met.
 func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	executeInstallClosure(installs, catalogsMap, func(itemName string, item catalog.Item) {
-		installerInstall(item, "install", urlPackages, cachePath, CheckOnly)
-	})
+	for _, itemName := range installs {
+		validItem, ok := firstItem(itemName, catalogsMap)
+		if !ok {
+			continue
+		}
+		for _, dependency := range validItem.Dependencies {
+			validDependency, ok := firstItem(dependency, catalogsMap)
+			if !ok {
+				continue
+			}
+			installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
+		}
+		installerInstall(validItem, "install", urlPackages, cachePath, CheckOnly)
+	}
 }
 
 // InstallResults executes each requested item and its transitive dependencies
 // once, in dependency-first order. A parent is not executed when a dependency
-// cannot be resolved or fails. The legacy Installs function uses the same
-// closure while discarding results for CLI compatibility.
+// cannot be resolved or fails.
 func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
 	results := make([]ItemResult, 0, len(installs))
 	state := make(map[string]visitState)
@@ -170,7 +183,11 @@ func InstallResults(installs []string, catalogsMap map[int]map[string]catalog.It
 		for _, dependency := range item.Dependencies {
 			dependencyResult := execute(dependency)
 			if dependencyResult.Outcome == installer.OutcomeFailed {
-				result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_failed", Message: fmt.Sprintf("Dependency %s did not complete: %s", dependency, dependencyResult.Message)}
+				errorCode := "dependency_failed"
+				if dependencyResult.ErrorCode == "dependency_cycle" {
+					errorCode = "dependency_cycle"
+				}
+				result := installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: errorCode, Message: fmt.Sprintf("Dependency %s did not complete: %s", dependency, dependencyResult.Message)}
 				results = append(results, ItemResult{ItemName: itemName, Result: result})
 				completed[itemName] = result
 				state[itemName] = visitDone
@@ -206,30 +223,6 @@ const (
 	visitActive
 	visitDone
 )
-
-func executeInstallClosure(installs []string, catalogsMap map[int]map[string]catalog.Item, execute func(string, catalog.Item)) {
-	state := make(map[string]visitState)
-	var visit func(string)
-	visit = func(itemName string) {
-		if state[itemName] != visitNone {
-			return
-		}
-		item, ok := firstItem(itemName, catalogsMap)
-		if !ok || item.Installer.Type == "" || item.Installer.Location == "" {
-			state[itemName] = visitDone
-			return
-		}
-		state[itemName] = visitActive
-		for _, dependency := range item.Dependencies {
-			visit(dependency)
-		}
-		state[itemName] = visitDone
-		execute(itemName, item)
-	}
-	for _, itemName := range installs {
-		visit(itemName)
-	}
-}
 
 // Uninstalls prepares and then installs an array of items
 func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {

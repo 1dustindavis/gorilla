@@ -516,7 +516,11 @@ func InstallResult(item catalog.Item, installerType, urlPackages, cachePath stri
 				preScriptSuccess, err := preinstallScript(item, cachePath)
 				if !preScriptSuccess {
 					gorillalog.Error("Pre-Install script error:", err)
-					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "preinstall_script_failed", Message: "PreInstall-Script error"}
+					msg := "PreInstall-Script error"
+					if err != nil {
+						msg = fmt.Sprintf("%s: %v", msg, err)
+					}
+					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "preinstall_script_failed", Message: msg}
 				}
 			}
 
@@ -533,7 +537,11 @@ func InstallResult(item catalog.Item, installerType, urlPackages, cachePath stri
 				postScriptSuccess, err := postinstallScript(item, cachePath)
 				if !postScriptSuccess {
 					gorillalog.Error("Post-Install script error:", err)
-					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "postinstall_script_failed", Message: "PostInstall-Script error"}
+					msg := "PostInstall-Script error"
+					if err != nil {
+						msg = fmt.Sprintf("%s: %v", msg, err)
+					}
+					return Result{ItemName: item.DisplayName, Action: installerType, Outcome: OutcomeFailed, ErrorCode: "postinstall_script_failed", Message: msg}
 				}
 			}
 		}

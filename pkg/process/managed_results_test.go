@@ -128,3 +128,35 @@ func TestManagedInstallResultsReportsMissingDependencyWithoutSkippingParent(t *t
 		t.Fatalf("parent did not report missing dependency: %+v", parent)
 	}
 }
+
+func TestManagedActionResultsPreservesLegacyUpdateAndUninstallBoundary(t *testing.T) {
+	previous := installerInstallResult
+	t.Cleanup(func() { installerInstallResult = previous })
+
+	// Deliberately omit installer/uninstaller metadata. The newer item-scoped
+	// UpdateResults/UninstallResults APIs reject this shape as non-actionable, but
+	// the historical managed-run loops resolve the item and still invoke the
+	// installer boundary. This adapter must preserve that legacy behavior.
+	catalogs := map[int]map[string]catalog.Item{1: {
+		"Legacy": {DisplayName: "Legacy"},
+	}}
+
+	var actions []string
+	installerInstallResult = func(item catalog.Item, action, _, _ string, _ bool) installer.Result {
+		actions = append(actions, action+":"+item.DisplayName)
+		return installer.Result{ItemName: item.DisplayName, Action: action, Outcome: installer.OutcomeSucceeded}
+	}
+
+	updates := ManagedActionResults([]string{"Missing", "Legacy"}, "update", catalogs, "", "", false)
+	uninstalls := ManagedActionResults([]string{"Legacy", "Missing"}, "uninstall", catalogs, "", "", false)
+
+	if !reflect.DeepEqual(actions, []string{"update:Legacy", "uninstall:Legacy"}) {
+		t.Fatalf("legacy action execution changed: %v", actions)
+	}
+	if len(updates) != 1 || updates[0].ItemName != "Legacy" || updates[0].Result.Action != "update" {
+		t.Fatalf("unexpected managed update results: %+v", updates)
+	}
+	if len(uninstalls) != 1 || uninstalls[0].ItemName != "Legacy" || uninstalls[0].Result.Action != "uninstall" {
+		t.Fatalf("unexpected managed uninstall results: %+v", uninstalls)
+	}
+}

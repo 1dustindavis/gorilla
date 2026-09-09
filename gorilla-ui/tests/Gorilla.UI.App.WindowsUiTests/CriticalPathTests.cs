@@ -63,7 +63,7 @@ public sealed class CriticalPathTests
             home.InstallButton(FailureFixtureItemName).Invoke();
 
             home.WaitForWarningContaining("ended with Failed", TimeSpan.FromSeconds(60));
-            Assert.Contains("Intentional App Catalog E2E installer failure", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Installation error: exit status 7", home.WarningText, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Succeeded", home.WarningText, StringComparison.OrdinalIgnoreCase);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);

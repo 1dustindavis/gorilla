@@ -5,6 +5,7 @@ using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
+using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.Core.ViewModels;
 

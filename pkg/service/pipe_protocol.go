@@ -71,13 +71,21 @@ type streamOperationStatusAckResponse struct {
 	StreamAccepted bool `json:"streamAccepted"`
 }
 
+// operationStatusEventPayload keeps the v1 envelope during the Stage 3
+// transition, while adding authoritative item/action/result fields. Progress is
+// omitted unless measured so the service no longer emits synthetic milestones;
+// the nullable v2 client representation is activated with the coordinated client
+// protocol transition.
 type operationStatusEventPayload struct {
-	State           string `json:"state"`
-	ProgressPercent int    `json:"progressPercent"`
-	Message         string `json:"message"`
-	ErrorCode       string `json:"errorCode,omitempty"`
-	ErrorMessage    string `json:"errorMessage,omitempty"`
-	CanceledBy      string `json:"canceledBy,omitempty"`
+	State           string                  `json:"state"`
+	ProgressPercent int                     `json:"progressPercent,omitempty"`
+	Message         string                  `json:"message"`
+	ItemName        string                  `json:"itemName,omitempty"`
+	Action          appcatalog.Action       `json:"action,omitempty"`
+	Result          *operationResultPayload `json:"result,omitempty"`
+	ErrorCode       string                  `json:"errorCode,omitempty"`
+	ErrorMessage    string                  `json:"errorMessage,omitempty"`
+	CanceledBy      string                  `json:"canceledBy,omitempty"`
 }
 
 type errorResponsePayload struct {

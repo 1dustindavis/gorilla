@@ -35,6 +35,7 @@ type queuedResult struct {
 type serviceRunner struct {
 	cfg                config.Configuration
 	managedRun         func(config.Configuration) error
+	managedItemRun     ManagedItemRunFunc
 	queue              chan queuedCommand
 	handlerSem         chan struct{}
 	wg                 sync.WaitGroup
@@ -66,8 +67,8 @@ type trackedOperation struct {
 	completedAt time.Time
 }
 
-func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error) *serviceRunner {
-	return &serviceRunner{
+func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error, managedItemRuns ...ManagedItemRunFunc) *serviceRunner {
+	runner := &serviceRunner{
 		cfg:         cfg,
 		managedRun:  managedRun,
 		queue:       make(chan queuedCommand),
@@ -75,6 +76,10 @@ func newServiceRunner(cfg config.Configuration, managedRun func(config.Configura
 		activeConns: make(map[windows.Handle]struct{}),
 		operations:  make(map[string]*trackedOperation),
 	}
+	if len(managedItemRuns) > 0 {
+		runner.managedItemRun = managedItemRuns[0]
+	}
+	return runner
 }
 
 func (sr *serviceRunner) start(ctx context.Context) error {
@@ -372,8 +377,11 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, code, err.Error())
 		return
 	}
+
+	itemName := ""
 	if cmd.Action == actionInstallItem || cmd.Action == actionRemoveItem {
-		sr.registerTrackedOperation(resp.OperationID)
+		itemName = cmd.Items[0]
+		sr.registerTrackedOperation(resp.OperationID, itemName, cmd.Action)
 	}
 
 	if err := sr.writeSuccessEnvelope(file, req, cmd, resp); err != nil {
@@ -383,14 +391,18 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		result = "ok"
 		gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
 	}
-	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp)
+	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp, itemName)
 }
 
-func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string, resp CommandResponse) {
+func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string, resp CommandResponse, itemNames ...string) {
 	if action != actionInstallItem && action != actionRemoveItem {
 		return
 	}
 	operationID := resp.OperationID
+	itemName := ""
+	if len(itemNames) > 0 {
+		itemName = itemNames[0]
+	}
 
 	sr.wg.Add(1)
 	go func() {
@@ -398,45 +410,30 @@ func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action st
 		if resp.CleanupPath != "" {
 			defer os.Remove(resp.CleanupPath)
 		}
-		sr.appendOperationEvent(operationID, operationStatusEventPayload{
-			State:           "Validating",
-			ProgressPercent: 20,
-			Message:         "Validating operation inputs",
-		})
+
 		inProgressState := "Installing"
 		if action == actionRemoveItem {
 			inProgressState = "Removing"
 		}
 		sr.appendOperationEvent(operationID, operationStatusEventPayload{
-			State:           inProgressState,
-			ProgressPercent: 60,
-			Message:         fmt.Sprintf("%s item via managed run", inProgressState),
+			State:    inProgressState,
+			Message:  fmt.Sprintf("%s item via managed run", inProgressState),
+			ItemName: itemName,
+			Action:   appCatalogAction(action),
 		})
-		if _, err := sr.submit(ctx, Command{Action: actionRun, RunConfig: resp.RunConfig}); err != nil {
+
+		verified, err := sr.executeManagedItemOperation(ctx, action, itemName, resp)
+		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				sr.appendOperationEvent(operationID, operationStatusEventPayload{
-					State:           "Canceled",
-					ProgressPercent: 60,
-					Message:         "Operation canceled",
-					CanceledBy:      "service",
-				})
+				sr.appendOperationEvent(operationID, operationTerminalEvent(itemName, action, interruptedOperationResult()))
 				return
 			}
 			gorillalog.Warn("failed to run managed action after service mutation:", err)
-			sr.appendOperationEvent(operationID, operationStatusEventPayload{
-				State:           "Failed",
-				ProgressPercent: 100,
-				Message:         "Operation failed",
-				ErrorCode:       "managed_run_failed",
-				ErrorMessage:    err.Error(),
-			})
+			sr.appendOperationEvent(operationID, operationTerminalEvent(itemName, action, managedRunFailureResult(err)))
 			return
 		}
-		sr.appendOperationEvent(operationID, operationStatusEventPayload{
-			State:           "Succeeded",
-			ProgressPercent: 100,
-			Message:         "Operation completed",
-		})
+
+		sr.appendOperationEvent(operationID, operationTerminalEvent(itemName, action, verified))
 	}()
 }
 
@@ -617,9 +614,17 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 	}
 }
 
-func (sr *serviceRunner) registerTrackedOperation(operationID string) {
+func (sr *serviceRunner) registerTrackedOperation(operationID string, identity ...string) {
 	if strings.TrimSpace(operationID) == "" {
 		return
+	}
+	itemName := ""
+	action := ""
+	if len(identity) > 0 {
+		itemName = identity[0]
+	}
+	if len(identity) > 1 {
+		action = identity[1]
 	}
 	sr.operationsMu.Lock()
 	defer sr.operationsMu.Unlock()
@@ -627,9 +632,10 @@ func (sr *serviceRunner) registerTrackedOperation(operationID string) {
 	sr.operations[operationID] = &trackedOperation{
 		events: []operationStatusEventPayload{
 			{
-				State:           "Queued",
-				ProgressPercent: 0,
-				Message:         "Operation queued",
+				State:    "Queued",
+				Message:  "Operation queued",
+				ItemName: itemName,
+				Action:   appCatalogAction(action),
 			},
 		},
 		lastUpdated: time.Now(),
@@ -787,8 +793,9 @@ func (sr *serviceRunner) closeActiveConnections() {
 }
 
 type gorillaWindowsService struct {
-	cfg        config.Configuration
-	managedRun func(config.Configuration) error
+	cfg            config.Configuration
+	managedRun     func(config.Configuration) error
+	managedItemRun ManagedItemRunFunc
 }
 
 func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
@@ -798,7 +805,7 @@ func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRe
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runner := newServiceRunner(g.cfg, g.managedRun)
+	runner := newServiceRunner(g.cfg, g.managedRun, g.managedItemRun)
 	if err := runner.start(ctx); err != nil {
 		gorillalog.Warn("failed to start service runner:", err)
 		return false, 1
@@ -828,6 +835,10 @@ func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRe
 	return false, 0
 }
 
-func Run(cfg config.Configuration, managedRun func(config.Configuration) error) error {
-	return svc.Run(cfg.ServiceName, &gorillaWindowsService{cfg: cfg, managedRun: managedRun})
+func Run(cfg config.Configuration, managedRun func(config.Configuration) error, managedItemRuns ...ManagedItemRunFunc) error {
+	var managedItemRun ManagedItemRunFunc
+	if len(managedItemRuns) > 0 {
+		managedItemRun = managedItemRuns[0]
+	}
+	return svc.Run(cfg.ServiceName, &gorillaWindowsService{cfg: cfg, managedRun: managedRun, managedItemRun: managedItemRun})
 }

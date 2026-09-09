@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Gorilla.UI.Client;
+using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
 
@@ -53,6 +54,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
+        if (!item.CanInstall)
+        {
+            WarningBanner = ActionUnavailableMessage("Install", item.DisplayName, item.InstallUnavailableReason);
+            return;
+        }
+
         item.IsBusy = true;
         try
         {
@@ -66,6 +73,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             await TrackAndRefreshAsync(
                 item,
                 accepted.OperationId,
+                AppCatalog.Action.Install,
                 streamFailurePrefix: "Install queued, but live status stream failed",
                 cancellationToken
             );
@@ -78,6 +86,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task RemoveAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
+        if (!item.CanRemove)
+        {
+            WarningBanner = ActionUnavailableMessage("Remove", item.DisplayName, item.RemoveUnavailableReason);
+            return;
+        }
+
         item.IsBusy = true;
         try
         {
@@ -91,6 +105,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             await TrackAndRefreshAsync(
                 item,
                 accepted.OperationId,
+                AppCatalog.Action.Remove,
                 streamFailurePrefix: "Remove queued, but live status stream failed",
                 cancellationToken
             );
@@ -114,6 +129,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     private async Task TrackAndRefreshAsync(
         UiOptionalInstallItem item,
         string operationId,
+        AppCatalog.Action expectedAction,
         string streamFailurePrefix,
         CancellationToken cancellationToken
     )
@@ -125,7 +141,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 operationId,
                 update =>
                 {
-                    ApplyOperationUpdate(item, update);
+                    ApplyOperationUpdate(item, expectedAction, update);
                     terminalStateObserved |= IsTerminalState(update.State);
                 },
                 cancellationToken
@@ -164,8 +180,20 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
     }
 
-    private void ApplyOperationUpdate(UiOptionalInstallItem item, OperationStatusEvent update)
+    private void ApplyOperationUpdate(
+        UiOptionalInstallItem item,
+        AppCatalog.Action expectedAction,
+        OperationStatusEvent update
+    )
     {
+        ValidateOperationIdentity(item, expectedAction, update);
+
+        if (update.Result is not null)
+        {
+            ApplyAuthoritativeResult(item, update);
+            return;
+        }
+
         item.Status = $"{update.State}: {update.Message}";
 
         if (update.State is OperationState.Failed or OperationState.Canceled)
@@ -180,6 +208,48 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         if (update.State is OperationState.Succeeded)
         {
             WarningBanner = string.Empty;
+        }
+    }
+
+    private void ApplyAuthoritativeResult(UiOptionalInstallItem item, OperationStatusEvent update)
+    {
+        var result = update.Result!;
+        var details = string.IsNullOrWhiteSpace(result.Message) ? update.Message : result.Message;
+        item.Status = $"{result.Outcome}: {details}";
+
+        switch (result.Outcome)
+        {
+            case Outcome.Succeeded:
+            case Outcome.AlreadySatisfied:
+                WarningBanner = string.Empty;
+                break;
+            case Outcome.Failed:
+            case Outcome.Unverified:
+            case Outcome.Interrupted:
+                WarningBanner = $"Operation for {item.DisplayName} ended with {result.Outcome}: {details}";
+                break;
+        }
+    }
+
+    private static void ValidateOperationIdentity(
+        UiOptionalInstallItem item,
+        AppCatalog.Action expectedAction,
+        OperationStatusEvent update
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(update.ItemName) &&
+            !string.Equals(update.ItemName, item.ItemName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Operation status identity mismatch. Expected item '{item.ItemName}', got '{update.ItemName}'."
+            );
+        }
+
+        if (update.Action is not null && update.Action != expectedAction)
+        {
+            throw new InvalidOperationException(
+                $"Operation status action mismatch. Expected '{expectedAction}', got '{update.Action}'."
+            );
         }
     }
 
@@ -200,8 +270,19 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 Version = item.Version,
                 Status = item.Status.ToString(),
                 IsInstalled = item.IsInstalled,
+                InstallAllowed = item.Actions?.Install.Allowed ?? false,
+                RemoveAllowed = item.Actions?.Remove.Allowed ?? false,
+                InstallUnavailableReason = item.Actions?.Install.Reason ?? "Refresh required before installing.",
+                RemoveUnavailableReason = item.Actions?.Remove.Reason ?? "Refresh required before removing.",
             });
         }
+    }
+
+    private static string ActionUnavailableMessage(string action, string displayName, string reason)
+    {
+        return string.IsNullOrWhiteSpace(reason)
+            ? $"{action} is not available for {displayName}."
+            : $"{action} is not available for {displayName}: {reason}";
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

@@ -12,10 +12,14 @@ import (
 type ManagedItemRunFunc func(config.Configuration, string, string) (installer.Result, error)
 
 func appCatalogAction(action string) appcatalog.Action {
-	if action == actionRemoveItem {
+	switch action {
+	case actionInstallItem:
+		return appcatalog.InstallAction
+	case actionRemoveItem:
 		return appcatalog.RemoveAction
+	default:
+		return ""
 	}
-	return appcatalog.InstallAction
 }
 
 func operationTerminalEvent(itemName, action string, result operationResultPayload) operationStatusEventPayload {

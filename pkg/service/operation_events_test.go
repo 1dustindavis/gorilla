@@ -42,3 +42,18 @@ func TestInterruptedOperationMapsToCanceledCompatibilityState(t *testing.T) {
 		t.Fatalf("unexpected interrupted event: %+v", event)
 	}
 }
+
+func TestAppCatalogActionDoesNotInventUnknownIdentity(t *testing.T) {
+	if got := appCatalogAction(""); got != "" {
+		t.Fatalf("empty action was fabricated as %q", got)
+	}
+	if got := appCatalogAction("unexpected"); got != "" {
+		t.Fatalf("unknown action was fabricated as %q", got)
+	}
+	if got := appCatalogAction(actionInstallItem); got != appcatalog.InstallAction {
+		t.Fatalf("InstallItem mapped to %q", got)
+	}
+	if got := appCatalogAction(actionRemoveItem); got != appcatalog.RemoveAction {
+		t.Fatalf("RemoveItem mapped to %q", got)
+	}
+}

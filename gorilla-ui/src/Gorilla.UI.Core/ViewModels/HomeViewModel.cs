@@ -55,12 +55,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
-        if (!item.CanInstall)
-        {
-            WarningBanner = ActionUnavailableMessage("Install", item.DisplayName, item.InstallUnavailableReason);
-            return;
-        }
-
         item.IsBusy = true;
         try
         {
@@ -87,12 +81,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task RemoveAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
-        if (!item.CanRemove)
-        {
-            WarningBanner = ActionUnavailableMessage("Remove", item.DisplayName, item.RemoveUnavailableReason);
-            return;
-        }
-
         item.IsBusy = true;
         try
         {
@@ -277,13 +265,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 RemoveUnavailableReason = item.Actions?.Remove.Reason ?? "Refresh required before removing.",
             });
         }
-    }
-
-    private static string ActionUnavailableMessage(string action, string displayName, string reason)
-    {
-        return string.IsNullOrWhiteSpace(reason)
-            ? $"{action} is not available for {displayName}."
-            : $"{action} is not available for {displayName}: {reason}";
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

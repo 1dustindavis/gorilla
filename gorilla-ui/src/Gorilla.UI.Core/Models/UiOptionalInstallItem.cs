@@ -26,13 +26,32 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
 
     public bool IsInstalled { get; init; }
 
+    public bool InstallAllowed { get; init; }
+
+    public bool RemoveAllowed { get; init; }
+
+    public string InstallUnavailableReason { get; init; } = string.Empty;
+
+    public string RemoveUnavailableReason { get; init; } = string.Empty;
+
+    public bool CanInstall => InstallAllowed && !IsBusy;
+
+    public bool CanRemove => RemoveAllowed && !IsBusy;
+
     public bool IsBusy
     {
         get => _isBusy;
         set
         {
+            if (_isBusy == value)
+            {
+                return;
+            }
+
             _isBusy = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CanInstall));
+            OnPropertyChanged(nameof(CanRemove));
         }
     }
 

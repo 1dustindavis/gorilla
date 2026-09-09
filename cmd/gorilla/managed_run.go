@@ -117,22 +117,34 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	// their existing managed-run paths.
 	gorillalog.Info("Processing managed installs...")
 	if requestedItem != "" && requestedAction == "InstallItem" {
-		requested = findManagedItemResult(process.ManagedInstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem)
+		if result, ok := findManagedItemResult(process.ManagedInstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+			requested = result
+		}
 	} else {
 		process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
-	// Prepare and uninstall.
+	// Prepare and uninstall. A RemoveItem request captures the requested result
+	// through a legacy-equivalent adapter without changing unrelated execution.
 	gorillalog.Info("Processing managed uninstalls...")
 	if requestedItem != "" && requestedAction == "RemoveItem" {
-		requested = findManagedItemResult(process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem)
+		if result, ok := findManagedItemResult(process.ManagedActionResults(uninstalls, "uninstall", catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+			requested = result
+		}
 	} else {
 		process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
-	// Prepare and update
+	// Prepare and update. An InstallItem request may be classified as an update by
+	// manifest processing, so retain that later execution result when present.
 	gorillalog.Info("Processing managed updates...")
-	process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	if requestedItem != "" && requestedAction == "InstallItem" {
+		if result, ok := findManagedItemResult(process.ManagedActionResults(updates, "update", catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+			requested = result
+		}
+	} else {
+		process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	}
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")
@@ -148,11 +160,11 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	return requested, nil
 }
 
-func findManagedItemResult(results []process.ItemResult, itemName string) installer.Result {
+func findManagedItemResult(results []process.ItemResult, itemName string) (installer.Result, bool) {
 	for i := len(results) - 1; i >= 0; i-- {
 		if results[i].ItemName == itemName {
-			return results[i].Result
+			return results[i].Result, true
 		}
 	}
-	return installer.Result{}
+	return installer.Result{}, false
 }

@@ -31,9 +31,9 @@ func managedRun(cfg config.Configuration) error {
 }
 
 // managedRunItemResult runs the normal managed convergence lifecycle while
-// retaining the structured result for one App Catalog request. It deliberately
-// preserves legacy managed-run dependency semantics; it does not activate the
-// recursive item-scoped execution path.
+// retaining structured execution evidence for one App Catalog request. Managed
+// convergence uses the same result-aware process APIs for CLI, scheduled, and
+// service-triggered runs.
 func managedRunItemResult(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
 	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
@@ -112,38 +112,34 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 
 	var requested installer.Result
 
-	// Prepare and install. Only an InstallItem request switches this one phase to
-	// the result-preserving legacy-equivalent adapter; all other phases stay on
-	// their existing managed-run paths.
+	// Install the full recursive dependency closure once per run. Required
+	// dependencies execute before dependents; a dependent is not executed when a
+	// dependency is missing, cyclic, or fails.
 	gorillalog.Info("Processing managed installs...")
-	if requestedItem != "" && requestedAction == "InstallItem" {
-		if result, ok := findManagedItemResult(process.ManagedInstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+	installResults := process.InstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	if requestedAction == "InstallItem" {
+		if result, ok := findManagedItemResult(installResults, requestedItem); ok {
 			requested = result
 		}
-	} else {
-		process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
-	// Prepare and uninstall. A RemoveItem request captures the requested result
-	// through a legacy-equivalent adapter without changing unrelated execution.
 	gorillalog.Info("Processing managed uninstalls...")
-	if requestedItem != "" && requestedAction == "RemoveItem" {
-		if result, ok := findManagedItemResult(process.ManagedActionResults(uninstalls, "uninstall", catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+	uninstallResults := process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	if requestedAction == "RemoveItem" {
+		if result, ok := findManagedItemResult(uninstallResults, requestedItem); ok {
 			requested = result
 		}
-	} else {
-		process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
-	// Prepare and update. An InstallItem request may be classified as an update by
-	// manifest processing, so retain that later execution result when present.
+	// An InstallItem request may be classified as an update by manifest
+	// processing, so a matching update result supersedes an earlier install
+	// result when present.
 	gorillalog.Info("Processing managed updates...")
-	if requestedItem != "" && requestedAction == "InstallItem" {
-		if result, ok := findManagedItemResult(process.ManagedActionResults(updates, "update", catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem); ok {
+	updateResults := process.UpdateResults(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	if requestedAction == "InstallItem" {
+		if result, ok := findManagedItemResult(updateResults, requestedItem); ok {
 			requested = result
 		}
-	} else {
-		process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
 	// Save GorillaReport to disk

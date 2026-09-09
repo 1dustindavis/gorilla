@@ -82,6 +82,15 @@ func TestClassifyInstallOperationResult(t *testing.T) {
 			wantDetail: "install_selection_not_persisted",
 		},
 		{
+			name:       "persistent uninstall conflicts with selection",
+			execution:  installer.Result{Outcome: installer.OutcomeSucceeded},
+			item:       satisfied,
+			selection:  manifest.Item{Installs: []string{"App"}, Uninstalls: []string{"App"}},
+			want:       appcatalog.Failed,
+			wantCode:   "postcondition_failed",
+			wantDetail: "persistent_uninstall_present",
+		},
+		{
 			name:       "selection cannot be read",
 			execution:  installer.Result{Outcome: installer.OutcomeSucceeded},
 			item:       satisfied,

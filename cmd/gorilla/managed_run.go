@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	adminCheckFunc    = adminCheck
-	mkdirAllFunc      = os.MkdirAll
-	buildCatalogsFunc = admin.BuildCatalogs
-	importItemFunc    = admin.ImportItem
+	adminCheckFunc         = adminCheck
+	mkdirAllFunc           = os.MkdirAll
+	buildCatalogsFunc      = admin.BuildCatalogs
+	importItemFunc         = admin.ImportItem
+	managedResultWarnFunc  = gorillalog.Warn
 )
 
 func managedRun(cfg config.Configuration) error {
@@ -117,6 +118,7 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	// dependency is missing, cyclic, or fails.
 	gorillalog.Info("Processing managed installs...")
 	installResults := process.InstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	logManagedResultFailures("install", installResults)
 	if requestedAction == "InstallItem" {
 		if result, ok := findManagedItemResult(installResults, requestedItem); ok {
 			requested = result
@@ -125,6 +127,7 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 
 	gorillalog.Info("Processing managed uninstalls...")
 	uninstallResults := process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	logManagedResultFailures("uninstall", uninstallResults)
 	if requestedAction == "RemoveItem" {
 		if result, ok := findManagedItemResult(uninstallResults, requestedItem); ok {
 			requested = result
@@ -136,6 +139,7 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	// result when present.
 	gorillalog.Info("Processing managed updates...")
 	updateResults := process.UpdateResults(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	logManagedResultFailures("update", updateResults)
 	if requestedAction == "InstallItem" {
 		if result, ok := findManagedItemResult(updateResults, requestedItem); ok {
 			requested = result
@@ -154,6 +158,29 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 
 	gorillalog.Info("Done!")
 	return requested, nil
+}
+
+// logManagedResultFailures makes result-aware failures observable in ordinary
+// CLI and scheduled convergence, not only to App Catalog callers retaining one
+// requested result. This is especially important for synthetic process failures
+// such as dependency_failed, dependency_cycle, and invalid_catalog_item that do
+// not necessarily reach the installer/report path.
+func logManagedResultFailures(phase string, results []process.ItemResult) {
+	for _, itemResult := range results {
+		result := itemResult.Result
+		if result.Outcome != installer.OutcomeFailed {
+			continue
+		}
+
+		fields := []interface{}{"Managed", phase, "failed:", itemResult.ItemName}
+		if result.ErrorCode != "" {
+			fields = append(fields, "code=", result.ErrorCode)
+		}
+		if result.Message != "" {
+			fields = append(fields, "message=", result.Message)
+		}
+		managedResultWarnFunc(fields...)
+	}
 }
 
 func findManagedItemResult(results []process.ItemResult, itemName string) (installer.Result, bool) {

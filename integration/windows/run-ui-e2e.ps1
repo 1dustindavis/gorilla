@@ -27,6 +27,7 @@ $configPath = Join-Path $fixtureRoot "configs\ui-e2e.yaml"
 $serviceName = "gorilla-ui-e2e"
 $servicePipeName = "gorilla-ui-e2e"
 $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
+$failureMarkerPath = "C:\ProgramData\gorilla-it\ps1-failure.txt"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $uiCachePath = Join-Path $root "ui-state\optional-installs-cache.json"
@@ -43,10 +44,35 @@ if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $c
     }
 }
 
+$failureScriptPath = Join-Path $repoFixtureRoot "packages\scripts\intentional-failure.ps1"
+@'
+Write-Error "Intentional App Catalog E2E installer failure"
+exit 7
+'@ | Set-Content -LiteralPath $failureScriptPath -NoNewline
+$failureScriptHash = (Get-FileHash -LiteralPath $failureScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$catalogRaw = Get-Content -LiteralPath $catalogPath -Raw
+if ($catalogRaw -notmatch '(?m)^Ps1Failure:') {
+    @"
+
+Ps1Failure:
+  display_name: Ps1Failure
+  check:
+    file:
+      - path: '$failureMarkerPath'
+  installer:
+    type: ps1
+    location: packages/scripts/intentional-failure.ps1
+    hash: $failureScriptHash
+  version: 1.0.0
+"@ | Add-Content -LiteralPath $catalogPath -NoNewline
+}
+
 @'
 name: ui-e2e
 optional_installs:
   - Ps1V1
+  - Ps1Failure
 '@ | Set-Content -LiteralPath $manifestPath -NoNewline
 
 function Wait-ServiceState {
@@ -158,6 +184,7 @@ try {
     Remove-TestService
     Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $failureMarkerPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $evidenceRoot -Force | Out-Null
 

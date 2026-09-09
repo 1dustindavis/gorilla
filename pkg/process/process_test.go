@@ -282,8 +282,8 @@ func TestCleanUp(t *testing.T) {
 	childFile := filepath.Clean("testdata/cache/full/file.msi")
 
 	for path, modTime := range map[string]time.Time{
-		oldFile: oldTime,
-		newFile: newTime,
+		oldFile:   oldTime,
+		newFile:   newTime,
 		childFile: newTime,
 	} {
 		if err := os.Chtimes(path, modTime, modTime); err != nil {

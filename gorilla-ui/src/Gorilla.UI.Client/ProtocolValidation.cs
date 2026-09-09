@@ -48,7 +48,7 @@ public static class ProtocolValidation
     {
         if (payload.ProgressPercent is < 0 or > 100)
         {
-            throw new ProtocolValidationException("progressPercent must be between 0 and 100.");
+            throw new ProtocolValidationException("progressPercent must be between 0 and 100 when provided.");
         }
 
         if (payload.State == OperationState.Failed && string.IsNullOrWhiteSpace(payload.ErrorMessage))

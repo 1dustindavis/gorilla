@@ -50,12 +50,15 @@ public sealed record OperationAccepted(
 public sealed record OperationStatusEvent(
     string OperationId,
     OperationState State,
-    int ProgressPercent,
+    int? ProgressPercent,
     string Message,
     DateTimeOffset TimestampUtc,
     string? ErrorCode = null,
     string? ErrorMessage = null,
-    string? CanceledBy = null
+    string? CanceledBy = null,
+    string? ItemName = null,
+    AppCatalog.Action? Action = null,
+    AppCatalog.Result? Result = null
 );
 
 public interface IGorillaServiceClient

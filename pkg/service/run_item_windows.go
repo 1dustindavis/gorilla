@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/installer"
 )
 

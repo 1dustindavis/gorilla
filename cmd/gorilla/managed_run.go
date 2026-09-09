@@ -34,7 +34,7 @@ func managedRun(cfg config.Configuration) error {
 // retaining the structured result for one App Catalog request. It deliberately
 // preserves legacy managed-run dependency semantics; it does not activate the
 // recursive item-scoped execution path.
-func managedRunItemResult(cfg config.Configuration, requestedItem, requestedAction string) (process.ItemResult, error) {
+func managedRunItemResult(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
 	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
 
@@ -42,37 +42,37 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	if !cfg.CheckOnly && !buildMode {
 		admin, err := adminCheckFunc()
 		if err != nil {
-			return process.ItemResult{}, fmt.Errorf("unable to check if running as admin: %w", err)
+			return installer.Result{}, fmt.Errorf("unable to check if running as admin: %w", err)
 		}
 		if !admin {
-			return process.ItemResult{}, errors.New("gorilla requires admnisistrative access. Please run as an administrator")
+			return installer.Result{}, errors.New("gorilla requires admnisistrative access. Please run as an administrator")
 		}
 	}
 
 	// If needed, create the cache directory.
 	if err := mkdirAllFunc(filepath.Clean(cfg.CachePath), 0755); err != nil {
-		return process.ItemResult{}, fmt.Errorf("unable to create cache directory: %w", err)
+		return installer.Result{}, fmt.Errorf("unable to create cache directory: %w", err)
 	}
 
 	// Create a new logger object
 	if err := gorillalog.NewLog(cfg); err != nil {
-		return process.ItemResult{}, fmt.Errorf("unable to initialize logger: %w", err)
+		return installer.Result{}, fmt.Errorf("unable to initialize logger: %w", err)
 	}
 
 	if cfg.BuildArg {
 		gorillalog.Info("Building catalogs...")
 		if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
-			return process.ItemResult{}, fmt.Errorf("error building catalogs: %w", err)
+			return installer.Result{}, fmt.Errorf("error building catalogs: %w", err)
 		}
-		return process.ItemResult{}, nil
+		return installer.Result{}, nil
 	}
 
 	if cfg.ImportArg != "" {
 		gorillalog.Info("Importing item...")
 		if err := importItemFunc(cfg.RepoPath, cfg.ImportArg); err != nil {
-			return process.ItemResult{}, fmt.Errorf("error importing item: %w", err)
+			return installer.Result{}, fmt.Errorf("error importing item: %w", err)
 		}
-		return process.ItemResult{}, nil
+		return installer.Result{}, nil
 	}
 
 	// Start creating GorillaReport
@@ -88,7 +88,7 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
 	manifests, newCatalogs, err := manifest.Get(cfg)
 	if err != nil {
-		return process.ItemResult{}, fmt.Errorf("unable to retrieve manifest: %w", err)
+		return installer.Result{}, fmt.Errorf("unable to retrieve manifest: %w", err)
 	}
 
 	// If we have newCatalogs, add them to the configuration
@@ -100,7 +100,7 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
 	catalogs, err := catalog.Get(cfg)
 	if err != nil {
-		return process.ItemResult{}, fmt.Errorf("unable to retrieve catalog: %w", err)
+		return installer.Result{}, fmt.Errorf("unable to retrieve catalog: %w", err)
 	}
 
 	// Process the manifests into install type groups
@@ -110,38 +110,29 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	gorillalog.Info("Processing manifest...")
 	installs, uninstalls, updates := process.Manifests(manifests, catalogs)
 
-	var requested process.ItemResult
-	captureResults := requestedItem != ""
+	var requested installer.Result
 
-	// Prepare and install
+	// Prepare and install. Only an InstallItem request switches this one phase to
+	// the result-preserving legacy-equivalent adapter; all other phases stay on
+	// their existing managed-run paths.
 	gorillalog.Info("Processing managed installs...")
-	if captureResults {
-		results := process.ManagedInstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-		if requestedAction == "InstallItem" {
-			requested = findManagedItemResult(results, requestedItem)
-		}
+	if requestedItem != "" && requestedAction == "InstallItem" {
+		requested = findManagedItemResult(process.ManagedInstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem)
 	} else {
 		process.Installs(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
-	// Prepare and uninstall
+	// Prepare and uninstall.
 	gorillalog.Info("Processing managed uninstalls...")
-	if captureResults {
-		results := process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-		if requestedAction == "RemoveItem" {
-			requested = findManagedItemResult(results, requestedItem)
-		}
+	if requestedItem != "" && requestedAction == "RemoveItem" {
+		requested = findManagedItemResult(process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly), requestedItem)
 	} else {
 		process.Uninstalls(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 	}
 
 	// Prepare and update
 	gorillalog.Info("Processing managed updates...")
-	if captureResults {
-		_ = process.UpdateResults(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-	} else {
-		process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
-	}
+	process.Updates(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
 
 	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")
@@ -154,26 +145,14 @@ func managedRunItemResult(cfg config.Configuration, requestedItem, requestedActi
 	process.CleanUp(cfg.CachePath)
 
 	gorillalog.Info("Done!")
-	if captureResults && requested.ItemName == "" {
-		requested = process.ItemResult{
-			ItemName: requestedItem,
-			Result: installer.Result{
-				ItemName:  requestedItem,
-				Action:    requestedAction,
-				Outcome:   installer.OutcomeFailed,
-				ErrorCode: "requested_item_not_processed",
-				Message:   "Requested item was not processed by the managed run",
-			},
-		}
-	}
 	return requested, nil
 }
 
-func findManagedItemResult(results []process.ItemResult, itemName string) process.ItemResult {
+func findManagedItemResult(results []process.ItemResult, itemName string) installer.Result {
 	for i := len(results) - 1; i >= 0; i-- {
 		if results[i].ItemName == itemName {
-			return results[i]
+			return results[i].Result
 		}
 	}
-	return process.ItemResult{}
+	return installer.Result{}
 }

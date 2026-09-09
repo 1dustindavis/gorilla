@@ -132,10 +132,8 @@ type ItemResult struct {
 
 var installerInstallResult = installer.InstallResult
 
-// Installs preserves the legacy managed-run dependency behavior: each selected
-// item processes only its direct dependencies, without closure-wide deduplication.
-// Item-scoped recursive dependency execution lives in InstallResults and must not
-// alter scheduled/CLI convergence before the item-only activation gate is met.
+// Installs preserves the legacy direct-dependency behavior for package-level
+// compatibility. Production managed convergence uses InstallResults.
 func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	for _, itemName := range installs {
 		validItem, ok := firstItem(itemName, catalogsMap)
@@ -224,7 +222,8 @@ const (
 	visitDone
 )
 
-// Uninstalls prepares and then installs an array of items
+// Uninstalls preserves the legacy wrapper for package-level compatibility.
+// Production managed convergence uses UninstallResults.
 func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the uninstalls array and uninstall the item
 	for _, item := range uninstalls {
@@ -245,7 +244,8 @@ func UninstallResults(uninstalls []string, catalogsMap map[int]map[string]catalo
 	return actionResults(uninstalls, "uninstall", catalogsMap, urlPackages, cachePath, checkOnly)
 }
 
-// Updates prepares and then installs an array of items
+// Updates preserves the legacy wrapper for package-level compatibility.
+// Production managed convergence uses UpdateResults.
 func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
 	// Iterate through the updates array and update the item **if it is already installed**
 	for _, item := range updates {

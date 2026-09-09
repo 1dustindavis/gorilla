@@ -5,6 +5,7 @@ namespace Gorilla.UI.App.WindowsUiTests;
 public sealed class CriticalPathTests
 {
     private const string FixtureItemName = "Ps1V1";
+    private const string FailureFixtureItemName = "Ps1Failure";
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
@@ -43,6 +44,29 @@ public sealed class CriticalPathTests
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("after-remove");
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void DeliberateInstallerFailureIsDisplayedAsFailure()
+    {
+        RunWithDiagnostics(nameof(DeliberateInstallerFailureIsDisplayedAsFailure), session =>
+        {
+            var home = new HomePageDriver(session);
+
+            Assert.Equal("Available Software", home.Heading.Name);
+            _ = home.WaitForItem(FailureFixtureItemName);
+            home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled");
+            session.CaptureCheckpoint("failure-before-install", includeAutomationTree: true);
+
+            home.InstallButton(FailureFixtureItemName).Invoke();
+
+            home.WaitForWarningContaining("ended with Failed", TimeSpan.FromSeconds(60));
+            Assert.Contains("Intentional App Catalog E2E installer failure", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Succeeded", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
+            session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);
         });
     }
 

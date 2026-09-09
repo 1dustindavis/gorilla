@@ -53,6 +53,8 @@
                             Margin="12,0,0,0"
                             Content="Install"
                             Tag="{Binding ItemName}"
+                            IsEnabled="{Binding CanInstall}"
+                            ToolTipService.ToolTip="{Binding InstallUnavailableReason}"
                             Click="InstallButton_Click"
                             AutomationProperties.AutomationId="InstallButton" />
                         <Button
@@ -60,6 +62,8 @@
                             Margin="8,0,0,0"
                             Content="Remove"
                             Tag="{Binding ItemName}"
+                            IsEnabled="{Binding CanRemove}"
+                            ToolTipService.ToolTip="{Binding RemoveUnavailableReason}"
                             Click="RemoveButton_Click"
                             AutomationProperties.AutomationId="RemoveButton" />
                     </Grid>

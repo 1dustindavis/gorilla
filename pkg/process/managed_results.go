@@ -1,9 +1,6 @@
 package process
 
-import (
-	"github.com/1dustindavis/gorilla/pkg/catalog"
-	"github.com/1dustindavis/gorilla/pkg/installer"
-)
+import "github.com/1dustindavis/gorilla/pkg/catalog"
 
 // ManagedInstallResults preserves the legacy managed-run install semantics while
 // retaining structured per-item outcomes. Each selected item processes only its
@@ -22,10 +19,10 @@ func ManagedInstallResults(installs []string, catalogsMap map[int]map[string]cat
 			if !ok {
 				continue
 			}
-			result := installer.InstallResult(dependency, "install", urlPackages, cachePath, checkOnly)
+			result := installerInstallResult(dependency, "install", urlPackages, cachePath, checkOnly)
 			results = append(results, ItemResult{ItemName: dependencyName, Result: result})
 		}
-		result := installer.InstallResult(item, "install", urlPackages, cachePath, checkOnly)
+		result := installerInstallResult(item, "install", urlPackages, cachePath, checkOnly)
 		results = append(results, ItemResult{ItemName: itemName, Result: result})
 	}
 	return results

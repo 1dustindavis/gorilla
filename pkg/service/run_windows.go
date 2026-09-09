@@ -422,7 +422,7 @@ func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action st
 			Action:   appCatalogAction(action),
 		})
 
-		execution, err := sr.executeManagedItemRun(ctx, action, itemName, resp)
+		verified, err := sr.executeManagedItemOperation(ctx, action, itemName, resp)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				sr.appendOperationEvent(operationID, operationTerminalEvent(itemName, action, interruptedOperationResult()))
@@ -433,7 +433,6 @@ func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action st
 			return
 		}
 
-		verified := verifyManagedItemResult(sr.cfg, action, itemName, execution)
 		sr.appendOperationEvent(operationID, operationTerminalEvent(itemName, action, verified))
 	}()
 }

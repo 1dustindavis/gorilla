@@ -19,11 +19,11 @@ import (
 )
 
 var (
-	adminCheckFunc         = adminCheck
-	mkdirAllFunc           = os.MkdirAll
-	buildCatalogsFunc      = admin.BuildCatalogs
-	importItemFunc         = admin.ImportItem
-	managedResultWarnFunc  = gorillalog.Warn
+	adminCheckFunc        = adminCheck
+	mkdirAllFunc          = os.MkdirAll
+	buildCatalogsFunc     = admin.BuildCatalogs
+	importItemFunc        = admin.ImportItem
+	managedResultWarnFunc = gorillalog.Warn
 )
 
 func managedRun(cfg config.Configuration) error {

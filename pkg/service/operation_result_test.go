@@ -141,12 +141,12 @@ func TestClassifyRemoveOperationResult(t *testing.T) {
 			wantDetail: "script_requirement_satisfied",
 		},
 		{
-			name:       "item remains installed",
-			execution:  installer.Result{Outcome: installer.OutcomeSucceeded},
-			item:       installed,
-			selection:  cleared,
-			want:       appcatalog.Failed,
-			wantCode:   "postcondition_failed",
+			name:      "item remains installed",
+			execution: installer.Result{Outcome: installer.OutcomeSucceeded},
+			item:      installed,
+			selection: cleared,
+			want:      appcatalog.Failed,
+			wantCode:  "postcondition_failed",
 		},
 		{
 			name:       "install selection remains",

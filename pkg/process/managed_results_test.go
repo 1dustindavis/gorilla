@@ -133,12 +133,20 @@ func TestManagedActionResultsPreservesLegacyUpdateAndUninstallBoundary(t *testin
 	previous := installerInstallResult
 	t.Cleanup(func() { installerInstallResult = previous })
 
-	// Deliberately omit installer/uninstaller metadata. The newer item-scoped
-	// UpdateResults/UninstallResults APIs reject this shape as non-actionable, but
-	// the historical managed-run loops resolve the item and still invoke the
-	// installer boundary. This adapter must preserve that legacy behavior.
+	// Legacy Updates/Uninstalls resolve the catalog item first, then invoke the
+	// requested installer boundary even when only the opposite action's metadata
+	// made the item resolvable. The item-scoped result APIs apply stricter
+	// action-specific validation. Full-run result capture must not introduce that
+	// newer validation before the item-only activation gate.
 	catalogs := map[int]map[string]catalog.Item{1: {
-		"Legacy": {DisplayName: "Legacy"},
+		"UninstallOnly": {
+			DisplayName: "UninstallOnly",
+			Uninstaller: catalog.InstallerItem{Type: "msi", Location: "uninstall-only.msi"},
+		},
+		"InstallOnly": {
+			DisplayName: "InstallOnly",
+			Installer:   catalog.InstallerItem{Type: "msi", Location: "install-only.msi"},
+		},
 	}}
 
 	var actions []string
@@ -147,16 +155,16 @@ func TestManagedActionResultsPreservesLegacyUpdateAndUninstallBoundary(t *testin
 		return installer.Result{ItemName: item.DisplayName, Action: action, Outcome: installer.OutcomeSucceeded}
 	}
 
-	updates := ManagedActionResults([]string{"Missing", "Legacy"}, "update", catalogs, "", "", false)
-	uninstalls := ManagedActionResults([]string{"Legacy", "Missing"}, "uninstall", catalogs, "", "", false)
+	updates := ManagedActionResults([]string{"Missing", "UninstallOnly"}, "update", catalogs, "", "", false)
+	uninstalls := ManagedActionResults([]string{"InstallOnly", "Missing"}, "uninstall", catalogs, "", "", false)
 
-	if !reflect.DeepEqual(actions, []string{"update:Legacy", "uninstall:Legacy"}) {
+	if !reflect.DeepEqual(actions, []string{"update:UninstallOnly", "uninstall:InstallOnly"}) {
 		t.Fatalf("legacy action execution changed: %v", actions)
 	}
-	if len(updates) != 1 || updates[0].ItemName != "Legacy" || updates[0].Result.Action != "update" {
+	if len(updates) != 1 || updates[0].ItemName != "UninstallOnly" || updates[0].Result.Action != "update" {
 		t.Fatalf("unexpected managed update results: %+v", updates)
 	}
-	if len(uninstalls) != 1 || uninstalls[0].ItemName != "Legacy" || uninstalls[0].Result.Action != "uninstall" {
+	if len(uninstalls) != 1 || uninstalls[0].ItemName != "InstallOnly" || uninstalls[0].Result.Action != "uninstall" {
 		t.Fatalf("unexpected managed uninstall results: %+v", uninstalls)
 	}
 }

@@ -67,12 +67,20 @@ func classifyOperationResult(action, itemName string, execution installer.Result
 
 	switch action {
 	case actionInstallItem:
-		if !slices.Contains(selection.Installs, itemName) || slices.Contains(selection.Uninstalls, itemName) {
+		if !slices.Contains(selection.Installs, itemName) {
 			return operationResultPayload{
 				Outcome:    appcatalog.Failed,
 				Code:       "postcondition_failed",
 				DetailCode: "install_selection_not_persisted",
 				Message:    "Install selection was not persisted after the operation",
+			}
+		}
+		if slices.Contains(selection.Uninstalls, itemName) {
+			return operationResultPayload{
+				Outcome:    appcatalog.Failed,
+				Code:       "postcondition_failed",
+				DetailCode: "persistent_uninstall_present",
+				Message:    "Persistent local uninstall policy conflicts with the install selection",
 			}
 		}
 		switch item.Observation.InstallRequirement {

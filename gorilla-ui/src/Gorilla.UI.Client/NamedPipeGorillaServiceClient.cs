@@ -189,11 +189,16 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
                     TimestampUtc: eventEnvelope.TimestampUtc,
                     ErrorCode: eventEnvelope.Payload.ErrorCode,
                     ErrorMessage: eventEnvelope.Payload.ErrorMessage,
-                    CanceledBy: eventEnvelope.Payload.CanceledBy
+                    CanceledBy: eventEnvelope.Payload.CanceledBy,
+                    ItemName: eventEnvelope.Payload.ItemName,
+                    Action: eventEnvelope.Payload.Action,
+                    Result: eventEnvelope.Payload.Result
                 );
 
                 yield return ev;
-                ClientDiagnostics.Log($"stream:event operationId={ev.OperationId} state={ev.State} progress={ev.ProgressPercent}");
+                ClientDiagnostics.Log(
+                    $"stream:event operationId={ev.OperationId} itemName={ev.ItemName} action={ev.Action} state={ev.State} progress={ev.ProgressPercent} outcome={ev.Result?.Outcome}"
+                );
 
                 if (IsTerminal(ev.State))
                 {

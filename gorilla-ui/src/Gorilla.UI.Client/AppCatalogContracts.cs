@@ -1,4 +1,3 @@
-// Planned v2 payloads. The live v1 transport remains unchanged until stage 2/3.
 namespace Gorilla.UI.Client.AppCatalog;
 
 public enum ObservedState { Absent, Installed, UpdateAvailable, Unknown, DetectionFailed }
@@ -26,7 +25,12 @@ public sealed record Policy(
 
 public sealed record ActionDecision(bool Allowed, string Reason);
 public sealed record Actions(ActionDecision Install, ActionDecision Remove);
-public sealed record Result(Outcome Outcome, string Code);
+public sealed record Result(
+    Outcome Outcome,
+    string Code,
+    string? DetailCode = null,
+    string? Message = null
+);
 
 public sealed record Operation(
     string OperationId,

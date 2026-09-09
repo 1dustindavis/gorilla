@@ -119,9 +119,6 @@ func Manifests(manifests []manifest.Item, catalogsMap map[int]map[string]catalog
 	return
 }
 
-// This abstraction allows us to override when testing
-var installerInstall = installer.Install
-
 // ItemResult preserves the catalog key that was requested as well as the
 // installer outcome. Display names are presentation metadata and are not a
 // stable identifier for service operations.
@@ -131,25 +128,6 @@ type ItemResult struct {
 }
 
 var installerInstallResult = installer.InstallResult
-
-// Installs preserves the legacy direct-dependency behavior for package-level
-// compatibility. Production managed convergence uses InstallResults.
-func Installs(installs []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	for _, itemName := range installs {
-		validItem, ok := firstItem(itemName, catalogsMap)
-		if !ok {
-			continue
-		}
-		for _, dependency := range validItem.Dependencies {
-			validDependency, ok := firstItem(dependency, catalogsMap)
-			if !ok {
-				continue
-			}
-			installerInstall(validDependency, "install", urlPackages, cachePath, CheckOnly)
-		}
-		installerInstall(validItem, "install", urlPackages, cachePath, CheckOnly)
-	}
-}
 
 // InstallResults executes each requested item and its transitive dependencies
 // once, in dependency-first order. A parent is not executed when a dependency
@@ -222,42 +200,10 @@ const (
 	visitDone
 )
 
-// Uninstalls preserves the legacy wrapper for package-level compatibility.
-// Production managed convergence uses UninstallResults.
-func Uninstalls(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	// Iterate through the uninstalls array and uninstall the item
-	for _, item := range uninstalls {
-		// Get the first valid item from our catalogs
-		// Continue to the next item in the loop if we get an error
-		validItem, ok := firstItem(item, catalogsMap)
-		if !ok {
-			continue
-		}
-		// Uninstall the item
-		installerInstall(validItem, "uninstall", urlPackages, cachePath, CheckOnly)
-	}
-}
-
 // UninstallResults reports every selected uninstall attempt. It deliberately
 // does not infer success from the managed run as a whole.
 func UninstallResults(uninstalls []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
 	return actionResults(uninstalls, "uninstall", catalogsMap, urlPackages, cachePath, checkOnly)
-}
-
-// Updates preserves the legacy wrapper for package-level compatibility.
-// Production managed convergence uses UpdateResults.
-func Updates(updates []string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, CheckOnly bool) {
-	// Iterate through the updates array and update the item **if it is already installed**
-	for _, item := range updates {
-		// Get the first valid item from our catalogs
-		// Continue to the next item in the loop if we get an error
-		validItem, ok := firstItem(item, catalogsMap)
-		if !ok {
-			continue
-		}
-		// Update the item
-		installerInstall(validItem, "update", urlPackages, cachePath, CheckOnly)
-	}
 }
 
 // UpdateResults reports every selected update attempt. Dependency installation

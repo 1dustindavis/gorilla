@@ -71,8 +71,8 @@ func ManagedInstallResults(installs []string, catalogsMap map[int]map[string]cat
 
 // ManagedActionResults mirrors the legacy managed-run update/uninstall loops
 // while retaining structured results. It intentionally uses the same first-item
-// catalog lookup as Updates/Uninstalls rather than ResolveItem/actionableFor, so
-// result capture cannot introduce newer structural validation into a full run.
+// resolution as Updates/Uninstalls and does not add the action-specific
+// actionableFor validation used by item-scoped result APIs.
 func ManagedActionResults(items []string, action string, catalogsMap map[int]map[string]catalog.Item, urlPackages, cachePath string, checkOnly bool) []ItemResult {
 	results := make([]ItemResult, 0, len(items))
 	for _, itemName := range items {

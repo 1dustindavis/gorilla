@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core;
+using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
 using Gorilla.UI.Core.ViewModels;
 using Xunit;
@@ -20,10 +21,7 @@ public class HomeViewModelRecoveryTests
         var streamStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new FakeClient
         {
-            Operations =
-            [
-                ActiveOperation(),
-            ],
+            Operations = [ActiveOperation()],
             StreamAsync = (_, token) => ActiveStream(streamStarted, token),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
@@ -43,10 +41,9 @@ public class HomeViewModelRecoveryTests
     }
 
     [Fact]
-    public async Task RecoveredOperation_StreamFailuresThenActiveReconciliation_ContinuesUntilCompletion()
+    public async Task InstallAsync_StreamFailuresThenActiveReconciliation_ContinuesUntilCompletion()
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var completedProjected = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new FakeClient
         {
             Operations = [ActiveOperation()],
@@ -54,21 +51,31 @@ public class HomeViewModelRecoveryTests
         client.StreamAsync = (_, _) => client.StreamCalls switch
         {
             <= 2 => ThrowingStream(new IOException("pipe closed")),
-            _ => CompletedStream(completedProjected),
+            _ => CompletedStream(),
         };
 
         var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
         var viewModel = new HomeViewModel(client, coordinator, new OperationTracker(client));
+        var item = MakeUiItem();
 
-        await viewModel.InitializeAsync(cancellation.Token);
-        await completedProjected.Task.WaitAsync(cancellation.Token);
+        await viewModel.InstallAsync(item, cancellation.Token);
 
-        var item = Assert.Single(viewModel.Items);
         Assert.False(item.IsBusy);
         Assert.Equal("Succeeded: Installed", item.Status);
-        Assert.True(client.StreamCalls >= 3);
-        Assert.True(client.ListOperationsCalls >= 2);
+        Assert.Equal(3, client.StreamCalls);
+        Assert.Equal(1, client.ListOperationsCalls);
     }
+
+    private static UiOptionalInstallItem MakeUiItem() => new()
+    {
+        ItemName = "VLC",
+        DisplayName = "VLC",
+        Version = "1.0.0",
+        Status = "NotInstalled",
+        IsInstalled = false,
+        InstallAllowed = true,
+        RemoveAllowed = false,
+    };
 
     private static OperationStatusEvent ActiveOperation() => new(
         "op-1",
@@ -90,8 +97,9 @@ public class HomeViewModelRecoveryTests
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
-    private static async IAsyncEnumerable<OperationStatusEvent> CompletedStream(TaskCompletionSource<bool> projected)
+    private static async IAsyncEnumerable<OperationStatusEvent> CompletedStream()
     {
+        await Task.Yield();
         yield return new OperationStatusEvent(
             "op-1",
             OperationState.Completed,
@@ -102,8 +110,6 @@ public class HomeViewModelRecoveryTests
             AppCatalog.Action.Install,
             new Result(Outcome.Succeeded, "completed", Message: "Installed")
         );
-        projected.TrySetResult(true);
-        await Task.CompletedTask;
     }
 
     private static async IAsyncEnumerable<OperationStatusEvent> ThrowingStream(Exception exception)
@@ -157,7 +163,7 @@ public class HomeViewModelRecoveryTests
             ]);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
+            => Task.FromResult(new OperationAccepted("op-1", true, Now));
 
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();

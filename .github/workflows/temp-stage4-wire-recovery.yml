@@ -1,0 +1,63 @@
+name: Temporary Stage 4 recovery wiring
+
+on:
+  push:
+    branches:
+      - agent/app-catalog-stage4-recovery
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/app-catalog-stage4-recovery
+      - name: Wire recovery endpoints and remove this workflow
+        shell: pwsh
+        run: |
+          $clientPath = 'gorilla-ui/src/Gorilla.UI.Client/NamedPipeGorillaServiceClient.cs'
+          $client = Get-Content $clientPath -Raw
+          $client = $client.Replace(
+            'public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient',
+            'public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClient'
+          )
+          $client = $client.Replace(
+            'throw new InvalidOperationException("Stream ended before terminal status event was received.");',
+            'throw new IOException("Stream ended before terminal status event was received.");'
+          )
+          Set-Content $clientPath $client -NoNewline
+
+          $servicePath = 'pkg/service/run_windows.go'
+          $service = Get-Content $servicePath -Raw
+          if (-not $service.Contains('if req.Operation == actionListOperations')) {
+            $needle = "`n`tcmd, err := commandFromRequestEnvelope(req)"
+            $index = $service.IndexOf($needle)
+            if ($index -lt 0) { throw 'command mapping anchor not found' }
+            $insert = @'
+
+          // Operation lookup is read directly from the in-memory registry so UI
+          // recovery remains available while installer execution holds execMutex.
+          if req.Operation == actionListOperations {
+                  if err := sr.writeListOperationsResponse(file, req); err != nil {
+                          result = "error"
+                          gorillalog.Warn("failed to write operation lookup response:", err)
+                  } else {
+                          result = "ok"
+                  }
+                  return
+          }
+          '@
+            $service = $service.Insert($index, $insert)
+          }
+          Set-Content $servicePath $service -NoNewline
+          gofmt -w $servicePath
+
+          git rm .github/workflows/temp-stage4-wire-recovery.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $clientPath $servicePath
+          git commit -m "Wire in-memory operation recovery"
+          git push origin HEAD:agent/app-catalog-stage4-recovery

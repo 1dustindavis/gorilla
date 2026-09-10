@@ -12,6 +12,7 @@ namespace Gorilla.UI.Core.ViewModels;
 
 public sealed class HomeViewModel : INotifyPropertyChanged
 {
+    private static readonly TimeSpan RecoveryRetryDelay = TimeSpan.FromSeconds(1);
     private readonly IGorillaServiceClient _client;
     private readonly OptionalInstallsCacheCoordinator _cacheCoordinator;
     private readonly OptionalInstallsStartupLoader _startupLoader;
@@ -165,50 +166,60 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         UiOptionalInstallItem? initiatingItem = null
     )
     {
-        var completedObserved = false;
-        try
+        while (true)
         {
-            await _operationTracker.TrackAsync(
-                operationId,
-                update =>
+            var completedObserved = false;
+            try
+            {
+                await _operationTracker.TrackAsync(
+                    operationId,
+                    update =>
+                    {
+                        ValidateOperationIdentity(itemName, expectedAction, update);
+                        ProjectOperation(update, initiatingItem);
+                        completedObserved |= update.State == OperationState.Completed;
+                    },
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (InvalidOperationException ex)
+            {
+                // A malformed or mismatched service event is a protocol/status error,
+                // not evidence that the service restarted or forgot the operation.
+                WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
+                return;
+            }
+            catch (Exception ex)
+            {
+                var continueTracking = await ReconcileTrackingLossAsync(
+                    operationId,
+                    itemName,
+                    displayName,
+                    expectedAction,
+                    $"{streamFailurePrefix}: {ex.Message}",
+                    cancellationToken,
+                    initiatingItem
+                );
+                if (continueTracking)
                 {
-                    ValidateOperationIdentity(itemName, expectedAction, update);
-                    ProjectOperation(update, initiatingItem);
-                    completedObserved |= update.State == OperationState.Completed;
-                },
-                cancellationToken
-            );
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (InvalidOperationException ex)
-        {
-            // A malformed or mismatched service event is a protocol/status error,
-            // not evidence that the service restarted or forgot the operation.
-            WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
-            return;
-        }
-        catch (Exception ex)
-        {
-            await ReconcileTrackingLossAsync(
-                operationId,
-                itemName,
-                displayName,
-                expectedAction,
-                $"{streamFailurePrefix}: {ex.Message}",
-                cancellationToken
-            );
-            return;
-        }
+                    await Task.Delay(RecoveryRetryDelay, cancellationToken);
+                    continue;
+                }
+                return;
+            }
 
-        if (!completedObserved)
-        {
+            if (!completedObserved)
+            {
+                return;
+            }
+
+            await RefreshCatalogAfterOperationAsync(cancellationToken);
             return;
         }
-
-        await RefreshCatalogAfterOperationAsync(cancellationToken);
     }
 
     private void StartRecoveredTracking(OperationStatusEvent operation, CancellationToken cancellationToken)
@@ -247,13 +258,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ReconcileTrackingLossAsync(
+    private async Task<bool> ReconcileTrackingLossAsync(
         string operationId,
         string itemName,
         string displayName,
         AppCatalog.Action expectedAction,
         string uncertaintyMessage,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        UiOptionalInstallItem? fallbackItem = null
     )
     {
         try
@@ -262,19 +274,20 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
             {
                 ValidateOperationIdentity(itemName, expectedAction, latest);
-                ProjectOperation(latest);
+                ProjectOperation(latest, fallbackItem);
                 if (latest.State == OperationState.Completed)
                 {
                     await RefreshCatalogAfterOperationAsync(cancellationToken);
-                    return;
+                    return false;
                 }
 
                 WarningBanner = uncertaintyMessage;
-                return;
+                return true;
             }
 
             WarningBanner = $"Operation tracking for {displayName} is no longer available. The service may have restarted; current installation state will be refreshed without assuming the previous operation succeeded or failed.";
             await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
+            return false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -283,6 +296,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             WarningBanner = $"{uncertaintyMessage}. Reconciliation also failed: {ex.Message}";
+            return false;
         }
     }
 

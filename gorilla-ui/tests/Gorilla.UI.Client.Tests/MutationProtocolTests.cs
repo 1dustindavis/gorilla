@@ -37,6 +37,7 @@ public class MutationProtocolTests
     [InlineData(typeof(IOException), true)]
     [InlineData(typeof(TimeoutException), true)]
     [InlineData(typeof(OperationCanceledException), true)]
+    [InlineData(typeof(JsonException), true)]
     [InlineData(typeof(InvalidOperationException), false)]
     public void MutationRetry_OnlyTreatsTransportUncertaintyAsRetryable(Type exceptionType, bool expected)
     {

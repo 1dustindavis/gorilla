@@ -61,12 +61,20 @@ public static class ProtocolValidation
             throw new ProtocolValidationException("action is required for operation status events.");
         }
 
-        if (payload.State == OperationState.Completed && payload.Result is null)
+        if (payload.State == OperationState.Completed)
         {
-            throw new ProtocolValidationException("result is required when state is Completed.");
+            if (payload.Result is null)
+            {
+                throw new ProtocolValidationException("result is required when state is Completed.");
+            }
+            if (string.IsNullOrWhiteSpace(payload.Result.Code))
+            {
+                throw new ProtocolValidationException("result.code is required when state is Completed.");
+            }
+            return;
         }
 
-        if (payload.State != OperationState.Completed && payload.Result is not null)
+        if (payload.Result is not null)
         {
             throw new ProtocolValidationException("result is only allowed when state is Completed.");
         }

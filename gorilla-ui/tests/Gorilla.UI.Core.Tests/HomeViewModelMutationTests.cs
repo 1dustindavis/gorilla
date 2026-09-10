@@ -100,7 +100,7 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task RemoveAsync_StreamFailure_UsesRemoveSpecificWarningAndDoesNotRefresh()
+    public async Task RemoveAsync_StreamFailure_ReconcilesTrackingLossAndRefreshesObservation()
     {
         var client = new FakeClient
         {
@@ -110,9 +110,10 @@ public class HomeViewModelMutationTests
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC", installed: true);
         await viewModel.RemoveAsync(item, CancellationToken.None);
-        Assert.Contains("Remove queued, but live status stream failed:", viewModel.WarningBanner);
-        Assert.Contains("pipe closed", viewModel.WarningBanner);
-        Assert.Equal(0, client.ListCalls);
+        Assert.Contains("Operation tracking for VLC is no longer available.", viewModel.WarningBanner);
+        Assert.Contains("without assuming the previous operation succeeded or failed", viewModel.WarningBanner);
+        Assert.Equal(3, client.StreamCalls);
+        Assert.Equal(1, client.ListCalls);
         Assert.False(item.IsBusy);
     }
 

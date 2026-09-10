@@ -49,6 +49,61 @@ public sealed class CriticalPathTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
+    public void InstalledAndRemovedStateSurvivesAppRelaunch()
+    {
+        var markerPath = RequiredPath("GORILLA_UI_E2E_MARKER_PATH");
+
+        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-install", session =>
+        {
+            var home = new HomePageDriver(session);
+
+            Assert.Equal("Available Software", home.Heading.Name);
+            _ = home.WaitForItem(FixtureItemName);
+            home.WaitForItemStatus(FixtureItemName, "NotInstalled");
+            Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
+
+            home.InstallButton(FixtureItemName).Invoke();
+
+            session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
+            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+            Assert.False(home.HasOperationFailureText());
+            session.CaptureCheckpoint("reopen-after-install-before-close", includeAutomationTree: true);
+        });
+
+        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-verify-installed", session =>
+        {
+            var home = new HomePageDriver(session);
+
+            Assert.Equal("Available Software", home.Heading.Name);
+            _ = home.WaitForItem(FixtureItemName);
+            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+            Assert.True(File.Exists(markerPath), $"Fixture marker should remain present after UI relaunch: {markerPath}");
+            Assert.False(home.HasOperationFailureText());
+            session.CaptureCheckpoint("reopen-installed", includeAutomationTree: true);
+
+            home.RemoveButton(FixtureItemName).Invoke();
+
+            session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(60));
+            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
+            Assert.False(home.HasOperationFailureText());
+            session.CaptureCheckpoint("reopen-after-remove-before-close", includeAutomationTree: true);
+        });
+
+        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-verify-removed", session =>
+        {
+            var home = new HomePageDriver(session);
+
+            Assert.Equal("Available Software", home.Heading.Name);
+            _ = home.WaitForItem(FixtureItemName);
+            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
+            Assert.False(File.Exists(markerPath), $"Fixture marker should remain absent after UI relaunch: {markerPath}");
+            Assert.False(home.HasOperationFailureText());
+            session.CaptureCheckpoint("reopen-not-installed", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
     public void DeliberateInstallerFailureIsDisplayedAsFailure()
     {
         RunWithDiagnostics(nameof(DeliberateInstallerFailureIsDisplayedAsFailure), session =>

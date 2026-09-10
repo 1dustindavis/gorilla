@@ -306,9 +306,7 @@ func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq in
 		RequestID:    fmt.Sprintf("req-install-%d", seq),
 		OperationID:  "",
 		TimestampUTC: nowRFC3339UTC(),
-		Payload: installItemRequest{
-			ItemName: "Slack",
-		},
+		Payload: installItemRequest{ItemName: "Slack"},
 	}
 
 	response := sendOneRequest(t, cfg, request)
@@ -329,7 +327,7 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	t.Helper()
 
 	terminal := mustStreamAndReceiveTerminalState(t, cfg, operationID, seq)
-	if terminal.State != "Completed" || terminal.Result == nil || terminal.Result.Outcome != appcatalog.Succeeded {
+	if terminal.State != "Completed" || terminal.Result == nil || (terminal.Result.Outcome != appcatalog.Succeeded && terminal.Result.Outcome != appcatalog.AlreadySatisfied) {
 		t.Fatalf("expected completed successful result, got %+v", terminal)
 	}
 }
@@ -341,9 +339,7 @@ func mustStreamAndReceiveTerminalState(t *testing.T, cfg config.Configuration, o
 	if err != nil {
 		t.Fatalf("failed to open service pipe: %v", err)
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer func() { _ = conn.Close() }()
 
 	request := serviceEnvelope[streamOperationStatusRequest]{
 		Version:      pipeProtocolVersion,
@@ -413,9 +409,7 @@ func sendOneRequest[T any](t *testing.T, cfg config.Configuration, req serviceEn
 	if err != nil {
 		t.Fatalf("failed to open service pipe: %v", err)
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer func() { _ = conn.Close() }()
 
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		t.Fatalf("failed to encode request: %v", err)

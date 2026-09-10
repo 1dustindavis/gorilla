@@ -117,7 +117,7 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
             return false;
         }
 
-        return ex is IOException or TimeoutException or OperationCanceledException;
+        return ex is IOException or TimeoutException or OperationCanceledException or JsonException;
     }
 
     public async IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(

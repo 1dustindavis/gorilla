@@ -655,7 +655,7 @@ func (sr *serviceRunner) appendOperationEvent(operationID string, event operatio
 	now := time.Now()
 	op.events = append(op.events, event)
 	op.lastUpdated = now
-	if event.State == "Succeeded" || event.State == "Failed" || event.State == "Canceled" {
+	if event.State == "Completed" {
 		op.done = true
 		op.completedAt = now
 	}

@@ -48,17 +48,35 @@ public static class ProtocolValidation
     {
         if (payload.ProgressPercent is < 0 or > 100)
         {
-            throw new ProtocolValidationException("progressPercent must be between 0 and 100.");
+            throw new ProtocolValidationException("progressPercent must be between 0 and 100 when provided.");
         }
 
-        if (payload.State == OperationState.Failed && string.IsNullOrWhiteSpace(payload.ErrorMessage))
+        if (string.IsNullOrWhiteSpace(payload.ItemName))
         {
-            throw new ProtocolValidationException("errorMessage is required when state is Failed.");
+            throw new ProtocolValidationException("itemName is required for operation status events.");
         }
 
-        if (payload.State == OperationState.Canceled && string.IsNullOrWhiteSpace(payload.CanceledBy))
+        if (payload.Action is null)
         {
-            throw new ProtocolValidationException("canceledBy is required when state is Canceled.");
+            throw new ProtocolValidationException("action is required for operation status events.");
+        }
+
+        if (payload.State == OperationState.Completed)
+        {
+            if (payload.Result is null)
+            {
+                throw new ProtocolValidationException("result is required when state is Completed.");
+            }
+            if (string.IsNullOrWhiteSpace(payload.Result.Code))
+            {
+                throw new ProtocolValidationException("result.code is required when state is Completed.");
+            }
+            return;
+        }
+
+        if (payload.Result is not null)
+        {
+            throw new ProtocolValidationException("result is only allowed when state is Completed.");
         }
     }
 

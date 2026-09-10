@@ -15,11 +15,13 @@ public class ContractsSmokeTests
     }
 
     [Fact]
-    public void OperationState_HasTerminalValues()
+    public void OperationState_UsesCompletedAsSoleTerminalState()
     {
-        Assert.Contains(OperationState.Succeeded, Enum.GetValues<OperationState>());
-        Assert.Contains(OperationState.Failed, Enum.GetValues<OperationState>());
-        Assert.Contains(OperationState.Canceled, Enum.GetValues<OperationState>());
+        var states = Enum.GetValues<OperationState>();
+        Assert.Contains(OperationState.Completed, states);
+        Assert.DoesNotContain("Succeeded", states.Select(state => state.ToString()));
+        Assert.DoesNotContain("Failed", states.Select(state => state.ToString()));
+        Assert.DoesNotContain("Canceled", states.Select(state => state.ToString()));
     }
 
     [Fact]
@@ -100,7 +102,6 @@ public class ContractsSmokeTests
         );
 
         var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateEnvelopeHeader(envelope));
-
         Assert.Contains("Unsupported operation", ex.Message);
     }
 
@@ -110,64 +111,41 @@ public class ContractsSmokeTests
         var payload = new OperationStatusEventPayload(
             State: OperationState.Downloading,
             ProgressPercent: 101,
-            Message: "Downloading package"
+            Message: "Downloading package",
+            ItemName: "Example",
+            Action: Gorilla.UI.Client.AppCatalog.Action.Install
         );
 
         var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateStatusEvent(payload));
-
         Assert.Contains("progressPercent", ex.Message);
     }
 
     [Fact]
     public void ValidateOperationAccepted_RejectsMissingOperationIdWhenAccepted()
     {
-        var payload = new OperationAcceptedResponse(
-            Accepted: true,
-            QueuedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z")
-        );
-
-        var ex = Assert.Throws<ProtocolValidationException>(
-            () => ProtocolValidation.ValidateOperationAccepted(string.Empty, payload)
-        );
-
+        var payload = new OperationAcceptedResponse(true, DateTimeOffset.Parse("2026-02-14T18:10:00Z"));
+        var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateOperationAccepted(string.Empty, payload));
         Assert.Contains("operationId", ex.Message);
     }
 
     [Fact]
     public void ValidateOperationAccepted_RejectsMissingQueuedAtUtcWhenAccepted()
     {
-        var payload = new OperationAcceptedResponse(
-            Accepted: true,
-            QueuedAtUtc: default
-        );
-
-        var ex = Assert.Throws<ProtocolValidationException>(
-            () => ProtocolValidation.ValidateOperationAccepted("op-1", payload)
-        );
-
+        var payload = new OperationAcceptedResponse(true, default);
+        var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateOperationAccepted("op-1", payload));
         Assert.Contains("queuedAtUtc", ex.Message);
     }
 
     [Fact]
     public void ValidateOperationAccepted_AllowsCompleteAcceptedResponse()
     {
-        var payload = new OperationAcceptedResponse(
-            Accepted: true,
-            QueuedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z")
-        );
-
-        ProtocolValidation.ValidateOperationAccepted("op-1", payload);
+        ProtocolValidation.ValidateOperationAccepted("op-1", new OperationAcceptedResponse(true, DateTimeOffset.Parse("2026-02-14T18:10:00Z")));
     }
 
     [Fact]
     public void ValidateOperationAccepted_AllowsRejectedResponseWithoutOperationMetadata()
     {
-        var payload = new OperationAcceptedResponse(
-            Accepted: false,
-            QueuedAtUtc: default
-        );
-
-        ProtocolValidation.ValidateOperationAccepted(string.Empty, payload);
+        ProtocolValidation.ValidateOperationAccepted(string.Empty, new OperationAcceptedResponse(false, default));
     }
 
     [Fact]

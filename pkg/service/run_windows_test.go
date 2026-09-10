@@ -184,11 +184,11 @@ func TestStreamOperationStatusFailedLifecycle(t *testing.T) {
 
 	operationID := mustInstallAndGetOperationID(t, cfg, 0)
 	terminal := mustStreamAndReceiveTerminalState(t, cfg, operationID, 0)
-	if terminal.State != "Failed" {
-		t.Fatalf("expected terminal state Failed, got %s", terminal.State)
+	if terminal.State != "Completed" {
+		t.Fatalf("expected terminal state Completed, got %s", terminal.State)
 	}
-	if terminal.ErrorCode != "managed_run_failed" {
-		t.Fatalf("expected errorCode managed_run_failed, got %s", terminal.ErrorCode)
+	if terminal.Result == nil || terminal.Result.Outcome != appcatalog.Failed || terminal.Result.DetailCode != "managed_run_failed" {
+		t.Fatalf("expected structured managed-run failure, got %+v", terminal.Result)
 	}
 }
 
@@ -203,7 +203,7 @@ func stubOptionalSlack(t *testing.T) {
 	)
 }
 
-func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
+func TestScheduleRunAfterMutationEmitsInterruptedResult(t *testing.T) {
 	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
 	operationID := "op-canceled"
 	sr.registerTrackedOperation(operationID)
@@ -222,11 +222,11 @@ func TestScheduleRunAfterMutationEmitsCanceledTerminalEvent(t *testing.T) {
 		t.Fatalf("expected tracked operation to be marked done")
 	}
 	last := events[len(events)-1]
-	if last.State != "Canceled" {
-		t.Fatalf("expected terminal state Canceled, got %s", last.State)
+	if last.State != "Completed" {
+		t.Fatalf("expected terminal state Completed, got %s", last.State)
 	}
-	if last.CanceledBy != "service" {
-		t.Fatalf("expected canceledBy=service, got %s", last.CanceledBy)
+	if last.Result == nil || last.Result.Outcome != appcatalog.Interrupted || last.Result.DetailCode != "service_canceled" {
+		t.Fatalf("expected structured interrupted result, got %+v", last.Result)
 	}
 }
 
@@ -329,8 +329,8 @@ func mustStreamAndReceiveTerminalEvent(t *testing.T, cfg config.Configuration, o
 	t.Helper()
 
 	terminal := mustStreamAndReceiveTerminalState(t, cfg, operationID, seq)
-	if terminal.State != "Succeeded" {
-		t.Fatalf("expected terminal state Succeeded, got %s", terminal.State)
+	if terminal.State != "Completed" || terminal.Result == nil || (terminal.Result.Outcome != appcatalog.Succeeded && terminal.Result.Outcome != appcatalog.AlreadySatisfied) {
+		t.Fatalf("expected completed successful result, got %+v", terminal)
 	}
 }
 
@@ -391,7 +391,7 @@ func mustStreamAndReceiveTerminalState(t *testing.T, cfg config.Configuration, o
 			t.Fatalf("expected stream event operationId=%s, got %s", operationID, event.OperationID)
 		}
 		states = append(states, event.Payload.State)
-		if event.Payload.State == "Succeeded" || event.Payload.State == "Failed" || event.Payload.State == "Canceled" {
+		if event.Payload.State == "Completed" {
 			terminal = event.Payload
 			break
 		}
@@ -444,14 +444,14 @@ func TestTrackedOperationPruningDropsOldCompletedEntries(t *testing.T) {
 	for i := 0; i < trackedOperationsMaxCount+50; i++ {
 		id := fmt.Sprintf("done-%d", i)
 		sr.operations[id] = &trackedOperation{
-			events:      []operationStatusEventPayload{{State: "Succeeded", ProgressPercent: 100, Message: "done"}},
+			events:      []operationStatusEventPayload{{State: "Completed", Message: "done"}},
 			done:        true,
 			lastUpdated: now.Add(-time.Duration(i) * time.Minute),
 			completedAt: now.Add(-time.Duration(i) * time.Minute),
 		}
 	}
 	sr.operations["active-op"] = &trackedOperation{
-		events:      []operationStatusEventPayload{{State: "Installing", ProgressPercent: 60, Message: "running"}},
+		events:      []operationStatusEventPayload{{State: "Installing", Message: "running"}},
 		done:        false,
 		lastUpdated: now,
 	}

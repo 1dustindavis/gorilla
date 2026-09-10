@@ -21,11 +21,11 @@ public sealed record StreamOperationStatusResponse(bool StreamAccepted);
 
 public sealed record OperationStatusEventPayload(
     OperationState State,
-    int ProgressPercent,
+    int? ProgressPercent,
     string Message,
-    string? ErrorCode = null,
-    string? ErrorMessage = null,
-    string? CanceledBy = null
+    string? ItemName = null,
+    AppCatalog.Action? Action = null,
+    AppCatalog.Result? Result = null
 );
 
 public sealed record ErrorResponse(

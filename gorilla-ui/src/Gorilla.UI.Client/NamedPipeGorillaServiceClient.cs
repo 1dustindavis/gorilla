@@ -187,23 +187,25 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
                     ProgressPercent: eventEnvelope.Payload.ProgressPercent,
                     Message: eventEnvelope.Payload.Message,
                     TimestampUtc: eventEnvelope.TimestampUtc,
-                    ErrorCode: eventEnvelope.Payload.ErrorCode,
-                    ErrorMessage: eventEnvelope.Payload.ErrorMessage,
-                    CanceledBy: eventEnvelope.Payload.CanceledBy
+                    ItemName: eventEnvelope.Payload.ItemName!,
+                    Action: eventEnvelope.Payload.Action!.Value,
+                    Result: eventEnvelope.Payload.Result
                 );
 
                 yield return ev;
-                ClientDiagnostics.Log($"stream:event operationId={ev.OperationId} state={ev.State} progress={ev.ProgressPercent}");
+                ClientDiagnostics.Log(
+                    $"stream:event operationId={ev.OperationId} itemName={ev.ItemName} action={ev.Action} state={ev.State} progress={ev.ProgressPercent} outcome={ev.Result?.Outcome}"
+                );
 
-                if (IsTerminal(ev.State))
+                if (ev.State == OperationState.Completed)
                 {
-                    ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} terminalState={ev.State}");
+                    ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} outcome={ev.Result!.Outcome}");
                     completed = true;
                     terminalState = ev.State.ToString();
-                    result = ev.State switch
+                    result = ev.Result.Outcome switch
                     {
-                        OperationState.Succeeded => "ok",
-                        OperationState.Canceled => "canceled",
+                        AppCatalog.Outcome.Succeeded or AppCatalog.Outcome.AlreadySatisfied => "ok",
+                        AppCatalog.Outcome.Interrupted => "canceled",
                         _ => "error"
                     };
                     yield break;
@@ -217,23 +219,11 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
                 result = "canceled";
             }
 
-            if (completed)
-            {
-                ClientDiagnostics.Log(
-                    $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
-                );
-            }
-            else
-            {
-                ClientDiagnostics.Log(
-                    $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
-                );
-            }
+            ClientDiagnostics.Log(
+                $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
+            );
         }
     }
-
-    private static bool IsTerminal(OperationState state) =>
-        state is OperationState.Succeeded or OperationState.Failed or OperationState.Canceled;
 
     private static ServiceEnvelope<TPayload> CreateRequestEnvelope<TPayload>(
         string operation,

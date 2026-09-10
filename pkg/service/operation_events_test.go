@@ -17,28 +17,31 @@ func TestOperationTerminalEventCarriesStructuredResultWithoutSyntheticProgress(t
 	}
 	event := operationTerminalEvent("Example", actionInstallItem, result)
 
-	if event.State != "Failed" || event.ItemName != "Example" || event.Action != appcatalog.InstallAction || event.Result == nil {
+	if event.State != "Completed" || event.ItemName != "Example" || event.Action != appcatalog.InstallAction || event.Result == nil {
 		t.Fatalf("terminal event lost operation identity/result: %+v", event)
 	}
 	if event.Result.Outcome != appcatalog.Unverified || event.Result.Code != "verification_unavailable" {
 		t.Fatalf("unexpected structured result: %+v", event.Result)
-	}
-	if event.ErrorCode != "check_failed" {
-		t.Fatalf("legacy error code should preserve actionable detail, got %q", event.ErrorCode)
 	}
 
 	encoded, err := json.Marshal(event)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(encoded), "progressPercent") {
-		t.Fatalf("unmeasured progress must be omitted from transitional v1 event: %s", encoded)
+	encodedText := string(encoded)
+	if strings.Contains(encodedText, "progressPercent") {
+		t.Fatalf("unmeasured progress must be omitted from event: %s", encodedText)
+	}
+	for _, legacyField := range []string{"errorCode", "errorMessage", "canceledBy"} {
+		if strings.Contains(encodedText, legacyField) {
+			t.Fatalf("legacy terminal field %q must not be emitted: %s", legacyField, encodedText)
+		}
 	}
 }
 
-func TestInterruptedOperationMapsToCanceledCompatibilityState(t *testing.T) {
+func TestInterruptedOperationUsesCompletedWithStructuredOutcome(t *testing.T) {
 	event := operationTerminalEvent("Example", actionRemoveItem, interruptedOperationResult())
-	if event.State != "Canceled" || event.CanceledBy != "service" || event.Result == nil || event.Result.Outcome != appcatalog.Interrupted || event.Result.Code != "execution_interrupted" {
+	if event.State != "Completed" || event.Result == nil || event.Result.Outcome != appcatalog.Interrupted || event.Result.Code != "execution_interrupted" {
 		t.Fatalf("unexpected interrupted event: %+v", event)
 	}
 }

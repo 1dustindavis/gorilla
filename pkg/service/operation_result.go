@@ -86,10 +86,10 @@ func classifyOperationResult(action, itemName string, execution installer.Result
 		switch item.Observation.InstallRequirement {
 		case appcatalog.RequirementSatisfied:
 			if execution.Outcome == installer.OutcomeSucceeded {
-				return operationResultPayload{Outcome: appcatalog.Succeeded, Message: "Install requirement is satisfied"}
+				return operationResultPayload{Outcome: appcatalog.Succeeded, Code: "succeeded", Message: "Install requirement is satisfied"}
 			}
 			if execution.Outcome == installer.OutcomeAlreadyCurrent || execution.Outcome == "" {
-				return operationResultPayload{Outcome: appcatalog.AlreadySatisfied, Message: "Install requirement was already satisfied"}
+				return operationResultPayload{Outcome: appcatalog.AlreadySatisfied, Code: "already_satisfied", Message: "Install requirement was already satisfied"}
 			}
 			return operationResultPayload{Outcome: appcatalog.Unverified, Code: "execution_unknown", Message: "Install requirement is satisfied but execution evidence is unknown"}
 		case appcatalog.RequirementNotSatisfied:
@@ -132,10 +132,10 @@ func classifyOperationResult(action, itemName string, execution installer.Result
 		switch item.Observation.State {
 		case appcatalog.Absent:
 			if execution.Outcome == installer.OutcomeSucceeded {
-				return operationResultPayload{Outcome: appcatalog.Succeeded, Message: "Item is absent and local selection is cleared"}
+				return operationResultPayload{Outcome: appcatalog.Succeeded, Code: "succeeded", Message: "Item is absent and local selection is cleared"}
 			}
 			if execution.Outcome == installer.OutcomeAlreadyCurrent || execution.Outcome == "" {
-				return operationResultPayload{Outcome: appcatalog.AlreadySatisfied, Message: "Item was already absent and local selection is cleared"}
+				return operationResultPayload{Outcome: appcatalog.AlreadySatisfied, Code: "already_satisfied", Message: "Item was already absent and local selection is cleared"}
 			}
 			return operationResultPayload{Outcome: appcatalog.Unverified, Code: "execution_unknown", Message: "Remove postcondition is satisfied but execution evidence is unknown"}
 		case appcatalog.Unknown, appcatalog.DetectionFailed:

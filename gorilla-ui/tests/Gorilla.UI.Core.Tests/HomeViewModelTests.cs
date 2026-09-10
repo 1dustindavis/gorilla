@@ -1,9 +1,11 @@
 using Gorilla.UI.Client;
+using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
 using Gorilla.UI.Core.ViewModels;
 using Xunit;
+using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.Core.Tests;
 
@@ -52,8 +54,9 @@ public class HomeViewModelTests
         {
             InstallAsync = (itemName, _) => Task.FromResult(new OperationAccepted("op-1", true, Now)),
             StreamAsync = (_, _) => Stream(
-                new OperationStatusEvent("op-1", OperationState.Installing, 50, "Installing", Now),
-                new OperationStatusEvent("op-1", OperationState.Succeeded, 100, "Installed", Now)
+                new OperationStatusEvent("op-1", OperationState.Installing, 50, "Installing", Now, "VLC", AppCatalog.Action.Install),
+                new OperationStatusEvent("op-1", OperationState.Completed, null, "Installed", Now, "VLC", AppCatalog.Action.Install,
+                    new Result(Outcome.Succeeded, "completed", Message: "Installed"))
             ),
             ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", true)]),
         };
@@ -80,8 +83,9 @@ public class HomeViewModelTests
         {
             RemoveAsync = (itemName, _) => Task.FromResult(new OperationAccepted("op-2", true, Now)),
             StreamAsync = (_, _) => Stream(
-                new OperationStatusEvent("op-2", OperationState.Removing, 50, "Removing", Now),
-                new OperationStatusEvent("op-2", OperationState.Succeeded, 100, "Removed", Now)
+                new OperationStatusEvent("op-2", OperationState.Removing, 50, "Removing", Now, "VLC", AppCatalog.Action.Remove),
+                new OperationStatusEvent("op-2", OperationState.Completed, null, "Removed", Now, "VLC", AppCatalog.Action.Remove,
+                    new Result(Outcome.Succeeded, "completed", Message: "Removed"))
             ),
             ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", false)]),
         };
@@ -106,7 +110,8 @@ public class HomeViewModelTests
         {
             InstallAsync = (itemName, _) => Task.FromResult(new OperationAccepted("op-1", true, Now)),
             StreamAsync = (_, _) => Stream(
-                new OperationStatusEvent("op-1", OperationState.Failed, 40, "Install failed", Now, "installer_failed", "exit code 1")
+                new OperationStatusEvent("op-1", OperationState.Completed, null, "Install failed", Now, "VLC", AppCatalog.Action.Install,
+                    new Result(Outcome.Failed, "execution_failed", "installer_failed", "exit code 1"))
             ),
             ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", false)]),
         };
@@ -129,7 +134,8 @@ public class HomeViewModelTests
         {
             InstallAsync = (itemName, _) => Task.FromResult(new OperationAccepted("op-1", true, Now)),
             StreamAsync = (_, _) => Stream(
-                new OperationStatusEvent("op-1", OperationState.Succeeded, 100, "Installed", Now)
+                new OperationStatusEvent("op-1", OperationState.Completed, null, "Installed", Now, "VLC", AppCatalog.Action.Install,
+                    new Result(Outcome.Succeeded, "completed", Message: "Installed"))
             ),
             ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("refresh unavailable")),
         };

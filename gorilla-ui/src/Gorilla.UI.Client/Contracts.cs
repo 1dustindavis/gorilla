@@ -7,9 +7,7 @@ public enum OperationState
     Downloading,
     Installing,
     Removing,
-    Succeeded,
-    Failed,
-    Canceled,
+    Completed,
 }
 
 public enum OptionalInstallStatus
@@ -50,12 +48,12 @@ public sealed record OperationAccepted(
 public sealed record OperationStatusEvent(
     string OperationId,
     OperationState State,
-    int ProgressPercent,
+    int? ProgressPercent,
     string Message,
     DateTimeOffset TimestampUtc,
-    string? ErrorCode = null,
-    string? ErrorMessage = null,
-    string? CanceledBy = null
+    string ItemName,
+    AppCatalog.Action Action,
+    AppCatalog.Result? Result = null
 );
 
 public interface IGorillaServiceClient

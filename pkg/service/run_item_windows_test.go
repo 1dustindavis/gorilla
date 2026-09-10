@@ -66,7 +66,7 @@ func TestScheduleRunAfterMutationCarriesVerifiedRequestedItemResult(t *testing.T
 		}
 	}
 	terminal := events[len(events)-1]
-	if terminal.State != "Succeeded" || terminal.Result == nil || terminal.Result.Outcome != appcatalog.Succeeded {
+	if terminal.State != "Completed" || terminal.Result == nil || terminal.Result.Outcome != appcatalog.Succeeded {
 		t.Fatalf("unexpected terminal result: %+v", terminal)
 	}
 }
@@ -121,7 +121,7 @@ func TestExecuteManagedItemOperationSerializesVerificationWithExecution(t *testi
 	}
 }
 
-func TestExecuteManagedItemOperationFallsBackToLegacyManagedRun(t *testing.T) {
+func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
 	stubOptionalCatalog(t,
 		[]manifest.Item{{OptionalInstalls: []string{"Example"}}},
@@ -149,7 +149,7 @@ func TestExecuteManagedItemOperationFallsBackToLegacyManagedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !called {
-		t.Fatal("legacy managed run fallback was not called")
+		t.Fatal("managed run fallback was not called")
 	}
 	if result.Outcome != appcatalog.AlreadySatisfied {
 		t.Fatalf("fallback full run should rely on verified no-op evidence, got %+v", result)

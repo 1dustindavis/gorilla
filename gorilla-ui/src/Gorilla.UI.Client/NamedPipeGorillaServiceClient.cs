@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Gorilla.UI.Client;
 
-public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
+public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClient
 {
     private const int MutationAttemptLimit = 2;
     private readonly NamedPipeClientOptions _options;
@@ -190,7 +190,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
                 ClientDiagnostics.Log($"stream:event:raw {TruncateForLog(line)}");
                 if (line is null)
                 {
-                    throw new InvalidOperationException("Stream ended before terminal status event was received.");
+                    throw new IOException("Stream ended before terminal status event was received.");
                 }
 
                 if (string.IsNullOrWhiteSpace(line))

@@ -339,6 +339,17 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
+	// Operation lookup is read directly from the in-memory registry so UI
+	// recovery remains available while installer execution holds execMutex.
+	if req.Operation == actionListOperations {
+		if err := sr.writeListOperationsResponse(file, req); err != nil {
+			result = "error"
+			gorillalog.Warn("failed to write operation lookup response:", err)
+		} else {
+			result = "ok"
+		}
+		return
+	}
 	cmd, err := commandFromRequestEnvelope(req)
 	if err != nil {
 		result = "error"

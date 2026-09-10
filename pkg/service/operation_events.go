@@ -23,32 +23,13 @@ func appCatalogAction(action string) appcatalog.Action {
 }
 
 func operationTerminalEvent(itemName, action string, result operationResultPayload) operationStatusEventPayload {
-	state := "Failed"
-	switch result.Outcome {
-	case appcatalog.Succeeded, appcatalog.AlreadySatisfied:
-		state = "Succeeded"
-	case appcatalog.Interrupted:
-		state = "Canceled"
-	}
-
-	event := operationStatusEventPayload{
-		State:    state,
+	return operationStatusEventPayload{
+		State:    "Completed",
 		Message:  result.Message,
 		ItemName: itemName,
 		Action:   appCatalogAction(action),
 		Result:   &result,
 	}
-	if result.Outcome == appcatalog.Failed || result.Outcome == appcatalog.Unverified {
-		event.ErrorCode = result.Code
-		if result.DetailCode != "" {
-			event.ErrorCode = result.DetailCode
-		}
-		event.ErrorMessage = result.Message
-	}
-	if result.Outcome == appcatalog.Interrupted {
-		event.CanceledBy = "service"
-	}
-	return event
 }
 
 func managedRunFailureResult(err error) operationResultPayload {

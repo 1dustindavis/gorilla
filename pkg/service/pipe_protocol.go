@@ -30,11 +30,13 @@ type serviceEnvelope[T any] struct {
 type listOptionalInstallsRequest struct{}
 
 type installItemRequest struct {
-	ItemName string `json:"itemName"`
+	ItemName   string `json:"itemName"`
+	MutationID string `json:"mutationId"`
 }
 
 type removeItemRequest struct {
-	ItemName string `json:"itemName"`
+	ItemName   string `json:"itemName"`
+	MutationID string `json:"mutationId"`
 }
 
 type streamOperationStatusRequest struct{}

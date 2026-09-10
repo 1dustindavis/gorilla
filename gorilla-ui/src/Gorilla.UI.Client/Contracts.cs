@@ -7,9 +7,7 @@ public enum OperationState
     Downloading,
     Installing,
     Removing,
-    Succeeded,
-    Failed,
-    Canceled,
+    Completed,
 }
 
 public enum OptionalInstallStatus
@@ -53,11 +51,8 @@ public sealed record OperationStatusEvent(
     int? ProgressPercent,
     string Message,
     DateTimeOffset TimestampUtc,
-    string? ErrorCode = null,
-    string? ErrorMessage = null,
-    string? CanceledBy = null,
-    string? ItemName = null,
-    AppCatalog.Action? Action = null,
+    string ItemName,
+    AppCatalog.Action Action,
     AppCatalog.Result? Result = null
 );
 

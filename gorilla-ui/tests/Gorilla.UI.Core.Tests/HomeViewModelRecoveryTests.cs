@@ -22,15 +22,7 @@ public class HomeViewModelRecoveryTests
         {
             Operations =
             [
-                new OperationStatusEvent(
-                    "op-1",
-                    OperationState.Installing,
-                    null,
-                    "Installing item via managed run",
-                    Now,
-                    "VLC",
-                    AppCatalog.Action.Install
-                ),
+                ActiveOperation(),
             ],
             StreamAsync = (_, token) => ActiveStream(streamStarted, token),
         };
@@ -50,22 +42,77 @@ public class HomeViewModelRecoveryTests
         cancellation.Cancel();
     }
 
+    [Fact]
+    public async Task RecoveredOperation_StreamFailuresThenActiveReconciliation_ContinuesUntilCompletion()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var completedProjected = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeClient
+        {
+            Operations = [ActiveOperation()],
+        };
+        client.StreamAsync = (_, _) => client.StreamCalls switch
+        {
+            <= 2 => ThrowingStream(new IOException("pipe closed")),
+            _ => CompletedStream(completedProjected),
+        };
+
+        var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
+        var viewModel = new HomeViewModel(client, coordinator, new OperationTracker(client));
+
+        await viewModel.InitializeAsync(cancellation.Token);
+        await completedProjected.Task.WaitAsync(cancellation.Token);
+
+        var item = Assert.Single(viewModel.Items);
+        Assert.False(item.IsBusy);
+        Assert.Equal("Succeeded: Installed", item.Status);
+        Assert.True(client.StreamCalls >= 3);
+        Assert.True(client.ListOperationsCalls >= 2);
+    }
+
+    private static OperationStatusEvent ActiveOperation() => new(
+        "op-1",
+        OperationState.Installing,
+        null,
+        "Installing item via managed run",
+        Now,
+        "VLC",
+        AppCatalog.Action.Install
+    );
+
     private static async IAsyncEnumerable<OperationStatusEvent> ActiveStream(
         TaskCompletionSource<bool> started,
         [EnumeratorCancellation] CancellationToken cancellationToken
     )
     {
         started.TrySetResult(true);
+        yield return ActiveOperation();
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> CompletedStream(TaskCompletionSource<bool> projected)
+    {
         yield return new OperationStatusEvent(
             "op-1",
-            OperationState.Installing,
+            OperationState.Completed,
             null,
-            "Installing item via managed run",
-            Now,
+            "Installed",
+            Now.AddSeconds(1),
             "VLC",
-            AppCatalog.Action.Install
+            AppCatalog.Action.Install,
+            new Result(Outcome.Succeeded, "completed", Message: "Installed")
         );
-        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        projected.TrySetResult(true);
+        await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> ThrowingStream(Exception exception)
+    {
+        await Task.Yield();
+        throw exception;
+#pragma warning disable CS0162
+        yield break;
+#pragma warning restore CS0162
     }
 
     private sealed class InMemoryCacheStore : IOptionalInstallsCacheStore
@@ -80,8 +127,11 @@ public class HomeViewModelRecoveryTests
     private sealed class FakeClient : IGorillaServiceClient
     {
         public IReadOnlyList<OperationStatusEvent> Operations { get; init; } = [];
-        public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; init; }
+        public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; set; }
             = (_, _) => EmptyStream();
+
+        public int StreamCalls { get; private set; }
+        public int ListOperationsCalls { get; private set; }
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OptionalInstallItem>>
@@ -113,12 +163,19 @@ public class HomeViewModelRecoveryTests
             => throw new NotSupportedException();
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Operations);
+        {
+            ListOperationsCalls++;
+            return Task.FromResult(Operations);
+        }
 
         public IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
             string operationId,
             CancellationToken cancellationToken
-        ) => StreamAsync(operationId, cancellationToken);
+        )
+        {
+            StreamCalls++;
+            return StreamAsync(operationId, cancellationToken);
+        }
 
         private static async IAsyncEnumerable<OperationStatusEvent> EmptyStream()
         {

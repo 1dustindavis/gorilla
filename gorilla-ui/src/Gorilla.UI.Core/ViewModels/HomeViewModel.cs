@@ -123,7 +123,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         CancellationToken cancellationToken
     )
     {
-        var terminalStateObserved = false;
+        var completedObserved = false;
         try
         {
             await _operationTracker.TrackAsync(
@@ -131,7 +131,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 update =>
                 {
                     ApplyOperationUpdate(item, expectedAction, update);
-                    terminalStateObserved |= IsTerminalState(update.State);
+                    completedObserved |= update.State == OperationState.Completed;
                 },
                 cancellationToken
             );
@@ -146,7 +146,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (!terminalStateObserved)
+        if (!completedObserved)
         {
             return;
         }
@@ -177,33 +177,18 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     {
         ValidateOperationIdentity(item, expectedAction, update);
 
-        if (update.Result is not null)
+        if (update.State == OperationState.Completed)
         {
-            ApplyAuthoritativeResult(item, update);
+            ApplyAuthoritativeResult(item, update.Result!);
             return;
         }
 
         item.Status = $"{update.State}: {update.Message}";
-
-        if (update.State is OperationState.Failed or OperationState.Canceled)
-        {
-            var details = string.IsNullOrWhiteSpace(update.ErrorMessage)
-                ? update.Message
-                : update.ErrorMessage;
-            WarningBanner = $"Operation for {item.DisplayName} ended with {update.State}: {details}";
-            return;
-        }
-
-        if (update.State is OperationState.Succeeded)
-        {
-            WarningBanner = string.Empty;
-        }
     }
 
-    private void ApplyAuthoritativeResult(UiOptionalInstallItem item, OperationStatusEvent update)
+    private void ApplyAuthoritativeResult(UiOptionalInstallItem item, Result result)
     {
-        var result = update.Result!;
-        var details = string.IsNullOrWhiteSpace(result.Message) ? update.Message : result.Message;
+        var details = string.IsNullOrWhiteSpace(result.Message) ? result.Code : result.Message;
         item.Status = $"{result.Outcome}: {details}";
 
         switch (result.Outcome)
@@ -226,25 +211,19 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         OperationStatusEvent update
     )
     {
-        if (!string.IsNullOrWhiteSpace(update.ItemName) &&
-            !string.Equals(update.ItemName, item.ItemName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(update.ItemName, item.ItemName, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 $"Operation status identity mismatch. Expected item '{item.ItemName}', got '{update.ItemName}'."
             );
         }
 
-        if (update.Action is not null && update.Action != expectedAction)
+        if (update.Action != expectedAction)
         {
             throw new InvalidOperationException(
                 $"Operation status action mismatch. Expected '{expectedAction}', got '{update.Action}'."
             );
         }
-    }
-
-    private static bool IsTerminalState(OperationState state)
-    {
-        return state is OperationState.Succeeded or OperationState.Failed or OperationState.Canceled;
     }
 
     private void ApplyItems(IReadOnlyList<OptionalInstallItem> source)

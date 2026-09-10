@@ -48,10 +48,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        // Start cache-first catalog initialization and operation discovery together.
-        // ListOperations is served from the service's in-memory registry without
-        // waiting for installer execution, so a relaunched UI can immediately
-        // recover active state even while the catalog refresh is still waiting.
         var catalogInitialization = _startupLoader.InitializeAsync(
             applyCachedItems: ApplyItems,
             applyRefreshedItems: ApplyItems,
@@ -101,7 +97,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 accepted.OperationId,
                 AppCatalog.Action.Install,
                 streamFailurePrefix: "Install was accepted, but operation status is temporarily unavailable",
-                cancellationToken
+                cancellationToken,
+                initiatingItem: item
             );
         }
         finally
@@ -133,7 +130,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 accepted.OperationId,
                 AppCatalog.Action.Remove,
                 streamFailurePrefix: "Remove was accepted, but operation status is temporarily unavailable",
-                cancellationToken
+                cancellationToken,
+                initiatingItem: item
             );
         }
         finally
@@ -163,7 +161,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         string operationId,
         AppCatalog.Action expectedAction,
         string streamFailurePrefix,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        UiOptionalInstallItem? initiatingItem = null
     )
     {
         var completedObserved = false;
@@ -174,7 +173,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 update =>
                 {
                     ValidateOperationIdentity(itemName, expectedAction, update);
-                    ProjectOperation(update);
+                    ProjectOperation(update, initiatingItem);
                     completedObserved |= update.State == OperationState.Completed;
                 },
                 cancellationToken
@@ -183,6 +182,13 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (InvalidOperationException ex)
+        {
+            // A malformed or mismatched service event is a protocol/status error,
+            // not evidence that the service restarted or forgot the operation.
+            WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
+            return;
         }
         catch (Exception ex)
         {
@@ -230,7 +236,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // UI lifetime ended. This is not cancellation of the service operation.
         }
         catch (Exception ex)
         {
@@ -268,9 +273,6 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 return;
             }
 
-            // A missing operation is expected after a service restart or retention
-            // expiry. Do not invent Interrupted/Failed/Succeeded; refresh observation
-            // and clearly report that the historical terminal outcome is unknown.
             WarningBanner = $"Operation tracking for {displayName} is no longer available. The service may have restarted; current installation state will be refreshed without assuming the previous operation succeeded or failed.";
             await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
         }
@@ -311,9 +313,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
     }
 
-    private void ProjectOperation(OperationStatusEvent update)
+    private void ProjectOperation(OperationStatusEvent update, UiOptionalInstallItem? fallbackItem = null)
     {
         var item = FindItem(update.ItemName);
+        if (item is null && fallbackItem is not null &&
+            string.Equals(fallbackItem.ItemName, update.ItemName, StringComparison.OrdinalIgnoreCase))
+        {
+            item = fallbackItem;
+        }
         if (item is null)
         {
             return;

@@ -6,7 +6,7 @@ namespace Gorilla.UI.Core.Services;
 
 public sealed class OperationTracker
 {
-    private const int StreamAttemptLimit = 3;
+    private const int StreamAttemptLimit = 2;
     private readonly IGorillaServiceClient _client;
     private readonly ConcurrentDictionary<string, OperationStatusEvent> _latest = new(StringComparer.Ordinal);
 
@@ -94,8 +94,8 @@ public sealed class OperationTracker
             }
             catch (Exception ex) when (attempt < StreamAttemptLimit && IsReconnectable(ex))
             {
-                // The service replays retained events from the beginning on a
-                // reconnect. delivered prevents lifecycle regressions in the UI.
+                // Retry the status stream once. The service replays retained
+                // events from the beginning; delivered prevents UI regressions.
             }
         }
     }

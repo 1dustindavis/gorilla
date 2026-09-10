@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Gorilla.UI.Client;
 
 namespace Gorilla.UI.Core.Services;
@@ -106,7 +107,7 @@ public sealed class OperationTracker
         => string.Join(
             "\u001f",
             update.State,
-            update.ProgressPercent?.ToString() ?? string.Empty,
+            update.ProgressPercent?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             update.Message,
             update.ItemName,
             update.Action,

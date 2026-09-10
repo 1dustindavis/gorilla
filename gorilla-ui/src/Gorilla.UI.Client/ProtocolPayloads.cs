@@ -6,9 +6,9 @@ public sealed record ListOptionalInstallsResponse(
     IReadOnlyList<OptionalInstallItem> Items
 );
 
-public sealed record InstallItemRequest(string ItemName);
+public sealed record InstallItemRequest(string ItemName, string MutationId);
 
-public sealed record RemoveItemRequest(string ItemName);
+public sealed record RemoveItemRequest(string ItemName, string MutationId);
 
 public sealed record OperationAcceptedResponse(
     bool Accepted,

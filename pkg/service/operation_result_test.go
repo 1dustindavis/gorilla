@@ -31,6 +31,7 @@ func TestClassifyInstallOperationResult(t *testing.T) {
 			item:      satisfied,
 			selection: selected,
 			want:      appcatalog.Succeeded,
+			wantCode:  "succeeded",
 		},
 		{
 			name:      "already current and verified",
@@ -38,12 +39,14 @@ func TestClassifyInstallOperationResult(t *testing.T) {
 			item:      satisfied,
 			selection: selected,
 			want:      appcatalog.AlreadySatisfied,
+			wantCode:  "already_satisfied",
 		},
 		{
 			name:      "no execution needed and verified",
 			item:      satisfied,
 			selection: selected,
 			want:      appcatalog.AlreadySatisfied,
+			wantCode:  "already_satisfied",
 		},
 		{
 			name:       "execution failure wins over observation",
@@ -133,12 +136,14 @@ func TestClassifyRemoveOperationResult(t *testing.T) {
 			item:      absent,
 			selection: cleared,
 			want:      appcatalog.Succeeded,
+			wantCode:  "succeeded",
 		},
 		{
 			name:      "already absent and forgotten",
 			item:      absent,
 			selection: cleared,
 			want:      appcatalog.AlreadySatisfied,
+			wantCode:  "already_satisfied",
 		},
 		{
 			name:       "absence cannot be established",

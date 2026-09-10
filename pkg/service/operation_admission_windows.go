@@ -76,10 +76,17 @@ func (sr *serviceRunner) operationForMutation(mutationID string) (admittedOperat
 		return admittedOperation{}, false
 	}
 	first := op.events[0]
+	action := ""
+	switch first.Action {
+	case "Install":
+		action = actionInstallItem
+	case "Remove":
+		action = actionRemoveItem
+	}
 	return admittedOperation{
 		operationID: opID,
 		itemName:    first.ItemName,
-		action:      serviceAction(first.Action),
+		action:      action,
 	}, true
 }
 
@@ -100,11 +107,4 @@ func (sr *serviceRunner) hasActiveOperationForItem(itemName string) bool {
 
 func operationIdentityMatches(op admittedOperation, itemName, action string) bool {
 	return strings.EqualFold(op.itemName, itemName) && op.action == action
-}
-
-func serviceAction(action interface{ String() string }) string {
-	// appcatalog.Action is a string-backed type but deliberately has no String
-	// method today. This helper signature is never selected for it; retained only
-	// to prevent accidental implicit presentation conversions.
-	return action.String()
 }

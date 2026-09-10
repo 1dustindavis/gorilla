@@ -40,7 +40,7 @@ type serviceRunner struct {
 	handlerSem         chan struct{}
 	wg                 sync.WaitGroup
 	execMutex          sync.Mutex
-	admissionMu         sync.Mutex
+	admissionMu        sync.Mutex
 	pipeListenerMu     sync.Mutex
 	pipeListenerHandle windows.Handle
 	activeConnMu       sync.Mutex

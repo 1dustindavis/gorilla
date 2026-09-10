@@ -40,12 +40,14 @@ type serviceRunner struct {
 	handlerSem         chan struct{}
 	wg                 sync.WaitGroup
 	execMutex          sync.Mutex
+	admissionMu        sync.Mutex
 	pipeListenerMu     sync.Mutex
 	pipeListenerHandle windows.Handle
 	activeConnMu       sync.Mutex
 	activeConns        map[windows.Handle]struct{}
 	operationsMu       sync.Mutex
 	operations         map[string]*trackedOperation
+	mutationOperations map[string]string
 }
 
 var (
@@ -69,12 +71,13 @@ type trackedOperation struct {
 
 func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error, managedItemRuns ...ManagedItemRunFunc) *serviceRunner {
 	runner := &serviceRunner{
-		cfg:         cfg,
-		managedRun:  managedRun,
-		queue:       make(chan queuedCommand),
-		handlerSem:  make(chan struct{}, maxConcurrentPipeHandlers),
-		activeConns: make(map[windows.Handle]struct{}),
-		operations:  make(map[string]*trackedOperation),
+		cfg:                cfg,
+		managedRun:         managedRun,
+		queue:              make(chan queuedCommand),
+		handlerSem:         make(chan struct{}, maxConcurrentPipeHandlers),
+		activeConns:        make(map[windows.Handle]struct{}),
+		operations:         make(map[string]*trackedOperation),
+		mutationOperations: make(map[string]string),
 	}
 	if len(managedItemRuns) > 0 {
 		runner.managedItemRun = managedItemRuns[0]
@@ -154,7 +157,7 @@ func (sr *serviceRunner) executeCommandSafe(cmd Command) (resp CommandResponse, 
 		}
 	}()
 
-	return executeCommand(sr.cfg, cmd, sr.managedRun)
+	return sr.executeCommandWithAdmission(cmd)
 }
 
 func (sr *serviceRunner) stop(ctx context.Context) {
@@ -336,6 +339,17 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
+	// Operation lookup is read directly from the in-memory registry so UI
+	// recovery remains available while installer execution holds execMutex.
+	if req.Operation == actionListOperations {
+		if err := sr.writeListOperationsResponse(file, req); err != nil {
+			result = "error"
+			gorillalog.Warn("failed to write operation lookup response:", err)
+		} else {
+			result = "ok"
+		}
+		return
+	}
 	cmd, err := commandFromRequestEnvelope(req)
 	if err != nil {
 		result = "error"
@@ -381,7 +395,6 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 	itemName := ""
 	if cmd.Action == actionInstallItem || cmd.Action == actionRemoveItem {
 		itemName = cmd.Items[0]
-		sr.registerTrackedOperation(resp.OperationID, itemName, cmd.Action)
 	}
 
 	if err := sr.writeSuccessEnvelope(file, req, cmd, resp); err != nil {
@@ -391,7 +404,9 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		result = "ok"
 		gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
 	}
-	sr.scheduleRunAfterMutation(ctx, cmd.Action, resp, itemName)
+	if !resp.ReusedOperation {
+		sr.scheduleRunAfterMutation(ctx, cmd.Action, resp, itemName)
+	}
 }
 
 func (sr *serviceRunner) scheduleRunAfterMutation(ctx context.Context, action string, resp CommandResponse, itemNames ...string) {
@@ -456,7 +471,12 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 		if itemName == "" {
 			return Command{}, errors.New("InstallItem requires itemName")
 		}
+		mutationID := strings.TrimSpace(payload.MutationID)
+		if mutationID == "" {
+			return Command{}, errors.New("InstallItem requires mutationId")
+		}
 		cmd.Items = []string{itemName}
+		cmd.MutationID = mutationID
 		return cmd, nil
 	case actionRemoveItem:
 		payload, err := decodeEnvelopePayload[removeItemRequest](req.Payload)
@@ -467,7 +487,12 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 		if itemName == "" {
 			return Command{}, errors.New("RemoveItem requires itemName")
 		}
+		mutationID := strings.TrimSpace(payload.MutationID)
+		if mutationID == "" {
+			return Command{}, errors.New("RemoveItem requires mutationId")
+		}
 		cmd.Items = []string{itemName}
+		cmd.MutationID = mutationID
 		return cmd, nil
 	case actionStreamOperationStatus:
 		operationID := strings.TrimSpace(req.OperationID)
@@ -684,7 +709,7 @@ func (sr *serviceRunner) snapshotTrackedOperation(operationID string) ([]operati
 func (sr *serviceRunner) pruneTrackedOperationsLocked(now time.Time) {
 	for id, op := range sr.operations {
 		if op.done && !op.completedAt.IsZero() && now.Sub(op.completedAt) > trackedCompletedOperationTTL {
-			delete(sr.operations, id)
+			sr.deleteTrackedOperationLocked(id)
 		}
 	}
 
@@ -710,7 +735,16 @@ func (sr *serviceRunner) pruneTrackedOperationsLocked(now time.Time) {
 		if len(sr.operations) <= trackedOperationsMaxCount {
 			return
 		}
-		delete(sr.operations, candidate.id)
+		sr.deleteTrackedOperationLocked(candidate.id)
+	}
+}
+
+func (sr *serviceRunner) deleteTrackedOperationLocked(operationID string) {
+	delete(sr.operations, operationID)
+	for mutationID, mappedOperationID := range sr.mutationOperations {
+		if mappedOperationID == operationID {
+			delete(sr.mutationOperations, mutationID)
+		}
 	}
 }
 

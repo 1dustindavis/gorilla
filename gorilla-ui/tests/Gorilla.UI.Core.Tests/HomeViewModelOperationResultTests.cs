@@ -78,7 +78,7 @@ public class HomeViewModelOperationResultTests
 
         await viewModel.InstallAsync(item, CancellationToken.None);
 
-        Assert.Contains("Install queued, but live status stream failed", viewModel.WarningBanner);
+        Assert.Contains("Install was accepted, but operation status is temporarily unavailable", viewModel.WarningBanner);
         Assert.Contains("identity mismatch", viewModel.WarningBanner);
         Assert.Equal(0, client.ListCalls);
     }
@@ -104,7 +104,7 @@ public class HomeViewModelOperationResultTests
 
         await viewModel.InstallAsync(item, CancellationToken.None);
 
-        Assert.Contains("Install queued, but live status stream failed", viewModel.WarningBanner);
+        Assert.Contains("Install was accepted, but operation status is temporarily unavailable", viewModel.WarningBanner);
         Assert.Contains("action mismatch", viewModel.WarningBanner);
         Assert.Equal(0, client.ListCalls);
     }

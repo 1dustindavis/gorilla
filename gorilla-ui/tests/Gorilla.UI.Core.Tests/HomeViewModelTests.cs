@@ -151,7 +151,7 @@ public class HomeViewModelTests
     }
 
     [Fact]
-    public async Task InstallAsync_StreamFailure_SetsQueuedWarningAndDoesNotRefresh()
+    public async Task InstallAsync_StreamFailure_ReconcilesTrackingLossAndRefreshesObservation()
     {
         var client = new FakeClient
         {
@@ -163,9 +163,9 @@ public class HomeViewModelTests
 
         await viewModel.InstallAsync(item, CancellationToken.None);
 
-        Assert.Contains("Install queued, but live status stream failed:", viewModel.WarningBanner);
-        Assert.Contains("pipe closed", viewModel.WarningBanner);
-        Assert.Equal(0, client.ListCalls);
+        Assert.Contains("Operation tracking for VLC is no longer available.", viewModel.WarningBanner);
+        Assert.Contains("without assuming the previous operation succeeded or failed", viewModel.WarningBanner);
+        Assert.Equal(1, client.ListCalls);
         Assert.False(item.IsBusy);
     }
 

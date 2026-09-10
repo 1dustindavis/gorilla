@@ -64,6 +64,9 @@ public interface IGorillaServiceClient
 
     Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([]);
+
     IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
         string operationId,
         CancellationToken cancellationToken

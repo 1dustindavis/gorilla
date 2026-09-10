@@ -113,9 +113,17 @@ func makeRequestEnvelope(cmd Command) (serviceEnvelope[any], error) {
 	case actionListOptionalInstalls:
 		envelope.Payload = listOptionalInstallsRequest{}
 	case actionInstallItem:
-		envelope.Payload = installItemRequest{ItemName: cmd.Items[0]}
+		mutationID := strings.TrimSpace(cmd.MutationID)
+		if mutationID == "" {
+			mutationID = newRequestID()
+		}
+		envelope.Payload = installItemRequest{ItemName: cmd.Items[0], MutationID: mutationID}
 	case actionRemoveItem:
-		envelope.Payload = removeItemRequest{ItemName: cmd.Items[0]}
+		mutationID := strings.TrimSpace(cmd.MutationID)
+		if mutationID == "" {
+			mutationID = newRequestID()
+		}
+		envelope.Payload = removeItemRequest{ItemName: cmd.Items[0], MutationID: mutationID}
 	case actionStreamOperationStatus:
 		envelope.OperationID = cmd.Items[0]
 		envelope.Payload = streamOperationStatusRequest{}

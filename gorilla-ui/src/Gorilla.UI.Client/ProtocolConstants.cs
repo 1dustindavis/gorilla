@@ -9,6 +9,7 @@ public static class ProtocolConstants
         public const string ListOptionalInstalls = "ListOptionalInstalls";
         public const string InstallItem = "InstallItem";
         public const string RemoveItem = "RemoveItem";
+        public const string ListOperations = "ListOperations";
         public const string StreamOperationStatus = "StreamOperationStatus";
     }
 
@@ -17,6 +18,7 @@ public static class ProtocolConstants
         Operation.ListOptionalInstalls,
         Operation.InstallItem,
         Operation.RemoveItem,
+        Operation.ListOperations,
         Operation.StreamOperationStatus,
     };
 }

@@ -22,19 +22,21 @@ var (
 )
 
 type Command struct {
-	Action    string                `json:"action"`
-	Items     []string              `json:"items,omitempty"`
-	RunConfig *config.Configuration `json:"-"`
+	Action     string                `json:"action"`
+	Items      []string              `json:"items,omitempty"`
+	MutationID string                `json:"-"`
+	RunConfig  *config.Configuration `json:"-"`
 }
 
 type CommandResponse struct {
-	Status        string                `json:"status"`
-	Message       string                `json:"message,omitempty"`
-	Items         []string              `json:"items,omitempty"`
-	OperationID   string                `json:"operationId,omitempty"`
-	OptionalItems []optionalItemDetails `json:"-"`
-	RunConfig     *config.Configuration `json:"-"`
-	CleanupPath   string                `json:"-"`
+	Status          string                `json:"status"`
+	Message         string                `json:"message,omitempty"`
+	Items           []string              `json:"items,omitempty"`
+	OperationID     string                `json:"operationId,omitempty"`
+	OptionalItems   []optionalItemDetails `json:"-"`
+	RunConfig       *config.Configuration `json:"-"`
+	CleanupPath     string                `json:"-"`
+	ReusedOperation bool                  `json:"-"`
 }
 
 type actionDeniedError struct{ reason string }

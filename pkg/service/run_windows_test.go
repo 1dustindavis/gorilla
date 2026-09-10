@@ -307,7 +307,8 @@ func mustInstallAndGetOperationID(t *testing.T, cfg config.Configuration, seq in
 		OperationID:  "",
 		TimestampUTC: nowRFC3339UTC(),
 		Payload: installItemRequest{
-			ItemName: "Slack",
+			ItemName:   "Slack",
+			MutationID: fmt.Sprintf("mutation-install-%d", seq),
 		},
 	}
 

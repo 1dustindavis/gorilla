@@ -24,11 +24,13 @@ if (-not (Test-Path -LiteralPath $msixPath)) {
 $fixtureRoot = Join-Path $root "fixture"
 $repoFixtureRoot = Join-Path $fixtureRoot "repo"
 $serverExe = Join-Path $fixtureRoot "tools\fixture-server.exe"
+$catalogPath = Join-Path $repoFixtureRoot "catalogs\integration.yaml"
 $manifestPath = Join-Path $repoFixtureRoot "manifests\ui-e2e.yaml"
 $configPath = "C:\ProgramData\gorilla\config.yaml"
 $configDirectory = Split-Path -Parent $configPath
 $appDataPath = "C:\ProgramData\gorilla-it"
 $markerPath = Join-Path $appDataPath "ps1.txt"
+$failureMarkerPath = Join-Path $appDataPath "ps1-failure.txt"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $evidenceRoot = Join-Path $root "installed-product-evidence"
 $installedByHarness = $false
@@ -246,10 +248,35 @@ try {
         throw "prepare-release-integration.ps1 failed with exit code $LASTEXITCODE"
     }
 
+    $failureScriptPath = Join-Path $repoFixtureRoot "packages\scripts\intentional-failure.ps1"
+    @'
+Write-Error "Intentional App Catalog E2E installer failure"
+exit 7
+'@ | Set-Content -LiteralPath $failureScriptPath -NoNewline
+    $failureScriptHash = (Get-FileHash -LiteralPath $failureScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+    $catalogRaw = Get-Content -LiteralPath $catalogPath -Raw
+    if ($catalogRaw -notmatch '(?m)^Ps1Failure:') {
+        @"
+
+Ps1Failure:
+  display_name: Ps1Failure
+  check:
+    file:
+      - path: '$failureMarkerPath'
+  installer:
+    type: ps1
+    location: packages/scripts/intentional-failure.ps1
+    hash: $failureScriptHash
+  version: 1.0.0
+"@ | Add-Content -LiteralPath $catalogPath -NoNewline
+    }
+
     @'
 name: ui-e2e
 optional_installs:
   - Ps1V1
+  - Ps1Failure
 '@ | Set-Content -LiteralPath $manifestPath -NoNewline
 
     $serverPort = Get-Random -Minimum 19000 -Maximum 19999

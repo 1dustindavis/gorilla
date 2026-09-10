@@ -1,13 +1,14 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Diagnostics;
 
 namespace Gorilla.UI.Client;
 
 public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
 {
+    private const int MutationAttemptLimit = 2;
     private readonly NamedPipeClientOptions _options;
 
     public NamedPipeGorillaServiceClient(NamedPipeClientOptions? options = null)
@@ -38,48 +39,85 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
         return items;
     }
 
-    public async Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
+    public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
     {
-        var requestEnvelope = CreateRequestEnvelope(
-            operation: ProtocolConstants.Operation.InstallItem,
-            operationId: string.Empty,
-            payload: new InstallItemRequest(itemName)
-        );
-        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} itemName={itemName}");
-
-        var responseEnvelope = await SendRequestAsync<InstallItemRequest, OperationAcceptedResponse>(
-            requestEnvelope,
+        var mutationId = Guid.NewGuid().ToString();
+        return SendMutationAsync(
+            ProtocolConstants.Operation.InstallItem,
+            itemName,
+            mutationId,
+            new InstallItemRequest(itemName, mutationId),
             cancellationToken
-        );
-        ProtocolValidation.ValidateOperationAccepted(responseEnvelope.OperationId, responseEnvelope.Payload);
-
-        return new OperationAccepted(
-            OperationId: responseEnvelope.OperationId,
-            Accepted: responseEnvelope.Payload.Accepted,
-            QueuedAtUtc: responseEnvelope.Payload.QueuedAtUtc
         );
     }
 
-    public async Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
+    public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
     {
-        var requestEnvelope = CreateRequestEnvelope(
-            operation: ProtocolConstants.Operation.RemoveItem,
-            operationId: string.Empty,
-            payload: new RemoveItemRequest(itemName)
-        );
-        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} itemName={itemName}");
-
-        var responseEnvelope = await SendRequestAsync<RemoveItemRequest, OperationAcceptedResponse>(
-            requestEnvelope,
+        var mutationId = Guid.NewGuid().ToString();
+        return SendMutationAsync(
+            ProtocolConstants.Operation.RemoveItem,
+            itemName,
+            mutationId,
+            new RemoveItemRequest(itemName, mutationId),
             cancellationToken
         );
-        ProtocolValidation.ValidateOperationAccepted(responseEnvelope.OperationId, responseEnvelope.Payload);
+    }
 
-        return new OperationAccepted(
-            OperationId: responseEnvelope.OperationId,
-            Accepted: responseEnvelope.Payload.Accepted,
-            QueuedAtUtc: responseEnvelope.Payload.QueuedAtUtc
-        );
+    private async Task<OperationAccepted> SendMutationAsync<TRequest>(
+        string operation,
+        string itemName,
+        string mutationId,
+        TRequest payload,
+        CancellationToken cancellationToken
+    )
+    {
+        for (var attempt = 1; attempt <= MutationAttemptLimit; attempt++)
+        {
+            var requestEnvelope = CreateRequestEnvelope(
+                operation: operation,
+                operationId: string.Empty,
+                payload: payload
+            );
+            ClientDiagnostics.Log(
+                $"mutation:request:create operation={operation} requestId={requestEnvelope.RequestId} mutationId={mutationId} itemName={itemName} attempt={attempt}"
+            );
+
+            try
+            {
+                var responseEnvelope = await SendRequestAsync<TRequest, OperationAcceptedResponse>(
+                    requestEnvelope,
+                    cancellationToken
+                );
+                ProtocolValidation.ValidateOperationAccepted(responseEnvelope.OperationId, responseEnvelope.Payload);
+
+                return new OperationAccepted(
+                    OperationId: responseEnvelope.OperationId,
+                    Accepted: responseEnvelope.Payload.Accepted,
+                    QueuedAtUtc: responseEnvelope.Payload.QueuedAtUtc
+                );
+            }
+            catch (Exception ex) when (
+                attempt < MutationAttemptLimit &&
+                IsUncertainMutationAcknowledgement(ex, cancellationToken)
+            )
+            {
+                ClientDiagnostics.Log(
+                    $"mutation:ack:uncertain operation={operation} mutationId={mutationId} itemName={itemName} attempt={attempt} error={ex.GetType().Name}:{ex.Message}; retrying with same mutationId"
+                );
+            }
+        }
+
+        throw new InvalidOperationException("Mutation retry loop ended unexpectedly.");
+    }
+
+    private static bool IsUncertainMutationAcknowledgement(Exception ex, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        return ex is IOException or TimeoutException or OperationCanceledException;
     }
 
     public async IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
@@ -267,7 +305,7 @@ public sealed class NamedPipeGorillaServiceClient : IGorillaServiceClient
             ClientDiagnostics.Log($"response:raw {TruncateForLog(line)}");
             if (string.IsNullOrWhiteSpace(line))
             {
-                throw new InvalidOperationException("No response received from service.");
+                throw new IOException("No response received from service.");
             }
 
             using var doc = JsonDocument.Parse(line);

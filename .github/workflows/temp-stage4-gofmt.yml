@@ -1,0 +1,33 @@
+name: Temporary Stage 4 gofmt
+
+on:
+  push:
+    branches:
+      - agent/app-catalog-stage4-recovery
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/app-catalog-stage4-recovery
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Format changed Go files
+        shell: pwsh
+        run: |
+          gofmt -w pkg/service/run_windows.go
+          if (git diff --quiet -- pkg/service/run_windows.go) {
+            Write-Host "No formatting changes required."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pkg/service/run_windows.go
+          git commit -m "Format Windows service runner"
+          git push origin HEAD:agent/app-catalog-stage4-recovery

@@ -18,7 +18,7 @@ func (sr *serviceRunner) executeCommandWithAdmission(cmd Command) (CommandRespon
 
 	mutationID := strings.TrimSpace(cmd.MutationID)
 	if mutationID == "" {
-		return CommandResponse{}, errors.New("App Catalog mutation requires mutationId")
+		return CommandResponse{}, errors.New("app catalog mutation requires mutationId")
 	}
 
 	sr.admissionMu.Lock()

@@ -93,22 +93,19 @@ func TestMutationAdmissionRejectsMutationIDReuseForDifferentIdentity(t *testing.
 	}
 }
 
-func TestCommandFromRequestEnvelopeGeneratesFallbackMutationIDForLegacyV1Payload(t *testing.T) {
+func TestCommandFromRequestEnvelopeRejectsMissingMutationID(t *testing.T) {
 	payload, err := json.Marshal(struct {
 		ItemName string `json:"itemName"`
 	}{ItemName: "Slack"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd, err := commandFromRequestEnvelope(serviceEnvelope[json.RawMessage]{
+	_, err = commandFromRequestEnvelope(serviceEnvelope[json.RawMessage]{
 		Operation: actionInstallItem,
 		Payload:   payload,
 	})
-	if err != nil {
-		t.Fatalf("map legacy request: %v", err)
-	}
-	if cmd.MutationID == "" {
-		t.Fatal("expected legacy v1 request to receive one-shot mutation identity")
+	if err == nil {
+		t.Fatal("expected request without mutationId to be rejected")
 	}
 }
 

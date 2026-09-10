@@ -30,6 +30,8 @@ $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
 $failureMarkerPath = "C:\ProgramData\gorilla-it\ps1-failure.txt"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
+$serviceManifestPath = Join-Path $appDataPath "service-manifest.yaml"
+$externalInstallScriptPath = Join-Path $repoFixtureRoot "packages\scripts\marker-install-v1.ps1"
 $uiCachePath = Join-Path $root "ui-state\optional-installs-cache.json"
 $evidenceRoot = Join-Path $root "ui-evidence"
 
@@ -135,8 +137,11 @@ function Copy-PhaseServiceEvidence {
         if (Test-Path -LiteralPath $serviceLogPath) {
             Copy-Item -LiteralPath $serviceLogPath -Destination (Join-Path $PhaseDirectory "gorilla.log") -Force
         }
+        if (Test-Path -LiteralPath $serviceManifestPath) {
+            Copy-Item -LiteralPath $serviceManifestPath -Destination (Join-Path $PhaseDirectory "service-manifest.yaml") -Force
+        }
     } catch {
-        Write-Warning "Unable to copy Gorilla service log: $_"
+        Write-Warning "Unable to copy Gorilla service evidence: $_"
     }
 
     try {
@@ -177,6 +182,89 @@ function Invoke-TestPhase {
         Copy-PhaseServiceEvidence -PhaseDirectory $phaseDirectory
         Remove-Item Env:GORILLA_UI_LOG_PATH -ErrorAction SilentlyContinue
     }
+}
+
+function Get-ManagedRunCompletionCount {
+    if (-not (Test-Path -LiteralPath $serviceLogPath)) {
+        return 0
+    }
+    return @(
+        Select-String -LiteralPath $serviceLogPath -SimpleMatch "Done!" -ErrorAction SilentlyContinue
+    ).Count
+}
+
+function Wait-ManagedRunCompletionCount {
+    param(
+        [Parameter(Mandatory)][int]$MinimumCount,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $count = Get-ManagedRunCompletionCount
+        if ($count -ge $MinimumCount) {
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for managed run completion count $MinimumCount. Actual: $(Get-ManagedRunCompletionCount)"
+}
+
+function Assert-OneTimeRemovalSurvivesScheduledRun {
+    if (Test-Path -LiteralPath $markerPath) {
+        throw "Expected Ps1V1 to be absent after App Catalog removal before lifecycle validation"
+    }
+    if (-not (Test-Path -LiteralPath $serviceManifestPath)) {
+        throw "Expected service-managed manifest after App Catalog mutation: $serviceManifestPath"
+    }
+
+    $persistentManifest = Get-Content -LiteralPath $serviceManifestPath -Raw
+    if ($persistentManifest -match '(?m)^\s*uninstalls\s*:') {
+        throw "App Catalog removal persisted an uninstall policy: $serviceManifestPath"
+    }
+    if ($persistentManifest -match '(?m)^\s*-\s*Ps1V1\s*$') {
+        throw "Ps1V1 remained in persistent service-managed selections after removal: $serviceManifestPath"
+    }
+
+    # Restart with a short interval so we can observe an actual ticker-triggered
+    # service run using only persisted policy. The immediate startup run happens
+    # first; the second completion after restart is necessarily timer-driven.
+    Stop-TestServiceProcess
+    (Get-Content -LiteralPath $configPath -Raw).Replace("service_interval: 24h", "service_interval: 2s") |
+        Set-Content -LiteralPath $configPath -NoNewline
+
+    $runsBeforeRestart = Get-ManagedRunCompletionCount
+    & $GorillaExePath -config $configPath -integration-test-service-identity $serviceName -servicestart | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Failed to restart source-built Gorilla service for scheduled-run validation" }
+    Wait-ServiceState -Expected "Running"
+    Wait-ManagedRunCompletionCount -MinimumCount ($runsBeforeRestart + 1)
+
+    if (-not (Test-Path -LiteralPath $externalInstallScriptPath)) {
+        throw "External install fixture not found: $externalInstallScriptPath"
+    }
+    & $externalInstallScriptPath
+    if (-not (Test-Path -LiteralPath $markerPath)) {
+        throw "Out-of-band Ps1V1 reinstall did not create marker: $markerPath"
+    }
+
+    Wait-ManagedRunCompletionCount -MinimumCount ($runsBeforeRestart + 2)
+    if (-not (Test-Path -LiteralPath $markerPath)) {
+        throw "Scheduled Gorilla run re-enforced a stale App Catalog uninstall after external reinstall"
+    }
+
+    $phaseDirectory = Join-Path $evidenceRoot "one-time-removal"
+    New-Item -ItemType Directory -Path $phaseDirectory -Force | Out-Null
+    @(
+        "Persistent manifest after remove:",
+        $persistentManifest.TrimEnd(),
+        "",
+        "Managed runs before service restart: $runsBeforeRestart",
+        "Verified startup completion: $($runsBeforeRestart + 1)",
+        "Verified scheduled completion: $($runsBeforeRestart + 2)",
+        "Marker present after scheduled run: $(Test-Path -LiteralPath $markerPath)"
+    ) | Set-Content -LiteralPath (Join-Path $phaseDirectory "lifecycle.txt")
+    Copy-PhaseServiceEvidence -PhaseDirectory $phaseDirectory
 }
 
 $serverProc = $null
@@ -220,6 +308,7 @@ debug: true
     Wait-ServiceState -Expected "Running"
 
     Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests"
+    Assert-OneTimeRemovalSurvivesScheduledRun
 
     # The unavailable-service workflow deliberately terminates the real service process.
     # This avoids coupling E2E reliability to graceful SCM shutdown while still proving

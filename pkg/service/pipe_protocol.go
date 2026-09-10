@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
@@ -34,9 +35,37 @@ type installItemRequest struct {
 	MutationID string `json:"mutationId"`
 }
 
+func (r *installItemRequest) UnmarshalJSON(data []byte) error {
+	type wire installItemRequest
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if strings.TrimSpace(decoded.MutationID) == "" {
+		// v1 callers predating mutation identity remain usable, but only callers
+		// that supply a stable mutationId can safely reconcile an uncertain ack.
+		decoded.MutationID = newRequestID()
+	}
+	*r = installItemRequest(decoded)
+	return nil
+}
+
 type removeItemRequest struct {
 	ItemName   string `json:"itemName"`
 	MutationID string `json:"mutationId"`
+}
+
+func (r *removeItemRequest) UnmarshalJSON(data []byte) error {
+	type wire removeItemRequest
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if strings.TrimSpace(decoded.MutationID) == "" {
+		decoded.MutationID = newRequestID()
+	}
+	*r = removeItemRequest(decoded)
+	return nil
 }
 
 type streamOperationStatusRequest struct{}

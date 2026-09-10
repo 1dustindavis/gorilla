@@ -23,8 +23,8 @@ public sealed record OperationStatusEventPayload(
     OperationState State,
     int? ProgressPercent,
     string Message,
-    string ItemName,
-    AppCatalog.Action Action,
+    string? ItemName = null,
+    AppCatalog.Action? Action = null,
     AppCatalog.Result? Result = null
 );
 

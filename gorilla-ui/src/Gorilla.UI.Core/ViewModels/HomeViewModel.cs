@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -15,6 +16,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     private readonly OptionalInstallsCacheCoordinator _cacheCoordinator;
     private readonly OptionalInstallsStartupLoader _startupLoader;
     private readonly OperationTracker _operationTracker;
+    private readonly ConcurrentDictionary<string, byte> _recoveryTracking = new(StringComparer.Ordinal);
 
     private string _warningBanner = string.Empty;
 
@@ -46,11 +48,39 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        WarningBanner = await _startupLoader.InitializeAsync(
+        // Start cache-first catalog initialization and operation discovery together.
+        // ListOperations is served from the service's in-memory registry without
+        // waiting for installer execution, so a relaunched UI can immediately
+        // recover active state even while the catalog refresh is still waiting.
+        var catalogInitialization = _startupLoader.InitializeAsync(
             applyCachedItems: ApplyItems,
             applyRefreshedItems: ApplyItems,
             cancellationToken: cancellationToken
         );
+
+        try
+        {
+            var operations = await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
+            foreach (var operation in operations.Where(operation => operation.State != OperationState.Completed))
+            {
+                ProjectOperation(operation);
+                StartRecoveredTracking(operation, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WarningBanner = $"Operation status is temporarily unavailable: {ex.Message}";
+        }
+
+        var startupWarning = await catalogInitialization;
+        if (!string.IsNullOrWhiteSpace(startupWarning))
+        {
+            WarningBanner = startupWarning;
+        }
     }
 
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
@@ -66,16 +96,22 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             }
 
             await TrackAndRefreshAsync(
-                item,
+                item.ItemName,
+                item.DisplayName,
                 accepted.OperationId,
                 AppCatalog.Action.Install,
-                streamFailurePrefix: "Install queued, but live status stream failed",
+                streamFailurePrefix: "Install was accepted, but operation status is temporarily unavailable",
                 cancellationToken
             );
         }
         finally
         {
             item.IsBusy = false;
+            var current = FindItem(item.ItemName);
+            if (current is not null && _operationTracker.GetActiveForItem(item.ItemName) is null)
+            {
+                current.IsBusy = false;
+            }
         }
     }
 
@@ -92,16 +128,22 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             }
 
             await TrackAndRefreshAsync(
-                item,
+                item.ItemName,
+                item.DisplayName,
                 accepted.OperationId,
                 AppCatalog.Action.Remove,
-                streamFailurePrefix: "Remove queued, but live status stream failed",
+                streamFailurePrefix: "Remove was accepted, but operation status is temporarily unavailable",
                 cancellationToken
             );
         }
         finally
         {
             item.IsBusy = false;
+            var current = FindItem(item.ItemName);
+            if (current is not null && _operationTracker.GetActiveForItem(item.ItemName) is null)
+            {
+                current.IsBusy = false;
+            }
         }
     }
 
@@ -116,7 +158,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     }
 
     private async Task TrackAndRefreshAsync(
-        UiOptionalInstallItem item,
+        string itemName,
+        string displayName,
         string operationId,
         AppCatalog.Action expectedAction,
         string streamFailurePrefix,
@@ -130,7 +173,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 operationId,
                 update =>
                 {
-                    ApplyOperationUpdate(item, expectedAction, update);
+                    ValidateOperationIdentity(itemName, expectedAction, update);
+                    ProjectOperation(update);
                     completedObserved |= update.State == OperationState.Completed;
                 },
                 cancellationToken
@@ -142,7 +186,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
+            await ReconcileTrackingLossAsync(
+                operationId,
+                itemName,
+                displayName,
+                expectedAction,
+                $"{streamFailurePrefix}: {ex.Message}",
+                cancellationToken
+            );
             return;
         }
 
@@ -151,6 +202,93 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             return;
         }
 
+        await RefreshCatalogAfterOperationAsync(cancellationToken);
+    }
+
+    private void StartRecoveredTracking(OperationStatusEvent operation, CancellationToken cancellationToken)
+    {
+        if (!_recoveryTracking.TryAdd(operation.OperationId, 0))
+        {
+            return;
+        }
+
+        _ = TrackRecoveredOperationAsync(operation, cancellationToken);
+    }
+
+    private async Task TrackRecoveredOperationAsync(OperationStatusEvent operation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await TrackAndRefreshAsync(
+                operation.ItemName,
+                FindItem(operation.ItemName)?.DisplayName ?? operation.ItemName,
+                operation.OperationId,
+                operation.Action,
+                streamFailurePrefix: "Recovered operation is still known, but live status is temporarily unavailable",
+                cancellationToken
+            );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // UI lifetime ended. This is not cancellation of the service operation.
+        }
+        catch (Exception ex)
+        {
+            WarningBanner = $"Recovered operation status is temporarily unavailable: {ex.Message}";
+        }
+        finally
+        {
+            _recoveryTracking.TryRemove(operation.OperationId, out _);
+        }
+    }
+
+    private async Task ReconcileTrackingLossAsync(
+        string operationId,
+        string itemName,
+        string displayName,
+        AppCatalog.Action expectedAction,
+        string uncertaintyMessage,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
+            if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
+            {
+                ValidateOperationIdentity(itemName, expectedAction, latest);
+                ProjectOperation(latest);
+                if (latest.State == OperationState.Completed)
+                {
+                    await RefreshCatalogAfterOperationAsync(cancellationToken);
+                    return;
+                }
+
+                WarningBanner = uncertaintyMessage;
+                return;
+            }
+
+            // A missing operation is expected after a service restart or retention
+            // expiry. Do not invent Interrupted/Failed/Succeeded; refresh observation
+            // and clearly report that the historical terminal outcome is unknown.
+            WarningBanner = $"Operation tracking for {displayName} is no longer available. The service may have restarted; current installation state will be refreshed without assuming the previous operation succeeded or failed.";
+            await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WarningBanner = $"{uncertaintyMessage}. Reconciliation also failed: {ex.Message}";
+        }
+    }
+
+    private async Task RefreshCatalogAfterOperationAsync(
+        CancellationToken cancellationToken,
+        bool preserveExistingWarning = false
+    )
+    {
         try
         {
             var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
@@ -162,27 +300,33 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            if (string.IsNullOrWhiteSpace(WarningBanner))
+            if (!preserveExistingWarning && string.IsNullOrWhiteSpace(WarningBanner))
             {
                 WarningBanner = $"Operation completed, but optional installs refresh failed: {ex.Message}";
+            }
+            else if (preserveExistingWarning)
+            {
+                WarningBanner = $"{WarningBanner} Refresh also failed: {ex.Message}";
             }
         }
     }
 
-    private void ApplyOperationUpdate(
-        UiOptionalInstallItem item,
-        AppCatalog.Action expectedAction,
-        OperationStatusEvent update
-    )
+    private void ProjectOperation(OperationStatusEvent update)
     {
-        ValidateOperationIdentity(item, expectedAction, update);
+        var item = FindItem(update.ItemName);
+        if (item is null)
+        {
+            return;
+        }
 
         if (update.State == OperationState.Completed)
         {
+            item.IsBusy = false;
             ApplyAuthoritativeResult(item, update.Result!);
             return;
         }
 
+        item.IsBusy = true;
         item.Status = $"{update.State}: {update.Message}";
     }
 
@@ -206,15 +350,15 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     }
 
     private static void ValidateOperationIdentity(
-        UiOptionalInstallItem item,
+        string itemName,
         AppCatalog.Action expectedAction,
         OperationStatusEvent update
     )
     {
-        if (!string.Equals(update.ItemName, item.ItemName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(update.ItemName, itemName, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Operation status identity mismatch. Expected item '{item.ItemName}', got '{update.ItemName}'."
+                $"Operation status identity mismatch. Expected item '{itemName}', got '{update.ItemName}'."
             );
         }
 
@@ -231,7 +375,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         Items.Clear();
         foreach (var item in source)
         {
-            Items.Add(new UiOptionalInstallItem
+            var uiItem = new UiOptionalInstallItem
             {
                 ItemName = item.ItemName,
                 DisplayName = item.DisplayName,
@@ -242,7 +386,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
                 RemoveAllowed = item.Actions?.Remove.Allowed ?? false,
                 InstallUnavailableReason = item.Actions?.Install.Reason ?? "Refresh required before installing.",
                 RemoveUnavailableReason = item.Actions?.Remove.Reason ?? "Refresh required before removing.",
-            });
+            };
+            Items.Add(uiItem);
+
+            var active = _operationTracker.GetActiveForItem(item.ItemName);
+            if (active is not null)
+            {
+                ProjectOperation(active);
+            }
         }
     }
 

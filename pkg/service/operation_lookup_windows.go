@@ -11,8 +11,6 @@ import (
 
 const actionListOperations = "ListOperations"
 
-type listOperationsRequest struct{}
-
 type operationSnapshotPayload struct {
 	OperationID string                      `json:"operationId"`
 	Status      operationStatusEventPayload `json:"status"`

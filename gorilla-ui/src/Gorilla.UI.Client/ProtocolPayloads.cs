@@ -15,6 +15,17 @@ public sealed record OperationAcceptedResponse(
     DateTimeOffset QueuedAtUtc
 );
 
+public sealed record ListOperationsRequest();
+
+public sealed record OperationSnapshotPayload(
+    string OperationId,
+    OperationStatusEventPayload Status
+);
+
+public sealed record ListOperationsResponse(
+    IReadOnlyList<OperationSnapshotPayload> Operations
+);
+
 public sealed record StreamOperationStatusRequest();
 
 public sealed record StreamOperationStatusResponse(bool StreamAccepted);

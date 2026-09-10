@@ -1,0 +1,67 @@
+name: Temporary Stage 4 reconciliation test fix
+
+on:
+  push:
+    branches:
+      - agent/app-catalog-stage4-recovery
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/app-catalog-stage4-recovery
+      - name: Update superseded stream-loss expectation
+        shell: pwsh
+        run: |
+          $path = 'gorilla-ui/tests/Gorilla.UI.Core.Tests/HomeViewModelMutationTests.cs'
+          $content = Get-Content $path -Raw
+          $old = @'
+    [Fact]
+    public async Task RemoveAsync_StreamFailure_UsesRemoveSpecificWarningAndDoesNotRefresh()
+    {
+        var client = new FakeClient
+        {
+            RemoveAsync = (_, _) => Task.FromResult(new OperationAccepted("op-2", true, Now)),
+            StreamAsync = (_, _) => ThrowingStream(new IOException("pipe closed")),
+        };
+        var viewModel = CreateViewModel(client);
+        var item = MakeUiItem("VLC", installed: true);
+        await viewModel.RemoveAsync(item, CancellationToken.None);
+        Assert.Contains("Remove queued, but live status stream failed:", viewModel.WarningBanner);
+        Assert.Contains("pipe closed", viewModel.WarningBanner);
+        Assert.Equal(0, client.ListCalls);
+        Assert.False(item.IsBusy);
+    }
+'@
+          $new = @'
+    [Fact]
+    public async Task RemoveAsync_StreamFailure_ReconcilesWithoutInventingFailureOutcome()
+    {
+        var client = new FakeClient
+        {
+            RemoveAsync = (_, _) => Task.FromResult(new OperationAccepted("op-2", true, Now)),
+            StreamAsync = (_, _) => ThrowingStream(new IOException("pipe closed")),
+        };
+        var viewModel = CreateViewModel(client);
+        var item = MakeUiItem("VLC", installed: true);
+        await viewModel.RemoveAsync(item, CancellationToken.None);
+        Assert.Contains("Operation tracking for VLC is no longer available.", viewModel.WarningBanner);
+        Assert.Contains("without assuming the previous operation succeeded or failed", viewModel.WarningBanner);
+        Assert.Equal(3, client.StreamCalls);
+        Assert.Equal(1, client.ListCalls);
+        Assert.False(item.IsBusy);
+    }
+'@
+          if (-not $content.Contains($old)) { throw 'target test block not found' }
+          Set-Content $path ($content.Replace($old, $new)) -NoNewline
+          git rm .github/workflows/temp-stage4-test-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $path
+          git commit -m "Update stream-loss reconciliation expectation"
+          git push origin HEAD:agent/app-catalog-stage4-recovery

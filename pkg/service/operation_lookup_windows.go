@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"time"
 )
 
 const actionListOperations = "ListOperations"
@@ -28,6 +29,7 @@ type listOperationsResponse struct {
 func (sr *serviceRunner) snapshotTrackedOperations() []operationSnapshotPayload {
 	sr.operationsMu.Lock()
 	defer sr.operationsMu.Unlock()
+	sr.pruneTrackedOperationsLocked(time.Now())
 
 	out := make([]operationSnapshotPayload, 0, len(sr.operations))
 	for operationID, op := range sr.operations {

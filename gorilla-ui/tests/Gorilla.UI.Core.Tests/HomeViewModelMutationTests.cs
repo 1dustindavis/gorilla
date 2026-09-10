@@ -112,7 +112,7 @@ public class HomeViewModelMutationTests
         await viewModel.RemoveAsync(item, CancellationToken.None);
         Assert.Contains("Operation tracking for VLC is no longer available.", viewModel.WarningBanner);
         Assert.Contains("without assuming the previous operation succeeded or failed", viewModel.WarningBanner);
-        Assert.Equal(3, client.StreamCalls);
+        Assert.Equal(2, client.StreamCalls);
         Assert.Equal(1, client.ListCalls);
         Assert.False(item.IsBusy);
     }

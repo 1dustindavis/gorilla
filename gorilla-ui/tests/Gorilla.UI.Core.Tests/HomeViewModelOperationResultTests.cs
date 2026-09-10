@@ -15,14 +15,13 @@ public class HomeViewModelOperationResultTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-09T19:45:00Z");
 
     [Theory]
-    [InlineData(Outcome.Succeeded, OperationState.Succeeded, "Succeeded: Installed", "")]
-    [InlineData(Outcome.AlreadySatisfied, OperationState.Succeeded, "AlreadySatisfied: Already installed", "")]
-    [InlineData(Outcome.Failed, OperationState.Failed, "Failed: Installer exited with code 1", "Operation for VLC ended with Failed: Installer exited with code 1")]
-    [InlineData(Outcome.Unverified, OperationState.Failed, "Unverified: Unable to confirm installed state", "Operation for VLC ended with Unverified: Unable to confirm installed state")]
-    [InlineData(Outcome.Interrupted, OperationState.Canceled, "Interrupted: Service operation was interrupted", "Operation for VLC ended with Interrupted: Service operation was interrupted")]
-    public async Task InstallAsync_UsesAuthoritativeOutcomeInsteadOfCompatibilityState(
+    [InlineData(Outcome.Succeeded, "Succeeded: Installed", "")]
+    [InlineData(Outcome.AlreadySatisfied, "AlreadySatisfied: Already installed", "")]
+    [InlineData(Outcome.Failed, "Failed: Installer exited with code 1", "Operation for VLC ended with Failed: Installer exited with code 1")]
+    [InlineData(Outcome.Unverified, "Unverified: Unable to confirm installed state", "Operation for VLC ended with Unverified: Unable to confirm installed state")]
+    [InlineData(Outcome.Interrupted, "Interrupted: Service operation was interrupted", "Operation for VLC ended with Interrupted: Service operation was interrupted")]
+    public async Task InstallAsync_UsesAuthoritativeOutcome(
         Outcome outcome,
-        OperationState compatibilityState,
         string expectedStatus,
         string expectedWarning)
     {
@@ -40,9 +39,9 @@ public class HomeViewModelOperationResultTests
         {
             StreamAsync = (_, _) => Stream(new OperationStatusEvent(
                 OperationId: "op-1",
-                State: compatibilityState,
+                State: OperationState.Completed,
                 ProgressPercent: null,
-                Message: "compatibility message",
+                Message: resultMessage,
                 TimestampUtc: Now,
                 ItemName: "VLC",
                 Action: AppCatalog.Action.Install,
@@ -65,7 +64,7 @@ public class HomeViewModelOperationResultTests
         {
             StreamAsync = (_, _) => Stream(new OperationStatusEvent(
                 OperationId: "op-1",
-                State: OperationState.Succeeded,
+                State: OperationState.Completed,
                 ProgressPercent: null,
                 Message: "Installed",
                 TimestampUtc: Now,
@@ -81,6 +80,32 @@ public class HomeViewModelOperationResultTests
 
         Assert.Contains("Install queued, but live status stream failed", viewModel.WarningBanner);
         Assert.Contains("identity mismatch", viewModel.WarningBanner);
+        Assert.Equal(0, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task InstallAsync_RejectsMismatchedStreamActionAsStatusFailure()
+    {
+        var client = new FakeClient
+        {
+            StreamAsync = (_, _) => Stream(new OperationStatusEvent(
+                OperationId: "op-1",
+                State: OperationState.Completed,
+                ProgressPercent: null,
+                Message: "Installed",
+                TimestampUtc: Now,
+                ItemName: "VLC",
+                Action: AppCatalog.Action.Remove,
+                Result: new Result(Outcome.Succeeded, "completed", Message: "Installed")
+            )),
+        };
+        var viewModel = CreateViewModel(client);
+        var item = MakeUiItem();
+
+        await viewModel.InstallAsync(item, CancellationToken.None);
+
+        Assert.Contains("Install queued, but live status stream failed", viewModel.WarningBanner);
+        Assert.Contains("action mismatch", viewModel.WarningBanner);
         Assert.Equal(0, client.ListCalls);
     }
 

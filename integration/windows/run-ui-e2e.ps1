@@ -184,6 +184,33 @@ function Invoke-TestPhase {
     }
 }
 
+function Get-ManagedRunStartCount {
+    if (-not (Test-Path -LiteralPath $serviceLogPath)) {
+        return 0
+    }
+    return @(
+        Select-String -LiteralPath $serviceLogPath -SimpleMatch "Retrieving manifest:" -ErrorAction SilentlyContinue
+    ).Count
+}
+
+function Wait-ManagedRunStartCount {
+    param(
+        [Parameter(Mandatory)][int]$MinimumCount,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $count = Get-ManagedRunStartCount
+        if ($count -ge $MinimumCount) {
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for managed run start count $MinimumCount. Actual: $(Get-ManagedRunStartCount)"
+}
+
 function Get-ManagedRunCompletionCount {
     if (-not (Test-Path -LiteralPath $serviceLogPath)) {
         return 0
@@ -228,8 +255,8 @@ function Assert-OneTimeRemovalSurvivesScheduledRun {
     }
 
     # Restart with a short interval so we can observe an actual ticker-triggered
-    # service run using only persisted policy. The immediate startup run happens
-    # first; the second completion after restart is necessarily timer-driven.
+    # service run using only persisted policy. Wait for the immediate startup run
+    # to finish before simulating the out-of-band reinstall.
     Stop-TestServiceProcess
     (Get-Content -LiteralPath $configPath -Raw).Replace("service_interval: 24h", "service_interval: 2s") |
         Set-Content -LiteralPath $configPath -NoNewline
@@ -248,7 +275,20 @@ function Assert-OneTimeRemovalSurvivesScheduledRun {
         throw "Out-of-band Ps1V1 reinstall did not create marker: $markerPath"
     }
 
-    Wait-ManagedRunCompletionCount -MinimumCount ($runsBeforeRestart + 2)
+    # Establish the run-start baseline only after the external reinstall has
+    # completed. Requiring a later start proves that a managed run begins after
+    # the reinstall rather than allowing an already-completed ticker run to
+    # satisfy the assertion.
+    $startsAfterReinstall = Get-ManagedRunStartCount
+    Wait-ManagedRunStartCount -MinimumCount ($startsAfterReinstall + 1)
+
+    # Once that post-reinstall run has definitely started, take a fresh
+    # completion baseline. If it already finished before this read, the next
+    # completion will come from an even later scheduled run; either way the
+    # completion we wait for necessarily occurs after the external reinstall.
+    $completionsAfterObservedStart = Get-ManagedRunCompletionCount
+    Wait-ManagedRunCompletionCount -MinimumCount ($completionsAfterObservedStart + 1)
+
     if (-not (Test-Path -LiteralPath $markerPath)) {
         throw "Scheduled Gorilla run re-enforced a stale App Catalog uninstall after external reinstall"
     }
@@ -261,7 +301,9 @@ function Assert-OneTimeRemovalSurvivesScheduledRun {
         "",
         "Managed runs before service restart: $runsBeforeRestart",
         "Verified startup completion: $($runsBeforeRestart + 1)",
-        "Verified scheduled completion: $($runsBeforeRestart + 2)",
+        "Run starts observed immediately after external reinstall: $startsAfterReinstall",
+        "Run starts after ordering assertion: $(Get-ManagedRunStartCount)",
+        "Completions after observed post-reinstall start: $(Get-ManagedRunCompletionCount)",
         "Marker present after scheduled run: $(Test-Path -LiteralPath $markerPath)"
     ) | Set-Content -LiteralPath (Join-Path $phaseDirectory "lifecycle.txt")
     Copy-PhaseServiceEvidence -PhaseDirectory $phaseDirectory

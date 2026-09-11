@@ -106,16 +106,13 @@ internal sealed class GorillaAppSession : IDisposable
 
     public void CaptureCheckpoint(string name, bool includeAutomationTree = false)
     {
-        BestEffort(() =>
-        {
-            var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
-            Directory.CreateDirectory(screenshotsDirectory);
-            using var image = MainWindow.Capture();
-            image.Save(Path.Combine(screenshotsDirectory, SafeFileName(name) + ".png"));
-        });
+        CaptureWindowScreenshot(name);
 
         if (includeAutomationTree)
         {
+            var checkpointTree = $"automation-tree-{SafeFileName(name)}.txt";
+            CaptureAutomationTree(checkpointTree);
+            // Preserve the conventional rolling filename used by workflow guidance.
             CaptureAutomationTree("automation-tree.txt");
         }
         CaptureProcessInfo();
@@ -123,6 +120,8 @@ internal sealed class GorillaAppSession : IDisposable
 
     public void CaptureAutomationTree(string fileName = "automation-tree.txt")
     {
+        RefreshAndFocusMainWindow();
+
         var builder = new StringBuilder();
         builder.AppendLine("UI Automation tree");
         try
@@ -149,15 +148,35 @@ internal sealed class GorillaAppSession : IDisposable
                 Path.Combine(_artifactsDirectory, $"failure-{SafeFileName(testName)}.txt"),
                 exception + Environment.NewLine + BuildProcessInfo());
         });
+        CaptureWindowScreenshot($"failure-{SafeFileName(testName)}");
+        CaptureAutomationTree("automation-tree-failure.txt");
+        CaptureProcessInfo();
+    }
+
+    private void CaptureWindowScreenshot(string name)
+    {
+        RefreshAndFocusMainWindow();
         BestEffort(() =>
         {
             var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
             Directory.CreateDirectory(screenshotsDirectory);
             using var image = MainWindow.Capture();
-            image.Save(Path.Combine(screenshotsDirectory, $"failure-{SafeFileName(testName)}.png"));
+            image.Save(Path.Combine(screenshotsDirectory, SafeFileName(name) + ".png"));
         });
-        CaptureAutomationTree("automation-tree-failure.txt");
-        CaptureProcessInfo();
+    }
+
+    private void RefreshAndFocusMainWindow()
+    {
+        BestEffort(() =>
+        {
+            var current = _application.GetMainWindow(_automation, TimeSpan.FromMilliseconds(500));
+            if (current is not null)
+            {
+                MainWindow = current;
+            }
+            MainWindow.Focus();
+            Thread.Sleep(100);
+        });
     }
 
     private string BuildProcessInfo()

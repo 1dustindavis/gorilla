@@ -66,7 +66,7 @@ internal sealed class HomePageDriver
     public void WaitForItemStatus(string itemName, string expectedPrefix, TimeSpan? timeout = null)
     {
         _session.WaitUntil(
-            () => ItemStatus(itemName).StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase),
+            () => Normalize(ItemStatus(itemName)).StartsWith(Normalize(expectedPrefix), StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }
@@ -107,6 +107,9 @@ internal sealed class HomePageDriver
             return null;
         });
     }
+
+    private static string Normalize(string value)
+        => value.Replace(" ", string.Empty, StringComparison.Ordinal);
 
     private static string SafeName(AutomationElement element)
     {

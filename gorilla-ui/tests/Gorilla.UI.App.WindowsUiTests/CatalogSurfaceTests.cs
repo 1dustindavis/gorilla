@@ -16,15 +16,19 @@ public sealed class CatalogSurfaceTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void CatalogRendersCardsAndMissingDescriptionWithoutPlaceholder()
+    public void CatalogRendersDenseCardsAndMissingDescriptionWithoutPlaceholder()
     {
-        RunWithDiagnostics(nameof(CatalogRendersCardsAndMissingDescriptionWithoutPlaceholder), session =>
+        RunWithDiagnostics(nameof(CatalogRendersDenseCardsAndMissingDescriptionWithoutPlaceholder), session =>
         {
             var home = new HomePageDriver(session);
 
             _ = home.WaitForCard(FixtureItemName);
             _ = home.WaitForCard(FailureFixtureItemName);
             _ = home.WaitForCard(InstalledFixtureItemName);
+            Assert.True(
+                home.CardWidth(FixtureItemName) <= 280.5,
+                $"Expected dense catalog card width at or below 280px, got {home.CardWidth(FixtureItemName):0.0}px."
+            );
             Assert.Null(home.Description(FailureFixtureItemName));
             Assert.Contains("Celestial amber telescope", home.Description(InstalledFixtureItemName), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(

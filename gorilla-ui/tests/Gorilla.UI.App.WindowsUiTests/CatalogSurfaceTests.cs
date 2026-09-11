@@ -1,4 +1,5 @@
 using FlaUI.Core.Definitions;
+using Microsoft.Win32;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
@@ -10,6 +11,8 @@ public sealed class CatalogSurfaceTests
     private const string UpdateFixtureItemName = "RegistryUpdateFixture";
     private const string InstalledFixtureItemName = "RegistryInstalledFixture";
     private const string SlowFixtureItemName = "SlowInstallFixture";
+    private const string UpdateRegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture";
+    private const string InstalledRegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture";
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
@@ -27,7 +30,11 @@ public sealed class CatalogSurfaceTests
             Assert.Contains("Celestial amber telescope", home.Description(InstalledFixtureItemName), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(
                 session.MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)),
-                element => string.Equals(element.Name, "No description available", StringComparison.OrdinalIgnoreCase)
+                element => string.Equals(
+                    HomePageDriver.AutomationName(element),
+                    "No description available",
+                    StringComparison.OrdinalIgnoreCase
+                )
             );
             session.CaptureCheckpoint("catalog-cards", includeAutomationTree: true);
         });
@@ -100,17 +107,27 @@ public sealed class CatalogSurfaceTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void AbsentFixtureShowsOnePrimaryInstallAction()
+    public void InstalledSelectedFixtureShowsOnePrimaryRemoveAction()
     {
-        RunWithDiagnostics(nameof(AbsentFixtureShowsOnePrimaryInstallAction), session =>
+        RunWithDiagnostics(nameof(InstalledSelectedFixtureShowsOnePrimaryRemoveAction), session =>
         {
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
             var home = new HomePageDriver(session);
-            var card = home.WaitForCard(FailureFixtureItemName);
+            _ = home.WaitForItem(SlowFixtureItemName);
+
+            if (!string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
+            {
+                home.InstallButton(SlowFixtureItemName).Invoke();
+                session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+                home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+            }
+
+            var card = home.WaitForCard(SlowFixtureItemName);
             var primary = card.FindFirstDescendant(cf => cf.ByAutomationId("PrimaryActionButton"));
             var secondary = card.FindFirstDescendant(cf => cf.ByAutomationId("SecondaryActionButton"));
 
             Assert.NotNull(primary);
-            Assert.Equal("Install", primary!.Name);
+            Assert.Equal("Remove", HomePageDriver.AutomationName(primary!));
             Assert.Null(secondary);
         });
     }
@@ -119,6 +136,8 @@ public sealed class CatalogSurfaceTests
     [Trait("E2EPhase", "Healthy")]
     public void UpdateAvailableFixtureShowsUpdatePrimaryAndRemoveSecondary()
     {
+        SeedRegistryFixture(UpdateRegistrySubKey, "Gorilla UI Update Fixture", "1.0.0");
+
         RunWithDiagnostics(nameof(UpdateAvailableFixtureShowsUpdatePrimaryAndRemoveSecondary), session =>
         {
             var home = new HomePageDriver(session);
@@ -139,6 +158,8 @@ public sealed class CatalogSurfaceTests
     [Trait("E2EPhase", "Healthy")]
     public void InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary()
     {
+        SeedRegistryFixture(InstalledRegistrySubKey, "Gorilla UI Installed Fixture", "1.0.0");
+
         RunWithDiagnostics(nameof(InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary), session =>
         {
             var home = new HomePageDriver(session);
@@ -178,6 +199,16 @@ public sealed class CatalogSurfaceTests
             home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.True(home.HasSecondaryAction(SlowFixtureItemName) || home.PrimaryActionButton(SlowFixtureItemName).Name == "Remove");
         });
+    }
+
+    private static void SeedRegistryFixture(string subKey, string displayName, string displayVersion)
+    {
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = baseKey.CreateSubKey(subKey, writable: true)
+            ?? throw new InvalidOperationException($"Unable to create registry fixture HKLM\\{subKey}.");
+        key.SetValue("DisplayName", displayName, RegistryValueKind.String);
+        key.SetValue("DisplayVersion", displayVersion, RegistryValueKind.String);
+        key.SetValue("UninstallString", "cmd.exe /c exit 0", RegistryValueKind.String);
     }
 
     private static string RequiredPath(string variableName)

@@ -149,7 +149,7 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_RefreshFailureAfterOperationFailure_PreservesOperationWarning()
+    public async Task InstallAsync_RefreshFailureAfterOperationFailure_ShowsRefreshWarningAndKeepsItemFailureLocal()
     {
         var client = new FakeClient
         {
@@ -160,18 +160,20 @@ public class HomeViewModelMutationTests
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
-        Assert.Equal("Operation for VLC ended with Failed: exit code 1", viewModel.WarningBanner);
+        Assert.Equal("Failed: exit code 1", item.CardPresentation.TerminalFeedbackText);
+        Assert.Contains("Operation completed, but optional installs refresh failed", viewModel.WarningBanner);
+        Assert.Contains("refresh unavailable", viewModel.WarningBanner);
         Assert.Equal(1, client.ListCalls);
     }
 
     [Theory]
-    [InlineData(Outcome.Failed, "execution_failed", "exit code 1", "Operation for VLC ended with Failed: exit code 1")]
-    [InlineData(Outcome.Interrupted, "execution_interrupted", "Canceled by service", "Operation for VLC ended with Interrupted: Canceled by service")]
-    public async Task InstallAsync_UnsuccessfulOutcome_UsesStructuredResult(
+    [InlineData(Outcome.Failed, "execution_failed", "exit code 1", "Failed: exit code 1")]
+    [InlineData(Outcome.Interrupted, "execution_interrupted", "Canceled by service", "Interrupted: Canceled by service")]
+    public async Task InstallAsync_UnsuccessfulOutcome_UsesStructuredItemResult(
         Outcome outcome,
         string code,
         string message,
-        string expectedWarning)
+        string expectedFeedback)
     {
         var client = new FakeClient
         {
@@ -182,7 +184,8 @@ public class HomeViewModelMutationTests
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
-        Assert.Equal(expectedWarning, viewModel.WarningBanner);
+        Assert.Equal(expectedFeedback, item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
     }
 
     [Fact]

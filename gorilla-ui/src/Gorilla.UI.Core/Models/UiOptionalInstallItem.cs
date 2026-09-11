@@ -178,7 +178,11 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         ? $"{ActiveOperation.State}: {ActiveOperation.Message}"
         : !_preferObservedStatus && LatestOperation?.Result is { } result
             ? $"{result.Outcome}: {OperationDisplay.Details(result)}"
-            : _legacyStatus ?? Observation.State.ToString();
+            : _legacyStatus ?? Observation.State switch
+            {
+                ObservedState.Absent => "NotInstalled",
+                _ => Observation.State.ToString(),
+            };
         set
         {
             _legacyStatus = value;

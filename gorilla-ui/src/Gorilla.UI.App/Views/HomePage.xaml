@@ -11,7 +11,7 @@
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
 
-    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,*">
+    <Grid Padding="20" RowDefinitions="Auto,Auto,Auto,*">
         <TextBlock
             Text="Available Software"
             FontSize="28"
@@ -21,7 +21,7 @@
 
         <TextBox
             Grid.Row="1"
-            Margin="0,16,0,0"
+            Margin="0,12,0,0"
             MaxWidth="520"
             HorizontalAlignment="Left"
             PlaceholderText="Search apps"
@@ -31,7 +31,7 @@
 
         <TextBlock
             Grid.Row="2"
-            Margin="0,12,0,0"
+            Margin="0,10,0,0"
             x:Name="ServiceWarning"
             Text="{Binding WarningBanner}"
             Foreground="DarkOrange"
@@ -39,7 +39,7 @@
             AutomationProperties.AutomationId="ServiceWarning"
             AutomationProperties.LiveSetting="Polite" />
 
-        <Grid Grid.Row="3" Margin="0,20,0,0">
+        <Grid Grid.Row="3" Margin="0,14,0,0">
             <GridView
                 x:Name="CatalogItems"
                 ItemsSource="{Binding Items}"
@@ -54,12 +54,12 @@
                 AutomationProperties.Name="Available software">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <ItemsWrapGrid Orientation="Horizontal" ItemWidth="320" />
+                        <ItemsWrapGrid Orientation="Horizontal" ItemWidth="250" />
                     </ItemsPanelTemplate>
                 </GridView.ItemsPanel>
                 <GridView.ItemContainerStyle>
                     <Style TargetType="GridViewItem">
-                        <Setter Property="Margin" Value="0,0,16,16" />
+                        <Setter Property="Margin" Value="0,0,10,10" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         <Setter Property="AutomationProperties.AutomationId" Value="{Binding ItemName}" />
@@ -69,33 +69,33 @@
                 <GridView.ItemTemplate>
                     <DataTemplate>
                         <Border
-                            Padding="20"
-                            MinHeight="280"
+                            Padding="14"
+                            MinHeight="220"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
                             AutomationProperties.AutomationId="CatalogCard"
                             AutomationProperties.Name="{Binding DisplayName}">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
                                 <Border
-                                    Width="44"
-                                    Height="44"
-                                    CornerRadius="8"
+                                    Width="36"
+                                    Height="36"
+                                    CornerRadius="7"
                                     Background="{ThemeResource AccentFillColorSecondaryBrush}">
                                     <FontIcon
                                         Glyph="&#xE71D;"
                                         FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                        FontSize="22"
+                                        FontSize="18"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center" />
                                 </Border>
 
                                 <TextBlock
                                     Grid.Row="1"
-                                    Margin="0,14,0,0"
+                                    Margin="0,10,0,0"
                                     Text="{Binding DisplayName}"
-                                    FontSize="18"
+                                    FontSize="16"
                                     FontWeight="SemiBold"
                                     TextWrapping="WrapWholeWords"
                                     MaxLines="2"
@@ -103,7 +103,7 @@
 
                                 <TextBlock
                                     Grid.Row="2"
-                                    Margin="0,6,0,0"
+                                    Margin="0,4,0,0"
                                     Text="{Binding Description}"
                                     TextWrapping="WrapWholeWords"
                                     TextTrimming="CharacterEllipsis"
@@ -112,7 +112,7 @@
                                     Visibility="{Binding CardPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     AutomationProperties.AutomationId="CatalogDescription" />
 
-                                <StackPanel Grid.Row="3" Margin="0,14,0,0" Spacing="3">
+                                <StackPanel Grid.Row="3" Margin="0,10,0,0" Spacing="2">
                                     <TextBlock
                                         Text="{Binding CardPresentation.ObservationText}"
                                         FontWeight="SemiBold"
@@ -126,17 +126,17 @@
 
                                 <StackPanel
                                     Grid.Row="4"
-                                    Margin="0,12,0,0"
+                                    Margin="0,8,0,0"
                                     Orientation="Horizontal"
-                                    Spacing="8"
+                                    Spacing="6"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     AutomationProperties.AutomationId="CatalogOperation"
                                     AutomationProperties.Name="{Binding CardPresentation.OperationText}"
                                     AutomationProperties.LiveSetting="Polite">
                                     <ProgressRing
-                                        Width="18"
-                                        Height="18"
+                                        Width="16"
+                                        Height="16"
                                         IsActive="{Binding CardPresentation.HasOperation}"
                                         IsIndeterminate="{Binding CardPresentation.IsProgressIndeterminate}"
                                         Value="{Binding CardPresentation.ProgressValue}" />
@@ -145,11 +145,24 @@
                                         VerticalAlignment="Center" />
                                 </StackPanel>
 
+                                <TextBlock
+                                    Grid.Row="5"
+                                    Margin="0,8,0,0"
+                                    Text="{Binding CardPresentation.TerminalFeedbackText}"
+                                    TextWrapping="WrapWholeWords"
+                                    MaxLines="3"
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                    Visibility="{Binding CardPresentation.HasTerminalFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    AutomationProperties.AutomationId="CatalogTerminalFeedback"
+                                    AutomationProperties.Name="{Binding CardPresentation.TerminalFeedbackText}"
+                                    AutomationProperties.LiveSetting="Polite" />
+
                                 <StackPanel
-                                    Grid.Row="6"
-                                    Margin="0,18,0,0"
+                                    Grid.Row="7"
+                                    Margin="0,12,0,0"
                                     Orientation="Horizontal"
-                                    Spacing="8">
+                                    Spacing="6">
                                     <Button
                                         Content="{Binding CardPresentation.PrimaryAction.Label}"
                                         Tag="{Binding CardPresentation.PrimaryAction.Kind}"

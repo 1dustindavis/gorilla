@@ -47,9 +47,8 @@ internal sealed class HomePageDriver
 
     public string ItemStatus(string itemName)
     {
-        var item = WaitForItem(itemName);
-        var status = _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogObservation")));
-        return SafeName(status);
+        var status = TryItemStatus(itemName);
+        return status ?? string.Empty;
     }
 
     public string? Description(string itemName)
@@ -96,7 +95,12 @@ internal sealed class HomePageDriver
     public void WaitForItemStatus(string itemName, string expectedPrefix, TimeSpan? timeout = null)
     {
         _session.WaitUntil(
-            () => Normalize(ItemStatus(itemName)).StartsWith(Normalize(expectedPrefix), StringComparison.OrdinalIgnoreCase),
+            () =>
+            {
+                var status = TryItemStatus(itemName);
+                return status is not null
+                    && Normalize(status).StartsWith(Normalize(expectedPrefix), StringComparison.OrdinalIgnoreCase);
+            },
             timeout
         );
     }
@@ -125,6 +129,14 @@ internal sealed class HomePageDriver
     }
 
     public static string AutomationName(AutomationElement element) => SafeName(element);
+
+    private string? TryItemStatus(string itemName)
+    {
+        var catalog = ById("CatalogItems");
+        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var status = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogObservation"));
+        return status is null ? null : SafeName(status);
+    }
 
     private AutomationElement? ById(string automationId)
     {

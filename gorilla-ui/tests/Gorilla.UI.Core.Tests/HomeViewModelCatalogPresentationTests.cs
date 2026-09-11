@@ -163,6 +163,31 @@ public class HomeViewModelCatalogPresentationTests
     }
 
     [Fact]
+    public async Task InitializeAsync_PreservesServicePolicyWithoutInference()
+    {
+        var policy = new Policy(
+            Optional: false,
+            RequiredInstall: true,
+            RequiredUninstall: true,
+            RequiredDependency: true,
+            Selection: Selection.Install
+        );
+        var viewModel = CreateViewModel(new FakeClient
+        {
+            Catalogs = [[Item("Example", "Example", policy: policy)]],
+        });
+
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        var item = Assert.Single(viewModel.Items);
+        Assert.Equal(policy, item.Policy);
+        Assert.True(item.Policy!.RequiredInstall);
+        Assert.True(item.Policy.RequiredUninstall);
+        Assert.True(item.Policy.RequiredDependency);
+        Assert.Equal(Selection.Install, item.Policy.Selection);
+    }
+
+    [Fact]
     public async Task InitializeAsync_ProjectsActiveOperationSeparatelyFromObservation()
     {
         var active = new OperationStatusEvent("op-1", OperationState.Removing, 50, "Removing", Now, "Example", AppCatalog.Action.Remove);
@@ -244,10 +269,11 @@ public class HomeViewModelCatalogPresentationTests
         string? targetVersion = "2.0",
         string legacyVersion = "legacy-version",
         Observation? observation = null,
+        Policy? policy = null,
         ActionDecision? install = null,
         ActionDecision? remove = null)
         => new(itemName, displayName, legacyVersion, catalog, "msi", "package", installerLocation,
-            true, false, OptionalInstallStatus.NotInstalled, Now, null, targetVersion, observation,
+            true, false, OptionalInstallStatus.NotInstalled, Now, null, targetVersion, observation, Policy: policy,
             Actions: new Actions(install ?? new ActionDecision(true, ""), remove ?? new ActionDecision(false, "not_installed")),
             Description: description);
 

@@ -60,20 +60,10 @@ internal sealed class HomePageDriver
 
     public string OperationText(string itemName)
     {
-        var item = CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var catalog = ById("CatalogItems");
+        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
         var operation = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
-        if (operation is null)
-        {
-            return string.Empty;
-        }
-
-        return string.Join(
-            " ",
-            operation
-                .FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
-                .Select(SafeName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-        );
+        return operation is null ? string.Empty : SafeName(operation);
     }
 
     public bool HasItem(string itemName)

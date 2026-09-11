@@ -207,7 +207,7 @@ public sealed partial class HomePage : Page, IDisposable
         {
             ServiceWarning.UnregisterPropertyChangedCallback(
                 TextBlock.TextProperty,
-                ServiceWarning_TextChanged
+                _serviceWarningTextChangedToken
             );
             _serviceWarningTextChangedToken = 0;
         }

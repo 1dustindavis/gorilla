@@ -104,9 +104,9 @@ public sealed class CriticalPathTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void DeliberateInstallerFailureIsDisplayedAsFailure()
+    public void DeliberateInstallerFailureIsDisplayedOnItsCard()
     {
-        RunWithDiagnostics(nameof(DeliberateInstallerFailureIsDisplayedAsFailure), session =>
+        RunWithDiagnostics(nameof(DeliberateInstallerFailureIsDisplayedOnItsCard), session =>
         {
             var home = new HomePageDriver(session);
 
@@ -117,9 +117,16 @@ public sealed class CriticalPathTests
 
             home.InstallButton(FailureFixtureItemName).Invoke();
 
-            home.WaitForWarningContaining("ended with Failed", TimeSpan.FromSeconds(60));
-            Assert.Contains("Installation error: exit status 7", home.WarningText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Succeeded", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            home.WaitForTerminalFeedbackContaining(FailureFixtureItemName, "Failed:", TimeSpan.FromSeconds(60));
+            Assert.Contains(
+                "Installation error: exit status 7",
+                home.TerminalFeedbackText(FailureFixtureItemName),
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.True(
+                string.IsNullOrWhiteSpace(home.WarningText),
+                $"Item-specific failure should not populate the page warning: {home.WarningText}"
+            );
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);
         });

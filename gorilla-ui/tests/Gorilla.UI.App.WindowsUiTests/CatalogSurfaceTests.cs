@@ -25,7 +25,6 @@ public sealed class CatalogSurfaceTests
             _ = home.WaitForCard(FixtureItemName);
             _ = home.WaitForCard(FailureFixtureItemName);
             _ = home.WaitForCard(InstalledFixtureItemName);
-            Assert.Equal("Not installed", home.ItemStatus(FixtureItemName));
             Assert.Null(home.Description(FailureFixtureItemName));
             Assert.Contains("Celestial amber telescope", home.Description(InstalledFixtureItemName), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(

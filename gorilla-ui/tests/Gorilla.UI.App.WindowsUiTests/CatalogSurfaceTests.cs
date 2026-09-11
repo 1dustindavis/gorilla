@@ -16,21 +16,23 @@ public sealed class CatalogSurfaceTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void CatalogRendersDenseCardsAndMissingDescriptionWithoutPlaceholder()
+    public void CatalogRendersCompactCardsWithoutDescriptions()
     {
-        RunWithDiagnostics(nameof(CatalogRendersDenseCardsAndMissingDescriptionWithoutPlaceholder), session =>
+        RunWithDiagnostics(nameof(CatalogRendersCompactCardsWithoutDescriptions), session =>
         {
             var home = new HomePageDriver(session);
 
             _ = home.WaitForCard(FixtureItemName);
             _ = home.WaitForCard(FailureFixtureItemName);
             _ = home.WaitForCard(InstalledFixtureItemName);
-            Assert.True(
-                home.CardWidth(FixtureItemName) <= 280.5,
-                $"Expected dense catalog card width at or below 280px, got {home.CardWidth(FixtureItemName):0.0}px."
-            );
-            Assert.Null(home.Description(FailureFixtureItemName));
-            Assert.Contains("Celestial amber telescope", home.Description(InstalledFixtureItemName), StringComparison.OrdinalIgnoreCase);
+
+            var width = home.CardWidth(FixtureItemName);
+            var height = home.CardHeight(FixtureItemName);
+            Assert.InRange(width, 299.5, 340.5);
+            Assert.InRange(height, 203.5, 204.5);
+            Assert.False(home.HasDescriptionElement(FixtureItemName));
+            Assert.False(home.HasDescriptionElement(FailureFixtureItemName));
+            Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
             Assert.DoesNotContain(
                 session.MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)),
                 element => string.Equals(
@@ -64,9 +66,9 @@ public sealed class CatalogSurfaceTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void SearchByDescriptionFlowsFromCatalogThroughServiceAndCore()
+    public void SearchByDescriptionFlowsFromCatalogThroughServiceAndCoreWithoutRenderingDescription()
     {
-        RunWithDiagnostics(nameof(SearchByDescriptionFlowsFromCatalogThroughServiceAndCore), session =>
+        RunWithDiagnostics(nameof(SearchByDescriptionFlowsFromCatalogThroughServiceAndCoreWithoutRenderingDescription), session =>
         {
             var home = new HomePageDriver(session);
             _ = home.WaitForItem(InstalledFixtureItemName);
@@ -76,11 +78,7 @@ public sealed class CatalogSurfaceTests
             home.Search(descriptionOnlyQuery);
 
             session.WaitUntil(() => home.HasItem(InstalledFixtureItemName) && !home.HasItem(UpdateFixtureItemName));
-            Assert.Contains(
-                descriptionOnlyQuery,
-                home.Description(InstalledFixtureItemName),
-                StringComparison.OrdinalIgnoreCase
-            );
+            Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
             session.CaptureCheckpoint("catalog-search-description", includeAutomationTree: true);
 
             home.ClearSearch();
@@ -208,6 +206,7 @@ public sealed class CatalogSurfaceTests
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
             Assert.Equal("Not installed", home.ItemStatus(SlowFixtureItemName));
             Assert.False(home.PrimaryActionButton(SlowFixtureItemName).IsEnabled);
+            Assert.InRange(home.CardHeight(SlowFixtureItemName), 203.5, 204.5);
             session.CaptureCheckpoint("catalog-active-operation", includeAutomationTree: true);
 
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));

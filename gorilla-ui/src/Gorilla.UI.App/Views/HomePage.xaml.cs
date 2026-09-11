@@ -17,7 +17,6 @@ public sealed partial class HomePage : Page, IDisposable
     private CancellationTokenSource? _cts;
     private long _serviceWarningTextChangedToken;
     private bool _hasInitialized;
-    private UiOptionalInstallItem? _pendingActionItem;
 
     public HomeViewModel ViewModel { get; }
 
@@ -57,19 +56,6 @@ public sealed partial class HomePage : Page, IDisposable
         if (e.PropertyName == nameof(HomeViewModel.SearchQuery))
         {
             UpdateEmptyStates();
-            return;
-        }
-
-        if (e.PropertyName == nameof(HomeViewModel.WarningBanner) && _pendingActionItem is { } item)
-        {
-            var installRejected = $"Install was not accepted for {item.DisplayName}.";
-            var removeRejected = $"Remove was not accepted for {item.DisplayName}.";
-            if (string.Equals(ViewModel.WarningBanner, installRejected, StringComparison.Ordinal)
-                || string.Equals(ViewModel.WarningBanner, removeRejected, StringComparison.Ordinal))
-            {
-                item.TransientFeedback = ViewModel.WarningBanner;
-                ViewModel.SetWarningBanner(string.Empty);
-            }
         }
     }
 
@@ -184,23 +170,14 @@ public sealed partial class HomePage : Page, IDisposable
             return;
         }
 
-        item.TransientFeedback = null;
-        _pendingActionItem = item;
-        try
+        switch (action.Value)
         {
-            switch (action.Value)
-            {
-                case CatalogCardActionKind.Install:
-                    await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
-                    break;
-                case CatalogCardActionKind.Remove:
-                    await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
-                    break;
-            }
-        }
-        finally
-        {
-            _pendingActionItem = null;
+            case CatalogCardActionKind.Install:
+                await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
+                break;
+            case CatalogCardActionKind.Remove:
+                await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
+                break;
         }
     }
 
@@ -230,7 +207,7 @@ public sealed partial class HomePage : Page, IDisposable
         {
             ServiceWarning.UnregisterPropertyChangedCallback(
                 TextBlock.TextProperty,
-                _serviceWarningTextChangedToken
+                ServiceWarning_TextChanged
             );
             _serviceWarningTextChangedToken = 0;
         }

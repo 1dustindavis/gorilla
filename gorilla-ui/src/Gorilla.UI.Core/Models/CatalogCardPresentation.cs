@@ -18,7 +18,6 @@ public sealed record CatalogCardActionPresentation(
 
 public sealed record CatalogCardPresentation(
     string ObservationText,
-    bool HasDescription,
     string? VersionText,
     string? OperationText,
     string? TerminalFeedbackText,
@@ -43,7 +42,6 @@ public static class CatalogCardPresentationMapper
         var (primary, secondary) = MapActions(item);
         return new CatalogCardPresentation(
             ObservationText: ObservationText(item.ObservedState),
-            HasDescription: !string.IsNullOrWhiteSpace(item.Description),
             VersionText: VersionText(item),
             OperationText: OperationText(item.ActiveOperation),
             TerminalFeedbackText: TerminalFeedbackText(item),

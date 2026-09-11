@@ -39,6 +39,7 @@ public sealed class CatalogSurfaceTests
                     StringComparison.OrdinalIgnoreCase
                 )
             );
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("catalog-cards", includeAutomationTree: true);
         });
     }
@@ -55,6 +56,7 @@ public sealed class CatalogSurfaceTests
 
             home.Search(FailureFixtureItemName);
             session.WaitUntil(() => home.HasItem(FailureFixtureItemName) && !home.HasItem(FixtureItemName));
+            home.EnsureItemVisible(FailureFixtureItemName);
             session.CaptureCheckpoint("catalog-search-name", includeAutomationTree: true);
 
             home.ClearSearch();
@@ -77,6 +79,7 @@ public sealed class CatalogSurfaceTests
 
             session.WaitUntil(() => home.HasItem(InstalledFixtureItemName) && !home.HasItem(UpdateFixtureItemName));
             Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
+            home.EnsureItemVisible(InstalledFixtureItemName);
             session.CaptureCheckpoint("catalog-search-description", includeAutomationTree: true);
 
             home.ClearSearch();
@@ -149,6 +152,7 @@ public sealed class CatalogSurfaceTests
             Assert.True(primary.IsEnabled);
             Assert.Equal("Remove", secondary.Name);
             Assert.True(secondary.IsEnabled);
+            home.EnsureItemVisible(UpdateFixtureItemName);
             session.CaptureCheckpoint("catalog-update-dual-action", includeAutomationTree: true);
         });
     }
@@ -171,6 +175,7 @@ public sealed class CatalogSurfaceTests
             Assert.True(primary.IsEnabled);
             Assert.Equal("Remove", secondary.Name);
             Assert.True(secondary.IsEnabled);
+            home.EnsureItemVisible(InstalledFixtureItemName);
             session.CaptureCheckpoint("catalog-installed-unselected-dual-action", includeAutomationTree: true);
         });
     }
@@ -206,6 +211,7 @@ public sealed class CatalogSurfaceTests
             Assert.Equal("Not installed", home.ItemStatus(SlowFixtureItemName));
             Assert.False(home.PrimaryActionButton(SlowFixtureItemName).IsEnabled);
             Assert.InRange(home.PrimaryActionTop(SlowFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
+            home.EnsureItemVisible(SlowFixtureItemName);
             session.CaptureCheckpoint("catalog-active-operation", includeAutomationTree: true);
 
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));

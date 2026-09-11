@@ -48,7 +48,7 @@ public class HomeViewModelTests
     }
 
     [Fact]
-    public async Task InstallAsync_SuccessfulStream_RefreshesAuthoritativeItems()
+    public async Task InstallAsync_SuccessfulStream_RefreshesAuthoritativeItemsWithoutClearingPageWarning()
     {
         var client = new FakeClient
         {
@@ -68,13 +68,14 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.False(item.IsBusy);
-        Assert.Equal(string.Empty, viewModel.WarningBanner);
+        Assert.Equal("old warning", viewModel.WarningBanner);
         Assert.Equal(1, client.ListCalls);
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.Equal("VLC", refreshedItem.ItemName);
         Assert.True(refreshedItem.IsInstalled);
         Assert.Equal("Installed", refreshedItem.Status);
         Assert.Equal(Outcome.Succeeded, refreshedItem.LatestOperation?.Result?.Outcome);
+        Assert.Null(refreshedItem.CardPresentation.TerminalFeedbackText);
     }
 
     [Fact]
@@ -103,10 +104,11 @@ public class HomeViewModelTests
         Assert.False(refreshedItem.IsInstalled);
         Assert.Equal("NotInstalled", refreshedItem.Status);
         Assert.Equal(Outcome.Succeeded, refreshedItem.LatestOperation?.Result?.Outcome);
+        Assert.Null(refreshedItem.CardPresentation.TerminalFeedbackText);
     }
 
     [Fact]
-    public async Task InstallAsync_TerminalFailure_RefreshesItemsAndPreservesOperationWarning()
+    public async Task InstallAsync_TerminalFailure_RefreshesItemsAndKeepsFailureOnItem()
     {
         var client = new FakeClient
         {
@@ -124,8 +126,10 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.Equal(1, client.ListCalls);
-        Assert.Equal("Operation for VLC ended with Failed: exit code 1", viewModel.WarningBanner);
-        Assert.False(Assert.Single(viewModel.Items).IsInstalled);
+        Assert.Empty(viewModel.WarningBanner);
+        var refreshedItem = Assert.Single(viewModel.Items);
+        Assert.False(refreshedItem.IsInstalled);
+        Assert.Equal("Failed: exit code 1", refreshedItem.CardPresentation.TerminalFeedbackText);
         Assert.False(item.IsBusy);
     }
 

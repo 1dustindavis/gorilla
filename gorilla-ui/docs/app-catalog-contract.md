@@ -7,15 +7,9 @@ UI. `pkg/appcatalog` implements the pure action/result decisions; Client's
 `AppCatalog` namespace defines matching payload records. Shared examples in
 `pkg/appcatalog/testdata/contract.json` are exercised by Go and .NET tests.
 
-**Implementation boundary:** stage 2 keeps the v1 envelope and operation lifecycle
-while replacing placeholder list data with real catalog metadata and shared Go
-observations. Its transitional list item includes the v2 observation, policy, and
-action objects alongside fields consumed by the current UI. The service enforces
-those actions. Stage 3 connects item results to execution and moves the whole live
-client/service exchange to the complete v2 operation contract. Stage 4 supplies
-durable tracking/recovery. Enable the v2 envelope only
-when service, CLI, and UI can use the complete contract together; do not label
-v1 data as v2 or infer new state from its placeholder fields.
+**Implementation boundary:** production remains on the v1 envelope and current
+operation lifecycle. The v2 material below records an earlier design proposal; it
+is not an active protocol migration.
 
 ## Product decisions
 
@@ -285,11 +279,11 @@ not an unconditional switch away from full runs.
 
 The proposed payload examples are in [app-catalog-v2-examples.ndjson](app-catalog-v2-examples.ndjson).
 They are design fixtures, not requests the current service accepts. The existing
-[v1 examples](protocol-v0-examples.ndjson) describe the still-active protocol.
+[v1 examples](protocol-v0-examples.ndjson) describe the active protocol.
 
 - Retain the canonical pipe and newline-delimited JSON envelopes/correlation IDs.
-- Use envelope version `v2` for the changed list/result semantics. Unsupported
-  versions must fail clearly; do not silently downgrade to v1 placeholder state.
+- Production uses envelope version `v1`; additive optional metadata does not
+  require a protocol-version bump.
 - ListOptionalInstalls returns the new item snapshots with service-owned actions.
 - InstallItem/RemoveItem accept an item name plus a stable client mutation ID.
   Acceptance means persisted intent/queued work, not installation success.

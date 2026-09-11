@@ -177,3 +177,29 @@ func TestGetNoCatalogsReturnsError(t *testing.T) {
 		t.Fatalf("expected error when no catalogs are configured")
 	}
 }
+
+func TestItemDescriptionIsOptional(t *testing.T) {
+	withDescription := map[string]Item{}
+	if err := yaml.Unmarshal([]byte("Example:\n  display_name: Example App\n  description: A short description.\n  version: 1.2.3\n"), &withDescription); err != nil {
+		t.Fatal(err)
+	}
+	if got := withDescription["Example"].Description; got != "A short description." {
+		t.Fatalf("description = %q, want preserved value", got)
+	}
+
+	withoutDescription := map[string]Item{}
+	if err := yaml.Unmarshal([]byte("Example:\n  display_name: Example App\n  version: 1.2.3\n"), &withoutDescription); err != nil {
+		t.Fatal(err)
+	}
+	if got := withoutDescription["Example"].Description; got != "" {
+		t.Fatalf("description = %q, want empty value for omitted metadata", got)
+	}
+
+	emptyDescription := map[string]Item{}
+	if err := yaml.Unmarshal([]byte("Example:\n  display_name: Example App\n  description: ''\n"), &emptyDescription); err != nil {
+		t.Fatal(err)
+	}
+	if got := emptyDescription["Example"].Description; got != "" {
+		t.Fatalf("description = %q, want empty value for empty metadata", got)
+	}
+}

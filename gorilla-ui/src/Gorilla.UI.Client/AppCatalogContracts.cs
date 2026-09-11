@@ -52,5 +52,6 @@ public sealed record Item(
     Policy Policy,
     Actions Actions,
     Operation? ActiveOperation,
-    Operation? LastOperation
+    Operation? LastOperation,
+    string? Description = null
 );

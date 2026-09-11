@@ -238,7 +238,7 @@ func TestListEnvelopeCarriesRealContractData(t *testing.T) {
 	now := time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)
 	target, installed := "2.0", "1.7"
 	contract := appcatalog.Item{
-		ItemName: "Example", DisplayName: "Example App", Catalog: "production", TargetVersion: &target,
+		ItemName: "Example", DisplayName: "Example App", Description: "An example application.", Catalog: "production", TargetVersion: &target,
 		Observation: appcatalog.Observation{
 			State: appcatalog.UpdateAvailable, InstalledVersion: &installed, CheckedAtUTC: &now,
 			InstallRequirement: appcatalog.RequirementNotSatisfied,
@@ -265,6 +265,9 @@ func TestListEnvelopeCarriesRealContractData(t *testing.T) {
 	got := envelope.Payload.Items[0]
 	if got.DisplayName != "Example App" || got.Version != "2.0" || got.Catalog != "production" || !got.IsInstalled || got.Status != "UpdateAvailable" {
 		t.Fatalf("legacy fields lost real data: %+v", got)
+	}
+	if got.Description != "An example application." {
+		t.Fatalf("description was not serialized: %+v", got)
 	}
 	if got.Observation.State != appcatalog.UpdateAvailable || got.Policy.Optional != true || !got.Actions.Install.Allowed || !got.Actions.Remove.Allowed {
 		t.Fatalf("contract fields missing: %+v", got)

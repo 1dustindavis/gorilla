@@ -39,8 +39,8 @@ func stubOptionalCatalog(t *testing.T, manifests []manifest.Item, catalogs map[i
 func TestOptionalDetailsUseCatalogPrecedenceObservationAndPolicy(t *testing.T) {
 	now := time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)
 	catalogs := map[int]map[string]catalog.Item{
-		1: {"Example": {DisplayName: "Example App", Version: "2.0", Installer: catalog.InstallerItem{Type: "msi", Location: "example.msi"}, Uninstaller: catalog.InstallerItem{Type: "msi", Location: "example.msi"}}},
-		2: {"Example": {DisplayName: "Wrong Precedence", Version: "9.0", Installer: catalog.InstallerItem{Type: "exe", Location: "wrong.exe"}}},
+		1: {"Example": {DisplayName: "Example App", Description: "Primary description", Version: "2.0", Installer: catalog.InstallerItem{Type: "msi", Location: "example.msi"}, Uninstaller: catalog.InstallerItem{Type: "msi", Location: "example.msi"}}},
+		2: {"Example": {DisplayName: "Wrong Precedence", Description: "Wrong description", Version: "9.0", Installer: catalog.InstallerItem{Type: "exe", Location: "wrong.exe"}}},
 	}
 	stubOptionalCatalog(t,
 		[]manifest.Item{{OptionalInstalls: []string{"Example", "Missing"}}, {Installs: []string{"Example"}}},
@@ -68,6 +68,9 @@ func TestOptionalDetailsUseCatalogPrecedenceObservationAndPolicy(t *testing.T) {
 	}
 	if example.DisplayName != "Example App" || example.Catalog != "primary" || example.TargetVersion == nil || *example.TargetVersion != "2.0" {
 		t.Fatalf("catalog metadata or precedence drifted: %+v", example)
+	}
+	if example.Description != "Primary description" {
+		t.Fatalf("description did not follow effective catalog precedence: %+v", example)
 	}
 	if example.Observation.State != appcatalog.Installed || example.Observation.InstalledVersion == nil || *example.Observation.InstalledVersion != "1.7" {
 		t.Fatalf("observation was not preserved: %+v", example.Observation)

@@ -61,6 +61,7 @@ public class ContractsSmokeTests
         Assert.Equal(ProtocolConstants.Operation.ListOptionalInstalls, copy.Operation);
         Assert.Single(copy.Payload.Items);
         Assert.Equal(OptionalInstallStatus.NotInstalled, copy.Payload.Items[0].Status);
+        Assert.Null(copy.Payload.Items[0].Description);
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public class ContractsSmokeTests
     {
         const string json = """
         {
-          "itemName":"Example","displayName":"Example App","version":"2.0","catalog":"production",
+          "itemName":"Example","displayName":"Example App","description":"An example application.","version":"2.0","catalog":"production",
           "installerType":"msi","installerPackageId":"Example","installerLocation":"example.msi",
           "isManaged":false,"isInstalled":true,"status":"UpdateAvailable",
           "statusUpdatedAtUtc":"2026-09-07T08:00:00Z","lastOperationId":null,"targetVersion":"2.0",
@@ -86,6 +87,23 @@ public class ContractsSmokeTests
         Assert.Equal(Selection.None, item.Policy!.Selection);
         Assert.True(item.Actions!.Install.Allowed);
         Assert.True(item.Actions.Remove.Allowed);
+        Assert.Equal("An example application.", item.Description);
+    }
+
+    [Fact]
+    public void OptionalDescription_IsOptionalAndUsesCamelCase()
+    {
+        const string oldJson = """
+        {"itemName":"Example","displayName":"Example App","version":"2.0","catalog":"production","installerType":"msi","installerPackageId":"Example","installerLocation":"example.msi","isManaged":false,"isInstalled":false,"status":"NotInstalled","statusUpdatedAtUtc":"2026-09-07T08:00:00Z","lastOperationId":null}
+        """;
+
+        var oldItem = JsonSerializer.Deserialize<OptionalInstallItem>(oldJson, ProtocolJson.Options)!;
+        ProtocolValidation.ValidateOptionalInstallItem(oldItem);
+        Assert.Null(oldItem.Description);
+
+        var item = oldItem with { Description = "An example application." };
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(item, ProtocolJson.Options));
+        Assert.Equal("An example application.", json.RootElement.GetProperty("description").GetString());
     }
 
     [Fact]

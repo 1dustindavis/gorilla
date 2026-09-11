@@ -14,6 +14,7 @@ import (
 type Item struct {
 	Dependencies []string      `yaml:"dependencies"`
 	DisplayName  string        `yaml:"display_name"`
+	Description  string        `yaml:"description,omitempty" json:"description,omitempty"`
 	Check        InstallCheck  `yaml:"check"`
 	Installer    InstallerItem `yaml:"installer"`
 	Uninstaller  InstallerItem `yaml:"uninstaller"`

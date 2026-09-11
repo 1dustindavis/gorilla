@@ -24,6 +24,7 @@ public class OptionalInstallsCacheTests
             Assert.Equal(now, loaded!.CachedAtUtc);
             Assert.Single(loaded.Items);
             Assert.Equal("GoogleChrome", loaded.Items[0].ItemName);
+            Assert.Equal("A browser.", loaded.Items[0].Description);
         }
         finally
         {
@@ -43,6 +44,28 @@ public class OptionalInstallsCacheTests
             var loaded = await new JsonFileOptionalInstallsCacheStore(cachePath).LoadAsync(CancellationToken.None);
 
             Assert.Null(loaded);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task JsonFileStore_LoadsCacheCreatedBeforeDescription()
+    {
+        var tempDir = MakeTempDirectory();
+        try
+        {
+            var cachePath = Path.Combine(tempDir, "optional-installs.json");
+            await File.WriteAllTextAsync(cachePath, """
+            {"cachedAtUtc":"2026-02-14T18:10:00+00:00","items":[{"itemName":"GoogleChrome","displayName":"Google Chrome","version":"1.0.0","catalog":"testcatalog","installerType":"nupkg","installerPackageId":"GoogleChrome","installerLocation":"packages/GoogleChrome/GoogleChrome.nupkg","isManaged":true,"isInstalled":false,"status":"NotInstalled","statusUpdatedAtUtc":"2026-02-14T18:10:00+00:00","lastOperationId":null}]}
+            """, CancellationToken.None);
+
+            var loaded = await new JsonFileOptionalInstallsCacheStore(cachePath).LoadAsync(CancellationToken.None);
+
+            Assert.NotNull(loaded);
+            Assert.Null(Assert.Single(loaded!.Items).Description);
         }
         finally
         {
@@ -88,7 +111,8 @@ public class OptionalInstallsCacheTests
             IsInstalled: installed,
             Status: installed ? OptionalInstallStatus.Installed : OptionalInstallStatus.NotInstalled,
             StatusUpdatedAtUtc: now,
-            LastOperationId: null
+            LastOperationId: null,
+            Description: "A browser."
         );
     }
 

@@ -1,6 +1,7 @@
 ---
 item_name: GoogleChrome
 display_name: Google Chrome
+description: A short plain-text description of the application.
 check:
   registry:
     name: Google Chrome

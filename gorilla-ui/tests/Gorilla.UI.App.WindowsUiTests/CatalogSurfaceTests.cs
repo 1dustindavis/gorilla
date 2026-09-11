@@ -7,6 +7,9 @@ public sealed class CatalogSurfaceTests
 {
     private const string FixtureItemName = "Ps1V1";
     private const string FailureFixtureItemName = "Ps1Failure";
+    private const string UpdateFixtureItemName = "RegistryUpdateFixture";
+    private const string InstalledFixtureItemName = "RegistryInstalledFixture";
+    private const string SlowFixtureItemName = "SlowInstallFixture";
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
@@ -18,8 +21,10 @@ public sealed class CatalogSurfaceTests
 
             _ = home.WaitForCard(FixtureItemName);
             _ = home.WaitForCard(FailureFixtureItemName);
+            _ = home.WaitForCard(InstalledFixtureItemName);
             Assert.Equal("Not installed", home.ItemStatus(FixtureItemName));
             Assert.Null(home.Description(FailureFixtureItemName));
+            Assert.Contains("Celestial amber telescope", home.Description(InstalledFixtureItemName), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(
                 session.MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)),
                 element => string.Equals(element.Name, "No description available", StringComparison.OrdinalIgnoreCase)
@@ -44,6 +49,32 @@ public sealed class CatalogSurfaceTests
 
             home.ClearSearch();
             session.WaitUntil(() => home.HasItem(FixtureItemName) && home.HasItem(FailureFixtureItemName));
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void SearchByDescriptionFlowsFromCatalogThroughServiceAndCore()
+    {
+        RunWithDiagnostics(nameof(SearchByDescriptionFlowsFromCatalogThroughServiceAndCore), session =>
+        {
+            var home = new HomePageDriver(session);
+            _ = home.WaitForItem(InstalledFixtureItemName);
+            _ = home.WaitForItem(UpdateFixtureItemName);
+
+            const string descriptionOnlyQuery = "celestial amber telescope";
+            home.Search(descriptionOnlyQuery);
+
+            session.WaitUntil(() => home.HasItem(InstalledFixtureItemName) && !home.HasItem(UpdateFixtureItemName));
+            Assert.Contains(
+                descriptionOnlyQuery,
+                home.Description(InstalledFixtureItemName),
+                StringComparison.OrdinalIgnoreCase
+            );
+            session.CaptureCheckpoint("catalog-search-description", includeAutomationTree: true);
+
+            home.ClearSearch();
+            _ = home.WaitForItem(UpdateFixtureItemName);
         });
     }
 
@@ -82,6 +113,81 @@ public sealed class CatalogSurfaceTests
             Assert.Equal("Install", primary!.Name);
             Assert.Null(secondary);
         });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void UpdateAvailableFixtureShowsUpdatePrimaryAndRemoveSecondary()
+    {
+        RunWithDiagnostics(nameof(UpdateAvailableFixtureShowsUpdatePrimaryAndRemoveSecondary), session =>
+        {
+            var home = new HomePageDriver(session);
+            home.WaitForItemStatus(UpdateFixtureItemName, "Update available", TimeSpan.FromSeconds(30));
+
+            var primary = home.PrimaryActionButton(UpdateFixtureItemName);
+            var secondary = home.SecondaryActionButton(UpdateFixtureItemName);
+
+            Assert.Equal("Update", primary.Name);
+            Assert.True(primary.IsEnabled);
+            Assert.Equal("Remove", secondary.Name);
+            Assert.True(secondary.IsEnabled);
+            session.CaptureCheckpoint("catalog-update-dual-action", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary()
+    {
+        RunWithDiagnostics(nameof(InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary), session =>
+        {
+            var home = new HomePageDriver(session);
+            home.WaitForItemStatus(InstalledFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+
+            var primary = home.PrimaryActionButton(InstalledFixtureItemName);
+            var secondary = home.SecondaryActionButton(InstalledFixtureItemName);
+
+            Assert.Equal("Keep Installed", primary.Name);
+            Assert.True(primary.IsEnabled);
+            Assert.Equal("Remove", secondary.Name);
+            Assert.True(secondary.IsEnabled);
+            session.CaptureCheckpoint("catalog-installed-unselected-dual-action", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void ActiveOperationShowsBusyStateWithoutReplacingObservation()
+    {
+        RunWithDiagnostics(nameof(ActiveOperationShowsBusyStateWithoutReplacingObservation), session =>
+        {
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
+            File.Delete(slowMarkerPath);
+
+            var home = new HomePageDriver(session);
+            home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
+
+            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal("Not installed", home.ItemStatus(SlowFixtureItemName));
+            Assert.False(home.PrimaryActionButton(SlowFixtureItemName).IsEnabled);
+            session.CaptureCheckpoint("catalog-active-operation", includeAutomationTree: true);
+
+            session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+            Assert.True(home.HasSecondaryAction(SlowFixtureItemName) || home.PrimaryActionButton(SlowFixtureItemName).Name == "Remove");
+        });
+    }
+
+    private static string RequiredPath(string variableName)
+    {
+        var value = Environment.GetEnvironmentVariable(variableName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{variableName} must be set by the E2E harness.");
+        }
+        return value;
     }
 
     private static void RunWithDiagnostics(string testName, Action<GorillaAppSession> test)

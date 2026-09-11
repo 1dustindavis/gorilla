@@ -32,29 +32,56 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_RejectedOperation_DoesNotTrackOrRefresh()
+    public async Task InstallAsync_RejectedOperation_StaysItemLocalAndDoesNotTrackOrRefresh()
     {
         var client = new FakeClient { InstallAsync = (_, _) => Task.FromResult(new OperationAccepted("op-1", false, Now)) };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
         Assert.False(item.IsBusy);
-        Assert.Equal("Install was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Install was not accepted for VLC.", item.TransientFeedback);
+        Assert.Equal("Install was not accepted for VLC.", item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.StreamCalls);
         Assert.Equal(0, client.ListCalls);
     }
 
     [Fact]
-    public async Task RemoveAsync_RejectedOperation_DoesNotTrackOrRefresh()
+    public async Task RemoveAsync_RejectedOperation_StaysItemLocalAndDoesNotTrackOrRefresh()
     {
         var client = new FakeClient { RemoveAsync = (_, _) => Task.FromResult(new OperationAccepted("op-2", false, Now)) };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC", installed: true);
         await viewModel.RemoveAsync(item, CancellationToken.None);
         Assert.False(item.IsBusy);
-        Assert.Equal("Remove was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Remove was not accepted for VLC.", item.TransientFeedback);
+        Assert.Equal("Remove was not accepted for VLC.", item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.StreamCalls);
         Assert.Equal(0, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task InstallAsync_NewActionClearsPriorTransientFeedbackBeforeAdmission()
+    {
+        var admissionObserved = NewSignal();
+        var client = new FakeClient
+        {
+            InstallAsync = (_, _) =>
+            {
+                admissionObserved.TrySetResult(true);
+                return Task.FromResult(new OperationAccepted("op-1", false, Now));
+            },
+        };
+        var viewModel = CreateViewModel(client);
+        var item = MakeUiItem("VLC");
+        item.TransientFeedback = "old feedback";
+
+        var installTask = viewModel.InstallAsync(item, CancellationToken.None);
+        await admissionObserved.Task;
+        Assert.NotEqual("old feedback", item.TransientFeedback);
+        await installTask;
+        Assert.Equal("Install was not accepted for VLC.", item.TransientFeedback);
     }
 
     [Fact]

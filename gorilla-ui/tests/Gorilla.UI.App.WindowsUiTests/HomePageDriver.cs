@@ -33,8 +33,9 @@ internal sealed class HomePageDriver
     public void EnsureItemVisible(string itemName)
     {
         var item = WaitForItem(itemName);
+        item.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
         item.Focus();
-        Thread.Sleep(150);
+        Thread.Sleep(250);
     }
 
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");

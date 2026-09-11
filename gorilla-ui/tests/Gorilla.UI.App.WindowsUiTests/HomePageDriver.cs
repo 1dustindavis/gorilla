@@ -66,6 +66,16 @@ internal sealed class HomePageDriver
         return operation is null ? string.Empty : SafeName(operation);
     }
 
+    public string TerminalFeedbackText(string itemName)
+    {
+        var catalog = ById("CatalogItems");
+        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var feedback = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogTerminalFeedback"));
+        return feedback is null ? string.Empty : SafeName(feedback);
+    }
+
+    public double CardWidth(string itemName) => WaitForCard(itemName).BoundingRectangle.Width;
+
     public bool HasItem(string itemName)
         => CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName)) is not null;
 
@@ -99,6 +109,14 @@ internal sealed class HomePageDriver
     {
         _session.WaitUntil(
             () => OperationText(itemName).Contains(expected, StringComparison.OrdinalIgnoreCase),
+            timeout
+        );
+    }
+
+    public void WaitForTerminalFeedbackContaining(string itemName, string expected, TimeSpan? timeout = null)
+    {
+        _session.WaitUntil(
+            () => TerminalFeedbackText(itemName).Contains(expected, StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }

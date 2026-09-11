@@ -407,6 +407,11 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (update.State == OperationState.Completed)
+        {
+            item.PreferOperationStatus();
+        }
+
         ReprojectOperation(item);
         if (update.State == OperationState.Completed)
         {
@@ -472,6 +477,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
             ApplyCatalogSnapshot(item, snapshot);
             ReprojectOperation(item);
+            item.PreferObservedStatus();
         }
 
         if (SelectedItemName is not null && !_catalogItems.ContainsKey(SelectedItemName))

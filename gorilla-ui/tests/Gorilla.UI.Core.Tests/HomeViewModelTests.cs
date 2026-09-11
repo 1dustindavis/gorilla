@@ -14,7 +14,7 @@ public class HomeViewModelTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-02-19T18:10:00Z");
 
     [Fact]
-    public async Task InstallAsync_RejectedOperation_SetsWarningAndClearsBusy()
+    public async Task InstallAsync_RejectedOperation_SetsItemFeedbackAndClearsBusy()
     {
         var client = new FakeClient
         {
@@ -26,12 +26,13 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.False(item.IsBusy);
-        Assert.Equal("Install was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Install was not accepted for VLC.", item.TransientFeedback);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.ListCalls);
     }
 
     [Fact]
-    public async Task RemoveAsync_RejectedOperation_SetsWarningAndClearsBusy()
+    public async Task RemoveAsync_RejectedOperation_SetsItemFeedbackAndClearsBusy()
     {
         var client = new FakeClient
         {
@@ -43,7 +44,8 @@ public class HomeViewModelTests
         await viewModel.RemoveAsync(item, CancellationToken.None);
 
         Assert.False(item.IsBusy);
-        Assert.Equal("Remove was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Remove was not accepted for VLC.", item.TransientFeedback);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.ListCalls);
     }
 

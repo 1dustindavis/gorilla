@@ -1,5 +1,6 @@
-// Package appcatalog defines the next App Catalog contract and pure decisions.
-// It is not wired into the v1 service; see gorilla-ui/docs/app-catalog-contract.md.
+// Package appcatalog defines App Catalog state, policy, action, and result contracts.
+// These types are used by the live v1 service protocol; see
+// gorilla-ui/docs/app-catalog-contract.md and app-catalog-recovery.md.
 package appcatalog
 
 import "time"
@@ -110,8 +111,8 @@ type Operation struct {
 	Result          *Result        `json:"result"`
 }
 
-// Item is the planned v2 list item. Nil fields serialize as null intentionally
-// so unknown evidence is distinguishable from a supplied value.
+// Item is the App Catalog list item contract. Nil fields serialize as null
+// intentionally so unknown evidence is distinguishable from a supplied value.
 // TargetVersion is catalog display metadata, not a detection or verification
 // threshold. The selected pkg/status check owns version requirements.
 type Item struct {

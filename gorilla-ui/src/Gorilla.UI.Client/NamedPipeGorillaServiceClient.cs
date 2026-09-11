@@ -128,6 +128,7 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
         var duration = Stopwatch.StartNew();
         var completed = false;
         var terminalState = string.Empty;
+        var terminalOutcome = string.Empty;
         var result = "error";
         ClientDiagnostics.Log($"stream:begin operationId={operationId}");
         try
@@ -230,22 +231,35 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
                     Result: eventEnvelope.Payload.Result
                 );
 
-                yield return ev;
-                ClientDiagnostics.Log(
-                    $"stream:event operationId={ev.OperationId} itemName={ev.ItemName} action={ev.Action} state={ev.State} progress={ev.ProgressPercent} outcome={ev.Result?.Outcome}"
-                );
-
-                if (ev.State == OperationState.Completed)
+                var isTerminal = ev.State == OperationState.Completed;
+                if (isTerminal)
                 {
-                    ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} outcome={ev.Result!.Outcome}");
+                    // Record lifecycle truth before yielding. Consumers intentionally
+                    // stop enumeration after Completed, which disposes this iterator
+                    // without executing statements after the yield.
                     completed = true;
                     terminalState = ev.State.ToString();
+                    terminalOutcome = ev.Result!.Outcome.ToString();
                     result = ev.Result.Outcome switch
                     {
                         AppCatalog.Outcome.Succeeded or AppCatalog.Outcome.AlreadySatisfied => "ok",
                         AppCatalog.Outcome.Interrupted => "canceled",
                         _ => "error"
                     };
+                }
+
+                ClientDiagnostics.Log(
+                    $"stream:event operationId={ev.OperationId} itemName={ev.ItemName} action={ev.Action} state={ev.State} progress={ev.ProgressPercent} outcome={ev.Result?.Outcome}"
+                );
+                if (isTerminal)
+                {
+                    ClientDiagnostics.Log($"stream:end operationId={ev.OperationId} outcome={ev.Result!.Outcome}");
+                }
+
+                yield return ev;
+
+                if (isTerminal)
+                {
                     yield break;
                 }
             }
@@ -258,7 +272,7 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
             }
 
             ClientDiagnostics.Log(
-                $"stream:lifecycle operationId={operationId} state={terminalState} result={result} durationMs={duration.ElapsedMilliseconds}"
+                $"stream:lifecycle operationId={operationId} state={terminalState} outcome={terminalOutcome} result={result} durationMs={duration.ElapsedMilliseconds}"
             );
         }
     }

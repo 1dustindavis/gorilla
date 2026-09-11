@@ -129,8 +129,8 @@ public sealed partial class HomePage : Page, IDisposable
             return;
         }
 
-        const double minimumCardWidth = 220;
-        const double maximumCardWidth = 280;
+        const double minimumCardWidth = 300;
+        const double maximumCardWidth = 340;
         var columns = Math.Max(1, (int)Math.Floor(availableWidth / minimumCardWidth));
         panel.ItemWidth = Math.Max(1, Math.Min(maximumCardWidth, availableWidth / columns));
     }

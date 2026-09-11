@@ -30,6 +30,13 @@ internal sealed class HomePageDriver
         return _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogCard")));
     }
 
+    public void EnsureItemVisible(string itemName)
+    {
+        var item = WaitForItem(itemName);
+        item.Focus();
+        Thread.Sleep(150);
+    }
+
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");
     public Button RemoveButton(string itemName) => ActionButton(itemName, "Remove");
 

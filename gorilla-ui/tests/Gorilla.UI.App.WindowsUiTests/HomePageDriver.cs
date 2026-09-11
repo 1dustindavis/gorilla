@@ -74,7 +74,11 @@ internal sealed class HomePageDriver
     }
 
     public double CardWidth(string itemName) => WaitForCard(itemName).BoundingRectangle.Width;
-    public double CardHeight(string itemName) => WaitForCard(itemName).BoundingRectangle.Height;
+
+    // The inner Border's UI Automation peer reports only its semantic/content
+    // extent on WinUI, not the full fixed-height GridView layout slot. Measure
+    // the item container for height so this assertion tracks rendered layout.
+    public double CardHeight(string itemName) => WaitForItem(itemName).BoundingRectangle.Height;
 
     public bool HasItem(string itemName)
         => CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName)) is not null;

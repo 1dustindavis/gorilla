@@ -499,6 +499,7 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         item.TargetVersion = snapshot.TargetVersion ??
             (string.IsNullOrEmpty(snapshot.Version) ? null : snapshot.Version);
         item.Observation = snapshot.Observation ?? LegacyObservation(snapshot);
+        item.Policy = snapshot.Policy;
         item.InstallDecision = snapshot.Actions?.Install ?? new AppCatalog.ActionDecision(false, "Refresh required before installing.");
         item.RemoveDecision = snapshot.Actions?.Remove ?? new AppCatalog.ActionDecision(false, "Refresh required before removing.");
     }

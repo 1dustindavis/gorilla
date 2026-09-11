@@ -33,6 +33,18 @@ internal sealed class HomePageDriver
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");
     public Button RemoveButton(string itemName) => ActionButton(itemName, "Remove");
 
+    public Button PrimaryActionButton(string itemName)
+        => ButtonByAutomationId(itemName, "PrimaryActionButton");
+
+    public Button SecondaryActionButton(string itemName)
+        => ButtonByAutomationId(itemName, "SecondaryActionButton");
+
+    public bool HasSecondaryAction(string itemName)
+    {
+        var item = WaitForItem(itemName);
+        return item.FindFirstDescendant(cf => cf.ByAutomationId("SecondaryActionButton")) is not null;
+    }
+
     public string ItemStatus(string itemName)
     {
         var item = WaitForItem(itemName);
@@ -45,6 +57,13 @@ internal sealed class HomePageDriver
         var item = WaitForItem(itemName);
         var description = item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDescription"));
         return description is null ? null : SafeName(description);
+    }
+
+    public string OperationText(string itemName)
+    {
+        var item = WaitForItem(itemName);
+        var operation = _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation")));
+        return SafeName(operation);
     }
 
     public bool HasItem(string itemName)
@@ -67,6 +86,14 @@ internal sealed class HomePageDriver
     {
         _session.WaitUntil(
             () => Normalize(ItemStatus(itemName)).StartsWith(Normalize(expectedPrefix), StringComparison.OrdinalIgnoreCase),
+            timeout
+        );
+    }
+
+    public void WaitForOperationContaining(string itemName, string expected, TimeSpan? timeout = null)
+    {
+        _session.WaitUntil(
+            () => OperationText(itemName).Contains(expected, StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }
@@ -106,6 +133,12 @@ internal sealed class HomePageDriver
             }
             return null;
         });
+    }
+
+    private Button ButtonByAutomationId(string itemName, string automationId)
+    {
+        var item = WaitForItem(itemName);
+        return _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsButton());
     }
 
     private static string Normalize(string value)

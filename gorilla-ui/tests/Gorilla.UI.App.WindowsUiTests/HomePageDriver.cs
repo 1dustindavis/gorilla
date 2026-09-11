@@ -51,13 +51,6 @@ internal sealed class HomePageDriver
         return status ?? string.Empty;
     }
 
-    public string? Description(string itemName)
-    {
-        var item = WaitForItem(itemName);
-        var description = item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDescription"));
-        return description is null ? null : SafeName(description);
-    }
-
     public string OperationText(string itemName)
     {
         var catalog = ById("CatalogItems");
@@ -74,7 +67,14 @@ internal sealed class HomePageDriver
         return feedback is null ? string.Empty : SafeName(feedback);
     }
 
+    public bool HasDescriptionElement(string itemName)
+    {
+        var item = WaitForItem(itemName);
+        return item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDescription")) is not null;
+    }
+
     public double CardWidth(string itemName) => WaitForCard(itemName).BoundingRectangle.Width;
+    public double CardHeight(string itemName) => WaitForCard(itemName).BoundingRectangle.Height;
 
     public bool HasItem(string itemName)
         => CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName)) is not null;

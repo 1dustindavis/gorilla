@@ -181,6 +181,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _latestOperation, value))
             {
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }

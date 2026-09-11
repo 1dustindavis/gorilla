@@ -21,6 +21,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private UiOperationPresentation? _latestOperation;
     private bool _isBusy;
     private string? _legacyStatus;
+    private bool _preferObservedStatus;
 
     public required string ItemName { get; init; }
 
@@ -175,13 +176,33 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     {
         get => ActiveOperation is not null
         ? $"{ActiveOperation.State}: {ActiveOperation.Message}"
-        : LatestOperation?.Result is { } result
+        : !_preferObservedStatus && LatestOperation?.Result is { } result
             ? $"{result.Outcome}: {OperationDisplay.Details(result)}"
             : _legacyStatus ?? Observation.State.ToString();
         set
         {
             _legacyStatus = value;
             OnPropertyChanged();
+        }
+    }
+
+    // Keeps the legacy Stage 4 status binding tied to the refreshed catalog
+    // observation while LatestOperation remains available as separate typed state.
+    internal void PreferObservedStatus()
+    {
+        if (!_preferObservedStatus)
+        {
+            _preferObservedStatus = true;
+            OnPropertyChanged(nameof(Status));
+        }
+    }
+
+    internal void PreferOperationStatus()
+    {
+        if (_preferObservedStatus)
+        {
+            _preferObservedStatus = false;
+            OnPropertyChanged(nameof(Status));
         }
     }
 

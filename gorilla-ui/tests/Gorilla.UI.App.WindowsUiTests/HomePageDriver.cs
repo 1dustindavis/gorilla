@@ -61,8 +61,13 @@ internal sealed class HomePageDriver
 
     public string OperationText(string itemName)
     {
-        var item = WaitForItem(itemName);
-        var operation = _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation")));
+        var item = CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var operation = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
+        if (operation is null)
+        {
+            return string.Empty;
+        }
+
         return string.Join(
             " ",
             operation
@@ -118,6 +123,8 @@ internal sealed class HomePageDriver
             .FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
             .Any(text => SafeName(text).StartsWith("Operation failed", StringComparison.OrdinalIgnoreCase));
     }
+
+    public static string AutomationName(AutomationElement element) => SafeName(element);
 
     private AutomationElement? ById(string automationId)
     {

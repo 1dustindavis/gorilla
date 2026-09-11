@@ -52,8 +52,25 @@ public sealed class OperationTracker
             .Where(operation => operation.State != OperationState.Completed)
             .Where(operation => string.Equals(operation.ItemName, itemName, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(operation => operation.TimestampUtc)
+            .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
             .FirstOrDefault();
     }
+
+    public OperationStatusEvent? GetLatestTerminalForItem(string itemName)
+    {
+        return _latest.Values
+            .Where(operation => operation.State == OperationState.Completed)
+            .Where(operation => string.Equals(operation.ItemName, itemName, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(operation => operation.TimestampUtc)
+            .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
+
+    // This is an item-oriented projection over the operation-ID registry. The
+    // registry itself remains keyed by operation ID so replay and reconciliation
+    // semantics do not depend on catalog objects.
+    public OperationStatusEvent? GetCurrentOrLatestForItem(string itemName)
+        => GetActiveForItem(itemName) ?? GetLatestTerminalForItem(itemName);
 
     public IReadOnlyList<OperationStatusEvent> GetActiveOperations()
     {

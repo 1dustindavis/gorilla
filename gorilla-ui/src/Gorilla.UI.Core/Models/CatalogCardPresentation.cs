@@ -21,6 +21,7 @@ public sealed record CatalogCardPresentation(
     bool HasDescription,
     string? VersionText,
     string? OperationText,
+    string? TerminalFeedbackText,
     int? ProgressPercent,
     CatalogCardActionPresentation? PrimaryAction,
     CatalogCardActionPresentation? SecondaryAction
@@ -28,6 +29,7 @@ public sealed record CatalogCardPresentation(
 {
     public bool HasVersion => !string.IsNullOrWhiteSpace(VersionText);
     public bool HasOperation => !string.IsNullOrWhiteSpace(OperationText);
+    public bool HasTerminalFeedback => !string.IsNullOrWhiteSpace(TerminalFeedbackText);
     public bool IsProgressIndeterminate => ProgressPercent is null;
     public double ProgressValue => ProgressPercent ?? 0;
     public bool HasPrimaryAction => PrimaryAction is not null;
@@ -44,6 +46,7 @@ public static class CatalogCardPresentationMapper
             HasDescription: !string.IsNullOrWhiteSpace(item.Description),
             VersionText: VersionText(item),
             OperationText: OperationText(item.ActiveOperation),
+            TerminalFeedbackText: TerminalFeedbackText(item),
             ProgressPercent: item.ActiveOperation?.ProgressPercent,
             PrimaryAction: primary,
             SecondaryAction: secondary
@@ -138,6 +141,26 @@ public static class CatalogCardPresentationMapper
             OperationState.Removing => "Removing…",
             OperationState.Completed => operation.Action == CatalogAction.Remove ? "Removing…" : "Installing…",
             _ => "Working…",
+        };
+    }
+
+    private static string? TerminalFeedbackText(UiOptionalInstallItem item)
+    {
+        // A new active attempt supersedes retained terminal feedback from the prior
+        // operation. Once the new operation becomes terminal, LatestOperation will
+        // replace it with the new authoritative result.
+        if (item.ActiveOperation is not null || item.LatestOperation?.Result is not { } result)
+        {
+            return null;
+        }
+
+        var details = OperationDisplay.Details(result);
+        return result.Outcome switch
+        {
+            Outcome.Failed => $"Failed: {details}",
+            Outcome.Unverified => $"Unable to verify: {details}",
+            Outcome.Interrupted => $"Interrupted: {details}",
+            _ => null,
         };
     }
 }

@@ -73,7 +73,7 @@ public sealed partial class HomePage : Page, IDisposable
             return;
         }
 
-        var query = ViewModel.SearchQuery.Trim();
+        var query = ViewModel.SearchQuery;
         var noVisibleItems = ViewModel.Items.Count == 0;
         var hasSearch = !string.IsNullOrWhiteSpace(query);
 
@@ -157,7 +157,12 @@ public sealed partial class HomePage : Page, IDisposable
             return;
         }
 
-        var currentAction = ReferenceEquals(button, FindPrimaryActionButton(button))
+        var isPrimary = string.Equals(
+            AutomationProperties.GetAutomationId(button),
+            "PrimaryActionButton",
+            StringComparison.Ordinal
+        );
+        var currentAction = isPrimary
             ? item.CardPresentation.PrimaryAction
             : item.CardPresentation.SecondaryAction;
         if (currentAction is null || !currentAction.Enabled || currentAction.Kind != action)
@@ -174,11 +179,6 @@ public sealed partial class HomePage : Page, IDisposable
                 await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
                 break;
         }
-    }
-
-    private static Button? FindPrimaryActionButton(Button button)
-    {
-        return AutomationProperties.GetAutomationId(button) == "PrimaryActionButton" ? button : null;
     }
 
     private async Task RunSafelyAsync(Func<Task> action)

@@ -20,6 +20,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private ActionDecision _removeDecision = new(false, "Refresh required before removing.");
     private UiOperationPresentation? _activeOperation;
     private UiOperationPresentation? _latestOperation;
+    private string? _transientFeedback;
     private bool _isBusy;
     private string? _legacyStatus;
     private bool _preferObservedStatus;
@@ -181,6 +182,20 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _latestOperation, value))
             {
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(CardPresentation));
+            }
+        }
+    }
+
+    // Local, non-operation feedback for an item-specific action admission response.
+    // This is intentionally separate from authoritative operation and observation state.
+    public string? TransientFeedback
+    {
+        get => _transientFeedback;
+        set
+        {
+            if (SetField(ref _transientFeedback, value))
+            {
                 OnPropertyChanged(nameof(CardPresentation));
             }
         }

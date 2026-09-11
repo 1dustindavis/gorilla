@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
@@ -9,6 +10,13 @@ namespace Gorilla.UI.App.WindowsUiTests;
 
 internal sealed class GorillaAppSession : IDisposable
 {
+    private const int SwRestore = 9;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpShowWindow = 0x0040;
+    private static readonly nint HwndTopmost = new(-1);
+    private static readonly nint HwndNotTopmost = new(-2);
+
     private readonly string _artifactsDirectory;
     private readonly Application _application;
     private readonly Process _process;
@@ -106,16 +114,13 @@ internal sealed class GorillaAppSession : IDisposable
 
     public void CaptureCheckpoint(string name, bool includeAutomationTree = false)
     {
-        BestEffort(() =>
-        {
-            var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
-            Directory.CreateDirectory(screenshotsDirectory);
-            using var image = MainWindow.Capture();
-            image.Save(Path.Combine(screenshotsDirectory, SafeFileName(name) + ".png"));
-        });
+        CaptureWindowScreenshot(name);
 
         if (includeAutomationTree)
         {
+            var checkpointTree = $"automation-tree-{SafeFileName(name)}.txt";
+            CaptureAutomationTree(checkpointTree);
+            // Preserve the conventional rolling filename used by workflow guidance.
             CaptureAutomationTree("automation-tree.txt");
         }
         CaptureProcessInfo();
@@ -123,6 +128,8 @@ internal sealed class GorillaAppSession : IDisposable
 
     public void CaptureAutomationTree(string fileName = "automation-tree.txt")
     {
+        RefreshAndFocusMainWindow();
+
         var builder = new StringBuilder();
         builder.AppendLine("UI Automation tree");
         try
@@ -149,15 +156,46 @@ internal sealed class GorillaAppSession : IDisposable
                 Path.Combine(_artifactsDirectory, $"failure-{SafeFileName(testName)}.txt"),
                 exception + Environment.NewLine + BuildProcessInfo());
         });
+        CaptureWindowScreenshot($"failure-{SafeFileName(testName)}");
+        CaptureAutomationTree("automation-tree-failure.txt");
+        CaptureProcessInfo();
+    }
+
+    private void CaptureWindowScreenshot(string name)
+    {
+        RefreshAndFocusMainWindow();
         BestEffort(() =>
         {
             var screenshotsDirectory = Path.Combine(_artifactsDirectory, "screenshots");
             Directory.CreateDirectory(screenshotsDirectory);
             using var image = MainWindow.Capture();
-            image.Save(Path.Combine(screenshotsDirectory, $"failure-{SafeFileName(testName)}.png"));
+            image.Save(Path.Combine(screenshotsDirectory, SafeFileName(name) + ".png"));
         });
-        CaptureAutomationTree("automation-tree-failure.txt");
-        CaptureProcessInfo();
+    }
+
+    private void RefreshAndFocusMainWindow()
+    {
+        BestEffort(() =>
+        {
+            var current = _application.GetMainWindow(_automation, TimeSpan.FromMilliseconds(500));
+            if (current is not null)
+            {
+                MainWindow = current;
+            }
+
+            _process.Refresh();
+            var hwnd = _process.MainWindowHandle;
+            if (hwnd != nint.Zero)
+            {
+                _ = ShowWindow(hwnd, SwRestore);
+                _ = SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpShowWindow);
+                _ = SetForegroundWindow(hwnd);
+                _ = SetWindowPos(hwnd, HwndNotTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpShowWindow);
+            }
+
+            MainWindow.Focus();
+            Thread.Sleep(250);
+        });
     }
 
     private string BuildProcessInfo()
@@ -303,4 +341,24 @@ internal sealed class GorillaAppSession : IDisposable
         _process.Dispose();
         _automation.Dispose();
     }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint hWnd,
+        nint hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags
+    );
 }

@@ -28,6 +28,9 @@ $serviceName = "gorilla-ui-e2e"
 $servicePipeName = "gorilla-ui-e2e"
 $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
 $failureMarkerPath = "C:\ProgramData\gorilla-it\ps1-failure.txt"
+$slowMarkerPath = "C:\ProgramData\gorilla-it\ui-slow.txt"
+$updateRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture"
+$installedRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
 $serviceLogPath = Join-Path $appDataPath "gorilla.log"
 $serviceManifestPath = Join-Path $appDataPath "service-manifest.yaml"
@@ -46,12 +49,60 @@ if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $c
     }
 }
 
-$failureScriptPath = Join-Path $repoFixtureRoot "packages\scripts\intentional-failure.ps1"
+$scriptsRoot = Join-Path $repoFixtureRoot "packages\scripts"
+$failureScriptPath = Join-Path $scriptsRoot "intentional-failure.ps1"
 @'
 Write-Error "Intentional App Catalog E2E installer failure"
 exit 7
 '@ | Set-Content -LiteralPath $failureScriptPath -NoNewline
 $failureScriptHash = (Get-FileHash -LiteralPath $failureScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$updateInstallScriptPath = Join-Path $scriptsRoot "ui-update-install.ps1"
+@'
+$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture"
+New-Item -Path $path -Force | Out-Null
+Set-ItemProperty -Path $path -Name DisplayName -Value "Gorilla UI Update Fixture"
+Set-ItemProperty -Path $path -Name DisplayVersion -Value "2.0.0"
+'@ | Set-Content -LiteralPath $updateInstallScriptPath -NoNewline
+$updateInstallScriptHash = (Get-FileHash -LiteralPath $updateInstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$updateUninstallScriptPath = Join-Path $scriptsRoot "ui-update-uninstall.ps1"
+@'
+$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture"
+Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+'@ | Set-Content -LiteralPath $updateUninstallScriptPath -NoNewline
+$updateUninstallScriptHash = (Get-FileHash -LiteralPath $updateUninstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$installedInstallScriptPath = Join-Path $scriptsRoot "ui-installed-install.ps1"
+@'
+$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture"
+New-Item -Path $path -Force | Out-Null
+Set-ItemProperty -Path $path -Name DisplayName -Value "Gorilla UI Installed Fixture"
+Set-ItemProperty -Path $path -Name DisplayVersion -Value "1.0.0"
+'@ | Set-Content -LiteralPath $installedInstallScriptPath -NoNewline
+$installedInstallScriptHash = (Get-FileHash -LiteralPath $installedInstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$installedUninstallScriptPath = Join-Path $scriptsRoot "ui-installed-uninstall.ps1"
+@'
+$path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture"
+Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+'@ | Set-Content -LiteralPath $installedUninstallScriptPath -NoNewline
+$installedUninstallScriptHash = (Get-FileHash -LiteralPath $installedUninstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$slowInstallScriptPath = Join-Path $scriptsRoot "ui-slow-install.ps1"
+@"
+Start-Sleep -Seconds 6
+`$marker = '$slowMarkerPath'
+New-Item -Path (Split-Path -Path `$marker -Parent) -ItemType Directory -Force | Out-Null
+Set-Content -LiteralPath `$marker -Value 'installed' -NoNewline
+"@ | Set-Content -LiteralPath $slowInstallScriptPath -NoNewline
+$slowInstallScriptHash = (Get-FileHash -LiteralPath $slowInstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$slowUninstallScriptPath = Join-Path $scriptsRoot "ui-slow-uninstall.ps1"
+@"
+Remove-Item -LiteralPath '$slowMarkerPath' -Force -ErrorAction SilentlyContinue
+"@ | Set-Content -LiteralPath $slowUninstallScriptPath -NoNewline
+$slowUninstallScriptHash = (Get-FileHash -LiteralPath $slowUninstallScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
 $catalogRaw = Get-Content -LiteralPath $catalogPath -Raw
 if ($catalogRaw -notmatch '(?m)^Ps1Failure:') {
@@ -70,12 +121,80 @@ Ps1Failure:
 "@ | Add-Content -LiteralPath $catalogPath -NoNewline
 }
 
+@"
+
+RegistryUpdateFixture:
+  display_name: Update Fixture
+  description: Exercises the real update-available App Catalog presentation path.
+  check:
+    registry:
+      name: Gorilla UI Update Fixture
+      version: 2.0.0
+  installer:
+    type: ps1
+    location: packages/scripts/ui-update-install.ps1
+    hash: $updateInstallScriptHash
+  uninstaller:
+    type: ps1
+    location: packages/scripts/ui-update-uninstall.ps1
+    hash: $updateUninstallScriptHash
+  version: 2.0.0
+
+RegistryInstalledFixture:
+  display_name: Installed Fixture
+  description: Celestial amber telescope utility for description-only search coverage.
+  check:
+    registry:
+      name: Gorilla UI Installed Fixture
+      version: 1.0.0
+  installer:
+    type: ps1
+    location: packages/scripts/ui-installed-install.ps1
+    hash: $installedInstallScriptHash
+  uninstaller:
+    type: ps1
+    location: packages/scripts/ui-installed-uninstall.ps1
+    hash: $installedUninstallScriptHash
+  version: 1.0.0
+
+SlowInstallFixture:
+  display_name: Slow Install Fixture
+  description: Deliberately slow fixture used to observe an active operation.
+  check:
+    file:
+      - path: '$slowMarkerPath'
+  installer:
+    type: ps1
+    location: packages/scripts/ui-slow-install.ps1
+    hash: $slowInstallScriptHash
+  uninstaller:
+    type: ps1
+    location: packages/scripts/ui-slow-uninstall.ps1
+    hash: $slowUninstallScriptHash
+  version: 1.0.0
+"@ | Add-Content -LiteralPath $catalogPath -NoNewline
+
 @'
 name: ui-e2e
 optional_installs:
   - Ps1V1
   - Ps1Failure
+  - RegistryUpdateFixture
+  - RegistryInstalledFixture
+  - SlowInstallFixture
 '@ | Set-Content -LiteralPath $manifestPath -NoNewline
+
+function Set-FixtureUninstallEntry {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$DisplayName,
+        [Parameter(Mandatory)][string]$DisplayVersion
+    )
+
+    New-Item -Path $Path -Force | Out-Null
+    Set-ItemProperty -Path $Path -Name DisplayName -Value $DisplayName
+    Set-ItemProperty -Path $Path -Name DisplayVersion -Value $DisplayVersion
+}
 
 function Wait-ServiceState {
     param(
@@ -315,6 +434,11 @@ try {
     Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $failureMarkerPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $slowMarkerPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $updateRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $installedRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+    Set-FixtureUninstallEntry -Path $updateRegistryPath -DisplayName "Gorilla UI Update Fixture" -DisplayVersion "1.0.0"
+    Set-FixtureUninstallEntry -Path $installedRegistryPath -DisplayName "Gorilla UI Installed Fixture" -DisplayVersion "1.0.0"
     Remove-Item -LiteralPath (Split-Path -Parent $uiCachePath) -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), $evidenceRoot -Force | Out-Null
 
@@ -342,6 +466,7 @@ debug: true
     $env:GORILLA_UI_CACHE_PATH = $uiCachePath
     $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
     $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
+    $env:GORILLA_UI_E2E_SLOW_MARKER_PATH = $slowMarkerPath
 
     & $GorillaExePath -config $configPath -integration-test-service-identity $serviceName -serviceinstall | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Failed to install source-built Gorilla service" }
@@ -369,6 +494,9 @@ debug: true
     throw $originalError
 } finally {
     Remove-TestService
+    Remove-Item -Path $updateRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $installedRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $slowMarkerPath -Force -ErrorAction SilentlyContinue
     if ($serverProc -and -not $serverProc.HasExited) {
         Stop-Process -Id $serverProc.Id -Force -ErrorAction SilentlyContinue
     }

@@ -32,29 +32,56 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_RejectedOperation_DoesNotTrackOrRefresh()
+    public async Task InstallAsync_RejectedOperation_StaysItemLocalAndDoesNotTrackOrRefresh()
     {
         var client = new FakeClient { InstallAsync = (_, _) => Task.FromResult(new OperationAccepted("op-1", false, Now)) };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
         Assert.False(item.IsBusy);
-        Assert.Equal("Install was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Install was not accepted for VLC.", item.TransientFeedback);
+        Assert.Equal("Install was not accepted for VLC.", item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.StreamCalls);
         Assert.Equal(0, client.ListCalls);
     }
 
     [Fact]
-    public async Task RemoveAsync_RejectedOperation_DoesNotTrackOrRefresh()
+    public async Task RemoveAsync_RejectedOperation_StaysItemLocalAndDoesNotTrackOrRefresh()
     {
         var client = new FakeClient { RemoveAsync = (_, _) => Task.FromResult(new OperationAccepted("op-2", false, Now)) };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC", installed: true);
         await viewModel.RemoveAsync(item, CancellationToken.None);
         Assert.False(item.IsBusy);
-        Assert.Equal("Remove was not accepted for VLC.", viewModel.WarningBanner);
+        Assert.Equal("Remove was not accepted for VLC.", item.TransientFeedback);
+        Assert.Equal("Remove was not accepted for VLC.", item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(0, client.StreamCalls);
         Assert.Equal(0, client.ListCalls);
+    }
+
+    [Fact]
+    public async Task InstallAsync_NewActionClearsPriorTransientFeedbackBeforeAdmission()
+    {
+        var admissionObserved = NewSignal();
+        var client = new FakeClient
+        {
+            InstallAsync = (_, _) =>
+            {
+                admissionObserved.TrySetResult(true);
+                return Task.FromResult(new OperationAccepted("op-1", false, Now));
+            },
+        };
+        var viewModel = CreateViewModel(client);
+        var item = MakeUiItem("VLC");
+        item.TransientFeedback = "old feedback";
+
+        var installTask = viewModel.InstallAsync(item, CancellationToken.None);
+        await admissionObserved.Task;
+        Assert.NotEqual("old feedback", item.TransientFeedback);
+        await installTask;
+        Assert.Equal("Install was not accepted for VLC.", item.TransientFeedback);
     }
 
     [Fact]
@@ -149,7 +176,7 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_RefreshFailureAfterOperationFailure_PreservesOperationWarning()
+    public async Task InstallAsync_RefreshFailureAfterOperationFailure_ShowsRefreshWarningAndKeepsItemFailureLocal()
     {
         var client = new FakeClient
         {
@@ -160,18 +187,20 @@ public class HomeViewModelMutationTests
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
-        Assert.Equal("Operation for VLC ended with Failed: exit code 1", viewModel.WarningBanner);
+        Assert.Equal("Failed: exit code 1", item.CardPresentation.TerminalFeedbackText);
+        Assert.Contains("Operation completed, but optional installs refresh failed", viewModel.WarningBanner);
+        Assert.Contains("refresh unavailable", viewModel.WarningBanner);
         Assert.Equal(1, client.ListCalls);
     }
 
     [Theory]
-    [InlineData(Outcome.Failed, "execution_failed", "exit code 1", "Operation for VLC ended with Failed: exit code 1")]
-    [InlineData(Outcome.Interrupted, "execution_interrupted", "Canceled by service", "Operation for VLC ended with Interrupted: Canceled by service")]
-    public async Task InstallAsync_UnsuccessfulOutcome_UsesStructuredResult(
+    [InlineData(Outcome.Failed, "execution_failed", "exit code 1", "Failed: exit code 1")]
+    [InlineData(Outcome.Interrupted, "execution_interrupted", "Canceled by service", "Interrupted: Canceled by service")]
+    public async Task InstallAsync_UnsuccessfulOutcome_UsesStructuredItemResult(
         Outcome outcome,
         string code,
         string message,
-        string expectedWarning)
+        string expectedFeedback)
     {
         var client = new FakeClient
         {
@@ -182,7 +211,8 @@ public class HomeViewModelMutationTests
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
-        Assert.Equal(expectedWarning, viewModel.WarningBanner);
+        Assert.Equal(expectedFeedback, item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
     }
 
     [Fact]

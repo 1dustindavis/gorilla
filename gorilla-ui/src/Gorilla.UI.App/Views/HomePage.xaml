@@ -2,11 +2,16 @@
     x:Class="Gorilla.UI.App.Views.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:Gorilla.UI.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Padding="24" RowDefinitions="Auto,Auto,*">
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+
+    <Grid Padding="20" RowDefinitions="Auto,Auto,Auto,*">
         <TextBlock
             Text="Available Software"
             FontSize="28"
@@ -14,61 +19,185 @@
             AutomationProperties.AutomationId="HomeHeading"
             AutomationProperties.HeadingLevel="Level1" />
 
-        <TextBlock
+        <TextBox
             Grid.Row="1"
-            Margin="0,8,0,0"
+            Margin="0,12,0,0"
+            MaxWidth="520"
+            HorizontalAlignment="Left"
+            PlaceholderText="Search apps"
+            Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            AutomationProperties.AutomationId="CatalogSearchBox"
+            AutomationProperties.Name="Search apps" />
+
+        <TextBlock
+            Grid.Row="2"
+            Margin="0,10,0,0"
             x:Name="ServiceWarning"
             Text="{Binding WarningBanner}"
             Foreground="DarkOrange"
+            TextWrapping="Wrap"
             AutomationProperties.AutomationId="ServiceWarning"
             AutomationProperties.LiveSetting="Polite" />
 
-        <ListView
-            Grid.Row="2"
-            Margin="0,16,0,0"
-            x:Name="ItemsList"
-            ItemsSource="{Binding Items}"
-            ContainerContentChanging="ItemsList_ContainerContentChanging"
-            AutomationProperties.AutomationId="ItemsList"
-            AutomationProperties.Name="Available software">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="AutomationProperties.AutomationId" Value="{Binding ItemName}" />
-                    <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
-                </Style>
-            </ListView.ItemContainerStyle>
-            <ListView.ItemTemplate>
-                <DataTemplate>
-                    <Grid ColumnDefinitions="*,Auto,Auto" Padding="0,8">
-                        <StackPanel>
-                            <TextBlock Text="{Binding DisplayName}" FontSize="18" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Version}" Opacity="0.7" />
-                            <TextBlock
-                                Text="{Binding Status}"
-                                Opacity="0.7"
-                                AutomationProperties.AutomationId="ItemStatus" />
-                        </StackPanel>
-                        <Button
-                            Grid.Column="1"
-                            Margin="12,0,0,0"
-                            Content="Install"
-                            Tag="{Binding ItemName}"
-                            IsEnabled="{Binding CanInstall}"
-                            ToolTipService.ToolTip="{Binding InstallUnavailableReason}"
-                            Click="InstallButton_Click"
-                            AutomationProperties.AutomationId="InstallButton" />
-                        <Button
-                            Grid.Column="2"
-                            Margin="8,0,0,0"
-                            Content="Remove"
-                            Tag="{Binding ItemName}"
-                            IsEnabled="{Binding CanRemove}"
-                            ToolTipService.ToolTip="{Binding RemoveUnavailableReason}"
-                            Click="RemoveButton_Click"
-                            AutomationProperties.AutomationId="RemoveButton" />
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <GridView
+                x:Name="CatalogItems"
+                ItemsSource="{Binding Items}"
+                SelectionMode="None"
+                IsItemClickEnabled="False"
+                HorizontalContentAlignment="Stretch"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                ScrollViewer.HorizontalScrollMode="Disabled"
+                ContainerContentChanging="CatalogItems_ContainerContentChanging"
+                SizeChanged="CatalogItems_SizeChanged"
+                AutomationProperties.AutomationId="CatalogItems"
+                AutomationProperties.Name="Available software">
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" ItemWidth="320" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemContainerStyle>
+                    <Style TargetType="GridViewItem">
+                        <Setter Property="Margin" Value="0,0,10,10" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        <Setter Property="AutomationProperties.AutomationId" Value="{Binding ItemName}" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+                    </Style>
+                </GridView.ItemContainerStyle>
+                <GridView.ItemTemplate>
+                    <DataTemplate>
+                        <Border
+                            Padding="14"
+                            Height="204"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            AutomationProperties.AutomationId="CatalogCard"
+                            AutomationProperties.Name="{Binding DisplayName}">
+                            <Grid RowDefinitions="Auto,Auto,38,*,Auto">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border
+                                        Width="38"
+                                        Height="38"
+                                        CornerRadius="7"
+                                        Background="{ThemeResource AccentFillColorSecondaryBrush}">
+                                        <FontIcon
+                                            Glyph="&#xE71D;"
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                            FontSize="19"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="10,0,0,0"
+                                        Text="{Binding DisplayName}"
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        TextWrapping="WrapWholeWords"
+                                        TextTrimming="CharacterEllipsis"
+                                        MaxLines="2"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.AutomationId="CatalogDisplayName" />
+                                </Grid>
+
+                                <StackPanel Grid.Row="1" Margin="0,9,0,0" Spacing="1">
+                                    <TextBlock
+                                        Text="{Binding CardPresentation.ObservationText}"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        AutomationProperties.AutomationId="CatalogObservation" />
+                                    <TextBlock
+                                        Text="{Binding CardPresentation.VersionText}"
+                                        FontSize="13"
+                                        Opacity="0.68"
+                                        Visibility="{Binding CardPresentation.HasVersion, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="CatalogVersion" />
+                                </StackPanel>
+
+                                <Grid Grid.Row="2" Margin="0,6,0,0">
+                                    <StackPanel
+                                        Orientation="Horizontal"
+                                        Spacing="6"
+                                        VerticalAlignment="Top"
+                                        Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="CatalogOperation"
+                                        AutomationProperties.Name="{Binding CardPresentation.OperationText}"
+                                        AutomationProperties.LiveSetting="Polite">
+                                        <ProgressRing
+                                            Width="15"
+                                            Height="15"
+                                            Margin="0,1,0,0"
+                                            IsActive="{Binding CardPresentation.HasOperation}"
+                                            IsIndeterminate="{Binding CardPresentation.IsProgressIndeterminate}"
+                                            Value="{Binding CardPresentation.ProgressValue}" />
+                                        <TextBlock
+                                            Text="{Binding CardPresentation.OperationText}"
+                                            FontSize="13"
+                                            TextWrapping="WrapWholeWords"
+                                            TextTrimming="CharacterEllipsis"
+                                            MaxLines="2" />
+                                    </StackPanel>
+
+                                    <TextBlock
+                                        Text="{Binding CardPresentation.TerminalFeedbackText}"
+                                        FontSize="13"
+                                        TextWrapping="WrapWholeWords"
+                                        TextTrimming="CharacterEllipsis"
+                                        MaxLines="2"
+                                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                        Visibility="{Binding CardPresentation.HasTerminalFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="CatalogTerminalFeedback"
+                                        AutomationProperties.Name="{Binding CardPresentation.TerminalFeedbackText}"
+                                        AutomationProperties.LiveSetting="Polite" />
+                                </Grid>
+
+                                <StackPanel
+                                    Grid.Row="4"
+                                    Orientation="Horizontal"
+                                    Spacing="6"
+                                    VerticalAlignment="Bottom">
+                                    <Button
+                                        Content="{Binding CardPresentation.PrimaryAction.Label}"
+                                        Tag="{Binding CardPresentation.PrimaryAction.Kind}"
+                                        IsEnabled="{Binding CardPresentation.PrimaryAction.Enabled}"
+                                        Visibility="{Binding CardPresentation.HasPrimaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Click="ActionButton_Click"
+                                        AutomationProperties.AutomationId="PrimaryActionButton" />
+                                    <Button
+                                        Content="{Binding CardPresentation.SecondaryAction.Label}"
+                                        Tag="{Binding CardPresentation.SecondaryAction.Kind}"
+                                        IsEnabled="{Binding CardPresentation.SecondaryAction.Enabled}"
+                                        Visibility="{Binding CardPresentation.HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        Click="ActionButton_Click"
+                                        AutomationProperties.AutomationId="SecondaryActionButton" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+
+            <TextBlock
+                x:Name="SearchNoResults"
+                Visibility="Collapsed"
+                FontSize="18"
+                TextWrapping="Wrap"
+                AutomationProperties.AutomationId="SearchNoResults"
+                AutomationProperties.LiveSetting="Polite" />
+
+            <TextBlock
+                x:Name="CatalogEmpty"
+                Visibility="Collapsed"
+                Text="No software is currently available."
+                FontSize="18"
+                TextWrapping="Wrap"
+                AutomationProperties.AutomationId="CatalogEmpty" />
+        </Grid>
     </Grid>
 </Page>

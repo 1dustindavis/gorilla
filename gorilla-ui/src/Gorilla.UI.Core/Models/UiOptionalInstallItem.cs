@@ -20,6 +20,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private ActionDecision _removeDecision = new(false, "Refresh required before removing.");
     private UiOperationPresentation? _activeOperation;
     private UiOperationPresentation? _latestOperation;
+    private string? _transientFeedback;
     private bool _isBusy;
     private string? _legacyStatus;
     private bool _preferObservedStatus;
@@ -29,13 +30,25 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public string DisplayName
     {
         get => _displayName;
-        set => SetField(ref _displayName, value);
+        set
+        {
+            if (SetField(ref _displayName, value))
+            {
+                OnPropertyChanged(nameof(CardPresentation));
+            }
+        }
     }
 
     public string? Description
     {
         get => _description;
-        set => SetField(ref _description, value);
+        set
+        {
+            if (SetField(ref _description, value))
+            {
+                OnPropertyChanged(nameof(CardPresentation));
+            }
+        }
     }
 
     public string? TargetVersion
@@ -46,6 +59,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _targetVersion, value))
             {
                 OnPropertyChanged(nameof(Version));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -70,6 +84,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(InstalledVersion));
                 OnPropertyChanged(nameof(IsInstalled));
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -81,7 +96,13 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public Policy? Policy
     {
         get => _policy;
-        set => SetField(ref _policy, value);
+        set
+        {
+            if (SetField(ref _policy, value))
+            {
+                OnPropertyChanged(nameof(CardPresentation));
+            }
+        }
     }
 
     public ActionDecision InstallDecision
@@ -94,6 +115,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(InstallAllowed));
                 OnPropertyChanged(nameof(InstallUnavailableReason));
                 OnPropertyChanged(nameof(CanInstall));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -108,6 +130,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(RemoveAllowed));
                 OnPropertyChanged(nameof(RemoveUnavailableReason));
                 OnPropertyChanged(nameof(CanRemove));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -144,6 +167,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _activeOperation, value))
             {
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -158,6 +182,21 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _latestOperation, value))
             {
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(CardPresentation));
+            }
+        }
+    }
+
+    // Local, non-operation feedback for an item-specific action admission response.
+    // This is intentionally separate from authoritative operation and observation state.
+    public string? TransientFeedback
+    {
+        get => _transientFeedback;
+        set
+        {
+            if (SetField(ref _transientFeedback, value))
+            {
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }
@@ -176,6 +215,8 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public bool CanInstall => InstallDecision.Allowed && !IsBusy;
 
     public bool CanRemove => RemoveDecision.Allowed && !IsBusy;
+
+    public CatalogCardPresentation CardPresentation => CatalogCardPresentationMapper.Map(this);
 
     // Transitional compatibility state for the existing Stage 4 ListView. New UI
     // should bind the typed Observation/ActiveOperation/LatestOperation properties.
@@ -226,6 +267,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(CanInstall));
                 OnPropertyChanged(nameof(CanRemove));
+                OnPropertyChanged(nameof(CardPresentation));
             }
         }
     }

@@ -15,15 +15,15 @@ public class HomeViewModelOperationResultTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-09T19:45:00Z");
 
     [Theory]
-    [InlineData(Outcome.Succeeded, "Succeeded: Installed", "")]
-    [InlineData(Outcome.AlreadySatisfied, "AlreadySatisfied: Already installed", "")]
-    [InlineData(Outcome.Failed, "Failed: Installer exited with code 1", "Operation for VLC ended with Failed: Installer exited with code 1")]
-    [InlineData(Outcome.Unverified, "Unverified: Unable to confirm installed state", "Operation for VLC ended with Unverified: Unable to confirm installed state")]
-    [InlineData(Outcome.Interrupted, "Interrupted: Service operation was interrupted", "Operation for VLC ended with Interrupted: Service operation was interrupted")]
-    public async Task InstallAsync_UsesAuthoritativeOutcome(
+    [InlineData(Outcome.Succeeded, "Succeeded: Installed", null)]
+    [InlineData(Outcome.AlreadySatisfied, "AlreadySatisfied: Already installed", null)]
+    [InlineData(Outcome.Failed, "Failed: Installer exited with code 1", "Failed: Installer exited with code 1")]
+    [InlineData(Outcome.Unverified, "Unverified: Unable to confirm installed state", "Unable to verify: Unable to confirm installed state")]
+    [InlineData(Outcome.Interrupted, "Interrupted: Service operation was interrupted", "Interrupted: Service operation was interrupted")]
+    public async Task InstallAsync_UsesAuthoritativeOutcomeWithoutGlobalItemWarning(
         Outcome outcome,
         string expectedStatus,
-        string expectedWarning)
+        string? expectedTerminalFeedback)
     {
         var resultMessage = outcome switch
         {
@@ -54,7 +54,8 @@ public class HomeViewModelOperationResultTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.Equal(expectedStatus, item.Status);
-        Assert.Equal(expectedWarning, viewModel.WarningBanner);
+        Assert.Equal(expectedTerminalFeedback, item.CardPresentation.TerminalFeedbackText);
+        Assert.Empty(viewModel.WarningBanner);
     }
 
     [Fact]

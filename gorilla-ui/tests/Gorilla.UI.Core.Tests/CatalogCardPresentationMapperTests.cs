@@ -170,7 +170,7 @@ public sealed class CatalogCardPresentationMapperTests
         Action: CatalogAction.Install,
         State: OperationState.Completed,
         ProgressPercent: null,
-        Result: new Result(outcome, "terminal", message),
+        Result: new Result(outcome, "terminal", Message: message),
         Message: message,
         TimestampUtc: DateTimeOffset.Parse("2026-09-11T15:00:00Z")
     );

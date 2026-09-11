@@ -73,7 +73,8 @@ public class HomeViewModelTests
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.Equal("VLC", refreshedItem.ItemName);
         Assert.True(refreshedItem.IsInstalled);
-        Assert.Equal("Installed", refreshedItem.Status);
+        Assert.Equal("Succeeded: Installed", refreshedItem.Status);
+        Assert.Equal(Outcome.Succeeded, refreshedItem.LatestOperation?.Result?.Outcome);
     }
 
     [Fact]
@@ -100,7 +101,8 @@ public class HomeViewModelTests
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.Equal("VLC", refreshedItem.ItemName);
         Assert.False(refreshedItem.IsInstalled);
-        Assert.Equal("NotInstalled", refreshedItem.Status);
+        Assert.Equal("Succeeded: Removed", refreshedItem.Status);
+        Assert.Equal(Outcome.Succeeded, refreshedItem.LatestOperation?.Result?.Outcome);
     }
 
     [Fact]

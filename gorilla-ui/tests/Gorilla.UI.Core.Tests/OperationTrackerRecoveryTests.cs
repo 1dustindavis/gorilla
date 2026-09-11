@@ -51,6 +51,35 @@ public class OperationTrackerRecoveryTests
         Assert.False(tracker.TryGetLatest("op-1", out _));
     }
 
+    [Fact]
+    public async Task ItemLookup_PrefersActiveAndKeepsLatestTerminalSeparate()
+    {
+        var terminal = new OperationStatusEvent(
+            "op-old", OperationState.Completed, null, "Old install", Now, "VLC", AppCatalog.Action.Install,
+            new Result(Outcome.Failed, "execution_failed")
+        );
+        var active = new OperationStatusEvent(
+            "op-current", OperationState.Removing, 50, "Removing", Now.AddSeconds(1), "VLC", AppCatalog.Action.Remove
+        );
+        var other = new OperationStatusEvent(
+            "op-other", OperationState.Installing, null, "Installing", Now.AddSeconds(2), "Other", AppCatalog.Action.Install
+        );
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = _ => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([terminal, active, other]),
+        };
+        var tracker = new OperationTracker(client);
+
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+
+        Assert.Equal("op-current", tracker.GetCurrentOrLatestForItem("VLC")?.OperationId);
+        Assert.Equal("op-current", tracker.GetActiveForItem("VLC")?.OperationId);
+        Assert.Equal("op-old", tracker.GetLatestTerminalForItem("VLC")?.OperationId);
+        Assert.Equal("op-other", tracker.GetCurrentOrLatestForItem("Other")?.OperationId);
+        Assert.True(tracker.TryGetLatest("op-old", out var byId));
+        Assert.Equal("op-old", byId?.OperationId);
+    }
+
     private static async IAsyncEnumerable<OperationStatusEvent> DroppedStream()
     {
         yield return Event(OperationState.Queued, "Operation queued");

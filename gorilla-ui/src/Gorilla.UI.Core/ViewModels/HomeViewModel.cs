@@ -125,13 +125,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
+        item.TransientFeedback = null;
         item.IsBusy = true;
         try
         {
             var accepted = await _client.InstallItemAsync(item.ItemName, cancellationToken);
             if (!accepted.Accepted)
             {
-                WarningBanner = $"Install was not accepted for {item.DisplayName}.";
+                item.TransientFeedback = $"Install was not accepted for {item.DisplayName}.";
                 return;
             }
 
@@ -158,13 +159,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
 
     public async Task RemoveAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
+        item.TransientFeedback = null;
         item.IsBusy = true;
         try
         {
             var accepted = await _client.RemoveItemAsync(item.ItemName, cancellationToken);
             if (!accepted.Accepted)
             {
-                WarningBanner = $"Remove was not accepted for {item.DisplayName}.";
+                item.TransientFeedback = $"Remove was not accepted for {item.DisplayName}.";
                 return;
             }
 

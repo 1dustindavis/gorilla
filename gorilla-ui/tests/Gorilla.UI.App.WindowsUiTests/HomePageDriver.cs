@@ -63,7 +63,13 @@ internal sealed class HomePageDriver
     {
         var item = WaitForItem(itemName);
         var operation = _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation")));
-        return SafeName(operation);
+        return string.Join(
+            " ",
+            operation
+                .FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
+                .Select(SafeName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+        );
     }
 
     public bool HasItem(string itemName)

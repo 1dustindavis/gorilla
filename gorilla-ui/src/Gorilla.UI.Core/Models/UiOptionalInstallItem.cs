@@ -15,6 +15,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private string? _description;
     private string? _targetVersion;
     private Observation _observation = new(ObservedState.Unknown, null, null, string.Empty, RequirementState.Unknown);
+    private Policy? _policy;
     private ActionDecision _installDecision = new(false, "Refresh required before installing.");
     private ActionDecision _removeDecision = new(false, "Refresh required before removing.");
     private UiOperationPresentation? _activeOperation;
@@ -76,6 +77,12 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     public ObservedState ObservedState => Observation.State;
 
     public string? InstalledVersion => Observation.InstalledVersion;
+
+    public Policy? Policy
+    {
+        get => _policy;
+        set => SetField(ref _policy, value);
+    }
 
     public ActionDecision InstallDecision
     {

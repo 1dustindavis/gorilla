@@ -412,29 +412,10 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             item.PreferOperationStatus();
         }
 
+        // OperationTracker owns the structured per-item terminal result. The card
+        // presentation consumes LatestOperation directly; page warnings are reserved
+        // for service/catalog/status infrastructure problems.
         ReprojectOperation(item);
-        if (update.State == OperationState.Completed)
-        {
-            ApplyAuthoritativeResult(item, update.Result!);
-        }
-    }
-
-    private void ApplyAuthoritativeResult(UiOptionalInstallItem item, Result result)
-    {
-        var details = OperationDisplay.Details(result);
-
-        switch (result.Outcome)
-        {
-            case Outcome.Succeeded:
-            case Outcome.AlreadySatisfied:
-                WarningBanner = string.Empty;
-                break;
-            case Outcome.Failed:
-            case Outcome.Unverified:
-            case Outcome.Interrupted:
-                WarningBanner = $"Operation for {item.DisplayName} ended with {result.Outcome}: {details}";
-                break;
-        }
     }
 
     private static void ValidateOperationIdentity(

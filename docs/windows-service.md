@@ -1,6 +1,6 @@
 # Windows service
 
-The [App Catalog contract](../gorilla-ui/docs/app-catalog-contract.md) defines state, action, and CLI changes. Stage 2 keeps the v1 envelope while returning real catalog metadata, shared Go observations, policy, and service-owned allowed actions. The complete v2 operation lifecycle follows in stage 3.
+The [App Catalog contract](../gorilla-ui/docs/app-catalog-contract.md) defines the state, policy, action, and result model used by the live v1 protocol. [App Catalog operation recovery](../gorilla-ui/docs/app-catalog-recovery.md) documents mutation identity, bounded in-memory operation retention, reconnect behavior, and service-restart semantics.
 
 The Gorilla service runs managed application processing on a schedule and exposes a named-pipe endpoint for App Catalog and command-line requests.
 

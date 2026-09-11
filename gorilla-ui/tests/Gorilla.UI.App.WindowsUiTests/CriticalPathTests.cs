@@ -22,6 +22,7 @@ public sealed class CriticalPathTests
             home.WaitForItemStatus(FixtureItemName, "NotInstalled");
             Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
             Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("healthy-startup", includeAutomationTree: true);
 
             var startupCacheWrite = File.GetLastWriteTimeUtc(cachePath);
@@ -32,6 +33,7 @@ public sealed class CriticalPathTests
             home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("after-install");
 
             var installRefreshWrite = File.GetLastWriteTimeUtc(cachePath);
@@ -42,6 +44,7 @@ public sealed class CriticalPathTests
             home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
             Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("after-remove");
         });
     }
@@ -66,6 +69,7 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
             home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("reopen-after-install-before-close", includeAutomationTree: true);
         });
 
@@ -78,6 +82,7 @@ public sealed class CriticalPathTests
             home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.True(File.Exists(markerPath), $"Fixture marker should remain present after UI relaunch: {markerPath}");
             Assert.False(home.HasOperationFailureText());
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("reopen-installed", includeAutomationTree: true);
 
             home.RemoveButton(FixtureItemName).Invoke();
@@ -85,6 +90,7 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(60));
             home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("reopen-after-remove-before-close", includeAutomationTree: true);
         });
 
@@ -97,6 +103,7 @@ public sealed class CriticalPathTests
             home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             Assert.False(File.Exists(markerPath), $"Fixture marker should remain absent after UI relaunch: {markerPath}");
             Assert.False(home.HasOperationFailureText());
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("reopen-not-installed", includeAutomationTree: true);
         });
     }
@@ -113,6 +120,7 @@ public sealed class CriticalPathTests
             _ = home.WaitForItem(FailureFixtureItemName);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled");
             var actionTopBefore = home.PrimaryActionTop(FailureFixtureItemName);
+            home.EnsureItemVisible(FailureFixtureItemName);
             session.CaptureCheckpoint("failure-before-install", includeAutomationTree: true);
 
             home.InstallButton(FailureFixtureItemName).Invoke();
@@ -129,6 +137,7 @@ public sealed class CriticalPathTests
             );
             Assert.InRange(home.PrimaryActionTop(FailureFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
+            home.EnsureItemVisible(FailureFixtureItemName);
             session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);
         });
     }
@@ -143,6 +152,7 @@ public sealed class CriticalPathTests
             Assert.Equal("Available Software", home.Heading.Name);
             _ = home.WaitForItem(FixtureItemName);
             home.WaitForWarningContaining("Showing cached data. Refresh failed", TimeSpan.FromSeconds(15));
+            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("cached-service-unavailable", includeAutomationTree: true);
         });
     }

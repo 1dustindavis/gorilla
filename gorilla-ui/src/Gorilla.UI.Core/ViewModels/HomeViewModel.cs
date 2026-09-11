@@ -209,12 +209,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
             return true;
         }
 
-        if (!_catalogItems.ContainsKey(itemName))
+        if (!_catalogItems.TryGetValue(itemName, out var item))
         {
             return false;
         }
 
-        SelectedItemName = _catalogItems[itemName].ItemName;
+        SelectedItemName = item.ItemName;
         return true;
     }
 

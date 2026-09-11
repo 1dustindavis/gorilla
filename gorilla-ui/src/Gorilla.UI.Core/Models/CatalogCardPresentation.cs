@@ -144,10 +144,19 @@ public static class CatalogCardPresentationMapper
 
     private static string? TerminalFeedbackText(UiOptionalInstallItem item)
     {
-        // A new active attempt supersedes retained terminal feedback from the prior
-        // operation. Once the new operation becomes terminal, LatestOperation will
-        // replace it with the new authoritative result.
-        if (item.ActiveOperation is not null || item.LatestOperation?.Result is not { } result)
+        // Active work supersedes both transient admission feedback and retained
+        // terminal feedback from a prior operation.
+        if (item.ActiveOperation is not null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.TransientFeedback))
+        {
+            return item.TransientFeedback;
+        }
+
+        if (item.LatestOperation?.Result is not { } result)
         {
             return null;
         }

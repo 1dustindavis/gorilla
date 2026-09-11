@@ -131,7 +131,9 @@
                                     Spacing="8"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    AutomationProperties.AutomationId="CatalogOperation">
+                                    AutomationProperties.AutomationId="CatalogOperation"
+                                    AutomationProperties.Name="{Binding CardPresentation.OperationText}"
+                                    AutomationProperties.LiveSetting="Polite">
                                     <ProgressRing
                                         Width="18"
                                         Height="18"

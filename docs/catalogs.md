@@ -5,6 +5,7 @@ A catalog maps unique item names to installation, removal, and status-check meta
 ```yaml
 ExampleApp:
   display_name: Example App
+  description: A short plain-text description of the application.
   version: 1.2.3
   dependencies:
     - ExampleDependency
@@ -25,6 +26,7 @@ See [the complete example catalog](../examples/example_catalog.yaml).
 ## Item keys
 
 - `display_name`: Human-readable item name.
+- `description`: Optional plain-text, concise human-readable description. It is presentation metadata only and does not affect installation or detection behavior.
 - `version`: Desired application version.
 - `dependencies`: Item names that must be processed first.
 - `check`: One status-check definition.

@@ -143,7 +143,7 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 			displayName = name
 		}
 		contract := appcatalog.Item{
-			ItemName: name, DisplayName: displayName, Catalog: resolved.catalog,
+			ItemName: name, DisplayName: displayName, Description: resolved.item.Description, Catalog: resolved.catalog,
 			TargetVersion: target, Observation: observation, Policy: policy,
 		}
 		contract.Actions = appcatalog.DecideActionsWithRequirement(

@@ -34,6 +34,7 @@ public sealed class AppCatalogContractTests
         using var examples = LoadExamples();
         var items = examples.RootElement.GetProperty("items").Deserialize<Item[]>(Options)!;
         var installed = Assert.Single(items, item => item.ItemName == "Example");
+        Assert.Equal("An example application.", installed.Description);
         Assert.Equal(ObservedState.Installed, installed.Observation.State);
         Assert.Equal(RequirementState.Satisfied, installed.Observation.InstallRequirement);
         Assert.Null(installed.Observation.InstalledVersion);

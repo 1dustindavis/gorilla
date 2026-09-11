@@ -118,6 +118,7 @@ type Operation struct {
 type Item struct {
 	ItemName        string      `json:"itemName"`
 	DisplayName     string      `json:"displayName"`
+	Description     string      `json:"description,omitempty"`
 	Catalog         string      `json:"catalog"`
 	TargetVersion   *string     `json:"targetVersion"`
 	Observation     Observation `json:"observation"`

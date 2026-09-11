@@ -22,6 +22,7 @@ func TestBuildCatalogs(t *testing.T) {
 	itemA := `
 item_name: Chrome
 display_name: Google Chrome
+description: A short browser description.
 catalog: base
 installer:
   type: nupkg
@@ -68,6 +69,9 @@ installer:
 	}
 	if _, ok := got["Chrome"]; !ok {
 		t.Fatalf("expected item key Chrome in generated catalog")
+	}
+	if got := got["Chrome"].Description; got != "A short browser description." {
+		t.Fatalf("description = %q, want package-info value", got)
 	}
 	if _, ok := got["AgentTool"]; !ok {
 		t.Fatalf("expected fallback item key AgentTool in generated catalog")
@@ -143,5 +147,8 @@ version: 1.2.3.4
 	}
 	if chrome.Version != "1.2.3.4" {
 		t.Fatalf("unexpected version: %s", chrome.Version)
+	}
+	if chrome.Description != "" {
+		t.Fatalf("unexpected description for package-info without metadata: %q", chrome.Description)
 	}
 }

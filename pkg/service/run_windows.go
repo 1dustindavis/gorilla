@@ -540,6 +540,7 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 			items = append(items, optionalInstallResponseItem{
 				ItemName:           item.ItemName,
 				DisplayName:        item.DisplayName,
+				Description:        item.Description,
 				Version:            version,
 				Catalog:            item.Catalog,
 				InstallerType:      detail.InstallerType,

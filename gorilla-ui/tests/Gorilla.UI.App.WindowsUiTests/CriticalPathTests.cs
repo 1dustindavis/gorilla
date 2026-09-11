@@ -28,7 +28,6 @@ public sealed class CriticalPathTests
             home.InstallButton(FixtureItemName).Invoke();
 
             session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
-            // Core refreshes the authoritative list/cache only after the operation stream reaches a terminal state.
             session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > startupCacheWrite, TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.False(home.HasOperationFailureText());
@@ -113,6 +112,7 @@ public sealed class CriticalPathTests
             Assert.Equal("Available Software", home.Heading.Name);
             _ = home.WaitForItem(FailureFixtureItemName);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled");
+            var actionTopBefore = home.PrimaryActionTop(FailureFixtureItemName);
             session.CaptureCheckpoint("failure-before-install", includeAutomationTree: true);
 
             home.InstallButton(FailureFixtureItemName).Invoke();
@@ -127,6 +127,7 @@ public sealed class CriticalPathTests
                 string.IsNullOrWhiteSpace(home.WarningText),
                 $"Item-specific failure should not populate the page warning: {home.WarningText}"
             );
+            Assert.InRange(home.PrimaryActionTop(FailureFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);
         });

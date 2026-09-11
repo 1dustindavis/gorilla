@@ -99,6 +99,60 @@ public sealed class CatalogCardPresentationMapperTests
         Assert.False(presentation.SecondaryAction!.Enabled);
     }
 
+    [Theory]
+    [InlineData(Outcome.Failed, "Installer exited with code 1", "Failed: Installer exited with code 1")]
+    [InlineData(Outcome.Unverified, "Unable to confirm installed state", "Unable to verify: Unable to confirm installed state")]
+    [InlineData(Outcome.Interrupted, "Service operation was interrupted", "Interrupted: Service operation was interrupted")]
+    public void TerminalProblem_IsPresentedOnCard(
+        Outcome outcome,
+        string message,
+        string expected
+    )
+    {
+        var item = Item(ObservedState.Absent, installAllowed: true, removeAllowed: false);
+        item.LatestOperation = TerminalOperation(outcome, message);
+
+        var presentation = CatalogCardPresentationMapper.Map(item);
+
+        Assert.Equal(expected, presentation.TerminalFeedbackText);
+        Assert.True(presentation.HasTerminalFeedback);
+    }
+
+    [Theory]
+    [InlineData(Outcome.Succeeded)]
+    [InlineData(Outcome.AlreadySatisfied)]
+    public void SuccessfulTerminalOutcome_DoesNotAddCardFeedback(Outcome outcome)
+    {
+        var item = Item(ObservedState.Installed, installAllowed: false, removeAllowed: true);
+        item.LatestOperation = TerminalOperation(outcome, "Done");
+
+        var presentation = CatalogCardPresentationMapper.Map(item);
+
+        Assert.Null(presentation.TerminalFeedbackText);
+        Assert.False(presentation.HasTerminalFeedback);
+    }
+
+    [Fact]
+    public void NewActiveOperation_SuppressesStaleTerminalFeedback()
+    {
+        var item = Item(ObservedState.Absent, installAllowed: true, removeAllowed: false);
+        item.LatestOperation = TerminalOperation(Outcome.Failed, "Previous failure");
+        item.ActiveOperation = new UiOperationPresentation(
+            OperationId: "op-new",
+            Action: CatalogAction.Install,
+            State: OperationState.Installing,
+            ProgressPercent: null,
+            Result: null,
+            Message: "Installing",
+            TimestampUtc: DateTimeOffset.Parse("2026-09-11T15:01:00Z")
+        );
+
+        var presentation = CatalogCardPresentationMapper.Map(item);
+
+        Assert.Equal("Installing…", presentation.OperationText);
+        Assert.Null(presentation.TerminalFeedbackText);
+    }
+
     [Fact]
     public void UpdateVersion_UsesProvidedVersionsWithoutComparingThem()
     {
@@ -110,6 +164,16 @@ public sealed class CatalogCardPresentationMapperTests
 
         Assert.Equal("1.7 → 2.0", presentation.VersionText);
     }
+
+    private static UiOperationPresentation TerminalOperation(Outcome outcome, string message) => new(
+        OperationId: "op-terminal",
+        Action: CatalogAction.Install,
+        State: OperationState.Completed,
+        ProgressPercent: null,
+        Result: new Result(outcome, "terminal", message),
+        Message: message,
+        TimestampUtc: DateTimeOffset.Parse("2026-09-11T15:00:00Z")
+    );
 
     private static UiOptionalInstallItem Item(
         ObservedState observedState,

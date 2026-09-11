@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
@@ -9,6 +10,13 @@ namespace Gorilla.UI.App.WindowsUiTests;
 
 internal sealed class GorillaAppSession : IDisposable
 {
+    private const int SwRestore = 9;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpShowWindow = 0x0040;
+    private static readonly nint HwndTopmost = new(-1);
+    private static readonly nint HwndNotTopmost = new(-2);
+
     private readonly string _artifactsDirectory;
     private readonly Application _application;
     private readonly Process _process;
@@ -174,8 +182,19 @@ internal sealed class GorillaAppSession : IDisposable
             {
                 MainWindow = current;
             }
+
+            _process.Refresh();
+            var hwnd = _process.MainWindowHandle;
+            if (hwnd != nint.Zero)
+            {
+                _ = ShowWindow(hwnd, SwRestore);
+                _ = SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpShowWindow);
+                _ = SetForegroundWindow(hwnd);
+                _ = SetWindowPos(hwnd, HwndNotTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpShowWindow);
+            }
+
             MainWindow.Focus();
-            Thread.Sleep(100);
+            Thread.Sleep(250);
         });
     }
 
@@ -322,4 +341,24 @@ internal sealed class GorillaAppSession : IDisposable
         _process.Dispose();
         _automation.Dispose();
     }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint hWnd,
+        nint hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags
+    );
 }

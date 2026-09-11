@@ -17,11 +17,11 @@ The UI may retry an acknowledgement whose outcome is uncertain, but it must reus
 
 Operation tracking is service-process state, independent of page or card instances. The service keeps a bounded in-memory registry of operations and exposes it through `ListOperations` so the UI can recover after navigation, relaunch, or a transient pipe disconnect.
 
-Retention is intentionally bounded:
+Retention is intentionally bounded for completed history while preserving all active work:
 
-- at most 512 tracked operations are retained;
-- completed operations expire after 24 hours;
-- active operations are retained while the service process remains alive;
+- completed operations are pruned as needed to target a maximum registry size of 512 entries;
+- completed operations also expire after 24 hours;
+- active operations are never pruned solely to satisfy the 512-entry target and remain retained while the service process is alive, so the registry can temporarily exceed 512 entries if more than 512 operations are simultaneously active;
 - pruning also removes the mutation-to-operation admission entry associated with a removed operation.
 
 This registry is not persisted to disk. A service restart therefore ends historical operation tracking and starts with an empty operation registry.

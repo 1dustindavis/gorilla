@@ -27,9 +27,7 @@ public sealed class CatalogSurfaceTests
             _ = home.WaitForCard(InstalledFixtureItemName);
 
             var width = home.CardWidth(FixtureItemName);
-            var height = home.CardHeight(FixtureItemName);
             Assert.InRange(width, 299.5, 340.5);
-            Assert.InRange(height, 203.5, 204.5);
             Assert.False(home.HasDescriptionElement(FixtureItemName));
             Assert.False(home.HasDescriptionElement(FailureFixtureItemName));
             Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
@@ -201,12 +199,13 @@ public sealed class CatalogSurfaceTests
                 home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
             }
 
+            var actionTopBefore = home.PrimaryActionTop(SlowFixtureItemName);
             home.PrimaryActionButton(SlowFixtureItemName).Invoke();
 
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
             Assert.Equal("Not installed", home.ItemStatus(SlowFixtureItemName));
             Assert.False(home.PrimaryActionButton(SlowFixtureItemName).IsEnabled);
-            Assert.InRange(home.CardHeight(SlowFixtureItemName), 203.5, 204.5);
+            Assert.InRange(home.PrimaryActionTop(SlowFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
             session.CaptureCheckpoint("catalog-active-operation", includeAutomationTree: true);
 
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));

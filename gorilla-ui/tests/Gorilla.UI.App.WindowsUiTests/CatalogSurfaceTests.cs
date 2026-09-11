@@ -182,10 +182,22 @@ public sealed class CatalogSurfaceTests
         RunWithDiagnostics(nameof(ActiveOperationShowsBusyStateWithoutReplacingObservation), session =>
         {
             var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
-            File.Delete(slowMarkerPath);
-
             var home = new HomePageDriver(session);
-            home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
+            _ = home.WaitForItem(SlowFixtureItemName);
+
+            // Another healthy E2E deliberately leaves this selected and installed
+            // to prove the one-action Remove presentation. Reset through Gorilla
+            // itself so physical state and service-owned selection stay coherent.
+            if (string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
+            {
+                home.RemoveButton(SlowFixtureItemName).Invoke();
+                session.WaitUntil(() => !File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+                home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
+            }
+            else
+            {
+                home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
+            }
 
             home.PrimaryActionButton(SlowFixtureItemName).Invoke();
 

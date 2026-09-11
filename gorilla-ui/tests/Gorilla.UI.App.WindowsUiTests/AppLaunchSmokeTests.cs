@@ -14,7 +14,7 @@ public sealed class AppLaunchSmokeTests
             var home = new HomePageDriver(session);
             Assert.Equal("App Catalog", session.MainWindow.Title);
             Assert.Equal("Available Software", home.Heading.Name);
-            Assert.Equal("Available software", home.ItemsList.Name);
+            Assert.Equal("Available software", home.CatalogItems.Name);
             Assert.False(home.HasOperationFailureText());
         });
     }

@@ -95,8 +95,8 @@ public sealed class CatalogCardPresentationMapperTests
         Assert.Equal("Installed", presentation.ObservationText);
         Assert.Equal("Removing…", presentation.OperationText);
         Assert.True(presentation.IsProgressIndeterminate);
-        Assert.False(presentation.PrimaryAction?.Enabled);
-        Assert.False(presentation.SecondaryAction?.Enabled);
+        Assert.False(presentation.PrimaryAction!.Enabled);
+        Assert.False(presentation.SecondaryAction!.Enabled);
     }
 
     [Fact]

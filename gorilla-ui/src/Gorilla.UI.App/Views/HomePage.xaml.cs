@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using Gorilla.UI.Core.Models;
@@ -14,6 +16,7 @@ public sealed partial class HomePage : Page, IDisposable
 {
     private CancellationTokenSource? _cts;
     private long _serviceWarningTextChangedToken;
+    private bool _hasInitialized;
 
     public HomeViewModel ViewModel { get; }
 
@@ -24,10 +27,13 @@ public sealed partial class HomePage : Page, IDisposable
         DataContext = ViewModel;
         Loaded += HomePage_Loaded;
         Unloaded += HomePage_Unloaded;
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        ViewModel.Items.CollectionChanged += Items_CollectionChanged;
         _serviceWarningTextChangedToken = ServiceWarning.RegisterPropertyChangedCallback(
             TextBlock.TextProperty,
             ServiceWarning_TextChanged
         );
+        UpdateEmptyStates();
     }
 
     private async void HomePage_Loaded(object sender, RoutedEventArgs e)
@@ -35,11 +41,50 @@ public sealed partial class HomePage : Page, IDisposable
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         await RunSafelyAsync(() => ViewModel.InitializeAsync(_cts.Token));
+        _hasInitialized = true;
+        UpdateEmptyStates();
+        UpdateCardWidths(CatalogItems.ActualWidth);
     }
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
     {
         ResetCancellation();
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HomeViewModel.SearchQuery))
+        {
+            UpdateEmptyStates();
+        }
+    }
+
+    private void Items_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        UpdateEmptyStates();
+    }
+
+    private void UpdateEmptyStates()
+    {
+        if (!_hasInitialized)
+        {
+            SearchNoResults.Visibility = Visibility.Collapsed;
+            CatalogEmpty.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var query = ViewModel.SearchQuery.Trim();
+        var noVisibleItems = ViewModel.Items.Count == 0;
+        var hasSearch = !string.IsNullOrWhiteSpace(query);
+
+        SearchNoResults.Visibility = hasSearch && noVisibleItems
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SearchNoResults.Text = hasSearch ? $"No apps match \"{query}\"." : string.Empty;
+
+        CatalogEmpty.Visibility = !hasSearch && noVisibleItems
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void ServiceWarning_TextChanged(DependencyObject sender, DependencyProperty dp)
@@ -54,12 +99,12 @@ public sealed partial class HomePage : Page, IDisposable
         peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
-    private void ItemsList_ContainerContentChanging(
+    private void CatalogItems_ContainerContentChanging(
         ListViewBase sender,
         ContainerContentChangingEventArgs args
     )
     {
-        if (!ReferenceEquals(sender, ItemsList))
+        if (!ReferenceEquals(sender, CatalogItems))
         {
             return;
         }
@@ -72,46 +117,68 @@ public sealed partial class HomePage : Page, IDisposable
         AutomationProperties.SetName(args.ItemContainer, item.DisplayName);
     }
 
-    private async void InstallButton_Click(object sender, RoutedEventArgs e)
+    private void CatalogItems_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (sender is not Button button || button.Tag is not string itemName)
-        {
-            return;
-        }
-
-        var item = ViewModel.FindItem(itemName);
-        if (item is null)
-        {
-            return;
-        }
-
-        if (_cts is null)
-        {
-            return;
-        }
-
-        await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
+        UpdateCardWidths(e.NewSize.Width);
     }
 
-    private async void RemoveButton_Click(object sender, RoutedEventArgs e)
+    private void UpdateCardWidths(double availableWidth)
     {
-        if (sender is not Button button || button.Tag is not string itemName)
+        if (availableWidth <= 0 || CatalogItems.ItemsPanelRoot is not ItemsWrapGrid panel)
         {
             return;
         }
 
-        var item = ViewModel.FindItem(itemName);
-        if (item is null)
+        const double minimumCardWidth = 280;
+        const double maximumCardWidth = 360;
+        var columns = Math.Max(1, (int)Math.Floor(availableWidth / minimumCardWidth));
+        panel.ItemWidth = Math.Max(1, Math.Min(maximumCardWidth, availableWidth / columns));
+    }
+
+    private async void ActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not UiOptionalInstallItem item)
         {
             return;
         }
-
         if (_cts is null)
         {
             return;
         }
 
-        await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
+        var action = button.Tag switch
+        {
+            CatalogCardActionKind kind => kind,
+            string text when Enum.TryParse<CatalogCardActionKind>(text, out var parsed) => parsed,
+            _ => (CatalogCardActionKind?)null,
+        };
+        if (action is null)
+        {
+            return;
+        }
+
+        var currentAction = ReferenceEquals(button, FindPrimaryActionButton(button))
+            ? item.CardPresentation.PrimaryAction
+            : item.CardPresentation.SecondaryAction;
+        if (currentAction is null || !currentAction.Enabled || currentAction.Kind != action)
+        {
+            return;
+        }
+
+        switch (action.Value)
+        {
+            case CatalogCardActionKind.Install:
+                await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
+                break;
+            case CatalogCardActionKind.Remove:
+                await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
+                break;
+        }
+    }
+
+    private static Button? FindPrimaryActionButton(Button button)
+    {
+        return AutomationProperties.GetAutomationId(button) == "PrimaryActionButton" ? button : null;
     }
 
     private async Task RunSafelyAsync(Func<Task> action)
@@ -134,6 +201,8 @@ public sealed partial class HomePage : Page, IDisposable
     {
         Loaded -= HomePage_Loaded;
         Unloaded -= HomePage_Unloaded;
+        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        ViewModel.Items.CollectionChanged -= Items_CollectionChanged;
         if (_serviceWarningTextChangedToken != 0)
         {
             ServiceWarning.UnregisterPropertyChangedCallback(

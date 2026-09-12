@@ -1,0 +1,14 @@
+name: app-catalog-screenshots
+optional_installs:
+  - SevenZip
+  - Audacity
+  - FileZilla
+  - Firefox
+  - GIMP
+  - Git
+  - Inkscape
+  - KeePass
+  - NotepadPlusPlus
+  - OBSStudio
+  - VLC
+  - WinMerge

@@ -33,6 +33,7 @@ public sealed class AppDetailsTests
             Assert.Contains("Celestial amber telescope utility", details.Description, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("Installed", details.ObservationText);
             Assert.Equal("1.0.0", details.InstalledVersion);
+            session.CaptureCheckpoint("details-installed-description", includeAutomationTree: true);
             details.GoBack();
 
             var returnedHome = new HomePageDriver(session);
@@ -60,6 +61,7 @@ public sealed class AppDetailsTests
             Assert.Equal("1.0.0", updateDetails.InstalledVersion);
             Assert.Equal("Update", updateDetails.PrimaryAction.Name);
             Assert.Equal("Remove", updateDetails.SecondaryAction.Name);
+            session.CaptureCheckpoint("details-update-dual-actions", includeAutomationTree: true);
             updateDetails.GoBack();
 
             home = new HomePageDriver(session);
@@ -70,6 +72,7 @@ public sealed class AppDetailsTests
             installedDetails.WaitForObservation("Installed");
             Assert.Equal("Keep Installed", installedDetails.PrimaryAction.Name);
             Assert.Equal("Remove", installedDetails.SecondaryAction.Name);
+            session.CaptureCheckpoint("details-installed-dual-actions");
         });
     }
 
@@ -85,14 +88,21 @@ public sealed class AppDetailsTests
 
             home.PrimaryActionButton(SlowFixtureItemName).Invoke();
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            var operationId = home.OperationId(SlowFixtureItemName);
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+            session.CaptureCheckpoint("catalog-active-before-details");
             home.OpenDetails(SlowFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
             details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, details.ActiveOperationId);
+            session.CaptureCheckpoint("details-active-from-catalog", includeAutomationTree: true);
             details.GoBack();
 
             home = new HomePageDriver(session);
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+            session.CaptureCheckpoint("catalog-active-after-details");
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
         });
@@ -113,10 +123,15 @@ public sealed class AppDetailsTests
             Assert.Equal("Install", details.PrimaryAction.Name);
             details.PrimaryAction.Invoke();
             details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
+            var operationId = details.ActiveOperationId;
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+            session.CaptureCheckpoint("details-active-started-details", includeAutomationTree: true);
             details.GoBack();
 
             home = new HomePageDriver(session);
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+            session.CaptureCheckpoint("catalog-active-from-details");
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
         });
@@ -134,13 +149,22 @@ public sealed class AppDetailsTests
 
             var details = new AppDetailsPageDriver(session);
             details.PrimaryAction.Invoke();
-            details.WaitForLatestResult("Failed", TimeSpan.FromSeconds(30));
-            Assert.Contains("Failed", details.LatestResult, StringComparison.OrdinalIgnoreCase);
+            details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
+            Assert.Equal("Latest result: Install — Failed", details.LatestResultHeading);
+            Assert.Contains("Installation error: exit status 7", details.LatestResult, StringComparison.OrdinalIgnoreCase);
+            session.CaptureCheckpoint("details-retained-failure", includeAutomationTree: true);
             details.GoBack();
 
             home = new HomePageDriver(session);
             _ = home.WaitForItem(FailureFixtureItemName);
             Assert.DoesNotContain("Operation failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
+            home.OpenDetails(FailureFixtureItemName);
+
+            details = new AppDetailsPageDriver(session);
+            details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(30));
+            Assert.Equal("Latest result: Install — Failed", details.LatestResultHeading);
+            Assert.Contains("Installation error: exit status 7", details.LatestResult, StringComparison.OrdinalIgnoreCase);
+            session.CaptureCheckpoint("details-retained-failure-reopened");
         });
     }
 

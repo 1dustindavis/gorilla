@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Gorilla.UI.Client;
+using Gorilla.UI.Client.AppCatalog;
 using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
 
 namespace Gorilla.UI.Core.Models;

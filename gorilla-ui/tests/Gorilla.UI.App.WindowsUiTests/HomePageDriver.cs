@@ -38,6 +38,12 @@ internal sealed class HomePageDriver
         Thread.Sleep(250);
     }
 
+    public void OpenDetails(string itemName)
+    {
+        EnsureItemVisible(itemName);
+        WaitForItem(itemName).Click();
+    }
+
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");
     public Button RemoveButton(string itemName) => ActionButton(itemName, "Remove");
 

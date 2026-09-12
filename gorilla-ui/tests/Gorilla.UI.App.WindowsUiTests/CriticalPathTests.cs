@@ -63,6 +63,7 @@ public sealed class CriticalPathTests
             home.Search(FixtureItemName);
             session.WaitUntil(() => home.HasItem(FixtureItemName));
             shell.Refresh();
+            Assert.True(home.HasItem(FixtureItemName));
             shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
 
             Assert.Equal(FixtureItemName, home.SearchBox.Text);
@@ -70,6 +71,43 @@ public sealed class CriticalPathTests
             Assert.Contains("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
             Assert.True(string.IsNullOrWhiteSpace(shell.DegradedWarningText));
             session.CaptureCheckpoint("manual-refresh", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void CacheWriteFailureKeepsFreshCatalogVisibleAndActionable()
+    {
+        var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
+        RunWithDiagnostics(nameof(CacheWriteFailureKeepsFreshCatalogVisibleAndActionable), session =>
+        {
+            var home = new HomePageDriver(session);
+            var shell = new CatalogShellDriver(session);
+            _ = home.WaitForItem(FixtureItemName);
+            shell.WaitForFreshnessContaining("Updated", TimeSpan.FromSeconds(30));
+            Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
+
+            var originalAttributes = File.GetAttributes(cachePath);
+            try
+            {
+                File.SetAttributes(cachePath, originalAttributes | FileAttributes.ReadOnly);
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+                shell.WaitForDegradedWarningContaining("couldn't save the latest catalog", TimeSpan.FromSeconds(15));
+
+                Assert.True(home.HasItem(FixtureItemName));
+                Assert.True(home.PrimaryActionButton(FixtureItemName).IsEnabled);
+                Assert.Contains("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("couldn't refresh", shell.DegradedWarningText, StringComparison.OrdinalIgnoreCase);
+                session.CaptureCheckpoint("cache-write-degraded", includeAutomationTree: true);
+            }
+            finally
+            {
+                if (File.Exists(cachePath))
+                {
+                    File.SetAttributes(cachePath, originalAttributes);
+                }
+            }
         });
     }
 
@@ -168,9 +206,11 @@ public sealed class CriticalPathTests
 
     [Fact]
     [Trait("E2EPhase", "ServiceUnavailable")]
-    public void ServiceUnavailableStartupKeepsCachedItemsVisible()
+    public void ServiceUnavailableShowsCachedThenNoCacheFailureStatesTruthfully()
     {
-        RunWithDiagnostics(nameof(ServiceUnavailableStartupKeepsCachedItemsVisible), session =>
+        var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
+
+        RunWithDiagnostics(nameof(ServiceUnavailableShowsCachedThenNoCacheFailureStatesTruthfully) + "-cached", session =>
         {
             var home = new HomePageDriver(session);
             var shell = new CatalogShellDriver(session);
@@ -182,13 +222,10 @@ public sealed class CriticalPathTests
             home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("cached-service-unavailable", includeAutomationTree: true);
         });
-    }
 
-    [Fact]
-    [Trait("E2EPhase", "ServiceUnavailableNoCache")]
-    public void ServiceUnavailableWithoutCacheShowsLoadFailedInsteadOfEmpty()
-    {
-        RunWithDiagnostics(nameof(ServiceUnavailableWithoutCacheShowsLoadFailedInsteadOfEmpty), session =>
+        File.Delete(cachePath);
+
+        RunWithDiagnostics(nameof(ServiceUnavailableShowsCachedThenNoCacheFailureStatesTruthfully) + "-no-cache", session =>
         {
             var shell = new CatalogShellDriver(session);
             session.WaitUntil(() => shell.HasLoadFailedState(), TimeSpan.FromSeconds(15));

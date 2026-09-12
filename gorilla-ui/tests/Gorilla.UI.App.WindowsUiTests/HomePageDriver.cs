@@ -67,10 +67,14 @@ internal sealed class HomePageDriver
 
     public string OperationText(string itemName)
     {
-        var catalog = ById("CatalogItems");
-        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
-        var operation = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
+        var operation = FindOperation(itemName);
         return operation is null ? string.Empty : SafeName(operation);
+    }
+
+    public string OperationId(string itemName)
+    {
+        var operation = FindOperation(itemName);
+        return operation is null ? string.Empty : SafeHelpText(operation);
     }
 
     public string TerminalFeedbackText(string itemName)
@@ -154,6 +158,13 @@ internal sealed class HomePageDriver
 
     public static string AutomationName(AutomationElement element) => SafeName(element);
 
+    private AutomationElement? FindOperation(string itemName)
+    {
+        var catalog = ById("CatalogItems");
+        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        return item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
+    }
+
     private string? TryItemStatus(string itemName)
     {
         var catalog = ById("CatalogItems");
@@ -198,6 +209,18 @@ internal sealed class HomePageDriver
         try
         {
             return element.Name;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string SafeHelpText(AutomationElement element)
+    {
+        try
+        {
+            return element.Properties.HelpText.ValueOrDefault ?? string.Empty;
         }
         catch (PropertyNotSupportedException)
         {

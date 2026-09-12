@@ -12,12 +12,20 @@
     </Page.Resources>
 
     <Grid Padding="20" RowDefinitions="Auto,Auto,Auto,*">
-        <TextBlock
-            Text="Available Software"
-            FontSize="28"
-            FontWeight="SemiBold"
-            AutomationProperties.AutomationId="HomeHeading"
-            AutomationProperties.HeadingLevel="Level1" />
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock
+                Text="Available Software"
+                FontSize="28"
+                FontWeight="SemiBold"
+                AutomationProperties.AutomationId="HomeHeading"
+                AutomationProperties.HeadingLevel="Level1" />
+            <Button
+                Grid.Column="1"
+                Content="Activity"
+                Click="ActivityButton_Click"
+                AutomationProperties.AutomationId="ActivityNavigationButton"
+                AutomationProperties.Name="Activity" />
+        </Grid>
 
         <TextBox
             Grid.Row="1"

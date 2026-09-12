@@ -10,6 +10,17 @@ public sealed class AppDetailsPresentationMapperTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-11T20:00:00Z");
 
+    [Theory]
+    [InlineData(ObservedState.Absent, "Not installed")]
+    [InlineData(ObservedState.Installed, "Installed")]
+    [InlineData(ObservedState.UpdateAvailable, "Update available")]
+    [InlineData(ObservedState.Unknown, "Status unavailable")]
+    [InlineData(ObservedState.DetectionFailed, "Unable to determine status")]
+    public void Map_UsesRequiredObservationLabels(ObservedState state, string expected)
+    {
+        Assert.Equal(expected, AppDetailsPresentationMapper.Map(Item(state)).ObservationText);
+    }
+
     [Fact]
     public void Map_UsesIndependentAvailableAndObservedInstalledVersions()
     {
@@ -58,6 +69,17 @@ public sealed class AppDetailsPresentationMapperTests
         Assert.Equal("Install unavailable: This app is required to stay installed by managed policy.", details.InstallUnavailableExplanation);
         Assert.Equal("Remove unavailable: Another managed app requires this app as a dependency.", details.RemoveUnavailableExplanation);
         Assert.True(details.HasActionExplanation);
+    }
+
+    [Fact]
+    public void Map_PreservesUnknownServiceReasonInsteadOfReconstructingPolicy()
+    {
+        var item = Item(ObservedState.Installed);
+        item.InstallDecision = new ActionDecision(false, "future_service_reason");
+
+        var details = AppDetailsPresentationMapper.Map(item);
+
+        Assert.Equal("Install unavailable: future_service_reason", details.InstallUnavailableExplanation);
     }
 
     [Fact]

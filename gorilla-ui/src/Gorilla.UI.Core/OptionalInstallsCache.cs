@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Gorilla.UI.Client;
+using Gorilla.UI.Core.Models;
 
 namespace Gorilla.UI.Core;
 
@@ -87,6 +88,9 @@ public sealed class OptionalInstallsCacheCoordinator
 {
     private readonly IGorillaServiceClient _client;
     private readonly IOptionalInstallsCacheStore _cacheStore;
+    private readonly object _refreshLock = new();
+    private Task<OptionalInstallsRefreshResult>? _refreshTask;
+    private CatalogDataState _state = CatalogDataState.InitialLoading;
 
     public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
     {
@@ -94,21 +98,96 @@ public sealed class OptionalInstallsCacheCoordinator
         _cacheStore = cacheStore;
     }
 
-    public Task<OptionalInstallsCacheDocument?> LoadCachedAsync(CancellationToken cancellationToken)
+    public CatalogDataState State => _state;
+
+    public event EventHandler? StateChanged;
+
+    public async Task<OptionalInstallsCacheDocument?> LoadCachedAsync(CancellationToken cancellationToken)
     {
-        return _cacheStore.LoadAsync(cancellationToken);
+        var cached = await _cacheStore.LoadAsync(cancellationToken);
+        if (cached is not null)
+        {
+            SetState(new CatalogDataState(
+                HasUsableData: true,
+                DataSource: CatalogDataSource.Cached,
+                IsInitialLoading: false,
+                IsRefreshing: true,
+                IsSuccessfulEmpty: false,
+                LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                CachedAtUtc: cached.CachedAtUtc,
+                RefreshFailure: null,
+                LoadFailure: null,
+                CacheWriteFailure: null
+            ));
+        }
+
+        return cached;
     }
 
-    public async Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
+    public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
-        var items = await _client.ListOptionalInstallsAsync(cancellationToken);
-        var refreshedAtUtc = DateTimeOffset.UtcNow;
-        var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
+        lock (_refreshLock)
+        {
+            if (_refreshTask is not null)
+            {
+                return _refreshTask;
+            }
 
-        Exception? cacheWriteFailure = null;
+            _refreshTask = RefreshCoreAsync(cancellationToken);
+            return _refreshTask;
+        }
+    }
+
+    private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(CancellationToken cancellationToken)
+    {
+        SetState(_state with
+        {
+            IsRefreshing = true,
+            IsInitialLoading = !_state.HasUsableData && _state.LastSuccessfulRefreshUtc is null,
+            RefreshFailure = null,
+            LoadFailure = null,
+        });
+
         try
         {
-            await _cacheStore.SaveAsync(document, cancellationToken);
+            var items = await _client.ListOptionalInstallsAsync(cancellationToken);
+            var refreshedAtUtc = DateTimeOffset.UtcNow;
+            var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
+
+            Exception? cacheWriteFailure = null;
+            try
+            {
+                await _cacheStore.SaveAsync(document, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Fresh service data remains authoritative and usable even when the
+                // fallback cache cannot be updated.
+                cacheWriteFailure = ex;
+            }
+
+            SetState(new CatalogDataState(
+                HasUsableData: true,
+                DataSource: CatalogDataSource.Live,
+                IsInitialLoading: false,
+                IsRefreshing: false,
+                IsSuccessfulEmpty: items.Count == 0,
+                LastSuccessfulRefreshUtc: refreshedAtUtc,
+                CachedAtUtc: cacheWriteFailure is null ? refreshedAtUtc : _state.CachedAtUtc,
+                RefreshFailure: null,
+                LoadFailure: null,
+                CacheWriteFailure: cacheWriteFailure
+            ));
+
+            return new OptionalInstallsRefreshResult(
+                refreshedAtUtc,
+                items,
+                cacheWriteFailure
+            );
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -116,15 +195,52 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (Exception ex)
         {
-            // Fresh service data remains authoritative and usable even when the
-            // fallback cache cannot be updated.
-            cacheWriteFailure = ex;
+            if (_state.HasUsableData)
+            {
+                SetState(_state with
+                {
+                    IsInitialLoading = false,
+                    IsRefreshing = false,
+                    RefreshFailure = ex,
+                    LoadFailure = null,
+                    CacheWriteFailure = null,
+                });
+            }
+            else
+            {
+                SetState(new CatalogDataState(
+                    HasUsableData: false,
+                    DataSource: CatalogDataSource.None,
+                    IsInitialLoading: false,
+                    IsRefreshing: false,
+                    IsSuccessfulEmpty: false,
+                    LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                    CachedAtUtc: null,
+                    RefreshFailure: null,
+                    LoadFailure: ex,
+                    CacheWriteFailure: null
+                ));
+            }
+
+            throw;
+        }
+        finally
+        {
+            lock (_refreshLock)
+            {
+                _refreshTask = null;
+            }
+        }
+    }
+
+    private void SetState(CatalogDataState state)
+    {
+        if (Equals(_state, state))
+        {
+            return;
         }
 
-        return new OptionalInstallsRefreshResult(
-            refreshedAtUtc,
-            items,
-            cacheWriteFailure
-        );
+        _state = state;
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

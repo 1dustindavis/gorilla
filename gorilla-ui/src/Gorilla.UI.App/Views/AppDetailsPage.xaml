@@ -5,14 +5,15 @@
     xmlns:converters="using:Gorilla.UI.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
-    AutomationProperties.AutomationId="AppDetailsRoot">
+    mc:Ignorable="d">
 
     <Page.Resources>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid
+        RowDefinitions="Auto,*"
+        AutomationProperties.AutomationId="AppDetailsRoot">
         <Button
             Margin="20,16,20,0"
             HorizontalAlignment="Left"

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
@@ -94,7 +95,12 @@ public sealed partial class ActivityPage : Page
             : Visibility.Collapsed;
     }
 
-    private static void ActivityItems_ContainerContentChanging(
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "WinUI XAML event handlers are wired through the page instance."
+    )]
+    private void ActivityItems_ContainerContentChanging(
         ListViewBase sender,
         ContainerContentChangingEventArgs args
     )

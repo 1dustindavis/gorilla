@@ -64,6 +64,9 @@ $appExe = Join-Path $repoRoot "gorilla-ui\src\Gorilla.UI.App\bin\x64\Release\net
 $fixtureSource = Join-Path $PSScriptRoot "fixture"
 $workRoot = Join-Path $env:RUNNER_TEMP "gorilla-app-catalog-screenshots"
 $fixtureRoot = Join-Path $workRoot "fixture"
+$toolsRoot = Join-Path $workRoot "tools"
+$serverSource = Join-Path $toolsRoot "fixture_server.go"
+$serverExe = Join-Path $toolsRoot "fixture-server.exe"
 $configPath = Join-Path $workRoot "config.yaml"
 $cachePath = Join-Path $workRoot "ui-state\optional-installs-cache.json"
 $appDataPath = "C:\ProgramData\gorilla-app-catalog-screenshots"
@@ -119,6 +122,33 @@ function Set-RegistryFixture {
     New-Item -Path $Path -Force | Out-Null
     Set-ItemProperty -Path $Path -Name DisplayName -Value $DisplayName
     Set-ItemProperty -Path $Path -Name DisplayVersion -Value $DisplayVersion
+}
+
+function Wait-FixtureServer {
+    param(
+        [Parameter(Mandatory)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory)][string]$ManifestUrl,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if ($Process.HasExited) {
+            throw "Fixture HTTP server exited before becoming ready. Exit code: $($Process.ExitCode)"
+        }
+        try {
+            $response = Invoke-WebRequest -Uri $ManifestUrl -UseBasicParsing -TimeoutSec 2
+            if ($response.StatusCode -eq 200 -and $response.Content -match 'name:\s*app-catalog-screenshots') {
+                Write-Host "Fixture HTTP server ready: $ManifestUrl"
+                return
+            }
+        } catch {
+            # Retry until the server is listening and the expected manifest is available.
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for fixture HTTP server at $ManifestUrl"
 }
 
 function Wait-ForMainWindow {
@@ -238,14 +268,11 @@ function Open-DetailsWithRetry {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
-        # Reacquire the currently realized card and title on every attempt. GridView
-        # virtualization/settling can invalidate or race a pointer click after filtering.
         $item = Wait-ForElementById -Root $Root -AutomationId $ItemName -TimeoutSeconds 2
         try {
             $scrollPattern = $item.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
             ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
         } catch {
-            # The card may already be fully visible or not expose ScrollItemPattern.
         }
         $item.SetFocus()
         Start-Sleep -Milliseconds 250
@@ -320,11 +347,12 @@ function Write-AutomationTree {
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $fixtureRoot, $toolsRoot -Force | Out-Null
 Copy-Item -Path (Join-Path $fixtureSource "*") -Destination $fixtureRoot -Recurse -Force
 
 if (-not (Test-Path -LiteralPath $GorillaExePath)) { throw "gorilla.exe not found: $GorillaExePath" }
 if (-not (Test-Path -LiteralPath $appExe)) { throw "Gorilla UI executable not found: $appExe" }
+if (-not (Get-Command go -ErrorAction SilentlyContinue)) { throw "go is required to build the local fixture HTTP server" }
 
 $noopPath = Join-Path $fixtureRoot "packages\scripts\noop.ps1"
 $catalogPath = Join-Path $fixtureRoot "catalogs\screenshots.yaml"
@@ -332,7 +360,34 @@ $noopHash = (Get-FileHash -LiteralPath $noopPath -Algorithm SHA256).Hash.ToLower
 (Get-Content -LiteralPath $catalogPath -Raw).Replace("__NOOP_HASH__", $noopHash) |
     Set-Content -LiteralPath $catalogPath -NoNewline
 
+# Match the localhost fixture-serving pattern used by the Windows release/UI integration harnesses.
+@'
+package main
+
+import (
+    "flag"
+    "log"
+    "net/http"
+)
+
+func main() {
+    addr := flag.String("addr", "127.0.0.1:18080", "listen address")
+    root := flag.String("root", ".", "directory to serve")
+    flag.Parse()
+
+    fs := http.FileServer(http.Dir(*root))
+    if err := http.ListenAndServe(*addr, fs); err != nil {
+        log.Fatal(err)
+    }
+}
+'@ | Set-Content -LiteralPath $serverSource -NoNewline
+& go build -o $serverExe $serverSource
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $serverExe)) {
+    throw "Failed to build screenshot fixture HTTP server"
+}
+
 $uiProcess = $null
+$serverProcess = $null
 try {
     Remove-ScreenshotService
     Remove-Item -LiteralPath $appDataPath -Recurse -Force -ErrorAction SilentlyContinue
@@ -340,14 +395,21 @@ try {
         Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    # Seed three truthful observation states through ordinary Windows uninstall-registry evidence:
-    # 7-Zip is behind the catalog version, Audacity is current, and Git is current.
     Set-RegistryFixture -Path $seededRegistryPaths[0] -DisplayName "Gorilla Screenshot 7-Zip" -DisplayVersion "23.01"
     Set-RegistryFixture -Path $seededRegistryPaths[1] -DisplayName "Gorilla Screenshot Audacity" -DisplayVersion "3.7.3"
     Set-RegistryFixture -Path $seededRegistryPaths[2] -DisplayName "Gorilla Screenshot Git" -DisplayVersion "2.50.1"
 
+    $serverPort = Get-Random -Minimum 20000 -Maximum 20999
+    $fixtureUri = "http://127.0.0.1:$serverPort/"
+    $serverProcess = Start-Process -FilePath $serverExe `
+        -ArgumentList @("-addr", "127.0.0.1:$serverPort", "-root", $fixtureRoot) `
+        -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $OutputDirectory "fixture-server.stdout.log") `
+        -RedirectStandardError (Join-Path $OutputDirectory "fixture-server.stderr.log")
+    Wait-FixtureServer -Process $serverProcess -ManifestUrl "${fixtureUri}manifests/screenshots.yaml"
+    Write-Host "Serving screenshot fixture repository from $fixtureUri"
+
     New-Item -ItemType Directory -Path (Split-Path -Parent $configPath), (Split-Path -Parent $cachePath) -Force | Out-Null
-    $fixtureUri = ([Uri]((Resolve-Path $fixtureRoot).Path + [IO.Path]::DirectorySeparatorChar)).AbsoluteUri
     @"
 url: $fixtureUri
 manifest: screenshots
@@ -419,6 +481,7 @@ debug: true
         dpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
         theme = "runner-default-light"
         catalog = "realistic-open-source-fixture"
+        fixtureTransport = "localhost-http"
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutputDirectory "manifest.json")
 
     if (Test-Path -LiteralPath $serviceLogPath) {
@@ -436,6 +499,9 @@ debug: true
         Stop-Process -Id $uiProcess.Id -Force -ErrorAction SilentlyContinue
     }
     Remove-ScreenshotService
+    if ($serverProcess -and -not $serverProcess.HasExited) {
+        Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
+    }
     foreach ($path in $seededRegistryPaths) {
         Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
     }

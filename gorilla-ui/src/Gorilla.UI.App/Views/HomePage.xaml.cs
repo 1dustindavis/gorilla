@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Threading;
 using System.Threading.Tasks;
+using Gorilla.UI.App.Services;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
@@ -12,35 +12,30 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Gorilla.UI.App.Views;
 
-public sealed partial class HomePage : Page, IDisposable
+public sealed partial class HomePage : Page
 {
-    private CancellationTokenSource? _cts;
+    private readonly AppCatalogSession _session;
     private long _serviceWarningTextChangedToken;
     private bool _hasInitialized;
+    private bool _isObservingPageState;
 
     public HomeViewModel ViewModel { get; }
 
-    public HomePage(HomeViewModel viewModel)
+    public HomePage()
     {
         this.InitializeComponent();
-        ViewModel = viewModel;
+        _session = App.CurrentSession;
+        ViewModel = _session.ViewModel;
         DataContext = ViewModel;
         Loaded += HomePage_Loaded;
         Unloaded += HomePage_Unloaded;
-        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-        ViewModel.Items.CollectionChanged += Items_CollectionChanged;
-        _serviceWarningTextChangedToken = ServiceWarning.RegisterPropertyChangedCallback(
-            TextBlock.TextProperty,
-            ServiceWarning_TextChanged
-        );
         UpdateEmptyStates();
     }
 
     private async void HomePage_Loaded(object sender, RoutedEventArgs e)
     {
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
-        await RunSafelyAsync(() => ViewModel.InitializeAsync(_cts.Token));
+        StartObservingPageState();
+        await RunSafelyAsync(_session.EnsureInitializedAsync);
         _hasInitialized = true;
         UpdateEmptyStates();
         UpdateCardWidths(CatalogItems.ActualWidth);
@@ -48,7 +43,43 @@ public sealed partial class HomePage : Page, IDisposable
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
     {
-        ResetCancellation();
+        StopObservingPageState();
+    }
+
+    private void StartObservingPageState()
+    {
+        if (_isObservingPageState)
+        {
+            return;
+        }
+
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        ViewModel.Items.CollectionChanged += Items_CollectionChanged;
+        _serviceWarningTextChangedToken = ServiceWarning.RegisterPropertyChangedCallback(
+            TextBlock.TextProperty,
+            ServiceWarning_TextChanged
+        );
+        _isObservingPageState = true;
+    }
+
+    private void StopObservingPageState()
+    {
+        if (!_isObservingPageState)
+        {
+            return;
+        }
+
+        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        ViewModel.Items.CollectionChanged -= Items_CollectionChanged;
+        if (_serviceWarningTextChangedToken != 0)
+        {
+            ServiceWarning.UnregisterPropertyChangedCallback(
+                TextBlock.TextProperty,
+                _serviceWarningTextChangedToken
+            );
+            _serviceWarningTextChangedToken = 0;
+        }
+        _isObservingPageState = false;
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -117,6 +148,21 @@ public sealed partial class HomePage : Page, IDisposable
         AutomationProperties.SetName(args.ItemContainer, item.DisplayName);
     }
 
+    private void CatalogItems_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not UiOptionalInstallItem item)
+        {
+            return;
+        }
+
+        if (!ViewModel.SelectItem(item.ItemName))
+        {
+            return;
+        }
+
+        Frame.Navigate(typeof(AppDetailsPage), item.ItemName);
+    }
+
     private void CatalogItems_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateCardWidths(e.NewSize.Width);
@@ -138,10 +184,6 @@ public sealed partial class HomePage : Page, IDisposable
     private async void ActionButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.DataContext is not UiOptionalInstallItem item)
-        {
-            return;
-        }
-        if (_cts is null)
         {
             return;
         }
@@ -173,10 +215,10 @@ public sealed partial class HomePage : Page, IDisposable
         switch (action.Value)
         {
             case CatalogCardActionKind.Install:
-                await RunSafelyAsync(() => ViewModel.InstallAsync(item, _cts.Token));
+                await RunSafelyAsync(() => ViewModel.InstallAsync(item, _session.LifetimeToken));
                 break;
             case CatalogCardActionKind.Remove:
-                await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _cts.Token));
+                await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _session.LifetimeToken));
                 break;
         }
     }
@@ -187,37 +229,14 @@ public sealed partial class HomePage : Page, IDisposable
         {
             await action();
         }
-        catch (OperationCanceledException) when (_cts?.IsCancellationRequested == true)
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
-            // Ignore cancellation caused by page unload.
+            // Closing the UI cancels only its wait/tracking work. The service operation
+            // remains service-owned and is not presented as canceled by navigation.
         }
         catch (Exception ex)
         {
             ViewModel.SetWarningBanner($"Operation failed: {ex.Message}");
         }
-    }
-
-    public void Dispose()
-    {
-        Loaded -= HomePage_Loaded;
-        Unloaded -= HomePage_Unloaded;
-        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-        ViewModel.Items.CollectionChanged -= Items_CollectionChanged;
-        if (_serviceWarningTextChangedToken != 0)
-        {
-            ServiceWarning.UnregisterPropertyChangedCallback(
-                TextBlock.TextProperty,
-                _serviceWarningTextChangedToken
-            );
-            _serviceWarningTextChangedToken = 0;
-        }
-        ResetCancellation();
-    }
-
-    private void ResetCancellation()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
     }
 }

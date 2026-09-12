@@ -44,7 +44,8 @@
                 x:Name="CatalogItems"
                 ItemsSource="{Binding Items}"
                 SelectionMode="None"
-                IsItemClickEnabled="False"
+                IsItemClickEnabled="True"
+                ItemClick="CatalogItems_ItemClick"
                 HorizontalContentAlignment="Stretch"
                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                 ScrollViewer.HorizontalScrollMode="Disabled"
@@ -127,6 +128,7 @@
                                         Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         AutomationProperties.AutomationId="CatalogOperation"
                                         AutomationProperties.Name="{Binding CardPresentation.OperationText}"
+                                        AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}"
                                         AutomationProperties.LiveSetting="Polite">
                                         <ProgressRing
                                             Width="15"

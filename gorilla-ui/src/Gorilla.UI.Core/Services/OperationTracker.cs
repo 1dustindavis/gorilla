@@ -15,29 +15,47 @@ public sealed class OperationTracker
         _client = client;
     }
 
+    public event EventHandler? OperationsChanged;
+
     public async Task<IReadOnlyList<OperationStatusEvent>> RefreshKnownOperationsAsync(CancellationToken cancellationToken)
     {
         var snapshots = await _client.ListOperationsAsync(cancellationToken);
         var retainedIds = snapshots.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
+        var changed = false;
 
         foreach (var operation in snapshots)
         {
-            _latest[operation.OperationId] = operation;
+            if (!_latest.TryGetValue(operation.OperationId, out var existing) || existing != operation)
+            {
+                _latest[operation.OperationId] = operation;
+                changed = true;
+            }
         }
 
         // The service operation registry is authoritative. Missing IDs mean the
         // operation aged out or the service restarted; neither is a terminal
-        // success/failure result and neither should remain projected as active.
+        // success/failure result and neither should remain projected as activity.
         foreach (var operationId in _latest.Keys)
         {
-            if (!retainedIds.Contains(operationId))
+            if (!retainedIds.Contains(operationId) && _latest.TryRemove(operationId, out _))
             {
-                _latest.TryRemove(operationId, out _);
+                changed = true;
             }
+        }
+
+        if (changed)
+        {
+            OnOperationsChanged();
         }
 
         return snapshots;
     }
+
+    // Canonical Activity source. This is a snapshot of the same operation-ID keyed
+    // registry used by the card/details projections; Activity must not maintain a
+    // separate operation/history truth.
+    public IReadOnlyList<OperationStatusEvent> GetRetainedOperations()
+        => _latest.Values.ToArray();
 
     public bool TryGetLatest(string operationId, out OperationStatusEvent? operation)
     {
@@ -93,11 +111,28 @@ public sealed class OperationTracker
             {
                 await foreach (var update in _client.StreamOperationStatusAsync(operationId, cancellationToken))
                 {
-                    _latest[operationId] = update;
-                    if (delivered.Add(EventIdentity(update)))
+                    var identity = EventIdentity(update);
+                    if (!delivered.Add(identity))
                     {
-                        onUpdate(update);
+                        if (update.State == OperationState.Completed)
+                        {
+                            return;
+                        }
+                        continue;
                     }
+
+                    // Recovery begins with a ListOperations snapshot, while a newly
+                    // opened status stream may replay older retained events first.
+                    // Keep the operation-ID registry monotonic so Activity and the
+                    // existing card/details projections never move backwards.
+                    if (_latest.TryGetValue(operationId, out var current) && IsOlderThanCurrent(current, update))
+                    {
+                        continue;
+                    }
+
+                    _latest[operationId] = update;
+                    OnOperationsChanged();
+                    onUpdate(update);
                     if (update.State == OperationState.Completed)
                     {
                         return;
@@ -116,6 +151,33 @@ public sealed class OperationTracker
             }
         }
     }
+
+    private void OnOperationsChanged()
+        => OperationsChanged?.Invoke(this, EventArgs.Empty);
+
+    private static bool IsOlderThanCurrent(OperationStatusEvent current, OperationStatusEvent update)
+    {
+        if (current.State == OperationState.Completed && update.State != OperationState.Completed)
+        {
+            return true;
+        }
+        if (update.TimestampUtc < current.TimestampUtc)
+        {
+            return true;
+        }
+        if (update.TimestampUtc > current.TimestampUtc)
+        {
+            return false;
+        }
+        return StateRank(update.State) < StateRank(current.State);
+    }
+
+    private static int StateRank(OperationState state) => state switch
+    {
+        OperationState.Queued => 0,
+        OperationState.Completed => 2,
+        _ => 1,
+    };
 
     private static bool IsReconnectable(Exception ex)
         => ex is IOException or TimeoutException or OperationCanceledException;

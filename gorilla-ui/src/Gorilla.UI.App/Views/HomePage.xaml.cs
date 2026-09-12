@@ -163,6 +163,11 @@ public sealed partial class HomePage : Page
         Frame.Navigate(typeof(AppDetailsPage), item.ItemName);
     }
 
+    private void ActivityButton_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(ActivityPage));
+    }
+
     private void CatalogItems_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateCardWidths(e.NewSize.Width);

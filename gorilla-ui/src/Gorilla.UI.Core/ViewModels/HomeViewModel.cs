@@ -19,10 +19,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
     private readonly OperationTracker _operationTracker;
     private readonly ConcurrentDictionary<string, byte> _recoveryTracking = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiOptionalInstallItem> _catalogItems = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ActivityOperationPresentation> _activityItems = new(StringComparer.Ordinal);
 
     private string _warningBanner = string.Empty;
     private string _searchQuery = string.Empty;
     private string? _selectedItemName;
+    private bool _isActivityLoaded;
 
     public HomeViewModel(
         IGorillaServiceClient client,
@@ -34,9 +36,26 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         _cacheCoordinator = cacheCoordinator;
         _startupLoader = new OptionalInstallsStartupLoader(cacheCoordinator);
         _operationTracker = operationTracker;
+        _operationTracker.OperationsChanged += OperationTracker_OperationsChanged;
     }
 
     public ObservableCollection<UiOptionalInstallItem> Items { get; } = [];
+    public ObservableCollection<ActivityOperationPresentation> ActivityItems { get; } = [];
+
+    public bool IsActivityLoaded
+    {
+        get => _isActivityLoaded;
+        private set
+        {
+            if (_isActivityLoaded == value)
+            {
+                return;
+            }
+
+            _isActivityLoaded = value;
+            OnPropertyChanged();
+        }
+    }
 
     // Items is the ordered, searchable presentation projection. _catalogItems is
     // the canonical catalog and remains the source of selection and reconciliation.
@@ -98,6 +117,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         try
         {
             var operations = await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
+            IsActivityLoaded = true;
+            RebuildActivityProjection();
             foreach (var operation in operations)
             {
                 ProjectOperation(operation);
@@ -113,6 +134,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            // Do not mark Activity loaded: an unavailable retained-operation query
+            // is not truthful evidence that no recent activity exists.
             WarningBanner = $"Operation status is temporarily unavailable: {ex.Message}";
         }
 
@@ -340,6 +363,8 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         try
         {
             await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
+            IsActivityLoaded = true;
+            RebuildActivityProjection();
             if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
             {
                 ValidateOperationIdentity(itemName, expectedAction, latest);
@@ -396,8 +421,14 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
     }
 
+    private void OperationTracker_OperationsChanged(object? sender, EventArgs e)
+    {
+        RebuildActivityProjection();
+    }
+
     private void ProjectOperation(OperationStatusEvent update, UiOptionalInstallItem? fallbackItem = null)
     {
+        RebuildActivityProjection();
         var item = FindItem(update.ItemName);
         if (item is null && fallbackItem is not null &&
             string.Equals(fallbackItem.ItemName, update.ItemName, StringComparison.OrdinalIgnoreCase))
@@ -473,6 +504,9 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         }
 
         RebuildVisibleItems();
+        // Catalog arrival/removal may change Activity display name and navigation,
+        // but never operation existence or identity.
+        RebuildActivityProjection();
     }
 
     private static void ApplyCatalogSnapshot(UiOptionalInstallItem item, OptionalInstallItem snapshot)
@@ -523,6 +557,63 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         operation.Message,
         operation.TimestampUtc
     );
+
+    private void RebuildActivityProjection()
+    {
+        var retained = _operationTracker.GetRetainedOperations();
+        var retainedIds = retained.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var operationId in _activityItems.Keys.Where(id => !retainedIds.Contains(id)).ToArray())
+        {
+            _activityItems.Remove(operationId);
+        }
+
+        foreach (var operation in retained)
+        {
+            if (!_activityItems.TryGetValue(operation.OperationId, out var presentation))
+            {
+                presentation = new ActivityOperationPresentation(operation.OperationId);
+                _activityItems.Add(operation.OperationId, presentation);
+            }
+
+            var item = FindItem(operation.ItemName);
+            presentation.Apply(
+                operation,
+                item?.DisplayName ?? operation.ItemName,
+                canNavigate: item is not null
+            );
+        }
+
+        var desired = retained
+            .OrderBy(operation => operation.State == OperationState.Completed ? 1 : 0)
+            .ThenByDescending(operation => operation.TimestampUtc)
+            .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
+            .Select(operation => _activityItems[operation.OperationId])
+            .ToArray();
+
+        foreach (var existing in ActivityItems.Where(item => !desired.Contains(item)).ToArray())
+        {
+            ActivityItems.Remove(existing);
+        }
+
+        for (var index = 0; index < desired.Length; index++)
+        {
+            if (index < ActivityItems.Count && ReferenceEquals(ActivityItems[index], desired[index]))
+            {
+                continue;
+            }
+
+            var existingIndex = ActivityItems.IndexOf(desired[index]);
+            if (existingIndex >= 0)
+            {
+                ActivityItems.Move(existingIndex, index);
+            }
+            else
+            {
+                ActivityItems.Insert(index, desired[index]);
+            }
+        }
+    }
 
     private void RebuildVisibleItems()
     {

@@ -32,6 +32,35 @@ public class OperationTrackerRecoveryTests
     }
 
     [Fact]
+    public async Task TrackAsync_DoesNotRegressRecoveredSnapshotWhenStreamReplaysOlderEvents()
+    {
+        var recovered = new OperationStatusEvent(
+            "op-1",
+            OperationState.Installing,
+            50,
+            "Installing",
+            Now.AddSeconds(10),
+            "VLC",
+            AppCatalog.Action.Install
+        );
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = _ => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([recovered]),
+            StreamAsync = (_, _, _) => ReplayedAfterRecoveredSnapshot(),
+        };
+        var tracker = new OperationTracker(client);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+        var delivered = new List<OperationStatusEvent>();
+
+        await tracker.TrackAsync("op-1", delivered.Add, CancellationToken.None);
+
+        Assert.Single(delivered);
+        Assert.Equal(OperationState.Completed, delivered[0].State);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+        Assert.Equal(OperationState.Completed, tracker.GetLatestTerminalForItem("VLC")?.State);
+    }
+
+    [Fact]
     public async Task RefreshKnownOperations_RemovesVanishedOperationWithoutInventingTerminalResult()
     {
         var active = Event(OperationState.Installing, "Copying files");
@@ -98,6 +127,27 @@ public class OperationTrackerRecoveryTests
             null,
             "Installed",
             Now,
+            "VLC",
+            AppCatalog.Action.Install,
+            new Result(Outcome.Succeeded, "completed", Message: "Installed")
+        );
+        await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> ReplayedAfterRecoveredSnapshot()
+    {
+        yield return new OperationStatusEvent(
+            "op-1", OperationState.Queued, null, "Queued", Now, "VLC", AppCatalog.Action.Install
+        );
+        yield return new OperationStatusEvent(
+            "op-1", OperationState.Installing, 25, "Installing", Now.AddSeconds(5), "VLC", AppCatalog.Action.Install
+        );
+        yield return new OperationStatusEvent(
+            "op-1",
+            OperationState.Completed,
+            null,
+            "Installed",
+            Now.AddSeconds(15),
             "VLC",
             AppCatalog.Action.Install,
             new Result(Outcome.Succeeded, "completed", Message: "Installed")

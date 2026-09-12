@@ -1,0 +1,146 @@
+<Page
+    x:Class="Gorilla.UI.App.Views.ActivityPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:Gorilla.UI.App.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+
+    <Grid
+        x:Name="ActivityRoot"
+        Padding="20"
+        RowDefinitions="Auto,Auto,*"
+        AutomationProperties.AutomationId="ActivityPageRoot">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <Button
+                x:Name="BackButton"
+                Content="Back"
+                Click="BackButton_Click"
+                AutomationProperties.AutomationId="ActivityBackButton"
+                AutomationProperties.Name="Back to catalog" />
+            <TextBlock
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                Text="Activity"
+                FontSize="28"
+                FontWeight="SemiBold"
+                VerticalAlignment="Center"
+                AutomationProperties.AutomationId="ActivityHeading"
+                AutomationProperties.HeadingLevel="Level1" />
+            <Button
+                Grid.Column="2"
+                Content="Catalog"
+                Click="CatalogButton_Click"
+                AutomationProperties.AutomationId="CatalogNavigationButton"
+                AutomationProperties.Name="Catalog" />
+        </Grid>
+
+        <TextBlock
+            Grid.Row="1"
+            Margin="0,10,0,0"
+            x:Name="ServiceWarning"
+            Text="{Binding WarningBanner}"
+            Foreground="DarkOrange"
+            TextWrapping="Wrap"
+            AutomationProperties.AutomationId="ActivityServiceWarning"
+            AutomationProperties.LiveSetting="Polite" />
+
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <ListView
+                x:Name="ActivityItems"
+                ItemsSource="{Binding ActivityItems}"
+                SelectionMode="None"
+                IsItemClickEnabled="True"
+                ItemClick="ActivityItems_ItemClick"
+                ContainerContentChanging="ActivityItems_ContainerContentChanging"
+                AutomationProperties.AutomationId="ActivityItems"
+                AutomationProperties.Name="Recent activity">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Margin" Value="0,0,0,8" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Border
+                            Padding="14"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                                <TextBlock
+                                    Text="{Binding DisplayName}"
+                                    FontSize="17"
+                                    FontWeight="SemiBold"
+                                    TextWrapping="Wrap"
+                                    AutomationProperties.AutomationId="{Binding AppAutomationId}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding TimestampText}"
+                                    Opacity="0.65"
+                                    FontSize="12" />
+
+                                <StackPanel Grid.Row="1" Margin="0,5,0,0" Orientation="Horizontal" Spacing="8">
+                                    <TextBlock
+                                        Text="{Binding ActionLabel}"
+                                        FontWeight="SemiBold"
+                                        AutomationProperties.AutomationId="{Binding ActionAutomationId}" />
+                                    <TextBlock
+                                        Text="{Binding StateText}"
+                                        AutomationProperties.AutomationId="{Binding StateAutomationId}"
+                                        AutomationProperties.LiveSetting="Polite" />
+                                </StackPanel>
+
+                                <ProgressBar
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,8,0,0"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    Value="{Binding ProgressValue}"
+                                    IsIndeterminate="{Binding IsProgressIndeterminate}"
+                                    Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    AutomationProperties.AutomationId="{Binding ProgressAutomationId}" />
+
+                                <TextBlock
+                                    Grid.Row="3"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,7,0,0"
+                                    Text="{Binding DetailText}"
+                                    TextWrapping="Wrap"
+                                    Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    AutomationProperties.AutomationId="{Binding DetailAutomationId}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel
+                x:Name="ActivityEmpty"
+                Visibility="Collapsed"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="4"
+                AutomationProperties.AutomationId="ActivityEmptyState">
+                <TextBlock
+                    Text="No recent activity"
+                    FontSize="20"
+                    FontWeight="SemiBold"
+                    HorizontalAlignment="Center" />
+                <TextBlock
+                    Text="Installs, updates, and removals will appear here."
+                    Opacity="0.7"
+                    TextWrapping="Wrap"
+                    HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

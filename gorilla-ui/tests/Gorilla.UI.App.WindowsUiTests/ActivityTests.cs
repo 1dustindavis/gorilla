@@ -47,6 +47,39 @@ public sealed class ActivityTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
+    public void CatalogRefreshPreservesActiveOperationAndActivityIdentity()
+    {
+        RunWithDiagnostics(nameof(CatalogRefreshPreservesActiveOperationAndActivityIdentity), session =>
+        {
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
+            var home = new HomePageDriver(session);
+            var shell = new CatalogShellDriver(session);
+            EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
+
+            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            var operationId = home.OperationId(SlowFixtureItemName);
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+
+            shell.Refresh();
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+
+            var activity = ActivityPageDriver.OpenFromCatalog(session);
+            _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+            Assert.Equal("Install", activity.ActionText(operationId));
+            session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
+
+            session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+            activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
     public void RetainedFailureStaysLocalAndShowsStructuredDetail()
     {
         RunWithDiagnostics(nameof(RetainedFailureStaysLocalAndShowsStructuredDetail), session =>

@@ -65,7 +65,9 @@ internal sealed class HomePageDriver
             }
         }
 
-        _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromMilliseconds(1));
+        throw new TimeoutException(
+            $"Timed out after {timeout.TotalSeconds:n0}s opening details for '{itemName}'."
+        );
     }
 
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");

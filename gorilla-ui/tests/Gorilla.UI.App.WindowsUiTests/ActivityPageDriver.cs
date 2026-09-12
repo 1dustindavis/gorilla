@@ -13,7 +13,7 @@ internal sealed class ActivityPageDriver
         _session = session;
     }
 
-    public AutomationElement Root => _session.WaitFor(() => ById("ActivityPageRoot"));
+    public AutomationElement Root => _session.WaitFor(() => ById("ActivityHeading"));
     public AutomationElement Items => _session.WaitFor(() => ById("ActivityItems"));
     public AutomationElement EmptyState => _session.WaitFor(() => ById("ActivityEmptyState"));
 

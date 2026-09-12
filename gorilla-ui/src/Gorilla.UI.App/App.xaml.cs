@@ -7,7 +7,7 @@ using Microsoft.UI.Xaml;
 
 namespace Gorilla.UI.App
 {
-    public partial class App : Application
+    public partial class App : Application, IDisposable
     {
         // Source E2E tests use an isolated service identity. Production always
         // uses NamedPipeClientOptions.Default (gorilla-service).
@@ -44,8 +44,14 @@ namespace Gorilla.UI.App
             {
                 _window.Closed -= Window_Closed;
             }
+            Dispose();
+        }
+
+        public void Dispose()
+        {
             _session?.Dispose();
             _session = null;
+            GC.SuppressFinalize(this);
         }
 
         private static string BuildCacheFilePath()

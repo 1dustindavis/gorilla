@@ -25,7 +25,9 @@ internal sealed class AppDetailsPageDriver
     public string AvailableVersion => OptionalText("DetailsAvailableVersion");
     public string InstalledVersion => OptionalText("DetailsInstalledVersion");
     public string ActiveOperation => OptionalText("DetailsActiveOperation");
+    public string ActiveOperationId => OptionalHelpText("DetailsActiveOperation");
     public string LatestResult => OptionalText("DetailsLatestResult");
+    public string LatestResultHeading => OptionalName("DetailsLatestResult");
     public string ActionExplanation => OptionalText("DetailsActionExplanation");
 
     public Button SecondaryAction => WaitById("DetailsSecondaryAction").AsButton();
@@ -53,9 +55,12 @@ internal sealed class AppDetailsPageDriver
     private AutomationElement WaitById(string automationId)
         => _session.WaitFor(() => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
 
+    private AutomationElement? FindById(string automationId)
+        => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+
     private string OptionalText(string automationId)
     {
-        var element = _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+        var element = FindById(automationId);
         if (element is null)
         {
             return string.Empty;
@@ -69,11 +74,35 @@ internal sealed class AppDetailsPageDriver
         return string.Join(" ", texts.Select(SafeName).Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
+    private string OptionalName(string automationId)
+    {
+        var element = FindById(automationId);
+        return element is null ? string.Empty : SafeName(element);
+    }
+
+    private string OptionalHelpText(string automationId)
+    {
+        var element = FindById(automationId);
+        return element is null ? string.Empty : SafeHelpText(element);
+    }
+
     private static string SafeName(AutomationElement element)
     {
         try
         {
             return element.Name;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string SafeHelpText(AutomationElement element)
+    {
+        try
+        {
+            return element.Properties.HelpText.ValueOrDefault ?? string.Empty;
         }
         catch (PropertyNotSupportedException)
         {

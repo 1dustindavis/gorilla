@@ -11,9 +11,7 @@
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
 
-    <Grid
-        RowDefinitions="Auto,*"
-        AutomationProperties.AutomationId="AppDetailsRoot">
+    <Grid RowDefinitions="Auto,*">
         <Button
             Margin="20,16,20,0"
             HorizontalAlignment="Left"
@@ -26,7 +24,10 @@
             </StackPanel>
         </Button>
 
-        <ScrollViewer Grid.Row="1">
+        <ScrollViewer
+            Grid.Row="1"
+            AutomationProperties.AutomationId="AppDetailsRoot"
+            AutomationProperties.Name="App details">
             <Grid Padding="24,18,24,32">
                 <StackPanel
                     x:Name="DetailsContent"
@@ -99,6 +100,7 @@
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         Visibility="{Binding DetailsPresentation.HasActiveOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
                         AutomationProperties.AutomationId="DetailsActiveOperation"
+                        AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationTitle}"
                         AutomationProperties.LiveSetting="Polite">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{Binding DetailsPresentation.ActiveOperationTitle}" FontSize="17" FontWeight="SemiBold" />
@@ -121,6 +123,7 @@
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}"
                         AutomationProperties.AutomationId="DetailsLatestResult"
+                        AutomationProperties.Name="{Binding DetailsPresentation.LatestResultHeading}"
                         AutomationProperties.LiveSetting="Polite">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{Binding DetailsPresentation.LatestResultHeading}" FontSize="16" FontWeight="SemiBold" />

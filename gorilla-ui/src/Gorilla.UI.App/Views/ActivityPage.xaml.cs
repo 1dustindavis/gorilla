@@ -94,7 +94,7 @@ public sealed partial class ActivityPage : Page
             : Visibility.Collapsed;
     }
 
-    private void ActivityItems_ContainerContentChanging(
+    private static void ActivityItems_ContainerContentChanging(
         ListViewBase sender,
         ContainerContentChangingEventArgs args
     )

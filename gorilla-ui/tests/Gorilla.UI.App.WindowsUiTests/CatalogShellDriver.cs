@@ -49,6 +49,14 @@ internal sealed class CatalogShellDriver
         );
     }
 
+    public void WaitForRefreshStarted(TimeSpan? timeout = null)
+    {
+        _session.WaitUntil(
+            () => IsRefreshing && FreshnessText.Contains("Refreshing", StringComparison.OrdinalIgnoreCase),
+            timeout
+        );
+    }
+
     public void WaitForRefreshComplete(TimeSpan? timeout = null)
     {
         _session.WaitUntil(

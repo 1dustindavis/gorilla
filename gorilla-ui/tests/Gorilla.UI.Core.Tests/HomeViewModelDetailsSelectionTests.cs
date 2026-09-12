@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core;
@@ -66,6 +67,39 @@ public sealed class HomeViewModelDetailsSelectionTests
         Assert.Null(viewModel.SelectedItem);
         Assert.NotNull(viewModel.FindItem("Other"));
         Assert.Null(viewModel.FindItem("Example"));
+    }
+
+    [Fact]
+    public async Task AuthoritativeRemovalClearsSelectedItemBeforeVisibleItemsAreRebuilt()
+    {
+        var client = new FakeClient([
+            [Item("Example", "Example", null, "1.0"), Item("Other", "Other", null, "1.0")],
+            [Item("Other", "Other", null, "1.0")],
+        ]);
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        Assert.True(viewModel.SelectItem("Example"));
+        var selectedBefore = viewModel.SelectedItem;
+        Assert.NotNull(selectedBefore);
+
+        UiOptionalInstallItem? selectedSeenWhenSelectionCleared = selectedBefore;
+        bool staleVisibleItemStillPresentWhenSelectionCleared = false;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(HomeViewModel.SelectedItemName) || viewModel.SelectedItemName is not null)
+            {
+                return;
+            }
+
+            selectedSeenWhenSelectionCleared = viewModel.SelectedItem;
+            staleVisibleItemStillPresentWhenSelectionCleared = viewModel.Items.Contains(selectedBefore!);
+        };
+
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        Assert.Null(selectedSeenWhenSelectionCleared);
+        Assert.True(staleVisibleItemStillPresentWhenSelectionCleared);
+        Assert.DoesNotContain(selectedBefore!, viewModel.Items);
     }
 
     private static HomeViewModel CreateViewModel(FakeClient client)

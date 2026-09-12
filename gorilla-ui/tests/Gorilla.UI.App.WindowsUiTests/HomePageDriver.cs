@@ -41,7 +41,12 @@ internal sealed class HomePageDriver
     public void OpenDetails(string itemName)
     {
         EnsureItemVisible(itemName);
-        WaitForItem(itemName).Click();
+        var item = WaitForItem(itemName);
+        var nonActionTarget = _session.WaitFor(
+            () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
+        );
+        nonActionTarget.Click();
+        _ = _session.WaitFor(() => ById("AppDetailsRoot"));
     }
 
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");

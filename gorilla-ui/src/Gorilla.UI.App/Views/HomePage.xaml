@@ -128,6 +128,7 @@
                                         Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         AutomationProperties.AutomationId="CatalogOperation"
                                         AutomationProperties.Name="{Binding CardPresentation.OperationText}"
+                                        AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}"
                                         AutomationProperties.LiveSetting="Polite">
                                         <ProgressRing
                                             Width="15"

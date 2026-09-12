@@ -1,0 +1,203 @@
+SevenZip:
+  display_name: 7-Zip
+  description: File archiver for creating and extracting common compressed formats with a compact Windows desktop interface.
+  check:
+    registry:
+      name: Gorilla Screenshot 7-Zip
+      version: 24.09
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 24.09
+
+Audacity:
+  display_name: Audacity
+  description: Multitrack audio editor and recorder for common desktop editing, cleanup, and export workflows.
+  check:
+    registry:
+      name: Gorilla Screenshot Audacity
+      version: 3.7.3
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 3.7.3
+
+FileZilla:
+  display_name: FileZilla
+  description: Graphical file-transfer client with support for FTP, FTPS, and SFTP connections.
+  check:
+    registry:
+      name: Gorilla Screenshot FileZilla
+      version: 3.69.1
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 3.69.1
+
+Firefox:
+  display_name: Firefox
+  description: Web browser with private browsing, extension support, developer tools, and cross-device synchronization.
+  check:
+    registry:
+      name: Gorilla Screenshot Firefox
+      version: 142.0
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 142.0
+
+GIMP:
+  display_name: GIMP
+  description: Image editor for photo retouching, composition, drawing, and graphics workflows.
+  check:
+    registry:
+      name: Gorilla Screenshot GIMP
+      version: 3.0.4
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 3.0.4
+
+Git:
+  display_name: Git
+  description: Distributed version-control tools for source repositories, branches, commits, and collaborative development.
+  check:
+    registry:
+      name: Gorilla Screenshot Git
+      version: 2.50.1
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 2.50.1
+
+Inkscape:
+  display_name: Inkscape
+  description: Vector graphics editor for illustrations, diagrams, icons, and scalable artwork.
+  check:
+    registry:
+      name: Gorilla Screenshot Inkscape
+      version: 1.4.2
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 1.4.2
+
+KeePass:
+  display_name: KeePass
+  description: Local password manager for organizing credentials in an encrypted database.
+  check:
+    registry:
+      name: Gorilla Screenshot KeePass
+      version: 2.58
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 2.58
+
+NotepadPlusPlus:
+  display_name: Notepad++
+  description: Lightweight text and source-code editor with syntax highlighting, search tools, and plugin support.
+  check:
+    registry:
+      name: Gorilla Screenshot Notepad++
+      version: 8.8.5
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 8.8.5
+
+OBSStudio:
+  display_name: OBS Studio
+  description: Video recording and live-streaming application with scene composition and configurable media sources.
+  check:
+    registry:
+      name: Gorilla Screenshot OBS Studio
+      version: 31.1.2
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 31.1.2
+
+VLC:
+  display_name: VLC media player
+  description: Media player for common audio and video formats, local files, discs, and network streams.
+  check:
+    registry:
+      name: Gorilla Screenshot VLC
+      version: 3.0.21
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 3.0.21
+
+WinMerge:
+  display_name: WinMerge
+  description: Visual comparison and merging tool for files and folders on Windows.
+  check:
+    registry:
+      name: Gorilla Screenshot WinMerge
+      version: 2.16.50
+  installer:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  uninstaller:
+    type: ps1
+    location: packages/scripts/noop.ps1
+    hash: __NOOP_HASH__
+  version: 2.16.50

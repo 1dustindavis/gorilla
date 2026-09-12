@@ -87,7 +87,9 @@ public class OptionalInstallsCacheTests
         Assert.Single(refreshed.Items);
         Assert.Equal("VLC", refreshed.Items[0].ItemName);
         Assert.NotNull(cached);
-        Assert.Equal(refreshed, cached);
+        Assert.Equal(refreshed.RefreshedAtUtc, cached!.CachedAtUtc);
+        Assert.Equal(refreshed.Items, cached.Items);
+        Assert.Null(refreshed.CacheWriteFailure);
     }
 
     private static string MakeTempDirectory()

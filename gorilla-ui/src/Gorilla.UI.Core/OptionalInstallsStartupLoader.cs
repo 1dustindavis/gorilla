@@ -27,11 +27,18 @@ public sealed class OptionalInstallsStartupLoader
         {
             var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
             applyRefreshedItems(refreshed.Items);
-            return string.Empty;
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return $"Showing cached data. Refresh failed: {ex.Message}";
+            throw;
         }
+        catch
+        {
+            // Catalog load/refresh failures are represented by the coordinator's
+            // explicit CatalogDataState. WarningBanner remains reserved for other
+            // service/operation infrastructure warnings.
+        }
+
+        return string.Empty;
     }
 }

@@ -19,8 +19,7 @@
                 x:Name="CatalogFreshnessStatus"
                 VerticalAlignment="Center"
                 Opacity="0.72"
-                AutomationProperties.AutomationId="CatalogFreshnessStatus"
-                AutomationProperties.Name="Catalog freshness status" />
+                AutomationProperties.AutomationId="CatalogFreshnessStatus" />
             <ProgressRing
                 x:Name="CatalogRefreshProgress"
                 Grid.Column="1"

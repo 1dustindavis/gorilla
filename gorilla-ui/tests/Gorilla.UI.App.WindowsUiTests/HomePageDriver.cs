@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Exceptions;
@@ -40,13 +41,31 @@ internal sealed class HomePageDriver
 
     public void OpenDetails(string itemName)
     {
-        EnsureItemVisible(itemName);
-        var item = WaitForItem(itemName);
-        var nonActionTarget = _session.WaitFor(
-            () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
-        );
-        nonActionTarget.Click();
-        _ = _session.WaitFor(() => ById("AppDetailsRoot"));
+        var timeout = TimeSpan.FromSeconds(30);
+        var stopwatch = Stopwatch.StartNew();
+
+        while (stopwatch.Elapsed < timeout)
+        {
+            EnsureItemVisible(itemName);
+            var item = WaitForItem(itemName);
+            var nonActionTarget = _session.WaitFor(
+                () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
+            );
+            nonActionTarget.Click();
+
+            try
+            {
+                _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
+                return;
+            }
+            catch (TimeoutException) when (stopwatch.Elapsed < timeout)
+            {
+                // Pointer delivery can race GridView settling after ScrollIntoView/focus.
+                // Reacquire the current realized card and retry the same non-action target.
+            }
+        }
+
+        _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromMilliseconds(1));
     }
 
     public Button InstallButton(string itemName) => ActionButton(itemName, "Install", "Update", "Keep Installed");

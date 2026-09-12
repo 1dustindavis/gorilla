@@ -120,6 +120,12 @@ public sealed class ActivityTests
                 $"Expected recovered operation {operationId} to be active or retained terminal, got '{activity.StateText(operationId)}'."
             );
             second.CaptureCheckpoint("activity-after-ui-relaunch", includeAutomationTree: true);
+
+            // The relaunch assertion above intentionally observes an operation that
+            // may still be active. Finish that same recovered operation before this
+            // test releases the shared E2E service/fixture state to the next test.
+            second.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+            activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
         }
         catch (Exception ex)
         {

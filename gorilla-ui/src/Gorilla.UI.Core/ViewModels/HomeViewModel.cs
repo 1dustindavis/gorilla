@@ -10,7 +10,7 @@ using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.Core.ViewModels;
 
-public sealed class HomeViewModel : INotifyPropertyChanged
+public sealed partial class HomeViewModel : INotifyPropertyChanged
 {
     private static readonly TimeSpan RecoveryRetryDelay = TimeSpan.FromSeconds(1);
     private readonly IGorillaServiceClient _client;

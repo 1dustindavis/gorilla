@@ -72,7 +72,11 @@ internal sealed class ActivityPageDriver
 
     public void OpenDetails(string operationId)
     {
-        WaitForOperation(operationId).Click();
+        var entry = WaitForOperation(operationId);
+        var nonActionTarget = _session.WaitFor(
+            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
+        );
+        nonActionTarget.Click();
         _ = _session.WaitFor(() => ById("AppDetailsRoot"));
     }
 

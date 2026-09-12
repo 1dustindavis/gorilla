@@ -71,7 +71,7 @@ internal sealed class ActivityPageDriver
             timeout
         );
 
-    public string OperationId(AutomationElement entry) => SafeHelpText(entry);
+    public static string OperationId(AutomationElement entry) => SafeHelpText(entry);
 
     public void OpenDetails(string operationId)
     {

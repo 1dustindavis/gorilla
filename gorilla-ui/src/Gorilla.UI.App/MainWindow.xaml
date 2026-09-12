@@ -47,12 +47,13 @@
             Margin="20,0,20,4"
             Padding="10,8"
             CornerRadius="6"
-            Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             Visibility="Collapsed"
             AutomationProperties.AutomationId="CatalogDegradedWarning"
             AutomationProperties.LiveSetting="Polite">
             <TextBlock
                 x:Name="CatalogDegradedText"
+                Foreground="DarkOrange"
                 TextWrapping="Wrap"
                 AutomationProperties.AutomationId="CatalogDegradedWarningText" />
         </Border>

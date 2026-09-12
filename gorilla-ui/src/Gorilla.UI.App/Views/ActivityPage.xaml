@@ -73,8 +73,7 @@
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
-                            CornerRadius="8"
-                            AutomationProperties.AutomationId="{Binding EntryAutomationId}">
+                            CornerRadius="8">
                             <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
                                 <TextBlock
                                     Text="{Binding DisplayName}"

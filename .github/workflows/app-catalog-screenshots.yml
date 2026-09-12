@@ -1,0 +1,208 @@
+name: App Catalog Screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-catalog-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture App Catalog screenshots
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Configure Git line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
+      - name: Check out selected ref
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      - name: Configure screenshot display
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+
+          public static class DisplayModeNativeMethods
+          {
+              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+              public struct DEVMODE
+              {
+                  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+                  public short dmSpecVersion;
+                  public short dmDriverVersion;
+                  public short dmSize;
+                  public short dmDriverExtra;
+                  public int dmFields;
+                  public int dmPositionX;
+                  public int dmPositionY;
+                  public int dmDisplayOrientation;
+                  public int dmDisplayFixedOutput;
+                  public short dmColor;
+                  public short dmDuplex;
+                  public short dmYResolution;
+                  public short dmTTOption;
+                  public short dmCollate;
+                  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+                  public short dmLogPixels;
+                  public int dmBitsPerPel;
+                  public int dmPelsWidth;
+                  public int dmPelsHeight;
+                  public int dmDisplayFlags;
+                  public int dmDisplayFrequency;
+                  public int dmICMMethod;
+                  public int dmICMIntent;
+                  public int dmMediaType;
+                  public int dmDitherType;
+                  public int dmReserved1;
+                  public int dmReserved2;
+                  public int dmPanningWidth;
+                  public int dmPanningHeight;
+              }
+
+              [DllImport("user32.dll", CharSet = CharSet.Ansi)]
+              public static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
+
+              [DllImport("user32.dll", CharSet = CharSet.Ansi)]
+              public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
+
+              public const int ENUM_CURRENT_SETTINGS = -1;
+              public const int DM_PELSWIDTH = 0x00080000;
+              public const int DM_PELSHEIGHT = 0x00100000;
+              public const int DISP_CHANGE_SUCCESSFUL = 0;
+          }
+          '@
+
+          $targetWidth = 1920
+          $targetHeight = 1080
+          $mode = New-Object DisplayModeNativeMethods+DEVMODE
+          $mode.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($mode)
+          if (-not [DisplayModeNativeMethods]::EnumDisplaySettings($null, [DisplayModeNativeMethods]::ENUM_CURRENT_SETTINGS, [ref]$mode)) {
+            throw "Unable to read current runner display mode."
+          }
+
+          if ($mode.dmPelsWidth -ne $targetWidth -or $mode.dmPelsHeight -ne $targetHeight) {
+            $mode.dmPelsWidth = $targetWidth
+            $mode.dmPelsHeight = $targetHeight
+            $mode.dmFields = [DisplayModeNativeMethods]::DM_PELSWIDTH -bor [DisplayModeNativeMethods]::DM_PELSHEIGHT
+            $result = [DisplayModeNativeMethods]::ChangeDisplaySettings([ref]$mode, 0)
+            if ($result -ne [DisplayModeNativeMethods]::DISP_CHANGE_SUCCESSFUL) {
+              throw "Unable to configure runner display to ${targetWidth}x${targetHeight}; ChangeDisplaySettings returned $result."
+            }
+            Start-Sleep -Seconds 1
+          }
+
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+          Write-Host "Primary display: $($screen.Bounds.Width)x$($screen.Bounds.Height)"
+          Write-Host "Working area: $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height)"
+          if ($screen.Bounds.Width -ne $targetWidth -or $screen.Bounds.Height -ne $targetHeight) {
+            throw "Runner display is $($screen.Bounds.Width)x$($screen.Bounds.Height); expected ${targetWidth}x${targetHeight}."
+          }
+          if ($screen.WorkingArea.Width -lt 1280 -or $screen.WorkingArea.Height -lt 800) {
+            throw "Runner working area $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height) cannot fit the canonical 1280x800 window."
+          }
+
+      - name: Configure Go cache paths
+        shell: pwsh
+        run: |
+          "GOMODCACHE=$env:RUNNER_TEMP\go\pkg\mod" >> $env:GITHUB_ENV
+          "GOCACHE=$env:RUNNER_TEMP\go-build" >> $env:GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Configure NuGet package path
+        shell: pwsh
+        run: '"NUGET_PACKAGES=$env:RUNNER_TEMP\nuget-packages" >> $env:GITHUB_ENV'
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build branch-matched Gorilla service
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          go build -v -o build/gorilla.exe ./cmd/gorilla
+          if ($LASTEXITCODE -ne 0) {
+            throw "Gorilla service build failed"
+          }
+
+      - name: Build branch-matched unpackaged UI
+        shell: pwsh
+        run: |
+          $project = "gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj"
+          dotnet restore $project
+          if ($LASTEXITCODE -ne 0) {
+            throw "Gorilla UI restore failed"
+          }
+          dotnet build $project `
+            -c Release `
+            -p:Platform=x64 `
+            -p:WindowsPackageType=None `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:PublishReadyToRun=false `
+            -p:PublishTrimmed=false `
+            --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Gorilla UI build failed"
+          }
+
+      - name: Capture canonical App Catalog screenshots
+        shell: pwsh
+        run: |
+          ./integration/windows/app-catalog-screenshots/capture-app-catalog.ps1 `
+            -GorillaExePath "$env:GITHUB_WORKSPACE\build\gorilla.exe" `
+            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots"
+
+      - name: Summarize capture
+        if: always()
+        shell: pwsh
+        run: |
+          $root = "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots"
+          @(
+            '## App Catalog screenshots'
+            ''
+            ('**Ref:** `{0}`  ' -f '${{ github.ref }}')
+            ('**Commit:** `{0}`  ' -f '${{ github.sha }}')
+            '**Runner display:** 1920 × 1080'
+            '**Canonical window:** 1280 × 800'
+            ''
+            'Expected captures:'
+            '- `catalog-default.png`'
+            '- `catalog-search.png`'
+            '- `catalog-mixed-actions.png`'
+            '- `catalog-detail.png`'
+            ''
+            'The artifact also includes capture provenance and service/UI diagnostics.'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+          if (Test-Path -LiteralPath (Join-Path $root 'capture-failure.txt')) {
+            @('', '### Capture failure', '', 'See `capture-failure.txt` in the artifact.') |
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload screenshots and provenance
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-catalog-screenshots-${{ github.sha }}
+          path: build/app-catalog-screenshots/**
+          if-no-files-found: error
+          retention-days: 30

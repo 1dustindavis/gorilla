@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Globalization;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.App.Views;
 using Gorilla.UI.Core.Models;
@@ -123,7 +124,7 @@ namespace Gorilla.UI.App
         }
 
         private static string FormatLocalTime(DateTimeOffset timestamp)
-            => timestamp.ToLocalTime().ToString("t");
+            => timestamp.ToLocalTime().ToString("t", CultureInfo.CurrentCulture);
 
         private void MainWindow_Closed(object sender, WindowEventArgs args)
         {

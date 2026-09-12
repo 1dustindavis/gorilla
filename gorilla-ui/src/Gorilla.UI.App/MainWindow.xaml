@@ -13,7 +13,53 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Frame
-        x:Name="RootFrame"
-        AutomationProperties.AutomationId="NavigationFrame" />
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Grid Padding="20,12,20,8" ColumnDefinitions="*,Auto,Auto">
+            <TextBlock
+                x:Name="CatalogFreshnessStatus"
+                VerticalAlignment="Center"
+                Opacity="0.72"
+                AutomationProperties.AutomationId="CatalogFreshnessStatus"
+                AutomationProperties.Name="Catalog freshness status" />
+            <ProgressRing
+                x:Name="CatalogRefreshProgress"
+                Grid.Column="1"
+                Width="18"
+                Height="18"
+                Margin="10,0,8,0"
+                VerticalAlignment="Center"
+                IsActive="False"
+                Visibility="Collapsed"
+                AutomationProperties.AutomationId="CatalogRefreshProgress"
+                AutomationProperties.Name="Refreshing App Catalog" />
+            <Button
+                x:Name="RefreshButton"
+                Grid.Column="2"
+                Content="Refresh"
+                Click="RefreshButton_Click"
+                AutomationProperties.AutomationId="CatalogRefreshButton"
+                AutomationProperties.Name="Refresh App Catalog" />
+        </Grid>
+
+        <Border
+            x:Name="CatalogDegradedBanner"
+            Grid.Row="1"
+            Margin="20,0,20,4"
+            Padding="10,8"
+            CornerRadius="6"
+            Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+            Visibility="Collapsed"
+            AutomationProperties.AutomationId="CatalogDegradedWarning"
+            AutomationProperties.LiveSetting="Polite">
+            <TextBlock
+                x:Name="CatalogDegradedText"
+                TextWrapping="Wrap"
+                AutomationProperties.AutomationId="CatalogDegradedWarningText" />
+        </Border>
+
+        <Frame
+            x:Name="RootFrame"
+            Grid.Row="2"
+            AutomationProperties.AutomationId="NavigationFrame" />
+    </Grid>
 </Window>

@@ -88,6 +88,10 @@ public sealed class ActivityTests
                 beforeActivity.GoBack();
 
                 home = new HomePageDriver(first);
+                first.WaitUntil(
+                    () => home.PrimaryActionButton(SlowFixtureItemName).IsEnabled,
+                    TimeSpan.FromSeconds(30)
+                );
                 home.PrimaryActionButton(SlowFixtureItemName).Invoke();
                 home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
                 operationId = home.OperationId(SlowFixtureItemName);
@@ -137,6 +141,11 @@ public sealed class ActivityTests
         {
             home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
         }
+
+        session.WaitUntil(
+            () => home.PrimaryActionButton(SlowFixtureItemName).IsEnabled,
+            TimeSpan.FromSeconds(30)
+        );
     }
 
     private static string RequiredPath(string variableName)

@@ -102,6 +102,7 @@ public sealed class ActivityTests
             var activity = ActivityPageDriver.OpenFromCatalog(second);
             _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
             Assert.Equal(1, activity.CountEntries(operationId));
+            Assert.Equal(1, activity.CountEntriesContaining("Slow Install Fixture"));
             Assert.True(
                 activity.StateText(operationId).Contains("Installing", StringComparison.OrdinalIgnoreCase)
                 || activity.StateText(operationId).Contains("Succeeded", StringComparison.OrdinalIgnoreCase),

@@ -13,7 +13,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
-
-    </Grid>
+    <Frame
+        x:Name="RootFrame"
+        AutomationProperties.AutomationId="NavigationFrame" />
 </Window>

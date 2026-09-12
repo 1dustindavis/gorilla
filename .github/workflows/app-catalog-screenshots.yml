@@ -26,7 +26,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Validate screenshot display
+      - name: Set up WinApp CLI
+        uses: microsoft/setup-WinAppCli@b93bbddc1f7abc061ca0d3a8119e3a0c7dd71495 # v0.2
+
+      - name: Inspect screenshot display
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.Windows.Forms
@@ -38,9 +41,10 @@ jobs:
 
           Write-Host "Primary display: $($screen.Bounds.Width)x$($screen.Bounds.Height)"
           Write-Host "Working area: $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height)"
-
-          if ($screen.WorkingArea.Width -lt 1280 -or $screen.WorkingArea.Height -lt 800) {
-            throw "Runner working area $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height) cannot fit the canonical 1280x800 window."
+          Write-Host "The canonical 1280x800 app window may extend beyond the runner desktop; capture uses the WinApp CLI window surface rather than the screen DC."
+          winapp --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "WinApp CLI is not available after setup."
           }
 
       - name: Configure Go cache paths
@@ -112,6 +116,7 @@ jobs:
             ('**Ref:** `{0}`  ' -f '${{ github.ref }}')
             ('**Commit:** `{0}`  ' -f '${{ github.sha }}')
             '**Canonical window:** 1280 × 800'
+            '**Capture:** WinApp CLI window-surface capture (WGC with PrintWindow fallback)'
             ''
             'Expected captures:'
             '- `catalog-default.png`'

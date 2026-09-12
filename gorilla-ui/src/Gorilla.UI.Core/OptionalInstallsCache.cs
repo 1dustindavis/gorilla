@@ -8,6 +8,12 @@ public sealed record OptionalInstallsCacheDocument(
     IReadOnlyList<OptionalInstallItem> Items
 );
 
+public sealed record OptionalInstallsRefreshResult(
+    DateTimeOffset RefreshedAtUtc,
+    IReadOnlyList<OptionalInstallItem> Items,
+    Exception? CacheWriteFailure = null
+);
+
 public interface IOptionalInstallsCacheStore
 {
     Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken);
@@ -93,15 +99,32 @@ public sealed class OptionalInstallsCacheCoordinator
         return _cacheStore.LoadAsync(cancellationToken);
     }
 
-    public async Task<OptionalInstallsCacheDocument> RefreshAsync(CancellationToken cancellationToken)
+    public async Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
         var items = await _client.ListOptionalInstallsAsync(cancellationToken);
-        var document = new OptionalInstallsCacheDocument(
-            CachedAtUtc: DateTimeOffset.UtcNow,
-            Items: items
-        );
+        var refreshedAtUtc = DateTimeOffset.UtcNow;
+        var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
 
-        await _cacheStore.SaveAsync(document, cancellationToken);
-        return document;
+        Exception? cacheWriteFailure = null;
+        try
+        {
+            await _cacheStore.SaveAsync(document, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Fresh service data remains authoritative and usable even when the
+            // fallback cache cannot be updated.
+            cacheWriteFailure = ex;
+        }
+
+        return new OptionalInstallsRefreshResult(
+            refreshedAtUtc,
+            items,
+            cacheWriteFailure
+        );
     }
 }

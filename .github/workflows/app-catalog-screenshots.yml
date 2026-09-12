@@ -30,7 +30,7 @@ jobs:
         shell: powershell
         run: |
           $setCommand = Get-Command Set-DisplayResolution -ErrorAction Stop
-          $getCommand = Get-Command Get-DisplayResolution -ErrorAction Stop
+          Get-Command Get-DisplayResolution -ErrorAction Stop | Out-Null
           Write-Host "Using Set-DisplayResolution from $($setCommand.Source)"
           Write-Host "Initial display resolution:"
           Get-DisplayResolution | Out-Host

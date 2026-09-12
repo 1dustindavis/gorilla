@@ -54,6 +54,9 @@ internal sealed class ActivityPageDriver
     public int CountEntries(string operationId)
         => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
 
+    public int CountEntriesContaining(string text)
+        => ListEntries().Count(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase));
+
     public AutomationElement WaitForEntryContaining(string text, TimeSpan? timeout = null)
         => _session.WaitFor(
             () => ListEntries().FirstOrDefault(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase)),

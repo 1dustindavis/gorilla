@@ -59,7 +59,7 @@ public sealed class ActivityTests
 
             var activity = ActivityPageDriver.OpenFromCatalog(session);
             var entry = activity.WaitForEntryWithDetail("Installation error: exit status 7", TimeSpan.FromSeconds(30));
-            var operationId = activity.OperationId(entry);
+            var operationId = ActivityPageDriver.OperationId(entry);
             Assert.False(string.IsNullOrWhiteSpace(operationId));
             activity.WaitForOperationState(operationId, "Failed", TimeSpan.FromSeconds(30));
             Assert.Contains("Installation error: exit status 7", activity.DetailText(operationId), StringComparison.OrdinalIgnoreCase);

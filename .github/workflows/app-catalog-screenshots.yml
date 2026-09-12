@@ -26,89 +26,19 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Configure screenshot display
+      - name: Validate screenshot display
         shell: pwsh
         run: |
           Add-Type -AssemblyName System.Windows.Forms
-          Add-Type @'
-          using System;
-          using System.Runtime.InteropServices;
-
-          public static class DisplayModeNativeMethods
-          {
-              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-              public struct DEVMODE
-              {
-                  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
-                  public short dmSpecVersion;
-                  public short dmDriverVersion;
-                  public short dmSize;
-                  public short dmDriverExtra;
-                  public int dmFields;
-                  public int dmPositionX;
-                  public int dmPositionY;
-                  public int dmDisplayOrientation;
-                  public int dmDisplayFixedOutput;
-                  public short dmColor;
-                  public short dmDuplex;
-                  public short dmYResolution;
-                  public short dmTTOption;
-                  public short dmCollate;
-                  [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
-                  public short dmLogPixels;
-                  public int dmBitsPerPel;
-                  public int dmPelsWidth;
-                  public int dmPelsHeight;
-                  public int dmDisplayFlags;
-                  public int dmDisplayFrequency;
-                  public int dmICMMethod;
-                  public int dmICMIntent;
-                  public int dmMediaType;
-                  public int dmDitherType;
-                  public int dmReserved1;
-                  public int dmReserved2;
-                  public int dmPanningWidth;
-                  public int dmPanningHeight;
-              }
-
-              [DllImport("user32.dll", CharSet = CharSet.Ansi)]
-              public static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
-
-              [DllImport("user32.dll", CharSet = CharSet.Ansi)]
-              public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
-
-              public const int ENUM_CURRENT_SETTINGS = -1;
-              public const int DM_PELSWIDTH = 0x00080000;
-              public const int DM_PELSHEIGHT = 0x00100000;
-              public const int DISP_CHANGE_SUCCESSFUL = 0;
-          }
-          '@
-
-          $targetWidth = 1920
-          $targetHeight = 1080
-          $mode = New-Object DisplayModeNativeMethods+DEVMODE
-          $mode.dmSize = [Runtime.InteropServices.Marshal]::SizeOf($mode)
-          if (-not [DisplayModeNativeMethods]::EnumDisplaySettings($null, [DisplayModeNativeMethods]::ENUM_CURRENT_SETTINGS, [ref]$mode)) {
-            throw "Unable to read current runner display mode."
-          }
-
-          if ($mode.dmPelsWidth -ne $targetWidth -or $mode.dmPelsHeight -ne $targetHeight) {
-            $mode.dmPelsWidth = $targetWidth
-            $mode.dmPelsHeight = $targetHeight
-            $mode.dmFields = [DisplayModeNativeMethods]::DM_PELSWIDTH -bor [DisplayModeNativeMethods]::DM_PELSHEIGHT
-            $result = [DisplayModeNativeMethods]::ChangeDisplaySettings([ref]$mode, 0)
-            if ($result -ne [DisplayModeNativeMethods]::DISP_CHANGE_SUCCESSFUL) {
-              throw "Unable to configure runner display to ${targetWidth}x${targetHeight}; ChangeDisplaySettings returned $result."
-            }
-            Start-Sleep -Seconds 1
-          }
 
           $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+          if ($null -eq $screen) {
+            throw "No primary display is available in the hosted runner session."
+          }
+
           Write-Host "Primary display: $($screen.Bounds.Width)x$($screen.Bounds.Height)"
           Write-Host "Working area: $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height)"
-          if ($screen.Bounds.Width -ne $targetWidth -or $screen.Bounds.Height -ne $targetHeight) {
-            throw "Runner display is $($screen.Bounds.Width)x$($screen.Bounds.Height); expected ${targetWidth}x${targetHeight}."
-          }
+
           if ($screen.WorkingArea.Width -lt 1280 -or $screen.WorkingArea.Height -lt 800) {
             throw "Runner working area $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height) cannot fit the canonical 1280x800 window."
           }
@@ -181,7 +111,6 @@ jobs:
             ''
             ('**Ref:** `{0}`  ' -f '${{ github.ref }}')
             ('**Commit:** `{0}`  ' -f '${{ github.sha }}')
-            '**Runner display:** 1920 × 1080'
             '**Canonical window:** 1280 × 800'
             ''
             'Expected captures:'

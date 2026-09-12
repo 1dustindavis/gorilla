@@ -62,19 +62,23 @@ public sealed class ActivityTests
             Assert.False(string.IsNullOrWhiteSpace(operationId));
 
             shell.Refresh();
-            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
-            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
-            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            shell.WaitForRefreshStarted(TimeSpan.FromSeconds(30));
             Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
 
             var activity = ActivityPageDriver.OpenFromCatalog(session);
-            _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
+            activity.WaitForOperationState(operationId, "Installing", TimeSpan.FromSeconds(30));
             Assert.Equal(1, activity.CountEntries(operationId));
             Assert.Equal("Install", activity.ActionText(operationId));
-            session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
+            session.CaptureCheckpoint("activity-during-catalog-refresh", includeAutomationTree: true);
 
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+            Assert.Equal("Succeeded", activity.StateText(operationId));
+            session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
         });
     }
 

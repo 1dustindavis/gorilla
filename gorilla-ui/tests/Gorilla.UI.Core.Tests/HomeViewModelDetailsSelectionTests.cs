@@ -1,5 +1,6 @@
 using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
+using Gorilla.UI.Core;
 using Gorilla.UI.Core.Services;
 using Gorilla.UI.Core.ViewModels;
 using Xunit;

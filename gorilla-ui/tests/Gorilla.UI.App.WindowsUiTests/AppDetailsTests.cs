@@ -123,7 +123,7 @@ public sealed class AppDetailsTests
     }
 
     [Fact]
-    [Trait("E2EPhase", "Failure")]
+    [Trait("E2EPhase", "Healthy")]
     public void DetailsShowsRetainedStructuredFailureWithoutGlobalOperationWarning()
     {
         RunWithDiagnostics(nameof(DetailsShowsRetainedStructuredFailureWithoutGlobalOperationWarning), session =>

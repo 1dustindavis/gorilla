@@ -63,12 +63,12 @@ public class ActivityProjectionTests
     }
 
     [Theory]
-    [InlineData(Outcome.Succeeded)]
-    [InlineData(Outcome.AlreadySatisfied)]
-    [InlineData(Outcome.Failed)]
-    [InlineData(Outcome.Unverified)]
-    [InlineData(Outcome.Interrupted)]
-    public async Task Activity_PreservesEveryStructuredTerminalOutcome(Outcome outcome)
+    [InlineData(Outcome.Succeeded, "Succeeded")]
+    [InlineData(Outcome.AlreadySatisfied, "Already satisfied")]
+    [InlineData(Outcome.Failed, "Failed")]
+    [InlineData(Outcome.Unverified, "Unable to verify")]
+    [InlineData(Outcome.Interrupted, "Interrupted")]
+    public async Task Activity_PreservesEveryStructuredTerminalOutcome(Outcome outcome, string label)
     {
         var operation = Completed("op-1", "Example", outcome, Now, $"{outcome}_code", $"{outcome} detail");
         var client = new FakeClient
@@ -84,7 +84,7 @@ public class ActivityProjectionTests
         Assert.Equal(outcome, activity.Result?.Outcome);
         Assert.Equal($"{outcome}_code", activity.Result?.Code);
         Assert.Equal($"{outcome} detail", activity.Result?.Message);
-        Assert.Equal(outcome.ToString(), activity.StateText);
+        Assert.Equal(label, activity.StateText);
     }
 
     [Fact]

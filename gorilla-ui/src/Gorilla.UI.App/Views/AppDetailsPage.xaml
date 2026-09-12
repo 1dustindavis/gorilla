@@ -12,182 +12,73 @@
     </Page.Resources>
 
     <Grid RowDefinitions="Auto,*">
-        <Button
-            Margin="20,16,20,0"
-            HorizontalAlignment="Left"
-            Click="BackButton_Click"
-            AutomationProperties.AutomationId="DetailsBackButton"
-            AutomationProperties.Name="Back to catalog">
+        <Button Margin="20,16,20,0" HorizontalAlignment="Left" Click="BackButton_Click" AutomationProperties.AutomationId="DetailsBackButton" AutomationProperties.Name="Back to catalog">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <FontIcon Glyph="&#xE72B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                 <TextBlock Text="Back" />
             </StackPanel>
         </Button>
 
-        <ScrollViewer
-            Grid.Row="1"
-            AutomationProperties.AutomationId="AppDetailsRoot"
-            AutomationProperties.Name="App details">
+        <ScrollViewer Grid.Row="1" AutomationProperties.AutomationId="AppDetailsRoot" AutomationProperties.Name="App details">
             <Grid Padding="24,18,24,32">
-                <StackPanel
-                    x:Name="DetailsContent"
-                    MaxWidth="760"
-                    HorizontalAlignment="Left"
-                    Spacing="18">
+                <StackPanel x:Name="DetailsContent" MaxWidth="760" HorizontalAlignment="Left" Spacing="18">
                     <Grid ColumnDefinitions="Auto,*">
-                        <Border
-                            Width="58"
-                            Height="58"
-                            CornerRadius="10"
-                            Background="{ThemeResource AccentFillColorSecondaryBrush}">
-                            <FontIcon
-                                Glyph="&#xE71D;"
-                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                FontSize="28"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
+                        <Border Width="58" Height="58" CornerRadius="10" Background="{ThemeResource AccentFillColorSecondaryBrush}">
+                            <FontIcon Glyph="&#xE71D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <TextBlock
-                            Grid.Column="1"
-                            Margin="14,0,0,0"
-                            Text="{Binding DisplayName}"
-                            FontSize="28"
-                            FontWeight="SemiBold"
-                            TextWrapping="Wrap"
-                            VerticalAlignment="Center"
-                            AutomationProperties.AutomationId="DetailsDisplayName"
-                            AutomationProperties.HeadingLevel="Level1" />
+                        <TextBlock Grid.Column="1" Margin="14,0,0,0" Text="{Binding DisplayName}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="DetailsDisplayName" AutomationProperties.HeadingLevel="Level1" />
                     </Grid>
 
-                    <TextBlock
-                        Text="{Binding DetailsPresentation.Description}"
-                        TextWrapping="Wrap"
-                        Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        AutomationProperties.AutomationId="DetailsDescription" />
+                    <TextBlock Text="{Binding DetailsPresentation.Description}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsDescription" />
 
                     <StackPanel Spacing="5">
                         <TextBlock Text="Status" FontSize="18" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2" />
-                        <TextBlock
-                            Text="{Binding DetailsPresentation.ObservationText}"
-                            FontSize="16"
-                            AutomationProperties.AutomationId="DetailsObservation" />
+                        <TextBlock Text="{Binding DetailsPresentation.ObservationText}" FontSize="16" AutomationProperties.AutomationId="DetailsObservation" />
                     </StackPanel>
 
                     <StackPanel Spacing="7">
-                        <Grid
-                            ColumnDefinitions="150,*"
-                            Visibility="{Binding DetailsPresentation.HasAvailableVersion, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid ColumnDefinitions="150,*" Visibility="{Binding DetailsPresentation.HasAvailableVersion, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock Text="Available version" FontWeight="SemiBold" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Text="{Binding DetailsPresentation.AvailableVersion}"
-                                AutomationProperties.AutomationId="DetailsAvailableVersion" />
+                            <TextBlock Grid.Column="1" Text="{Binding DetailsPresentation.AvailableVersion}" AutomationProperties.AutomationId="DetailsAvailableVersion" />
                         </Grid>
-                        <Grid
-                            ColumnDefinitions="150,*"
-                            Visibility="{Binding DetailsPresentation.HasInstalledVersion, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid ColumnDefinitions="150,*" Visibility="{Binding DetailsPresentation.HasInstalledVersion, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock Text="Installed version" FontWeight="SemiBold" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Text="{Binding DetailsPresentation.InstalledVersion}"
-                                AutomationProperties.AutomationId="DetailsInstalledVersion" />
+                            <TextBlock Grid.Column="1" Text="{Binding DetailsPresentation.InstalledVersion}" AutomationProperties.AutomationId="DetailsInstalledVersion" />
                         </Grid>
                     </StackPanel>
 
-                    <Border
-                        Padding="14"
-                        CornerRadius="8"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        Visibility="{Binding DetailsPresentation.HasActiveOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        AutomationProperties.AutomationId="DetailsActiveOperation"
-                        AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationTitle}"
-                        AutomationProperties.LiveSetting="Polite">
+                    <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasActiveOperation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsActiveOperation" AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationTitle}" AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}" AutomationProperties.LiveSetting="Polite">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{Binding DetailsPresentation.ActiveOperationTitle}" FontSize="17" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding DetailsPresentation.ActiveOperationState}" />
-                            <TextBlock
-                                Text="{Binding DetailsPresentation.ActiveOperationMessage}"
-                                TextWrapping="Wrap"
-                                Visibility="{Binding DetailsPresentation.HasActiveOperationMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            <ProgressBar
-                                Minimum="0"
-                                Maximum="100"
-                                Value="{Binding DetailsPresentation.ProgressValue}"
-                                IsIndeterminate="{Binding DetailsPresentation.IsProgressIndeterminate}" />
+                            <TextBlock Text="{Binding DetailsPresentation.ActiveOperationMessage}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasActiveOperationMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding DetailsPresentation.ProgressValue}" IsIndeterminate="{Binding DetailsPresentation.IsProgressIndeterminate}" />
                         </StackPanel>
                     </Border>
 
-                    <Border
-                        Padding="14"
-                        CornerRadius="8"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        AutomationProperties.AutomationId="DetailsLatestResult"
-                        AutomationProperties.Name="{Binding DetailsPresentation.LatestResultHeading}"
-                        AutomationProperties.LiveSetting="Polite">
+                    <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsLatestResult" AutomationProperties.Name="{Binding DetailsPresentation.LatestResultHeading}" AutomationProperties.LiveSetting="Polite">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{Binding DetailsPresentation.LatestResultHeading}" FontSize="16" FontWeight="SemiBold" />
-                            <TextBlock
-                                Text="{Binding DetailsPresentation.LatestResultDetail}"
-                                TextWrapping="Wrap"
-                                Visibility="{Binding DetailsPresentation.HasLatestResultDetail, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Text="{Binding DetailsPresentation.LatestResultDetail}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasLatestResultDetail, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
                     </Border>
 
-                    <TextBlock
-                        Text="{Binding DetailsPresentation.ActionFeedbackText}"
-                        TextWrapping="Wrap"
-                        Visibility="{Binding DetailsPresentation.HasActionFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Text="{Binding DetailsPresentation.ActionFeedbackText}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasActionFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.LiveSetting="Polite" />
 
-                    <StackPanel
-                        Spacing="5"
-                        Visibility="{Binding DetailsPresentation.HasActionExplanation, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        AutomationProperties.AutomationId="DetailsActionExplanation">
-                        <TextBlock
-                            Text="{Binding DetailsPresentation.InstallUnavailableExplanation}"
-                            TextWrapping="Wrap"
-                            Visibility="{Binding DetailsPresentation.HasInstallUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <TextBlock
-                            Text="{Binding DetailsPresentation.RemoveUnavailableExplanation}"
-                            TextWrapping="Wrap"
-                            Visibility="{Binding DetailsPresentation.HasRemoveUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <StackPanel Spacing="5" Visibility="{Binding DetailsPresentation.HasActionExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsActionExplanation">
+                        <TextBlock Text="{Binding DetailsPresentation.InstallUnavailableExplanation}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasInstallUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock Text="{Binding DetailsPresentation.RemoveUnavailableExplanation}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasRemoveUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button
-                            Content="{Binding DetailsPresentation.PrimaryAction.Label}"
-                            Tag="{Binding DetailsPresentation.PrimaryAction.Kind}"
-                            IsEnabled="{Binding DetailsPresentation.PrimaryAction.Enabled}"
-                            Visibility="{Binding DetailsPresentation.HasPrimaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Click="ActionButton_Click"
-                            AutomationProperties.AutomationId="DetailsPrimaryAction" />
-                        <Button
-                            Content="{Binding DetailsPresentation.SecondaryAction.Label}"
-                            Tag="{Binding DetailsPresentation.SecondaryAction.Kind}"
-                            IsEnabled="{Binding DetailsPresentation.SecondaryAction.Enabled}"
-                            Visibility="{Binding DetailsPresentation.HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Click="ActionButton_Click"
-                            AutomationProperties.AutomationId="DetailsSecondaryAction" />
+                        <Button Content="{Binding DetailsPresentation.PrimaryAction.Label}" Tag="{Binding DetailsPresentation.PrimaryAction.Kind}" IsEnabled="{Binding DetailsPresentation.PrimaryAction.Enabled}" Visibility="{Binding DetailsPresentation.HasPrimaryAction, Converter={StaticResource BooleanToVisibilityConverter}}" Style="{StaticResource AccentButtonStyle}" Click="ActionButton_Click" AutomationProperties.AutomationId="DetailsPrimaryAction" />
+                        <Button Content="{Binding DetailsPresentation.SecondaryAction.Label}" Tag="{Binding DetailsPresentation.SecondaryAction.Kind}" IsEnabled="{Binding DetailsPresentation.SecondaryAction.Enabled}" Visibility="{Binding DetailsPresentation.HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}" Click="ActionButton_Click" AutomationProperties.AutomationId="DetailsSecondaryAction" />
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel
-                    x:Name="UnavailableContent"
-                    MaxWidth="620"
-                    HorizontalAlignment="Left"
-                    Spacing="8"
-                    Visibility="Collapsed"
-                    AutomationProperties.AutomationId="DetailsUnavailable">
-                    <TextBlock
-                        Text="App unavailable"
-                        FontSize="28"
-                        FontWeight="SemiBold"
-                        AutomationProperties.HeadingLevel="Level1" />
-                    <TextBlock
-                        Text="This app is no longer available in the current catalog. Return to the catalog to choose another app."
-                        TextWrapping="Wrap" />
+                <StackPanel x:Name="UnavailableContent" MaxWidth="620" HorizontalAlignment="Left" Spacing="8" Visibility="Collapsed" AutomationProperties.AutomationId="DetailsUnavailable">
+                    <TextBlock Text="App unavailable" FontSize="28" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" />
+                    <TextBlock Text="This app is no longer available in the current catalog. Return to the catalog to choose another app." TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

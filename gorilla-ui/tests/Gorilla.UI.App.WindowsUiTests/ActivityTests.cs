@@ -74,6 +74,7 @@ public sealed class ActivityTests
     {
         var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
         string operationId;
+        int retainedSlowOperationsBeforeInstall;
 
         using (var first = GorillaAppSession.Launch())
         {
@@ -81,6 +82,12 @@ public sealed class ActivityTests
             {
                 var home = new HomePageDriver(first);
                 EnsureSlowFixtureAbsent(first, home, slowMarkerPath);
+
+                var beforeActivity = ActivityPageDriver.OpenFromCatalog(first);
+                retainedSlowOperationsBeforeInstall = beforeActivity.CountEntriesContaining("Slow Install Fixture");
+                beforeActivity.GoBack();
+
+                home = new HomePageDriver(first);
                 home.PrimaryActionButton(SlowFixtureItemName).Invoke();
                 home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
                 operationId = home.OperationId(SlowFixtureItemName);
@@ -102,7 +109,7 @@ public sealed class ActivityTests
             var activity = ActivityPageDriver.OpenFromCatalog(second);
             _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
             Assert.Equal(1, activity.CountEntries(operationId));
-            Assert.Equal(1, activity.CountEntriesContaining("Slow Install Fixture"));
+            Assert.Equal(retainedSlowOperationsBeforeInstall + 1, activity.CountEntriesContaining("Slow Install Fixture"));
             Assert.True(
                 activity.StateText(operationId).Contains("Installing", StringComparison.OrdinalIgnoreCase)
                 || activity.StateText(operationId).Contains("Succeeded", StringComparison.OrdinalIgnoreCase),

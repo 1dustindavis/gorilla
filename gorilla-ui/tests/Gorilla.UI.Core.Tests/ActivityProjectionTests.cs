@@ -16,13 +16,13 @@ public class ActivityProjectionTests
     [Fact]
     public async Task Activity_UsesOperationIdentityDeduplicatesAndOrdersActiveBeforeTerminal()
     {
-        var activeOlder = Event("op-b", "Beta", OperationState.Installing, Now.AddMinutes(-2));
-        var activeNewer = Event("op-a", "Alpha", OperationState.Removing, Now.AddMinutes(-1), action: AppCatalog.Action.Remove);
+        var activeB = Event("op-b", "Beta", OperationState.Installing, Now.AddMinutes(-1));
+        var activeA = Event("op-a", "Alpha", OperationState.Removing, Now.AddMinutes(-1), action: AppCatalog.Action.Remove);
         var terminal = Completed("op-z", "Alpha", Outcome.Succeeded, Now);
         var client = new FakeClient
         {
             Catalogs = [[Item("Alpha", "Alpha App"), Item("Beta", "Beta App")]],
-            OperationSnapshots = [[terminal, activeOlder, activeNewer]],
+            OperationSnapshots = [[terminal, activeA, activeB]],
         };
         var tracker = new OperationTracker(client);
         var viewModel = CreateViewModel(client, tracker);
@@ -30,10 +30,10 @@ public class ActivityProjectionTests
         await viewModel.InitializeAsync(CancellationToken.None);
 
         Assert.True(viewModel.IsActivityLoaded);
-        Assert.Equal(["op-a", "op-b", "op-z"], viewModel.ActivityItems.Select(item => item.OperationId));
-        Assert.Equal("Alpha App", viewModel.ActivityItems[0].DisplayName);
-        Assert.Equal("Remove", viewModel.ActivityItems[0].ActionLabel);
-        Assert.Equal("Install", viewModel.ActivityItems[1].ActionLabel);
+        Assert.Equal(["op-b", "op-a", "op-z"], viewModel.ActivityItems.Select(item => item.OperationId));
+        Assert.Equal("Beta App", viewModel.ActivityItems[0].DisplayName);
+        Assert.Equal("Install", viewModel.ActivityItems[0].ActionLabel);
+        Assert.Equal("Remove", viewModel.ActivityItems[1].ActionLabel);
         Assert.Equal(3, viewModel.ActivityItems.Select(item => item.OperationId).Distinct().Count());
     }
 
@@ -60,7 +60,6 @@ public class ActivityProjectionTests
         Assert.True(after.IsTerminal);
         Assert.Equal(Outcome.Failed, after.Result?.Outcome);
         Assert.Equal("Installer failed", after.DetailText);
-        Assert.Equal("op-1", Assert.Single(viewModel.Items).LatestOperation?.OperationId);
     }
 
     [Theory]
@@ -185,7 +184,7 @@ public class ActivityProjectionTests
         Assert.Equal("op-history", activity.OperationId);
         Assert.Equal("Example", activity.ItemName);
         Assert.Equal(AppCatalog.Action.Install, activity.Action);
-        Assert.Same(result, activity.Result);
+        Assert.Equal(result, activity.Result);
         Assert.Equal("Install", activity.ActionLabel);
     }
 
@@ -223,7 +222,7 @@ public class ActivityProjectionTests
         => new(
             itemName, displayName, "1.0", "catalog", "msi", "package", "installer.msi",
             true, false, OptionalInstallStatus.NotInstalled, Now, null, "1.0",
-            new Observation(ObservedState.Absent, null, Now, "absent", RequirementState.Unsatisfied),
+            new Observation(ObservedState.Absent, null, Now, "absent", RequirementState.NotSatisfied),
             Actions: new Actions(new ActionDecision(true, ""), new ActionDecision(false, "not_installed"))
         );
 

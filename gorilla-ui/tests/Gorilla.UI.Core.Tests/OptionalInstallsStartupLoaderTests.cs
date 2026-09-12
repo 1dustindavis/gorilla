@@ -14,7 +14,8 @@ public class OptionalInstallsStartupLoaderTests
         var cacheStore = new InMemoryCacheStore(new OptionalInstallsCacheDocument(cachedNow, [MakeItem("CachedVLC", cachedNow)]));
         var refreshReady = new TaskCompletionSource<IReadOnlyList<OptionalInstallItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new FakeClient { ListAsync = _ => refreshReady.Task };
-        var loader = new OptionalInstallsStartupLoader(new OptionalInstallsCacheCoordinator(client, cacheStore));
+        var coordinator = new OptionalInstallsCacheCoordinator(client, cacheStore);
+        var loader = new OptionalInstallsStartupLoader(coordinator);
 
         var applyOrder = new ConcurrentQueue<string>();
         var cachedApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,6 +39,7 @@ public class OptionalInstallsStartupLoaderTests
 
         await cachedApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Null(refreshedItems);
+        Assert.True(coordinator.State.IsCached);
 
         var refreshNow = DateTimeOffset.Parse("2026-02-19T18:11:00Z");
         refreshReady.SetResult([MakeItem("FreshChrome", refreshNow)]);
@@ -46,6 +48,7 @@ public class OptionalInstallsStartupLoaderTests
         Assert.Equal(string.Empty, warning);
         Assert.Equal("CachedVLC", Assert.Single(cachedItems!).ItemName);
         Assert.Equal("FreshChrome", Assert.Single(refreshedItems!).ItemName);
+        Assert.True(coordinator.State.IsLive);
         Assert.True(applyOrder.TryDequeue(out var first));
         Assert.Equal("cached", first);
         Assert.True(applyOrder.TryDequeue(out var second));
@@ -53,12 +56,13 @@ public class OptionalInstallsStartupLoaderTests
     }
 
     [Fact]
-    public async Task InitializeAsync_RefreshFailureKeepsCachedAndReturnsWarning()
+    public async Task InitializeAsync_RefreshFailureKeepsCachedAndRecordsDegradedState()
     {
         var now = DateTimeOffset.Parse("2026-02-19T18:10:00Z");
         var cacheStore = new InMemoryCacheStore(new OptionalInstallsCacheDocument(now, [MakeItem("CachedVLC", now)]));
         var client = new FakeClient { ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new InvalidOperationException("service unavailable")) };
-        var loader = new OptionalInstallsStartupLoader(new OptionalInstallsCacheCoordinator(client, cacheStore));
+        var coordinator = new OptionalInstallsCacheCoordinator(client, cacheStore);
+        var loader = new OptionalInstallsStartupLoader(coordinator);
 
         IReadOnlyList<OptionalInstallItem>? cachedItems = null;
         var refreshedCalled = false;
@@ -70,8 +74,10 @@ public class OptionalInstallsStartupLoaderTests
 
         Assert.Equal("CachedVLC", Assert.Single(cachedItems!).ItemName);
         Assert.False(refreshedCalled);
-        Assert.Contains("Showing cached data. Refresh failed:", warning);
-        Assert.Contains("service unavailable", warning);
+        Assert.Equal(string.Empty, warning);
+        Assert.True(coordinator.State.IsCached);
+        Assert.True(coordinator.State.HasRefreshFailure);
+        Assert.Contains("service unavailable", coordinator.State.RefreshFailure!.Message);
     }
 
     private static OptionalInstallItem MakeItem(string itemName, DateTimeOffset now) => new(

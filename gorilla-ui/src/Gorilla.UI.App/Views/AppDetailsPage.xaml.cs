@@ -55,7 +55,13 @@ public sealed partial class AppDetailsPage : Page
 
     private void ResolveCanonicalItem()
     {
-        var item = string.IsNullOrWhiteSpace(_itemName) ? null : _viewModel.FindItem(_itemName);
+        var selected = _viewModel.SelectedItem;
+        var item = !string.IsNullOrWhiteSpace(_itemName) &&
+            selected is not null &&
+            string.Equals(selected.ItemName, _itemName, StringComparison.OrdinalIgnoreCase)
+                ? selected
+                : null;
+
         DataContext = item;
         DetailsContent.Visibility = item is null ? Visibility.Collapsed : Visibility.Visible;
         UnavailableContent.Visibility = item is null ? Visibility.Visible : Visibility.Collapsed;

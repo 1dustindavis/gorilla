@@ -111,10 +111,14 @@ public sealed class OperationTracker
             {
                 await foreach (var update in _client.StreamOperationStatusAsync(operationId, cancellationToken))
                 {
-                    _latest[operationId] = update;
-                    OnOperationsChanged();
+                    // A reconnect replays retained lifecycle events from the beginning.
+                    // Do not write a replayed earlier event back into the canonical
+                    // registry: that would regress Activity even though card/details
+                    // delivery is already deduplicated.
                     if (delivered.Add(EventIdentity(update)))
                     {
+                        _latest[operationId] = update;
+                        OnOperationsChanged();
                         onUpdate(update);
                     }
                     if (update.State == OperationState.Completed)

@@ -56,9 +56,15 @@ internal sealed class ActivityPageDriver
 
     public AutomationElement WaitForEntryContaining(string text, TimeSpan? timeout = null)
         => _session.WaitFor(
-            () => Items
-                .FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem))
-                .FirstOrDefault(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase)),
+            () => ListEntries().FirstOrDefault(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase)),
+            timeout
+        );
+
+    public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
+        => _session.WaitFor(
+            () => ListEntries().FirstOrDefault(item =>
+                item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
+                    .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase))),
             timeout
         );
 
@@ -67,18 +73,17 @@ internal sealed class ActivityPageDriver
     public void OpenDetails(string operationId)
     {
         WaitForOperation(operationId).Click();
-        _ = _session.WaitFor(
-            () => sessionElement("AppDetailsRoot")
-        );
+        _ = _session.WaitFor(() => ById("AppDetailsRoot"));
     }
 
     public void GoBack()
     {
         _session.WaitFor(() => ById("ActivityBackButton")?.AsButton()).Invoke();
-        _ = _session.WaitFor(
-            () => sessionElement("HomeHeading")
-        );
+        _ = _session.WaitFor(() => ById("HomeHeading"));
     }
+
+    private AutomationElement[] ListEntries()
+        => Items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
 
     private string NameOfDescendant(string operationId, string automationId)
     {
@@ -88,9 +93,6 @@ internal sealed class ActivityPageDriver
     }
 
     private AutomationElement? ById(string automationId)
-        => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
-
-    private AutomationElement? sessionElement(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
 
     private static string SafeName(AutomationElement element)

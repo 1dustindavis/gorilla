@@ -5,6 +5,7 @@ using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
 namespace Gorilla.UI.Core.Models;
 
 public sealed record AppDetailsPresentation(
+    string? Description,
     string ObservationText,
     string? AvailableVersion,
     string? InstalledVersion,
@@ -21,6 +22,7 @@ public sealed record AppDetailsPresentation(
     string? ActionFeedbackText
 )
 {
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
     public bool HasAvailableVersion => !string.IsNullOrWhiteSpace(AvailableVersion);
     public bool HasInstalledVersion => !string.IsNullOrWhiteSpace(InstalledVersion);
     public bool HasActiveOperation => !string.IsNullOrWhiteSpace(ActiveOperationTitle);
@@ -46,10 +48,11 @@ public static class AppDetailsPresentationMapper
         var latest = item.LatestOperation;
 
         return new AppDetailsPresentation(
+            Description: EmptyToNull(item.Description),
             ObservationText: ObservationText(item.ObservedState),
             AvailableVersion: EmptyToNull(item.TargetVersion),
             InstalledVersion: EmptyToNull(item.Observation.InstalledVersion),
-            ActiveOperationTitle: active is null ? null : ActiveOperationTitle(active.Action),
+            ActiveOperationTitle: active is null ? null : ActiveOperationTitle(item, active.Action),
             ActiveOperationState: active is null ? null : ActiveOperationState(active.State),
             ActiveOperationMessage: active is null ? null : EmptyToNull(active.Message),
             ProgressPercent: active?.ProgressPercent,
@@ -73,11 +76,22 @@ public static class AppDetailsPresentationMapper
         _ => "Status unavailable",
     };
 
-    private static string ActiveOperationTitle(CatalogAction action) => action switch
+    private static string ActiveOperationTitle(UiOptionalInstallItem item, CatalogAction action)
     {
-        CatalogAction.Remove => "Remove in progress",
-        _ => "Install in progress",
-    };
+        if (action == CatalogAction.Remove)
+        {
+            return "Remove in progress";
+        }
+        if (item.ObservedState == ObservedState.UpdateAvailable)
+        {
+            return "Update in progress";
+        }
+        if (item.ObservedState == ObservedState.Installed && item.Policy?.Selection == Selection.None)
+        {
+            return "Keep Installed in progress";
+        }
+        return "Install in progress";
+    }
 
     private static string ActiveOperationState(OperationState state) => state switch
     {
@@ -90,10 +104,7 @@ public static class AppDetailsPresentationMapper
         _ => "Working",
     };
 
-    private static string? LatestResultHeading(
-        UiOperationPresentation? active,
-        UiOperationPresentation? latest
-    )
+    private static string? LatestResultHeading(UiOperationPresentation? active, UiOperationPresentation? latest)
     {
         if (latest?.Result is not { } result)
         {

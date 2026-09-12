@@ -15,29 +15,47 @@ public sealed class OperationTracker
         _client = client;
     }
 
+    public event EventHandler? OperationsChanged;
+
     public async Task<IReadOnlyList<OperationStatusEvent>> RefreshKnownOperationsAsync(CancellationToken cancellationToken)
     {
         var snapshots = await _client.ListOperationsAsync(cancellationToken);
         var retainedIds = snapshots.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
+        var changed = false;
 
         foreach (var operation in snapshots)
         {
-            _latest[operation.OperationId] = operation;
+            if (!_latest.TryGetValue(operation.OperationId, out var existing) || existing != operation)
+            {
+                _latest[operation.OperationId] = operation;
+                changed = true;
+            }
         }
 
         // The service operation registry is authoritative. Missing IDs mean the
         // operation aged out or the service restarted; neither is a terminal
-        // success/failure result and neither should remain projected as active.
+        // success/failure result and neither should remain projected as activity.
         foreach (var operationId in _latest.Keys)
         {
-            if (!retainedIds.Contains(operationId))
+            if (!retainedIds.Contains(operationId) && _latest.TryRemove(operationId, out _))
             {
-                _latest.TryRemove(operationId, out _);
+                changed = true;
             }
+        }
+
+        if (changed)
+        {
+            OnOperationsChanged();
         }
 
         return snapshots;
     }
+
+    // Canonical Activity source. This is a snapshot of the same operation-ID keyed
+    // registry used by the card/details projections; Activity must not maintain a
+    // separate operation/history truth.
+    public IReadOnlyList<OperationStatusEvent> GetRetainedOperations()
+        => _latest.Values.ToArray();
 
     public bool TryGetLatest(string operationId, out OperationStatusEvent? operation)
     {
@@ -94,6 +112,7 @@ public sealed class OperationTracker
                 await foreach (var update in _client.StreamOperationStatusAsync(operationId, cancellationToken))
                 {
                     _latest[operationId] = update;
+                    OnOperationsChanged();
                     if (delivered.Add(EventIdentity(update)))
                     {
                         onUpdate(update);
@@ -116,6 +135,9 @@ public sealed class OperationTracker
             }
         }
     }
+
+    private void OnOperationsChanged()
+        => OperationsChanged?.Invoke(this, EventArgs.Empty);
 
     private static bool IsReconnectable(Exception ex)
         => ex is IOException or TimeoutException or OperationCanceledException;

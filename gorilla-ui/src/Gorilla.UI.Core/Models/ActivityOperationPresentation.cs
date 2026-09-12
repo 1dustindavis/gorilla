@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
@@ -61,7 +62,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         ? OperationDisplay.Details(Result)
         : Message;
 
-    public string TimestampText => TimestampUtc.ToLocalTime().ToString("g");
+    public string TimestampText => TimestampUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
 
     public string EntryAutomationId => $"ActivityOperation-{OperationId}";
     public string AppAutomationId => $"ActivityApp-{OperationId}";

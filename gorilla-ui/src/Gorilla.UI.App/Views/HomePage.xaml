@@ -193,6 +193,28 @@
                 </GridView.ItemTemplate>
             </GridView>
 
+            <StackPanel
+                x:Name="InitialLoadingState"
+                Visibility="Collapsed"
+                HorizontalAlignment="Left"
+                Spacing="10"
+                AutomationProperties.AutomationId="CatalogInitialLoading"
+                AutomationProperties.LiveSetting="Polite">
+                <ProgressRing Width="28" Height="28" IsActive="True" />
+                <TextBlock Text="Loading App Catalog…" FontSize="18" />
+            </StackPanel>
+
+            <StackPanel
+                x:Name="LoadFailedState"
+                Visibility="Collapsed"
+                HorizontalAlignment="Left"
+                Spacing="6"
+                AutomationProperties.AutomationId="CatalogLoadFailed"
+                AutomationProperties.LiveSetting="Polite">
+                <TextBlock Text="Couldn't load the App Catalog." FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="Use Refresh to try again." TextWrapping="Wrap" />
+            </StackPanel>
+
             <TextBlock
                 x:Name="SearchNoResults"
                 Visibility="Collapsed"
@@ -204,10 +226,11 @@
             <TextBlock
                 x:Name="CatalogEmpty"
                 Visibility="Collapsed"
-                Text="No software is currently available."
+                Text="No optional software available"
                 FontSize="18"
                 TextWrapping="Wrap"
-                AutomationProperties.AutomationId="CatalogEmpty" />
+                AutomationProperties.AutomationId="CatalogEmpty"
+                AutomationProperties.LiveSetting="Polite" />
         </Grid>
     </Grid>
 </Page>

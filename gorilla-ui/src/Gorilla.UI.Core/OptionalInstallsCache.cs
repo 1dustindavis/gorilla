@@ -140,6 +140,12 @@ public sealed class OptionalInstallsCacheCoordinator
 
     private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(CancellationToken cancellationToken)
     {
+        // Do not raise StateChanged synchronously while RefreshAsync still owns the
+        // coordination lock and has not yet published _refreshTask. A subscriber may
+        // legitimately observe refresh state and request Refresh again; yielding first
+        // guarantees that request joins the already-published task instead of racing it.
+        await Task.Yield();
+
         SetState(_state with
         {
             IsRefreshing = true,
@@ -191,6 +197,11 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            SetState(_state with
+            {
+                IsInitialLoading = false,
+                IsRefreshing = false,
+            });
             throw;
         }
         catch (Exception ex)

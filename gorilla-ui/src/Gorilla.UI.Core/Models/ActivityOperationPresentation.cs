@@ -53,11 +53,11 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     };
 
     public string StateText => IsActive
-        ? State.ToString()
-        : Result?.Outcome.ToString() ?? OperationState.Completed.ToString();
+        ? ActiveStateLabel(State)
+        : Result is null ? "Completed" : OutcomeLabel(Result.Outcome);
 
     public string DetailText => IsTerminal && Result is not null
-        ? (string.IsNullOrWhiteSpace(Result.Message) ? Result.Code : Result.Message)
+        ? OperationDisplay.Details(Result)
         : Message;
 
     public string TimestampText => TimestampUtc.ToLocalTime().ToString("g");
@@ -99,6 +99,27 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private static string ActiveStateLabel(OperationState state) => state switch
+    {
+        OperationState.Queued => "Queued",
+        OperationState.Validating => "Preparing",
+        OperationState.Downloading => "Downloading",
+        OperationState.Installing => "Installing",
+        OperationState.Removing => "Removing",
+        OperationState.Completed => "Completing",
+        _ => "Working",
+    };
+
+    private static string OutcomeLabel(Outcome outcome) => outcome switch
+    {
+        Outcome.Succeeded => "Succeeded",
+        Outcome.AlreadySatisfied => "Already satisfied",
+        Outcome.Failed => "Failed",
+        Outcome.Unverified => "Unable to verify",
+        Outcome.Interrupted => "Interrupted",
+        _ => outcome.ToString(),
+    };
 
     private void SetField<T>(ref T field, T value, string propertyName)
     {

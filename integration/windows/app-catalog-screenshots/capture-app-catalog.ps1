@@ -139,6 +139,19 @@ function Wait-ForMainWindow {
     throw "Timed out waiting for Gorilla UI main window"
 }
 
+function Get-WindowSize {
+    param([Parameter(Mandatory)][IntPtr]$Handle)
+
+    [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
+    if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
+        throw "Unable to read Gorilla UI window bounds"
+    }
+    return [pscustomobject]@{
+        Width = $rect.Right - $rect.Left
+        Height = $rect.Bottom - $rect.Top
+    }
+}
+
 function Set-CanonicalWindow {
     param([Parameter(Mandatory)][IntPtr]$Handle)
 
@@ -156,6 +169,11 @@ function Set-CanonicalWindow {
     }
     [ScreenshotNativeMethods]::SetForegroundWindow($Handle) | Out-Null
     Start-Sleep -Milliseconds 500
+
+    $actual = Get-WindowSize -Handle $Handle
+    if ($actual.Width -ne $WindowWidth -or $actual.Height -ne $WindowHeight) {
+        throw "Canonical Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $($actual.Width) x $($actual.Height)."
+    }
 }
 
 function Get-ElementById {
@@ -211,6 +229,41 @@ function Click-Element {
     [ScreenshotNativeMethods]::mouse_event([ScreenshotNativeMethods]::MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
 }
 
+function Open-DetailsWithRetry {
+    param(
+        [Parameter(Mandatory)][System.Windows.Automation.AutomationElement]$Root,
+        [Parameter(Mandatory)][string]$ItemName,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        # Reacquire the currently realized card and title on every attempt. GridView
+        # virtualization/settling can invalidate or race a pointer click after filtering.
+        $item = Wait-ForElementById -Root $Root -AutomationId $ItemName -TimeoutSeconds 2
+        try {
+            $scrollPattern = $item.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
+            ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
+        } catch {
+            # The card may already be fully visible or not expose ScrollItemPattern.
+        }
+        $item.SetFocus()
+        Start-Sleep -Milliseconds 250
+
+        $title = Wait-ForElementById -Root $item -AutomationId "CatalogDisplayName" -TimeoutSeconds 2
+        Click-Element -Element $title
+
+        $attemptDeadline = (Get-Date).AddSeconds(2)
+        do {
+            $details = Get-ElementById -Root $Root -AutomationId "AppDetailsRoot"
+            if ($null -ne $details) { return $details }
+            Start-Sleep -Milliseconds 200
+        } while ((Get-Date) -lt $attemptDeadline -and (Get-Date) -lt $deadline)
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out after $TimeoutSeconds seconds opening details for '$ItemName'."
+}
+
 function Save-WindowScreenshot {
     param(
         [Parameter(Mandatory)][IntPtr]$Handle,
@@ -224,6 +277,10 @@ function Save-WindowScreenshot {
 
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
+    if ($width -ne $WindowWidth -or $height -ne $WindowHeight) {
+        throw "Refusing screenshot '$Name' because window is $width x $height instead of canonical $WindowWidth x $WindowHeight."
+    }
+
     $bitmap = New-Object System.Drawing.Bitmap($width, $height)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
@@ -334,24 +391,29 @@ debug: true
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-mixed-actions.png"
 
     Set-SearchText -Root $root -Text ""
-    $sevenZipItem = Wait-ForElementById -Root $root -AutomationId "SevenZip"
-    $displayName = Wait-ForElementById -Root $sevenZipItem -AutomationId "CatalogDisplayName"
-    Click-Element -Element $displayName
-    [void](Wait-ForElementById -Root $root -AutomationId "AppDetailsRoot")
+    [void](Open-DetailsWithRetry -Root $root -ItemName "SevenZip")
     Start-Sleep -Milliseconds 500
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-detail.png"
 
     Write-AutomationTree -Root $root -Path (Join-Path $OutputDirectory "automation-tree.txt")
 
     [ScreenshotNativeMethods+RECT]$actualRect = New-Object ScreenshotNativeMethods+RECT
-    [ScreenshotNativeMethods]::GetWindowRect($windowHandle, [ref]$actualRect) | Out-Null
+    if (-not [ScreenshotNativeMethods]::GetWindowRect($windowHandle, [ref]$actualRect)) {
+        throw "Unable to read final Gorilla UI window bounds"
+    }
+    $actualWidth = $actualRect.Right - $actualRect.Left
+    $actualHeight = $actualRect.Bottom - $actualRect.Top
+    if ($actualWidth -ne $WindowWidth -or $actualHeight -ne $WindowHeight) {
+        throw "Final Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $actualWidth x $actualHeight."
+    }
+
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen
     [ordered]@{
         ref = $env:GITHUB_REF
         commit = $env:GITHUB_SHA
         capturedAtUtc = [DateTime]::UtcNow.ToString("o")
         requestedWindow = [ordered]@{ width = $WindowWidth; height = $WindowHeight }
-        actualWindow = [ordered]@{ width = $actualRect.Right - $actualRect.Left; height = $actualRect.Bottom - $actualRect.Top }
+        actualWindow = [ordered]@{ width = $actualWidth; height = $actualHeight }
         primaryScreen = [ordered]@{ width = $screen.Bounds.Width; height = $screen.Bounds.Height }
         workingArea = [ordered]@{ width = $screen.WorkingArea.Width; height = $screen.WorkingArea.Height }
         dpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)

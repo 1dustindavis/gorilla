@@ -177,7 +177,7 @@ public sealed class CatalogRefreshStateTests
             DateTimeOffset.Parse("2026-09-12T18:00:00Z"),
             "one",
             CatalogAction.Install,
-            new Result(ResultOutcome.Succeeded, "ok", "Installed")
+            new Result(Outcome.Succeeded, "ok", Message: "Installed")
         );
         var responses = new Queue<IReadOnlyList<OptionalInstallItem>>();
         responses.Enqueue([firstItem]);

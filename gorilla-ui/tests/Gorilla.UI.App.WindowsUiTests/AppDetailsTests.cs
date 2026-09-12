@@ -25,7 +25,7 @@ public sealed class AppDetailsTests
             _ = home.WaitForItem(InstalledFixtureItemName);
             Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
 
-            home.WaitForCard(InstalledFixtureItemName).Click();
+            home.OpenDetails(InstalledFixtureItemName);
             var details = new AppDetailsPageDriver(session);
             _ = details.Root;
 
@@ -52,7 +52,7 @@ public sealed class AppDetailsTests
         {
             var home = new HomePageDriver(session);
             home.WaitForItemStatus(UpdateFixtureItemName, "Update available", TimeSpan.FromSeconds(30));
-            home.WaitForCard(UpdateFixtureItemName).Click();
+            home.OpenDetails(UpdateFixtureItemName);
 
             var updateDetails = new AppDetailsPageDriver(session);
             updateDetails.WaitForObservation("Update available");
@@ -64,7 +64,7 @@ public sealed class AppDetailsTests
 
             home = new HomePageDriver(session);
             home.WaitForItemStatus(InstalledFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
-            home.WaitForCard(InstalledFixtureItemName).Click();
+            home.OpenDetails(InstalledFixtureItemName);
 
             var installedDetails = new AppDetailsPageDriver(session);
             installedDetails.WaitForObservation("Installed");
@@ -85,7 +85,7 @@ public sealed class AppDetailsTests
 
             home.PrimaryActionButton(SlowFixtureItemName).Invoke();
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
-            home.WaitForCard(SlowFixtureItemName).Click();
+            home.OpenDetails(SlowFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
             details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
@@ -107,7 +107,7 @@ public sealed class AppDetailsTests
             var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
-            home.WaitForCard(SlowFixtureItemName).Click();
+            home.OpenDetails(SlowFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
             Assert.Equal("Install", details.PrimaryAction.Name);
@@ -130,7 +130,7 @@ public sealed class AppDetailsTests
         {
             var home = new HomePageDriver(session);
             _ = home.WaitForItem(FailureFixtureItemName);
-            home.WaitForCard(FailureFixtureItemName).Click();
+            home.OpenDetails(FailureFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
             details.PrimaryAction.Invoke();

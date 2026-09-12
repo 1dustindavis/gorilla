@@ -157,13 +157,12 @@ function Set-CanonicalWindow {
 
     [ScreenshotNativeMethods]::ShowWindow($Handle, [ScreenshotNativeMethods]::SW_RESTORE) | Out-Null
     $workingArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    if ($WindowWidth -gt $workingArea.Width -or $WindowHeight -gt $workingArea.Height) {
+        throw "Requested $WindowWidth x $WindowHeight window does not fit in runner working area $($workingArea.Width) x $($workingArea.Height)"
+    }
 
-    # GitHub-hosted Windows sessions currently expose a smaller interactive desktop than
-    # our canonical documentation window. Keep the top-left of Gorilla visible for UIA
-    # interactions and allow the right/bottom edges to extend beyond the physical desktop.
-    # Screenshots are captured from the DWM window surface, not from the screen DC.
-    $x = $workingArea.Left
-    $y = $workingArea.Top
+    $x = $workingArea.Left + [Math]::Floor(($workingArea.Width - $WindowWidth) / 2)
+    $y = $workingArea.Top + [Math]::Floor(($workingArea.Height - $WindowHeight) / 2)
     $flags = [ScreenshotNativeMethods]::SWP_NOZORDER -bor [ScreenshotNativeMethods]::SWP_NOACTIVATE
     if (-not [ScreenshotNativeMethods]::SetWindowPos($Handle, [IntPtr]::Zero, $x, $y, $WindowWidth, $WindowHeight, $flags)) {
         throw "Unable to size Gorilla UI window"
@@ -282,26 +281,18 @@ function Save-WindowScreenshot {
         throw "Refusing screenshot '$Name' because window is $width x $height instead of canonical $WindowWidth x $WindowHeight."
     }
 
-    $path = Join-Path $OutputDirectory $Name
-    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
-    $handleValue = $Handle.ToInt64()
-
-    # WinApp CLI's default screenshot path targets the HWND's DWM-composited surface
-    # using Windows.Graphics.Capture, with PrintWindow fallback. Unlike CopyFromScreen,
-    # this can capture portions of a 1280x800 window that extend beyond the runner desktop.
-    & winapp ui screenshot -w $handleValue --output $path
-    if ($LASTEXITCODE -ne 0) {
-        throw "WinApp CLI failed to capture screenshot '$Name' for HWND $handleValue."
-    }
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "WinApp CLI reported success but did not create screenshot '$path'."
-    }
-
-    $image = [System.Drawing.Image]::FromFile($path)
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
-        Write-Host "Captured $path ($($image.Width)x$($image.Height))"
+        [ScreenshotNativeMethods]::SetForegroundWindow($Handle) | Out-Null
+        Start-Sleep -Milliseconds 250
+        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+        $path = Join-Path $OutputDirectory $Name
+        $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+        Write-Host "Captured $path"
     } finally {
-        $image.Dispose()
+        $graphics.Dispose()
+        $bitmap.Dispose()
     }
 }
 
@@ -426,7 +417,6 @@ debug: true
         primaryScreen = [ordered]@{ width = $screen.Bounds.Width; height = $screen.Bounds.Height }
         workingArea = [ordered]@{ width = $screen.WorkingArea.Width; height = $screen.WorkingArea.Height }
         dpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
-        capture = "winapp-window-surface"
         theme = "runner-default-light"
         catalog = "realistic-open-source-fixture"
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutputDirectory "manifest.json")

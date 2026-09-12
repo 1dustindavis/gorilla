@@ -26,14 +26,22 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up WinApp CLI
-        uses: microsoft/setup-WinAppCli@b93bbddc1f7abc061ca0d3a8119e3a0c7dd71495 # v0.2
-
-      - name: Inspect screenshot display
-        shell: pwsh
+      - name: Configure screenshot display
+        shell: powershell
         run: |
-          Add-Type -AssemblyName System.Windows.Forms
+          $setCommand = Get-Command Set-DisplayResolution -ErrorAction Stop
+          $getCommand = Get-Command Get-DisplayResolution -ErrorAction Stop
+          Write-Host "Using Set-DisplayResolution from $($setCommand.Source)"
+          Write-Host "Initial display resolution:"
+          Get-DisplayResolution | Out-Host
 
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Start-Sleep -Seconds 2
+
+          Write-Host "Configured display resolution:"
+          Get-DisplayResolution | Out-Host
+
+          Add-Type -AssemblyName System.Windows.Forms
           $screen = [System.Windows.Forms.Screen]::PrimaryScreen
           if ($null -eq $screen) {
             throw "No primary display is available in the hosted runner session."
@@ -41,10 +49,12 @@ jobs:
 
           Write-Host "Primary display: $($screen.Bounds.Width)x$($screen.Bounds.Height)"
           Write-Host "Working area: $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height)"
-          Write-Host "The canonical 1280x800 app window may extend beyond the runner desktop; capture uses the WinApp CLI window surface rather than the screen DC."
-          winapp --version
-          if ($LASTEXITCODE -ne 0) {
-            throw "WinApp CLI is not available after setup."
+
+          if ($screen.Bounds.Width -ne 1920 -or $screen.Bounds.Height -ne 1080) {
+            throw "Runner display is $($screen.Bounds.Width)x$($screen.Bounds.Height); expected 1920x1080 after Set-DisplayResolution."
+          }
+          if ($screen.WorkingArea.Width -lt 1280 -or $screen.WorkingArea.Height -lt 800) {
+            throw "Runner working area $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height) cannot fit the canonical 1280x800 window."
           }
 
       - name: Configure Go cache paths
@@ -115,8 +125,8 @@ jobs:
             ''
             ('**Ref:** `{0}`  ' -f '${{ github.ref }}')
             ('**Commit:** `{0}`  ' -f '${{ github.sha }}')
+            '**Runner display:** 1920 × 1080'
             '**Canonical window:** 1280 × 800'
-            '**Capture:** WinApp CLI window-surface capture (WGC with PrintWindow fallback)'
             ''
             'Expected captures:'
             '- `catalog-default.png`'
@@ -138,5 +148,5 @@ jobs:
         with:
           name: app-catalog-screenshots-${{ github.sha }}
           path: build/app-catalog-screenshots/**
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30

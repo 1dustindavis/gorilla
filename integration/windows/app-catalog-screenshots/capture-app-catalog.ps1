@@ -122,6 +122,7 @@ function Set-RegistryFixture {
     New-Item -Path $Path -Force | Out-Null
     Set-ItemProperty -Path $Path -Name DisplayName -Value $DisplayName
     Set-ItemProperty -Path $Path -Name DisplayVersion -Value $DisplayVersion
+    Set-ItemProperty -Path $Path -Name UninstallString -Value "C:\Windows\System32\cmd.exe /c exit 0"
 }
 
 function Wait-FixtureServer {
@@ -395,6 +396,8 @@ try {
         Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
     }
 
+    # Seed realistic observed states. Gorilla's registry scanner requires
+    # DisplayName, DisplayVersion, and UninstallString for a valid entry.
     Set-RegistryFixture -Path $seededRegistryPaths[0] -DisplayName "Gorilla Screenshot 7-Zip" -DisplayVersion "23.01"
     Set-RegistryFixture -Path $seededRegistryPaths[1] -DisplayName "Gorilla Screenshot Audacity" -DisplayVersion "3.7.3"
     Set-RegistryFixture -Path $seededRegistryPaths[2] -DisplayName "Gorilla Screenshot Git" -DisplayVersion "2.50.1"

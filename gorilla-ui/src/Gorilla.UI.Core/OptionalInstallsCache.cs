@@ -141,8 +141,8 @@ public sealed class OptionalInstallsCacheCoordinator
 
     public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
-        var acceptSnapshot = _defaultSnapshotAcceptor
-            ?? static (_, _) => Task.CompletedTask;
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot =
+            _defaultSnapshotAcceptor ?? ((_, _) => Task.CompletedTask);
         return RefreshAsync(acceptSnapshot, cancellationToken);
     }
 

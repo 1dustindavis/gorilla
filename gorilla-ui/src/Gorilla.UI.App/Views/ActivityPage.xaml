@@ -74,20 +74,22 @@
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="8">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
-                                <TextBlock
-                                    Text="{Binding DisplayName}"
-                                    FontSize="17"
-                                    FontWeight="SemiBold"
-                                    TextWrapping="Wrap"
-                                    AutomationProperties.AutomationId="{Binding AppAutomationId}" />
-                                <TextBlock
-                                    Grid.Column="1"
-                                    Text="{Binding TimestampText}"
-                                    Opacity="0.65"
-                                    FontSize="12" />
+                            <StackPanel Spacing="7">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock
+                                        Text="{Binding DisplayName}"
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        TextWrapping="Wrap"
+                                        AutomationProperties.AutomationId="{Binding AppAutomationId}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding TimestampText}"
+                                        Opacity="0.65"
+                                        FontSize="12" />
+                                </Grid>
 
-                                <StackPanel Grid.Row="1" Margin="0,5,0,0" Orientation="Horizontal" Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock
                                         Text="{Binding ActionLabel}"
                                         FontWeight="SemiBold"
@@ -99,9 +101,6 @@
                                 </StackPanel>
 
                                 <ProgressBar
-                                    Grid.Row="2"
-                                    Grid.ColumnSpan="2"
-                                    Margin="0,8,0,0"
                                     Minimum="0"
                                     Maximum="100"
                                     Value="{Binding ProgressValue}"
@@ -110,14 +109,53 @@
                                     AutomationProperties.AutomationId="{Binding ProgressAutomationId}" />
 
                                 <TextBlock
-                                    Grid.Row="3"
-                                    Grid.ColumnSpan="2"
-                                    Margin="0,7,0,0"
                                     Text="{Binding DetailText}"
                                     TextWrapping="Wrap"
                                     Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     AutomationProperties.AutomationId="{Binding DetailAutomationId}" />
-                            </Grid>
+
+                                <StackPanel
+                                    Spacing="6"
+                                    Visibility="{Binding HasRecovery, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock
+                                        Text="{Binding FailureTitle}"
+                                        FontWeight="SemiBold"
+                                        TextWrapping="Wrap"
+                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}"
+                                        AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock
+                                        Text="{Binding FailureMessage}"
+                                        TextWrapping="Wrap"
+                                        Visibility="{Binding HasFailureMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <Button
+                                        Content="{Binding RetryLabel}"
+                                        HorizontalAlignment="Left"
+                                        Click="RetryButton_Click"
+                                        Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="{Binding RetryAutomationId}"
+                                        AutomationProperties.Name="Retry operation" />
+                                    <TextBlock
+                                        Text="{Binding RetryUnavailableReason}"
+                                        TextWrapping="Wrap"
+                                        Opacity="0.75"
+                                        Visibility="{Binding HasRetryUnavailableReason, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="{Binding RetryUnavailableAutomationId}" />
+                                    <Expander
+                                        Header="Technical details"
+                                        Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="{Binding TechnicalDetailsAutomationId}">
+                                        <TextBox
+                                            Text="{Binding TechnicalDetails}"
+                                            IsReadOnly="True"
+                                            AcceptsReturn="True"
+                                            TextWrapping="Wrap"
+                                            BorderThickness="0"
+                                            Background="Transparent"
+                                            AutomationProperties.AutomationId="{Binding TechnicalDetailsContentAutomationId}"
+                                            AutomationProperties.Name="Operation technical details" />
+                                    </Expander>
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
                     </DataTemplate>
                 </ListView.ItemTemplate>

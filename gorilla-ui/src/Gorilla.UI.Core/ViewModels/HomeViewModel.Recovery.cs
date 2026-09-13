@@ -9,26 +9,7 @@ public sealed partial class HomeViewModel
     private const string RetryActiveFeedback = "Another operation for this app is already active.";
 
     public void RefreshActivityRecoveryPresentations()
-    {
-        foreach (var activity in ActivityItems)
-        {
-            if (!_operationTracker.TryGetLatest(activity.OperationId, out var operation) || operation is null)
-            {
-                continue;
-            }
-
-            var item = FindItem(operation.ItemName);
-            var active = _operationTracker.GetActiveForItem(operation.ItemName);
-            var conflictingActive = active is not null &&
-                !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
-
-            activity.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
-                operation,
-                item,
-                conflictingActive
-            ));
-        }
-    }
+        => RebuildActivityProjection();
 
     public async Task RetryAsync(string historicalOperationId, CancellationToken cancellationToken)
     {
@@ -57,7 +38,7 @@ public sealed partial class HomeViewModel
             // feedback is bounded to the admission race and cleared by the accepted
             // attempt once it finishes, so it cannot survive as stale terminal state.
             item.TransientFeedback = RetryActiveFeedback;
-            RefreshActivityRecoveryPresentations();
+            RebuildActivityProjection();
             return;
         }
 
@@ -67,7 +48,7 @@ public sealed partial class HomeViewModel
         if (!currentDecision.Allowed)
         {
             item.TransientFeedback = OperationRecoveryPresentationMapper.ReasonText(currentDecision.Reason);
-            RefreshActivityRecoveryPresentations();
+            RebuildActivityProjection();
             return;
         }
 
@@ -86,6 +67,6 @@ public sealed partial class HomeViewModel
         {
             item.TransientFeedback = null;
         }
-        RefreshActivityRecoveryPresentations();
+        RebuildActivityProjection();
     }
 }

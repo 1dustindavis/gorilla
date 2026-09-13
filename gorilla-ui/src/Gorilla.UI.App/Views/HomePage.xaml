@@ -197,23 +197,26 @@
                 x:Name="InitialLoadingState"
                 Visibility="Collapsed"
                 HorizontalAlignment="Left"
-                Spacing="10"
-                AutomationProperties.AutomationId="CatalogInitialLoading"
-                AutomationProperties.AccessibilityView="Content"
-                AutomationProperties.LiveSetting="Polite">
+                Spacing="10">
                 <ProgressRing Width="28" Height="28" IsActive="True" />
-                <TextBlock Text="Loading App Catalog…" FontSize="18" />
+                <TextBlock
+                    Text="Loading App Catalog…"
+                    FontSize="18"
+                    AutomationProperties.AutomationId="CatalogInitialLoading"
+                    AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
 
             <StackPanel
                 x:Name="LoadFailedState"
                 Visibility="Collapsed"
                 HorizontalAlignment="Left"
-                Spacing="6"
-                AutomationProperties.AutomationId="CatalogLoadFailed"
-                AutomationProperties.AccessibilityView="Content"
-                AutomationProperties.LiveSetting="Polite">
-                <TextBlock Text="Couldn't load the App Catalog." FontSize="18" FontWeight="SemiBold" />
+                Spacing="6">
+                <TextBlock
+                    Text="Couldn't load the App Catalog."
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    AutomationProperties.AutomationId="CatalogLoadFailed"
+                    AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="Use Refresh to try again." TextWrapping="Wrap" />
             </StackPanel>
 

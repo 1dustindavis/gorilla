@@ -79,10 +79,13 @@ internal sealed class ActivityPageDriver
 
     public string OpenAndReadTechnicalDetails(string operationId)
     {
-        // WinUI exposes Expander through UI Automation as an invokable Button. Use
-        // its automation pattern rather than a coordinate click so the test does
-        // not depend on the disclosure header's exact pixel layout.
-        TechnicalDetailsDisclosure(operationId).AsButton().Invoke();
+        // WinUI exposes Expander as a Button control type, but its semantic UIA
+        // contract is ExpandCollapse rather than Invoke. Exercise that pattern
+        // directly after bringing the containing virtualized row into view.
+        var disclosure = TechnicalDetailsDisclosure(operationId);
+        var expandCollapse = disclosure.Patterns.ExpandCollapse.Pattern;
+        expandCollapse.Expand();
+
         return _session.WaitFor(
             () => ScrollOperationIntoView(operationId)
                 .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}"))

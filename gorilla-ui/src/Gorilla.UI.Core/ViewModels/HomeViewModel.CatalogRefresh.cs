@@ -18,8 +18,14 @@ public sealed partial class HomeViewModel
     public async Task RefreshCatalogAsync(CancellationToken cancellationToken)
     {
         EnsureCatalogStateSubscription();
-        var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
-        ApplyItems(refreshed.Items);
+        await _cacheCoordinator.RefreshAsync(
+            (items, _) =>
+            {
+                ApplyItems(items);
+                return Task.CompletedTask;
+            },
+            cancellationToken
+        );
     }
 
     private void EnsureCatalogStateSubscription()

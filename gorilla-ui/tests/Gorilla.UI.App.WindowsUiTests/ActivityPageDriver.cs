@@ -58,27 +58,33 @@ internal sealed class ActivityPageDriver
         => NameOfDescendant(operationId, $"ActivityRetryUnavailable-{operationId}");
 
     public Button RetryButton(string operationId)
-        => _session.WaitFor(
-            () => WaitForOperation(operationId)
-                .FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}"))
-                ?.AsButton()
+    {
+        var entry = ScrollOperationIntoView(operationId);
+        return _session.WaitFor(
+            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}"))?.AsButton()
         );
+    }
 
     public bool HasRetryButton(string operationId)
         => WaitForOperation(operationId)
             .FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
 
     public AutomationElement TechnicalDetailsDisclosure(string operationId)
-        => _session.WaitFor(
-            () => WaitForOperation(operationId)
-                .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}"))
+    {
+        var entry = ScrollOperationIntoView(operationId);
+        return _session.WaitFor(
+            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}"))
         );
+    }
 
     public string OpenAndReadTechnicalDetails(string operationId)
     {
-        TechnicalDetailsDisclosure(operationId).Click();
+        // WinUI exposes Expander through UI Automation as an invokable Button. Use
+        // its automation pattern rather than a coordinate click so the test does
+        // not depend on the disclosure header's exact pixel layout.
+        TechnicalDetailsDisclosure(operationId).AsButton().Invoke();
         return _session.WaitFor(
-            () => WaitForOperation(operationId)
+            () => ScrollOperationIntoView(operationId)
                 .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}"))
                 ?.AsTextBox()
         ).Text;
@@ -113,7 +119,7 @@ internal sealed class ActivityPageDriver
 
     public void OpenDetails(string operationId)
     {
-        var entry = WaitForOperation(operationId);
+        var entry = ScrollOperationIntoView(operationId);
         var nonActionTarget = _session.WaitFor(
             () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
         );
@@ -125,6 +131,14 @@ internal sealed class ActivityPageDriver
     {
         _session.WaitFor(() => ById("ActivityBackButton")?.AsButton()).Invoke();
         _ = _session.WaitFor(() => ById("HomeHeading"));
+    }
+
+    private AutomationElement ScrollOperationIntoView(string operationId)
+    {
+        var entry = WaitForOperation(operationId);
+        entry.AsListBoxItem().ScrollIntoView();
+        _session.WaitUntil(() => !entry.IsOffscreen);
+        return entry;
     }
 
     private AutomationElement[] ListEntries()

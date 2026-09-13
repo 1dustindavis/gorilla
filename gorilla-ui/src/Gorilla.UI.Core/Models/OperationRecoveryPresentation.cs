@@ -226,7 +226,8 @@ public static class OperationRecoveryPresentationMapper
         {
             text.AppendLine(CultureInfo.InvariantCulture, $"Operation message: {operationMessage}");
         }
-        text.Append(CultureInfo.CurrentCulture, $"Time: {timestampUtc.ToLocalTime():g}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Timestamp: {timestampUtc:O}");
+        text.Append(CultureInfo.CurrentCulture, $"Local time: {timestampUtc.ToLocalTime():g}");
         return text.ToString();
     }
 

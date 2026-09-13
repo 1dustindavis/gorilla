@@ -34,6 +34,7 @@ public sealed class CatalogRefreshApplicationOrderingTests
         Assert.False(applied);
         Assert.False(refresh.IsCompleted);
         Assert.True(coordinator.State.IsRefreshing);
+        Assert.False(coordinator.State.HasUsableData);
         Assert.False(coordinator.State.IsLive);
         Assert.Null(coordinator.State.LastSuccessfulRefreshUtc);
 
@@ -51,6 +52,7 @@ public sealed class CatalogRefreshApplicationOrderingTests
         await refresh.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(applied);
+        Assert.True(coordinator.State.HasUsableData);
         Assert.True(coordinator.State.IsLive);
         Assert.False(coordinator.State.IsRefreshing);
         Assert.NotNull(coordinator.State.LastSuccessfulRefreshUtc);

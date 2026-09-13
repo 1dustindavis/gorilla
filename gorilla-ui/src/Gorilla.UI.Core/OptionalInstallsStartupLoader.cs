@@ -17,7 +17,22 @@ public sealed class OptionalInstallsStartupLoader
         CancellationToken cancellationToken
     )
     {
-        var cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        OptionalInstallsCacheDocument? cached = null;
+        try
+        {
+            cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // An unreadable or invalid fallback cache is not authoritative. Treat it
+            // as absent and continue to the live service instead of aborting session
+            // initialization before a live catalog request can be attempted.
+        }
+
         if (cached is not null)
         {
             applyCachedItems(cached.Items);
@@ -27,11 +42,18 @@ public sealed class OptionalInstallsStartupLoader
         {
             var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
             applyRefreshedItems(refreshed.Items);
-            return string.Empty;
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return $"Showing cached data. Refresh failed: {ex.Message}";
+            throw;
         }
+        catch
+        {
+            // Catalog load/refresh failures are represented by the coordinator's
+            // explicit CatalogDataState. WarningBanner remains reserved for other
+            // service/operation infrastructure warnings.
+        }
+
+        return string.Empty;
     }
 }

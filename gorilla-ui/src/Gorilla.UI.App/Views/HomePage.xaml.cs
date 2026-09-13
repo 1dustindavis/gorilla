@@ -16,7 +16,6 @@ public sealed partial class HomePage : Page
 {
     private readonly AppCatalogSession _session;
     private long _serviceWarningTextChangedToken;
-    private bool _hasInitialized;
     private bool _isObservingPageState;
 
     public HomeViewModel ViewModel { get; }
@@ -36,7 +35,6 @@ public sealed partial class HomePage : Page
     {
         StartObservingPageState();
         await RunSafelyAsync(_session.EnsureInitializedAsync);
-        _hasInitialized = true;
         UpdateEmptyStates();
         UpdateCardWidths(CatalogItems.ActualWidth);
     }
@@ -84,7 +82,8 @@ public sealed partial class HomePage : Page
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(HomeViewModel.SearchQuery))
+        if (e.PropertyName == nameof(HomeViewModel.SearchQuery) ||
+            e.PropertyName == nameof(HomeViewModel.CatalogState))
         {
             UpdateEmptyStates();
         }
@@ -97,23 +96,36 @@ public sealed partial class HomePage : Page
 
     private void UpdateEmptyStates()
     {
-        if (!_hasInitialized)
-        {
-            SearchNoResults.Visibility = Visibility.Collapsed;
-            CatalogEmpty.Visibility = Visibility.Collapsed;
-            return;
-        }
-
+        var state = ViewModel.CatalogState;
+        var initialLoading = state.IsInitialLoading && !state.HasUsableData;
+        var loadFailed = state.HasLoadFailure;
+        var successfulEmpty = state.IsSuccessfulEmpty;
         var query = ViewModel.SearchQuery;
         var noVisibleItems = ViewModel.Items.Count == 0;
         var hasSearch = !string.IsNullOrWhiteSpace(query);
 
-        SearchNoResults.Visibility = hasSearch && noVisibleItems
+        InitialLoadingState.Visibility = initialLoading
             ? Visibility.Visible
             : Visibility.Collapsed;
+        LoadFailedState.Visibility = loadFailed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        SearchNoResults.Visibility = !initialLoading &&
+            !loadFailed &&
+            state.HasUsableData &&
+            !successfulEmpty &&
+            hasSearch &&
+            noVisibleItems
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         SearchNoResults.Text = hasSearch ? $"No apps match \"{query}\"." : string.Empty;
 
-        CatalogEmpty.Visibility = !hasSearch && noVisibleItems
+        CatalogEmpty.Visibility = successfulEmpty
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        CatalogItems.Visibility = state.HasUsableData && !successfulEmpty
             ? Visibility.Visible
             : Visibility.Collapsed;
     }

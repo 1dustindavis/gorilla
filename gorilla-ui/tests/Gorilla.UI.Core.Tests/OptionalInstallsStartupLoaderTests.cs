@@ -14,7 +14,8 @@ public class OptionalInstallsStartupLoaderTests
         var cacheStore = new InMemoryCacheStore(new OptionalInstallsCacheDocument(cachedNow, [MakeItem("CachedVLC", cachedNow)]));
         var refreshReady = new TaskCompletionSource<IReadOnlyList<OptionalInstallItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new FakeClient { ListAsync = _ => refreshReady.Task };
-        var loader = new OptionalInstallsStartupLoader(new OptionalInstallsCacheCoordinator(client, cacheStore));
+        var coordinator = new OptionalInstallsCacheCoordinator(client, cacheStore);
+        var loader = new OptionalInstallsStartupLoader(coordinator);
 
         var applyOrder = new ConcurrentQueue<string>();
         var cachedApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,6 +39,7 @@ public class OptionalInstallsStartupLoaderTests
 
         await cachedApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Null(refreshedItems);
+        Assert.True(coordinator.State.IsCached);
 
         var refreshNow = DateTimeOffset.Parse("2026-02-19T18:11:00Z");
         refreshReady.SetResult([MakeItem("FreshChrome", refreshNow)]);
@@ -46,6 +48,7 @@ public class OptionalInstallsStartupLoaderTests
         Assert.Equal(string.Empty, warning);
         Assert.Equal("CachedVLC", Assert.Single(cachedItems!).ItemName);
         Assert.Equal("FreshChrome", Assert.Single(refreshedItems!).ItemName);
+        Assert.True(coordinator.State.IsLive);
         Assert.True(applyOrder.TryDequeue(out var first));
         Assert.Equal("cached", first);
         Assert.True(applyOrder.TryDequeue(out var second));
@@ -53,12 +56,13 @@ public class OptionalInstallsStartupLoaderTests
     }
 
     [Fact]
-    public async Task InitializeAsync_RefreshFailureKeepsCachedAndReturnsWarning()
+    public async Task InitializeAsync_RefreshFailureKeepsCachedAndRecordsDegradedState()
     {
         var now = DateTimeOffset.Parse("2026-02-19T18:10:00Z");
         var cacheStore = new InMemoryCacheStore(new OptionalInstallsCacheDocument(now, [MakeItem("CachedVLC", now)]));
         var client = new FakeClient { ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new InvalidOperationException("service unavailable")) };
-        var loader = new OptionalInstallsStartupLoader(new OptionalInstallsCacheCoordinator(client, cacheStore));
+        var coordinator = new OptionalInstallsCacheCoordinator(client, cacheStore);
+        var loader = new OptionalInstallsStartupLoader(coordinator);
 
         IReadOnlyList<OptionalInstallItem>? cachedItems = null;
         var refreshedCalled = false;
@@ -70,8 +74,41 @@ public class OptionalInstallsStartupLoaderTests
 
         Assert.Equal("CachedVLC", Assert.Single(cachedItems!).ItemName);
         Assert.False(refreshedCalled);
-        Assert.Contains("Showing cached data. Refresh failed:", warning);
-        Assert.Contains("service unavailable", warning);
+        Assert.Equal(string.Empty, warning);
+        Assert.True(coordinator.State.IsCached);
+        Assert.True(coordinator.State.HasRefreshFailure);
+        Assert.Contains("service unavailable", coordinator.State.RefreshFailure!.Message);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_InvalidCacheStillLoadsSuccessfulLiveCatalog()
+    {
+        var now = DateTimeOffset.Parse("2026-02-19T18:11:00Z");
+        var cacheStore = new InMemoryCacheStore(null)
+        {
+            LoadFailure = new InvalidDataException("cached protocol data is invalid"),
+        };
+        var client = new FakeClient
+        {
+            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeItem("FreshChrome", now)]),
+        };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, cacheStore);
+        var loader = new OptionalInstallsStartupLoader(coordinator);
+        var cachedCalled = false;
+        IReadOnlyList<OptionalInstallItem>? refreshedItems = null;
+
+        var warning = await loader.InitializeAsync(
+            _ => cachedCalled = true,
+            items => refreshedItems = items,
+            CancellationToken.None
+        );
+
+        Assert.Equal(string.Empty, warning);
+        Assert.False(cachedCalled);
+        Assert.Equal("FreshChrome", Assert.Single(refreshedItems!).ItemName);
+        Assert.Equal(1, client.ListCalls);
+        Assert.True(coordinator.State.IsLive);
+        Assert.False(coordinator.State.HasLoadFailure);
     }
 
     private static OptionalInstallItem MakeItem(string itemName, DateTimeOffset now) => new(
@@ -95,7 +132,17 @@ public class OptionalInstallsStartupLoaderTests
 
         public InMemoryCacheStore(OptionalInstallsCacheDocument? document) => _document = document;
 
-        public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_document);
+        public Exception? LoadFailure { get; init; }
+
+        public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
+        {
+            if (LoadFailure is not null)
+            {
+                return Task.FromException<OptionalInstallsCacheDocument?>(LoadFailure);
+            }
+
+            return Task.FromResult(_document);
+        }
 
         public Task SaveAsync(OptionalInstallsCacheDocument document, CancellationToken cancellationToken)
         {
@@ -107,8 +154,14 @@ public class OptionalInstallsStartupLoaderTests
     private sealed class FakeClient : IGorillaServiceClient
     {
         public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; } = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
+        public int ListCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken) => ListAsync(cancellationToken);
+        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        {
+            ListCalls++;
+            return ListAsync(cancellationToken);
+        }
+
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken) => throw new NotSupportedException();
 

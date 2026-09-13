@@ -1,11 +1,18 @@
 using System.Text.Json;
 using Gorilla.UI.Client;
+using Gorilla.UI.Core.Models;
 
 namespace Gorilla.UI.Core;
 
 public sealed record OptionalInstallsCacheDocument(
     DateTimeOffset CachedAtUtc,
     IReadOnlyList<OptionalInstallItem> Items
+);
+
+public sealed record OptionalInstallsRefreshResult(
+    DateTimeOffset RefreshedAtUtc,
+    IReadOnlyList<OptionalInstallItem> Items,
+    Exception? CacheWriteFailure = null
 );
 
 public interface IOptionalInstallsCacheStore
@@ -81,6 +88,13 @@ public sealed class OptionalInstallsCacheCoordinator
 {
     private readonly IGorillaServiceClient _client;
     private readonly IOptionalInstallsCacheStore _cacheStore;
+    private readonly object _refreshLock = new();
+    private readonly object _cacheWriteLock = new();
+    private readonly object _stateNotificationLock = new();
+    private Task<OptionalInstallsRefreshResult>? _refreshTask;
+    private Task _cacheWriteTail = Task.CompletedTask;
+    private CatalogDataState _state = CatalogDataState.InitialLoading;
+    private SynchronizationContext? _stateNotificationContext;
 
     public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
     {
@@ -88,20 +102,238 @@ public sealed class OptionalInstallsCacheCoordinator
         _cacheStore = cacheStore;
     }
 
-    public Task<OptionalInstallsCacheDocument?> LoadCachedAsync(CancellationToken cancellationToken)
+    public CatalogDataState State => _state;
+
+    public event EventHandler? StateChanged;
+
+    public async Task<OptionalInstallsCacheDocument?> LoadCachedAsync(CancellationToken cancellationToken)
     {
-        return _cacheStore.LoadAsync(cancellationToken);
+        CaptureStateNotificationContext();
+
+        var cached = await _cacheStore.LoadAsync(cancellationToken);
+        if (cached is not null)
+        {
+            SetState(new CatalogDataState(
+                HasUsableData: true,
+                DataSource: CatalogDataSource.Cached,
+                IsInitialLoading: false,
+                IsRefreshing: true,
+                IsSuccessfulEmpty: false,
+                LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                CachedAtUtc: cached.CachedAtUtc,
+                RefreshFailure: null,
+                LoadFailure: null,
+                CacheWriteFailure: null
+            ));
+        }
+
+        return cached;
     }
 
-    public async Task<OptionalInstallsCacheDocument> RefreshAsync(CancellationToken cancellationToken)
+    public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
-        var items = await _client.ListOptionalInstallsAsync(cancellationToken);
-        var document = new OptionalInstallsCacheDocument(
-            CachedAtUtc: DateTimeOffset.UtcNow,
-            Items: items
-        );
+        CaptureStateNotificationContext();
 
-        await _cacheStore.SaveAsync(document, cancellationToken);
-        return document;
+        lock (_refreshLock)
+        {
+            if (_refreshTask is not null)
+            {
+                return _refreshTask;
+            }
+
+            _refreshTask = RefreshCoreAsync(cancellationToken);
+            return _refreshTask;
+        }
+    }
+
+    private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(CancellationToken cancellationToken)
+    {
+        // Do not raise StateChanged synchronously while RefreshAsync still owns the
+        // coordination lock and has not yet published _refreshTask. A subscriber may
+        // legitimately observe refresh state and request Refresh again; yielding first
+        // guarantees that request joins the already-published task instead of racing it.
+        await Task.Yield();
+
+        SetState(_state with
+        {
+            IsRefreshing = true,
+            IsInitialLoading = !_state.HasUsableData && _state.LastSuccessfulRefreshUtc is null,
+            RefreshFailure = null,
+            LoadFailure = null,
+        });
+
+        try
+        {
+            var items = await _client.ListOptionalInstallsAsync(cancellationToken);
+            var refreshedAtUtc = DateTimeOffset.UtcNow;
+            var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
+
+            // A successful live response is immediately authoritative. Cache
+            // persistence is secondary durability work and must never delay fresh data
+            // becoming usable or keep the Refresh UI spinning.
+            SetState(new CatalogDataState(
+                HasUsableData: true,
+                DataSource: CatalogDataSource.Live,
+                IsInitialLoading: false,
+                IsRefreshing: false,
+                IsSuccessfulEmpty: items.Count == 0,
+                LastSuccessfulRefreshUtc: refreshedAtUtc,
+                CachedAtUtc: _state.CachedAtUtc,
+                RefreshFailure: null,
+                LoadFailure: null,
+                CacheWriteFailure: null
+            ));
+
+            QueueCachePersistence(document);
+
+            return new OptionalInstallsRefreshResult(
+                refreshedAtUtc,
+                items,
+                CacheWriteFailure: null
+            );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            SetState(_state with
+            {
+                IsInitialLoading = false,
+                IsRefreshing = false,
+            });
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (_state.HasUsableData)
+            {
+                SetState(_state with
+                {
+                    IsInitialLoading = false,
+                    IsRefreshing = false,
+                    RefreshFailure = ex,
+                    LoadFailure = null,
+                    CacheWriteFailure = null,
+                });
+            }
+            else
+            {
+                SetState(new CatalogDataState(
+                    HasUsableData: false,
+                    DataSource: CatalogDataSource.None,
+                    IsInitialLoading: false,
+                    IsRefreshing: false,
+                    IsSuccessfulEmpty: false,
+                    LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                    CachedAtUtc: null,
+                    RefreshFailure: null,
+                    LoadFailure: ex,
+                    CacheWriteFailure: null
+                ));
+            }
+
+            throw;
+        }
+        finally
+        {
+            lock (_refreshLock)
+            {
+                _refreshTask = null;
+            }
+        }
+    }
+
+    private void QueueCachePersistence(OptionalInstallsCacheDocument document)
+    {
+        lock (_cacheWriteLock)
+        {
+            _cacheWriteTail = PersistCacheAfterAsync(_cacheWriteTail, document);
+        }
+    }
+
+    private async Task PersistCacheAfterAsync(Task previousWrite, OptionalInstallsCacheDocument document)
+    {
+        // Preserve write ordering, but never let an unexpected failure in an older
+        // best-effort persistence task prevent a newer live snapshot from being saved.
+        try
+        {
+            await previousWrite.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await _cacheStore.SaveAsync(document, CancellationToken.None).ConfigureAwait(false);
+
+            var state = _state;
+            var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
+                ? currentCachedAt
+                : document.CachedAtUtc;
+            var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
+            SetState(state with
+            {
+                CachedAtUtc = cachedAtUtc,
+                CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+            });
+        }
+        catch (Exception ex)
+        {
+            var state = _state;
+            if (state.LastSuccessfulRefreshUtc == document.CachedAtUtc)
+            {
+                SetState(state with { CacheWriteFailure = ex });
+            }
+        }
+    }
+
+    private void CaptureStateNotificationContext()
+    {
+        var current = SynchronizationContext.Current;
+        if (current is null)
+        {
+            return;
+        }
+
+        lock (_stateNotificationLock)
+        {
+            _stateNotificationContext ??= current;
+        }
+    }
+
+    private void SetState(CatalogDataState state)
+    {
+        if (Equals(_state, state))
+        {
+            return;
+        }
+
+        _state = state;
+
+        var handler = StateChanged;
+        if (handler is null)
+        {
+            return;
+        }
+
+        SynchronizationContext? notificationContext;
+        lock (_stateNotificationLock)
+        {
+            notificationContext = _stateNotificationContext;
+        }
+
+        if (notificationContext is not null && !ReferenceEquals(SynchronizationContext.Current, notificationContext))
+        {
+            notificationContext.Post(
+                static payload =>
+                {
+                    var (owner, stateChanged) = ((OptionalInstallsCacheCoordinator Owner, EventHandler StateChanged))payload!;
+                    stateChanged(owner, EventArgs.Empty);
+                },
+                (this, handler)
+            );
+            return;
+        }
+
+        handler(this, EventArgs.Empty);
     }
 }

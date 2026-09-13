@@ -121,8 +121,7 @@
                                         Text="{Binding FailureTitle}"
                                         FontWeight="SemiBold"
                                         TextWrapping="Wrap"
-                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}"
-                                        AutomationProperties.LiveSetting="Polite" />
+                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}" />
                                     <TextBlock
                                         Text="{Binding FailureMessage}"
                                         TextWrapping="Wrap"

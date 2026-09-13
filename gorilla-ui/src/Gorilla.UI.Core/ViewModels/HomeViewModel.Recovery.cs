@@ -60,7 +60,7 @@ public sealed partial class HomeViewModel
         }
 
         var active = _operationTracker.GetActiveForItem(item.ItemName);
-        if (active is not null)
+        if (active is not null || item.IsBusy)
         {
             item.TransientFeedback = "Another operation for this app is already active.";
             RefreshActivityRecoveryPresentations();

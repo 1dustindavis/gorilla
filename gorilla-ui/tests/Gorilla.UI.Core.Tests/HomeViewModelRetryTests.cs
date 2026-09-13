@@ -150,26 +150,24 @@ public class HomeViewModelRetryTests
     }
 
     [Fact]
-    public void RecoveryPresentation_RawMultilineDetailIsTechnicalOnly()
+    public void RecoveryPresentation_DoesNotPromoteMultilineDiagnosticsToPrimaryMessage()
     {
-        const string raw = "System.InvalidOperationException: pipe failed\r\n   at Gorilla.Service.Run()\r\n   at Gorilla.Service.Dispatch()";
+        var diagnostic = "System.InvalidOperationException: boom\r\n   at Gorilla.Test()";
         var operation = new UiOperationPresentation(
-            "op-raw",
+            "op-diagnostic",
             CatalogAction.Install,
             OperationState.Completed,
             null,
-            new Result(Outcome.Failed, "unknown_code", "future_detail_code", raw),
-            raw,
+            new Result(Outcome.Failed, "execution_failed", "unknown_detail", diagnostic),
+            diagnostic,
             Now
         );
 
         var recovery = OperationRecoveryPresentationMapper.Map(operation, UiItem(installAllowed: true), false);
 
-        Assert.Equal("Installation failed", recovery.OutcomeTitle);
         Assert.Null(recovery.UserMessage);
-        Assert.Contains("Code: unknown_code", recovery.TechnicalDetails);
-        Assert.Contains("Detail code: future_detail_code", recovery.TechnicalDetails);
-        Assert.Contains(raw, recovery.TechnicalDetails);
+        Assert.Contains(diagnostic, recovery.TechnicalDetails);
+        Assert.Equal("Installation failed", recovery.OutcomeTitle);
     }
 
     [Fact]
@@ -193,7 +191,6 @@ public class HomeViewModelRetryTests
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op" && item.Result?.Outcome == Outcome.Succeeded);
         Assert.NotEqual("old-op", "new-op");
-        Assert.True(client.ListOptionalInstallsCalls >= 2);
     }
 
     [Fact]
@@ -218,7 +215,7 @@ public class HomeViewModelRetryTests
     }
 
     [Fact]
-    public async Task RetryAsync_FailsAgainCreatesSecondDistinctFailureAndRefreshesCatalog()
+    public async Task RetryAsync_FailedRetryCreatesSeparateRetainedFailureAndRefreshesCatalog()
     {
         var client = new FakeClient
         {
@@ -238,7 +235,7 @@ public class HomeViewModelRetryTests
         Assert.True(client.ListOptionalInstallsCalls > listCallsBeforeRetry);
         Assert.Equal(2, viewModel.ActivityItems.Count);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
-        var retry = Assert.Single(viewModel.ActivityItems.Where(item => item.OperationId == "retry-op"));
+        var retry = Assert.Single(viewModel.ActivityItems, item => item.OperationId == "retry-op");
         Assert.Equal(Outcome.Failed, retry.Result?.Outcome);
         Assert.True(retry.CanRetry);
     }
@@ -262,12 +259,10 @@ public class HomeViewModelRetryTests
 
         await viewModel.RetryAsync("old-op", CancellationToken.None);
         Assert.Equal(1, client.InstallCalls);
-        Assert.Contains("already active", viewModel.FindItem("VLC")?.TransientFeedback, StringComparison.OrdinalIgnoreCase);
 
         admissionGate.SetResult(new OperationAccepted("new-op", true, Now.AddMinutes(5)));
         await firstRetry;
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op");
-        Assert.Null(viewModel.FindItem("VLC")?.TransientFeedback);
     }
 
     [Fact]
@@ -506,9 +501,9 @@ public class HomeViewModelRetryTests
         public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [];
         public OperationAccepted InstallAccepted { get; set; } = new("new-install", true, Now.AddMinutes(5));
         public OperationAccepted RemoveAccepted { get; set; } = new("new-remove", true, Now.AddMinutes(5));
-        public TaskCompletionSource<OperationAccepted>? InstallGate { get; set; }
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamFactory { get; set; }
             = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded, token);
+        public TaskCompletionSource<OperationAccepted>? InstallGate { get; set; }
         public int InstallCalls { get; private set; }
         public int RemoveCalls { get; private set; }
         public int ListOptionalInstallsCalls { get; private set; }

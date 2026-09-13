@@ -1,143 +1,129 @@
-using FlaUI.Core.Definitions;
+using Microsoft.Win32;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
 
-public class AppDetailsTests
+public sealed class AppDetailsTests
 {
     private const string FailureFixtureItemName = "Ps1Failure";
-    private const string SlowFixtureItemName = "SlowInstallFixture";
-    private const string InstalledFixtureItemName = "RegistryInstalledFixture";
     private const string UpdateFixtureItemName = "RegistryUpdateFixture";
+    private const string InstalledFixtureItemName = "RegistryInstalledFixture";
+    private const string SlowFixtureItemName = "SlowInstallFixture";
+    private const string UpdateRegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture";
+    private const string InstalledRegistrySubKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture";
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void DetailsShowsDescriptionAndCurrentState()
+    public void DetailsNavigationShowsIdentityFullDescriptionAndPreservesSearchOnBack()
     {
-        RunWithDiagnostics(nameof(DetailsShowsDescriptionAndCurrentState), session =>
+        SeedRegistryFixture(InstalledRegistrySubKey, "Gorilla UI Installed Fixture", "1.0.0");
+
+        RunWithDiagnostics(nameof(DetailsNavigationShowsIdentityFullDescriptionAndPreservesSearchOnBack), session =>
         {
             var home = new HomePageDriver(session);
+            home.Search("celestial amber telescope");
             _ = home.WaitForItem(InstalledFixtureItemName);
-            home.OpenDetails(InstalledFixtureItemName);
+            Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
 
+            home.OpenDetails(InstalledFixtureItemName);
             var details = new AppDetailsPageDriver(session);
-            Assert.Equal("Installed Fixture", details.DisplayName);
-            Assert.Contains("Installed", details.Status, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("fixture", details.Description, StringComparison.OrdinalIgnoreCase);
+            _ = details.Root;
+
+            Assert.Equal("Installed Fixture", details.Name);
+            Assert.Contains("Celestial amber telescope utility", details.Description, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Installed", details.ObservationText);
+            Assert.Equal("1.0.0", details.InstalledVersion);
             session.CaptureCheckpoint("details-installed-description", includeAutomationTree: true);
+            details.GoBack();
+
+            var returnedHome = new HomePageDriver(session);
+            _ = returnedHome.WaitForItem(InstalledFixtureItemName);
+            Assert.Equal("celestial amber telescope", returnedHome.SearchBox.Text);
         });
     }
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void DetailsShowsBothActionsForInstalledOptionalItem()
+    public void DetailsShowsTruthfulVersionsAndBothContextualActions()
     {
-        RunWithDiagnostics(nameof(DetailsShowsBothActionsForInstalledOptionalItem), session =>
+        SeedRegistryFixture(UpdateRegistrySubKey, "Gorilla UI Update Fixture", "1.0.0");
+        SeedRegistryFixture(InstalledRegistrySubKey, "Gorilla UI Installed Fixture", "1.0.0");
+
+        RunWithDiagnostics(nameof(DetailsShowsTruthfulVersionsAndBothContextualActions), session =>
         {
             var home = new HomePageDriver(session);
-            _ = home.WaitForItem(InstalledFixtureItemName);
+            home.WaitForItemStatus(UpdateFixtureItemName, "Update available", TimeSpan.FromSeconds(30));
+            home.OpenDetails(UpdateFixtureItemName);
+
+            var updateDetails = new AppDetailsPageDriver(session);
+            updateDetails.WaitForObservation("Update available");
+            Assert.Equal("2.0.0", updateDetails.AvailableVersion);
+            Assert.Equal("1.0.0", updateDetails.InstalledVersion);
+            Assert.Equal("Update", updateDetails.PrimaryAction.Name);
+            Assert.Equal("Remove", updateDetails.SecondaryAction.Name);
+            session.CaptureCheckpoint("details-update-dual-actions", includeAutomationTree: true);
+            updateDetails.GoBack();
+
+            home = new HomePageDriver(session);
+            home.WaitForItemStatus(InstalledFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             home.OpenDetails(InstalledFixtureItemName);
 
-            var details = new AppDetailsPageDriver(session);
-            Assert.Equal("Keep Installed", details.PrimaryAction.Name);
-            Assert.Equal("Remove", details.SecondaryAction.Name);
+            var installedDetails = new AppDetailsPageDriver(session);
+            installedDetails.WaitForObservation("Installed");
+            Assert.Equal("Keep Installed", installedDetails.PrimaryAction.Name);
+            Assert.Equal("Remove", installedDetails.SecondaryAction.Name);
             session.CaptureCheckpoint("details-installed-dual-actions");
         });
     }
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void DetailsShowsUpdateAndRemoveForUpdateAvailableItem()
+    public void CatalogOperationContinuesAcrossDetailsAndBack()
     {
-        RunWithDiagnostics(nameof(DetailsShowsUpdateAndRemoveForUpdateAvailableItem), session =>
+        RunWithDiagnostics(nameof(CatalogOperationContinuesAcrossDetailsAndBack), session =>
         {
-            var home = new HomePageDriver(session);
-            _ = home.WaitForItem(UpdateFixtureItemName);
-            home.OpenDetails(UpdateFixtureItemName);
-
-            var details = new AppDetailsPageDriver(session);
-            Assert.Equal("Update", details.PrimaryAction.Name);
-            Assert.Equal("Remove", details.SecondaryAction.Name);
-            session.CaptureCheckpoint("details-update-dual-actions", includeAutomationTree: true);
-        });
-    }
-
-    [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void DetailsCanInstallAndRemoveWhileKeepingCurrentStateTruthful()
-    {
-        RunWithDiagnostics(nameof(DetailsCanInstallAndRemoveWhileKeepingCurrentStateTruthful), session =>
-        {
-            var home = new HomePageDriver(session);
-            var markerPath = Path.Combine(session.WorkRoot, "marker-ps1-v1.txt");
-            if (File.Exists(markerPath))
-            {
-                File.Delete(markerPath);
-            }
-
-            _ = home.WaitForItem("Ps1V1");
-            home.OpenDetails("Ps1V1");
-            var details = new AppDetailsPageDriver(session);
-            details.PrimaryAction.Invoke();
-            details.WaitForStatus("Installed", TimeSpan.FromSeconds(30));
-            Assert.True(File.Exists(markerPath));
-
-            Assert.Equal("Keep Installed", details.PrimaryAction.Name);
-            Assert.Equal("Remove", details.SecondaryAction.Name);
-            details.SecondaryAction.Invoke();
-            details.WaitForStatus("Not installed", TimeSpan.FromSeconds(30));
-            Assert.False(File.Exists(markerPath));
-        });
-    }
-
-    [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void ActiveOperationStartedFromCatalogStaysVisibleOnDetails()
-    {
-        RunWithDiagnostics(nameof(ActiveOperationStartedFromCatalogStaysVisibleOnDetails), session =>
-        {
-            var slowMarkerPath = Path.Combine(session.WorkRoot, "marker-slow-install.txt");
-            if (File.Exists(slowMarkerPath))
-            {
-                File.Delete(slowMarkerPath);
-            }
-
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
-            home.PrimaryAction(SlowFixtureItemName).Invoke();
+
+            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
             var operationId = home.OperationId(SlowFixtureItemName);
             Assert.False(string.IsNullOrWhiteSpace(operationId));
+            session.CaptureCheckpoint("catalog-active-before-details");
             home.OpenDetails(SlowFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
-            details.WaitForOperationContaining("Installing", TimeSpan.FromSeconds(30));
-            Assert.Equal(operationId, details.OperationId);
-            Assert.Contains("Installing", details.OperationText, StringComparison.OrdinalIgnoreCase);
+            details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, details.ActiveOperationId);
             session.CaptureCheckpoint("details-active-from-catalog", includeAutomationTree: true);
+            details.GoBack();
+
+            home = new HomePageDriver(session);
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+            session.CaptureCheckpoint("catalog-active-after-details");
             session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
-            details.WaitForStatus("Installed", TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
         });
     }
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void ActiveOperationStartedFromDetailsStaysVisibleOnCatalog()
+    public void DetailsOperationContinuesAfterNavigatingBackToCatalog()
     {
-        RunWithDiagnostics(nameof(ActiveOperationStartedFromDetailsStaysVisibleOnCatalog), session =>
+        RunWithDiagnostics(nameof(DetailsOperationContinuesAfterNavigatingBackToCatalog), session =>
         {
-            var slowMarkerPath = Path.Combine(session.WorkRoot, "marker-slow-install.txt");
-            if (File.Exists(slowMarkerPath))
-            {
-                File.Delete(slowMarkerPath);
-            }
-
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
             home.OpenDetails(SlowFixtureItemName);
+
             var details = new AppDetailsPageDriver(session);
+            Assert.Equal("Install", details.PrimaryAction.Name);
             details.PrimaryAction.Invoke();
-            details.WaitForOperationContaining("Installing", TimeSpan.FromSeconds(30));
-            var operationId = details.OperationId;
+            details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
+            var operationId = details.ActiveOperationId;
             Assert.False(string.IsNullOrWhiteSpace(operationId));
             session.CaptureCheckpoint("details-active-started-details", includeAutomationTree: true);
             details.GoBack();
@@ -187,25 +173,46 @@ public class AppDetailsTests
         _ = home.WaitForItem(SlowFixtureItemName);
         if (string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
         {
-            home.SecondaryAction(SlowFixtureItemName).Invoke();
+            home.RemoveButton(SlowFixtureItemName).Invoke();
+            session.WaitUntil(() => !File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
         }
-        if (File.Exists(slowMarkerPath))
+        else
         {
-            File.Delete(slowMarkerPath);
+            home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
         }
+    }
+
+    private static void SeedRegistryFixture(string subKey, string displayName, string displayVersion)
+    {
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = baseKey.CreateSubKey(subKey, writable: true)
+            ?? throw new InvalidOperationException($"Unable to create registry fixture HKLM\\{subKey}.");
+        key.SetValue("DisplayName", displayName, RegistryValueKind.String);
+        key.SetValue("DisplayVersion", displayVersion, RegistryValueKind.String);
+        key.SetValue("UninstallString", "cmd.exe /c exit 0", RegistryValueKind.String);
+    }
+
+    private static string RequiredPath(string variableName)
+    {
+        var value = Environment.GetEnvironmentVariable(variableName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{variableName} must be set by the E2E harness.");
+        }
+        return value;
     }
 
     private static void RunWithDiagnostics(string testName, Action<GorillaAppSession> test)
     {
-        using var session = GorillaAppSession.Start();
+        using var session = GorillaAppSession.Launch();
         try
         {
             test(session);
         }
         catch (Exception ex)
         {
-            session.CaptureFailure(testName, ex);
+            session.CaptureFailure(ex, testName);
             throw;
         }
     }

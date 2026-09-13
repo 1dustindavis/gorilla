@@ -157,7 +157,7 @@ public class HomeViewModelRetryTests
             Catalog = [ProtocolItem(installAllowed: true)],
             Operations = [Historical("old-op", CatalogAction.Install, Outcome.Failed)],
             InstallAccepted = new OperationAccepted("new-op", true, Now.AddMinutes(5)),
-            StreamFactory = (id, _) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded),
+            StreamFactory = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded, token),
         };
         var viewModel = CreateViewModel(client);
         await viewModel.InitializeAsync(CancellationToken.None);
@@ -180,7 +180,7 @@ public class HomeViewModelRetryTests
             Catalog = [ProtocolItem(installAllowed: false, removeAllowed: true, installed: true)],
             Operations = [Historical("old-remove", CatalogAction.Remove, Outcome.Failed)],
             RemoveAccepted = new OperationAccepted("new-remove", true, Now.AddMinutes(5)),
-            StreamFactory = (id, _) => CompletedStream(id, CatalogAction.Remove, Outcome.Succeeded),
+            StreamFactory = (id, token) => CompletedStream(id, CatalogAction.Remove, Outcome.Succeeded, token),
         };
         var viewModel = CreateViewModel(client);
         await viewModel.InitializeAsync(CancellationToken.None);
@@ -191,6 +191,32 @@ public class HomeViewModelRetryTests
         Assert.Equal(1, client.RemoveCalls);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-remove");
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-remove");
+    }
+
+    [Fact]
+    public async Task RetryAsync_RapidSecondInvocationDoesNotSubmitDuplicateMutation()
+    {
+        var admissionGate = new TaskCompletionSource<OperationAccepted>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeClient
+        {
+            Catalog = [ProtocolItem(installAllowed: true)],
+            Operations = [Historical("old-op", CatalogAction.Install, Outcome.Failed)],
+            InstallGate = admissionGate,
+            StreamFactory = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded, token),
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        var firstRetry = viewModel.RetryAsync("old-op", CancellationToken.None);
+        await WaitUntilAsync(() => client.InstallCalls == 1);
+
+        await viewModel.RetryAsync("old-op", CancellationToken.None);
+        Assert.Equal(1, client.InstallCalls);
+        Assert.Contains("already active", viewModel.FindItem("VLC")?.TransientFeedback, StringComparison.OrdinalIgnoreCase);
+
+        admissionGate.SetResult(new OperationAccepted("new-op", true, Now.AddMinutes(5)));
+        await firstRetry;
+        Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op");
     }
 
     [Fact]
@@ -255,6 +281,33 @@ public class HomeViewModelRetryTests
     }
 
     [Fact]
+    public async Task RefreshCatalogAsync_ItemDisappearanceAndReappearanceRecomputeRetry()
+    {
+        var client = new FakeClient
+        {
+            Catalog = [ProtocolItem(installAllowed: true)],
+            Operations = [Historical("old-op", CatalogAction.Install, Outcome.Failed)],
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        viewModel.RefreshActivityRecoveryPresentations();
+        Assert.True(viewModel.ActivityItems.Single().CanRetry);
+        Assert.True(viewModel.ActivityItems.Single().CanNavigate);
+
+        client.Catalog = [];
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.False(viewModel.ActivityItems.Single().CanRetry);
+        Assert.False(viewModel.ActivityItems.Single().CanNavigate);
+        Assert.Contains("no longer available", viewModel.ActivityItems.Single().RetryUnavailableReason);
+
+        client.Catalog = [ProtocolItem(installAllowed: true)];
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.True(viewModel.ActivityItems.Single().CanRetry);
+        Assert.True(viewModel.ActivityItems.Single().CanNavigate);
+        Assert.Equal(Outcome.Failed, viewModel.ActivityItems.Single().Result?.Outcome);
+    }
+
+    [Fact]
     public async Task RecoveredFailureAfterInitializationCanRetryFromRetainedOperation()
     {
         var client = new FakeClient
@@ -270,6 +323,19 @@ public class HomeViewModelRetryTests
         var activity = Assert.Single(viewModel.ActivityItems);
         Assert.Equal("retained-failure", activity.OperationId);
         Assert.True(activity.CanRetry);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if (condition())
+            {
+                return;
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException("Timed out waiting for test condition.");
     }
 
     private static HomeViewModel CreateViewModel(FakeClient client)
@@ -389,6 +455,7 @@ public class HomeViewModelRetryTests
         public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [];
         public OperationAccepted InstallAccepted { get; set; } = new("new-install", true, Now.AddMinutes(5));
         public OperationAccepted RemoveAccepted { get; set; } = new("new-remove", true, Now.AddMinutes(5));
+        public TaskCompletionSource<OperationAccepted>? InstallGate { get; set; }
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamFactory { get; set; }
             = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded, token);
         public int InstallCalls { get; private set; }
@@ -405,7 +472,7 @@ public class HomeViewModelRetryTests
         {
             InstallCalls++;
             LastInstallItem = itemName;
-            return Task.FromResult(InstallAccepted);
+            return InstallGate?.Task ?? Task.FromResult(InstallAccepted);
         }
 
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)

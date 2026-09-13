@@ -130,8 +130,12 @@ public sealed class OptionalInstallsCacheCoordinator
         return cached;
     }
 
-    public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
+    public Task<OptionalInstallsRefreshResult> RefreshAsync(
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
+        CancellationToken cancellationToken
+    )
     {
+        ArgumentNullException.ThrowIfNull(acceptSnapshot);
         CaptureStateNotificationContext();
 
         lock (_refreshLock)
@@ -141,12 +145,15 @@ public sealed class OptionalInstallsCacheCoordinator
                 return _refreshTask;
             }
 
-            _refreshTask = RefreshCoreAsync(cancellationToken);
+            _refreshTask = RefreshCoreAsync(acceptSnapshot, cancellationToken);
             return _refreshTask;
         }
     }
 
-    private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(CancellationToken cancellationToken)
+    private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
+        CancellationToken cancellationToken
+    )
     {
         // Do not raise StateChanged synchronously while RefreshAsync still owns the
         // coordination lock and has not yet published _refreshTask. A subscriber may
@@ -168,9 +175,13 @@ public sealed class OptionalInstallsCacheCoordinator
             var refreshedAtUtc = DateTimeOffset.UtcNow;
             var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
 
-            // A successful live response is immediately authoritative. Cache
-            // persistence is secondary durability work and must never delay fresh data
-            // becoming usable or keep the Refresh UI spinning.
+            // The service response is not user-visible freshness truth until the
+            // canonical model has accepted it. Keep the previous provenance and the
+            // refresh-in-progress state while reconciliation runs so shell freshness,
+            // catalog contents, details, and action availability change atomically
+            // from the user's perspective.
+            await acceptSnapshot(items, cancellationToken);
+
             SetState(new CatalogDataState(
                 HasUsableData: true,
                 DataSource: CatalogDataSource.Live,
@@ -184,6 +195,8 @@ public sealed class OptionalInstallsCacheCoordinator
                 CacheWriteFailure: null
             ));
 
+            // Persistence is secondary durability work. It begins only after the
+            // snapshot is accepted, but remains independent of refresh completion.
             QueueCachePersistence(document);
 
             return new OptionalInstallsRefreshResult(

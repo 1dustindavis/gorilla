@@ -22,6 +22,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     private DateTimeOffset _timestampUtc;
     private bool _canNavigate;
     private OperationRecoveryPresentation? _recovery;
+    private string? _retryAttemptFeedback;
 
     public ActivityOperationPresentation(string operationId)
     {
@@ -39,6 +40,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public DateTimeOffset TimestampUtc => _timestampUtc;
     public bool CanNavigate => _canNavigate;
     public OperationRecoveryPresentation? Recovery => _recovery;
+    public string? RetryAttemptFeedback => _retryAttemptFeedback;
 
     public bool IsActive => State != OperationState.Completed;
     public bool IsTerminal => !IsActive;
@@ -50,6 +52,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public bool CanRetry => Recovery?.CanRetry == true;
     public bool HasRetryUnavailableReason => Recovery?.HasRetryUnavailableReason == true;
     public bool HasTechnicalDetails => Recovery?.HasTechnicalDetails == true;
+    public bool HasRetryAttemptFeedback => !string.IsNullOrWhiteSpace(RetryAttemptFeedback);
     public string FailureTitle => Recovery?.OutcomeTitle ?? StateText;
     public string? FailureMessage => Recovery?.UserMessage;
     public bool HasFailureMessage => !string.IsNullOrWhiteSpace(FailureMessage);
@@ -84,6 +87,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string FailureTitleAutomationId => $"ActivityFailureTitle-{OperationId}";
     public string RetryAutomationId => $"ActivityRetry-{OperationId}";
     public string RetryUnavailableAutomationId => $"ActivityRetryUnavailable-{OperationId}";
+    public string RetryAttemptFeedbackAutomationId => $"ActivityRetryFeedback-{OperationId}";
     public string TechnicalDetailsAutomationId => $"OperationTechnicalDetails-{OperationId}";
     public string TechnicalDetailsContentAutomationId => $"OperationTechnicalDetailsContent-{OperationId}";
 
@@ -104,6 +108,14 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         OnPropertyChanged(nameof(RetryLabel));
         OnPropertyChanged(nameof(RetryUnavailableReason));
         OnPropertyChanged(nameof(TechnicalDetails));
+    }
+
+    internal void SetRetryAttemptFeedback(string? feedback)
+    {
+        if (SetField(ref _retryAttemptFeedback, feedback, nameof(RetryAttemptFeedback)))
+        {
+            OnPropertyChanged(nameof(HasRetryAttemptFeedback));
+        }
     }
 
     private void ApplyHistorical(OperationStatusEvent operation, string displayName, bool canNavigate)
@@ -158,15 +170,16 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         _ => outcome.ToString(),
     };
 
-    private void SetField<T>(ref T field, T value, string propertyName)
+    private bool SetField<T>(ref T field, T value, string propertyName)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

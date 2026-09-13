@@ -150,6 +150,29 @@ public class HomeViewModelRetryTests
     }
 
     [Fact]
+    public void RecoveryPresentation_RawMultilineDetailIsTechnicalOnly()
+    {
+        const string raw = "System.InvalidOperationException: pipe failed\r\n   at Gorilla.Service.Run()\r\n   at Gorilla.Service.Dispatch()";
+        var operation = new UiOperationPresentation(
+            "op-raw",
+            CatalogAction.Install,
+            OperationState.Completed,
+            null,
+            new Result(Outcome.Failed, "unknown_code", "future_detail_code", raw),
+            raw,
+            Now
+        );
+
+        var recovery = OperationRecoveryPresentationMapper.Map(operation, UiItem(installAllowed: true), false);
+
+        Assert.Equal("Installation failed", recovery.OutcomeTitle);
+        Assert.Null(recovery.UserMessage);
+        Assert.Contains("Code: unknown_code", recovery.TechnicalDetails);
+        Assert.Contains("Detail code: future_detail_code", recovery.TechnicalDetails);
+        Assert.Contains(raw, recovery.TechnicalDetails);
+    }
+
+    [Fact]
     public async Task RetryAsync_FailedInstallUsesCurrentInstallPathAndCreatesSeparateOperation()
     {
         var client = new FakeClient
@@ -170,6 +193,7 @@ public class HomeViewModelRetryTests
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op" && item.Result?.Outcome == Outcome.Succeeded);
         Assert.NotEqual("old-op", "new-op");
+        Assert.True(client.ListOptionalInstallsCalls >= 2);
     }
 
     [Fact]
@@ -191,6 +215,32 @@ public class HomeViewModelRetryTests
         Assert.Equal(1, client.RemoveCalls);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-remove");
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-remove");
+    }
+
+    [Fact]
+    public async Task RetryAsync_FailsAgainCreatesSecondDistinctFailureAndRefreshesCatalog()
+    {
+        var client = new FakeClient
+        {
+            Catalog = [ProtocolItem(installAllowed: true)],
+            Operations = [Historical("old-op", CatalogAction.Install, Outcome.Failed)],
+            InstallAccepted = new OperationAccepted("retry-op", true, Now.AddMinutes(5)),
+            StreamFactory = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Failed, token),
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        var listCallsBeforeRetry = client.ListOptionalInstallsCalls;
+
+        await viewModel.RetryAsync("old-op", CancellationToken.None);
+        viewModel.RefreshActivityRecoveryPresentations();
+
+        Assert.Equal(1, client.InstallCalls);
+        Assert.True(client.ListOptionalInstallsCalls > listCallsBeforeRetry);
+        Assert.Equal(2, viewModel.ActivityItems.Count);
+        Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
+        var retry = Assert.Single(viewModel.ActivityItems.Where(item => item.OperationId == "retry-op"));
+        Assert.Equal(Outcome.Failed, retry.Result?.Outcome);
+        Assert.True(retry.CanRetry);
     }
 
     [Fact]
@@ -217,6 +267,7 @@ public class HomeViewModelRetryTests
         admissionGate.SetResult(new OperationAccepted("new-op", true, Now.AddMinutes(5)));
         await firstRetry;
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op");
+        Assert.Null(viewModel.FindItem("VLC")?.TransientFeedback);
     }
 
     [Fact]
@@ -460,10 +511,14 @@ public class HomeViewModelRetryTests
             = (id, token) => CompletedStream(id, CatalogAction.Install, Outcome.Succeeded, token);
         public int InstallCalls { get; private set; }
         public int RemoveCalls { get; private set; }
+        public int ListOptionalInstallsCalls { get; private set; }
         public string? LastInstallItem { get; private set; }
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Catalog);
+        {
+            ListOptionalInstallsCalls++;
+            return Task.FromResult(Catalog);
+        }
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
             => Task.FromResult(Operations);

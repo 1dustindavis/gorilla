@@ -16,6 +16,7 @@ public sealed partial class ActivityPage : Page
 {
     private readonly AppCatalogSession _session;
     private bool _isObserving;
+    private bool _isRefreshingRecovery;
 
     public HomeViewModel ViewModel { get; }
 
@@ -36,7 +37,7 @@ public sealed partial class ActivityPage : Page
         try
         {
             await _session.EnsureInitializedAsync();
-            ViewModel.RefreshActivityRecoveryPresentations();
+            RefreshRecoverySafely();
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
@@ -62,6 +63,10 @@ public sealed partial class ActivityPage : Page
 
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         ViewModel.ActivityItems.CollectionChanged += ActivityItems_CollectionChanged;
+        foreach (var item in ViewModel.ActivityItems)
+        {
+            item.PropertyChanged += ActivityItem_PropertyChanged;
+        }
         _isObserving = true;
     }
 
@@ -74,6 +79,10 @@ public sealed partial class ActivityPage : Page
 
         ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
         ViewModel.ActivityItems.CollectionChanged -= ActivityItems_CollectionChanged;
+        foreach (var item in ViewModel.ActivityItems)
+        {
+            item.PropertyChanged -= ActivityItem_PropertyChanged;
+        }
         _isObserving = false;
     }
 
@@ -85,14 +94,57 @@ public sealed partial class ActivityPage : Page
         }
         if (e.PropertyName == nameof(HomeViewModel.CatalogState))
         {
-            ViewModel.RefreshActivityRecoveryPresentations();
+            RefreshRecoverySafely();
         }
     }
 
     private void ActivityItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        ViewModel.RefreshActivityRecoveryPresentations();
+        if (e.OldItems is not null)
+        {
+            foreach (ActivityOperationPresentation item in e.OldItems)
+            {
+                item.PropertyChanged -= ActivityItem_PropertyChanged;
+            }
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (ActivityOperationPresentation item in e.NewItems)
+            {
+                item.PropertyChanged += ActivityItem_PropertyChanged;
+            }
+        }
+
+        RefreshRecoverySafely();
         UpdateEmptyState();
+    }
+
+    private void ActivityItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ActivityOperationPresentation.State)
+            or nameof(ActivityOperationPresentation.Result)
+            or nameof(ActivityOperationPresentation.ItemName))
+        {
+            RefreshRecoverySafely();
+        }
+    }
+
+    private void RefreshRecoverySafely()
+    {
+        if (_isRefreshingRecovery)
+        {
+            return;
+        }
+
+        try
+        {
+            _isRefreshingRecovery = true;
+            ViewModel.RefreshActivityRecoveryPresentations();
+        }
+        finally
+        {
+            _isRefreshingRecovery = false;
+        }
     }
 
     private void UpdateEmptyState()
@@ -143,7 +195,7 @@ public sealed partial class ActivityPage : Page
         }
         finally
         {
-            ViewModel.RefreshActivityRecoveryPresentations();
+            RefreshRecoverySafely();
             button.IsEnabled = item.CanRetry;
         }
     }

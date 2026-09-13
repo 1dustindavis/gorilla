@@ -7,6 +7,8 @@ namespace Gorilla.UI.Core.ViewModels;
 
 public sealed partial class HomeViewModel
 {
+    private const string RetryActiveFeedback = "Another operation for this app is already active.";
+
     public void RefreshActivityRecoveryPresentations()
     {
         foreach (var activity in ActivityItems)
@@ -62,9 +64,10 @@ public sealed partial class HomeViewModel
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         if (active is not null || item.IsBusy)
         {
-            // A stale/double UI activation must not submit a second mutation or leave
-            // transient failure-like feedback. The accepted active operation is the
-            // current truth and all surfaces already project it.
+            // A stale/double UI activation must not submit a second mutation. This
+            // feedback is bounded to the admission race and cleared by the accepted
+            // attempt once it finishes, so it cannot survive as stale terminal state.
+            item.TransientFeedback = RetryActiveFeedback;
             RefreshActivityRecoveryPresentations();
             return;
         }
@@ -90,6 +93,10 @@ public sealed partial class HomeViewModel
             await InstallAsync(item, cancellationToken);
         }
 
+        if (string.Equals(item.TransientFeedback, RetryActiveFeedback, StringComparison.Ordinal))
+        {
+            item.TransientFeedback = null;
+        }
         RefreshActivityRecoveryPresentations();
     }
 }

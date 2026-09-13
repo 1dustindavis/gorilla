@@ -87,12 +87,35 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string TechnicalDetailsAutomationId => $"OperationTechnicalDetails-{OperationId}";
     public string TechnicalDetailsContentAutomationId => $"OperationTechnicalDetailsContent-{OperationId}";
 
-    internal void Apply(
-        OperationStatusEvent operation,
-        string displayName,
-        bool canNavigate,
-        OperationRecoveryPresentation recovery
-    )
+    internal void Apply(OperationStatusEvent operation, string displayName, bool canNavigate)
+    {
+        ApplyHistorical(operation, displayName, canNavigate);
+        // RebuildActivityProjection predates PR G and intentionally does not own
+        // current-action retry policy. HomeViewModel.RefreshActivityRecoveryPresentations
+        // immediately overlays current canonical truth for recovery surfaces.
+        ApplyRecovery(OperationRecoveryPresentationMapper.Map(
+            operation,
+            currentItem: null,
+            hasConflictingActiveOperation: false
+        ));
+    }
+
+    internal void ApplyRecovery(OperationRecoveryPresentation recovery)
+    {
+        SetField(ref _recovery, recovery, nameof(Recovery));
+        OnPropertyChanged(nameof(HasRecovery));
+        OnPropertyChanged(nameof(CanRetry));
+        OnPropertyChanged(nameof(HasRetryUnavailableReason));
+        OnPropertyChanged(nameof(HasTechnicalDetails));
+        OnPropertyChanged(nameof(FailureTitle));
+        OnPropertyChanged(nameof(FailureMessage));
+        OnPropertyChanged(nameof(HasFailureMessage));
+        OnPropertyChanged(nameof(RetryLabel));
+        OnPropertyChanged(nameof(RetryUnavailableReason));
+        OnPropertyChanged(nameof(TechnicalDetails));
+    }
+
+    private void ApplyHistorical(OperationStatusEvent operation, string displayName, bool canNavigate)
     {
         if (!string.Equals(operation.OperationId, OperationId, StringComparison.Ordinal))
         {
@@ -108,7 +131,6 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         SetField(ref _message, operation.Message, nameof(Message));
         SetField(ref _timestampUtc, operation.TimestampUtc, nameof(TimestampUtc));
         SetField(ref _canNavigate, canNavigate, nameof(CanNavigate));
-        SetField(ref _recovery, recovery, nameof(Recovery));
 
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(IsTerminal));
@@ -120,16 +142,6 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         OnPropertyChanged(nameof(DetailText));
         OnPropertyChanged(nameof(HasDetail));
         OnPropertyChanged(nameof(TimestampText));
-        OnPropertyChanged(nameof(HasRecovery));
-        OnPropertyChanged(nameof(CanRetry));
-        OnPropertyChanged(nameof(HasRetryUnavailableReason));
-        OnPropertyChanged(nameof(HasTechnicalDetails));
-        OnPropertyChanged(nameof(FailureTitle));
-        OnPropertyChanged(nameof(FailureMessage));
-        OnPropertyChanged(nameof(HasFailureMessage));
-        OnPropertyChanged(nameof(RetryLabel));
-        OnPropertyChanged(nameof(RetryUnavailableReason));
-        OnPropertyChanged(nameof(TechnicalDetails));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

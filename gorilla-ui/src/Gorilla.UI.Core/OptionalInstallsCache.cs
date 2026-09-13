@@ -89,6 +89,7 @@ public sealed class OptionalInstallsCacheCoordinator
     private readonly IGorillaServiceClient _client;
     private readonly IOptionalInstallsCacheStore _cacheStore;
     private readonly object _refreshLock = new();
+    private readonly SemaphoreSlim _cacheWriteLock = new(1, 1);
     private Task<OptionalInstallsRefreshResult>? _refreshTask;
     private CatalogDataState _state = CatalogDataState.InitialLoading;
 
@@ -160,22 +161,9 @@ public sealed class OptionalInstallsCacheCoordinator
             var refreshedAtUtc = DateTimeOffset.UtcNow;
             var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
 
-            Exception? cacheWriteFailure = null;
-            try
-            {
-                await _cacheStore.SaveAsync(document, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // Fresh service data remains authoritative and usable even when the
-                // fallback cache cannot be updated.
-                cacheWriteFailure = ex;
-            }
-
+            // A successful live response is immediately authoritative. Cache
+            // persistence is secondary durability work and must never delay fresh data
+            // becoming usable or keep the Refresh UI spinning.
             SetState(new CatalogDataState(
                 HasUsableData: true,
                 DataSource: CatalogDataSource.Live,
@@ -183,16 +171,18 @@ public sealed class OptionalInstallsCacheCoordinator
                 IsRefreshing: false,
                 IsSuccessfulEmpty: items.Count == 0,
                 LastSuccessfulRefreshUtc: refreshedAtUtc,
-                CachedAtUtc: cacheWriteFailure is null ? refreshedAtUtc : _state.CachedAtUtc,
+                CachedAtUtc: _state.CachedAtUtc,
                 RefreshFailure: null,
                 LoadFailure: null,
-                CacheWriteFailure: cacheWriteFailure
+                CacheWriteFailure: null
             ));
+
+            _ = PersistCacheAsync(document);
 
             return new OptionalInstallsRefreshResult(
                 refreshedAtUtc,
                 items,
-                cacheWriteFailure
+                CacheWriteFailure: null
             );
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -241,6 +231,41 @@ public sealed class OptionalInstallsCacheCoordinator
             {
                 _refreshTask = null;
             }
+        }
+    }
+
+    private async Task PersistCacheAsync(OptionalInstallsCacheDocument document)
+    {
+        await _cacheWriteLock.WaitAsync(CancellationToken.None);
+        try
+        {
+            try
+            {
+                await _cacheStore.SaveAsync(document, CancellationToken.None);
+
+                var state = _state;
+                var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
+                    ? currentCachedAt
+                    : document.CachedAtUtc;
+                var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
+                SetState(state with
+                {
+                    CachedAtUtc = cachedAtUtc,
+                    CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+                });
+            }
+            catch (Exception ex)
+            {
+                var state = _state;
+                if (state.LastSuccessfulRefreshUtc == document.CachedAtUtc)
+                {
+                    SetState(state with { CacheWriteFailure = ex });
+                }
+            }
+        }
+        finally
+        {
+            _cacheWriteLock.Release();
         }
     }
 

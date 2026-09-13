@@ -33,6 +33,13 @@ internal sealed class CatalogShellDriver
 
     public void Refresh() => RefreshButton.Invoke();
 
+    public string OpenAndReadTechnicalDetails()
+    {
+        _session.WaitFor(() => ById("CatalogTechnicalDetails")).Click();
+        var content = _session.WaitFor(() => ById("CatalogTechnicalDetailsContent"));
+        return SafeValueOrName(content);
+    }
+
     public void WaitForFreshnessContaining(string expected, TimeSpan? timeout = null)
     {
         _session.WaitUntil(
@@ -73,6 +80,21 @@ internal sealed class CatalogShellDriver
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+
+    private static string SafeValueOrName(AutomationElement element)
+    {
+        try
+        {
+            if (element.Patterns.Value.IsSupported)
+            {
+                return element.Patterns.Value.Pattern.Value.Value;
+            }
+        }
+        catch (PropertyNotSupportedException)
+        {
+        }
+        return SafeName(element);
+    }
 
     private static string SafeName(AutomationElement element)
     {

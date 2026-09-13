@@ -52,6 +52,25 @@ internal sealed class AppDetailsPageDriver
             timeout
         );
 
+    public Button RetryButton(string operationId)
+        => WaitById($"DetailsRetry-{operationId}").AsButton();
+
+    public bool HasRetryButton(string operationId)
+        => FindById($"DetailsRetry-{operationId}") is not null;
+
+    public string FailureTitle(string operationId)
+        => OptionalName($"DetailsFailureTitle-{operationId}");
+
+    public string RetryUnavailableText(string operationId)
+        => OptionalName($"DetailsRetryUnavailable-{operationId}");
+
+    public string OpenAndReadTechnicalDetails(string operationId)
+    {
+        WaitById($"DetailsTechnicalDetails-{operationId}").Click();
+        var content = WaitById($"DetailsTechnicalDetailsContent-{operationId}");
+        return SafeValueOrName(content);
+    }
+
     private AutomationElement WaitById(string automationId)
         => _session.WaitFor(() => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
 
@@ -84,6 +103,21 @@ internal sealed class AppDetailsPageDriver
     {
         var element = FindById(automationId);
         return element is null ? string.Empty : SafeHelpText(element);
+    }
+
+    private static string SafeValueOrName(AutomationElement element)
+    {
+        try
+        {
+            if (element.Patterns.Value.IsSupported)
+            {
+                return element.Patterns.Value.Pattern.Value.Value;
+            }
+        }
+        catch (PropertyNotSupportedException)
+        {
+        }
+        return SafeName(element);
     }
 
     private static string SafeName(AutomationElement element)

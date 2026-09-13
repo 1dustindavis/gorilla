@@ -134,6 +134,12 @@
                                         AutomationProperties.AutomationId="{Binding RetryAutomationId}"
                                         AutomationProperties.Name="Retry operation" />
                                     <TextBlock
+                                        Text="{Binding RetryAttemptFeedback}"
+                                        TextWrapping="Wrap"
+                                        Visibility="{Binding HasRetryAttemptFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        AutomationProperties.AutomationId="{Binding RetryAttemptFeedbackAutomationId}"
+                                        AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock
                                         Text="{Binding RetryUnavailableReason}"
                                         TextWrapping="Wrap"
                                         Opacity="0.75"

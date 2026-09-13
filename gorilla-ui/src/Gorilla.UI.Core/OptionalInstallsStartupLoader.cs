@@ -40,8 +40,14 @@ public sealed class OptionalInstallsStartupLoader
 
         try
         {
-            var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
-            applyRefreshedItems(refreshed.Items);
+            await _cacheCoordinator.RefreshAsync(
+                (items, _) =>
+                {
+                    applyRefreshedItems(items);
+                    return Task.CompletedTask;
+                },
+                cancellationToken
+            );
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

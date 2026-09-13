@@ -90,6 +90,7 @@ public sealed class OptionalInstallsCacheCoordinator
     private readonly IOptionalInstallsCacheStore _cacheStore;
     private readonly object _refreshLock = new();
     private readonly object _cacheWriteLock = new();
+    private readonly object _stateLock = new();
     private readonly object _stateNotificationLock = new();
     private Task<OptionalInstallsRefreshResult>? _refreshTask;
     private Task _cacheWriteTail = Task.CompletedTask;
@@ -103,7 +104,16 @@ public sealed class OptionalInstallsCacheCoordinator
         _cacheStore = cacheStore;
     }
 
-    public CatalogDataState State => _state;
+    public CatalogDataState State
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _state;
+            }
+        }
+    }
 
     public event EventHandler? StateChanged;
 
@@ -114,17 +124,17 @@ public sealed class OptionalInstallsCacheCoordinator
         var cached = await _cacheStore.LoadAsync(cancellationToken);
         if (cached is not null)
         {
-            SetState(new CatalogDataState(
+            UpdateState(state => new CatalogDataState(
                 HasUsableData: true,
                 DataSource: CatalogDataSource.Cached,
                 IsInitialLoading: false,
                 IsRefreshing: true,
                 IsSuccessfulEmpty: false,
-                LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
                 CachedAtUtc: cached.CachedAtUtc,
                 RefreshFailure: null,
                 LoadFailure: null,
-                CacheWriteFailure: null
+                CacheWriteFailure: state.CacheWriteFailure
             ));
         }
 
@@ -177,10 +187,10 @@ public sealed class OptionalInstallsCacheCoordinator
         // guarantees that request joins the already-published task instead of racing it.
         await Task.Yield();
 
-        SetState(_state with
+        UpdateState(state => state with
         {
             IsRefreshing = true,
-            IsInitialLoading = !_state.HasUsableData && _state.LastSuccessfulRefreshUtc is null,
+            IsInitialLoading = !state.HasUsableData && state.LastSuccessfulRefreshUtc is null,
             RefreshFailure = null,
             LoadFailure = null,
         });
@@ -198,17 +208,19 @@ public sealed class OptionalInstallsCacheCoordinator
             // from the user's perspective.
             await acceptSnapshot(items, cancellationToken);
 
-            SetState(new CatalogDataState(
+            UpdateState(state => new CatalogDataState(
                 HasUsableData: true,
                 DataSource: CatalogDataSource.Live,
                 IsInitialLoading: false,
                 IsRefreshing: false,
                 IsSuccessfulEmpty: items.Count == 0,
                 LastSuccessfulRefreshUtc: refreshedAtUtc,
-                CachedAtUtc: _state.CachedAtUtc,
+                CachedAtUtc: state.CachedAtUtc,
                 RefreshFailure: null,
                 LoadFailure: null,
-                CacheWriteFailure: null
+                // Cache persistence is an independent degradation axis. A new live
+                // response does not prove fallback durability has recovered.
+                CacheWriteFailure: state.CacheWriteFailure
             ));
 
             // Persistence is secondary durability work. It begins only after the
@@ -223,7 +235,7 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            SetState(_state with
+            UpdateState(state => state with
             {
                 IsInitialLoading = false,
                 IsRefreshing = false,
@@ -232,32 +244,28 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (Exception ex)
         {
-            if (_state.HasUsableData)
-            {
-                SetState(_state with
+            UpdateState(state => state.HasUsableData
+                ? state with
                 {
                     IsInitialLoading = false,
                     IsRefreshing = false,
                     RefreshFailure = ex,
                     LoadFailure = null,
-                    CacheWriteFailure = null,
-                });
-            }
-            else
-            {
-                SetState(new CatalogDataState(
+                    // An unrelated service failure must not erase cache degradation.
+                    CacheWriteFailure = state.CacheWriteFailure,
+                }
+                : new CatalogDataState(
                     HasUsableData: false,
                     DataSource: CatalogDataSource.None,
                     IsInitialLoading: false,
                     IsRefreshing: false,
                     IsSuccessfulEmpty: false,
-                    LastSuccessfulRefreshUtc: _state.LastSuccessfulRefreshUtc,
+                    LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
                     CachedAtUtc: null,
                     RefreshFailure: null,
                     LoadFailure: ex,
-                    CacheWriteFailure: null
+                    CacheWriteFailure: state.CacheWriteFailure
                 ));
-            }
 
             throw;
         }
@@ -294,24 +302,31 @@ public sealed class OptionalInstallsCacheCoordinator
         {
             await _cacheStore.SaveAsync(document, CancellationToken.None).ConfigureAwait(false);
 
-            var state = _state;
-            var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
-                ? currentCachedAt
-                : document.CachedAtUtc;
-            var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
-            SetState(state with
+            // Merge only persistence-owned fields into the current state atomically.
+            // An older save completion must never overwrite newer refresh/provenance
+            // state. Clear degradation only if this save durably persisted the current
+            // live snapshot.
+            UpdateState(state =>
             {
-                CachedAtUtc = cachedAtUtc,
-                CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+                var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
+                    ? currentCachedAt
+                    : document.CachedAtUtc;
+                var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
+                return state with
+                {
+                    CachedAtUtc = cachedAtUtc,
+                    CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+                };
             });
         }
         catch (Exception ex)
         {
-            var state = _state;
-            if (state.LastSuccessfulRefreshUtc == document.CachedAtUtc)
-            {
-                SetState(state with { CacheWriteFailure = ex });
-            }
+            // Only a failed attempt to persist the current live snapshot establishes
+            // current cache degradation. Failures from superseded queued saves cannot
+            // overwrite the state of a newer snapshot.
+            UpdateState(state => state.LastSuccessfulRefreshUtc == document.CachedAtUtc
+                ? state with { CacheWriteFailure = ex }
+                : state);
         }
     }
 
@@ -329,16 +344,21 @@ public sealed class OptionalInstallsCacheCoordinator
         }
     }
 
-    private void SetState(CatalogDataState state)
+    private void UpdateState(Func<CatalogDataState, CatalogDataState> update)
     {
-        if (Equals(_state, state))
+        EventHandler? handler;
+        lock (_stateLock)
         {
-            return;
+            var next = update(_state);
+            if (Equals(_state, next))
+            {
+                return;
+            }
+
+            _state = next;
+            handler = StateChanged;
         }
 
-        _state = state;
-
-        var handler = StateChanged;
         if (handler is null)
         {
             return;

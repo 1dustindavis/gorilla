@@ -17,11 +17,7 @@ public sealed class HomeViewModelRecoveryProjectionTests
     public async Task InitializeAsync_ProjectsRetainedFailureRecoveryWithoutCallerRepair()
     {
         var client = new FakeClient();
-        var viewModel = new HomeViewModel(
-            client,
-            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()),
-            new OperationTracker(client)
-        );
+        var viewModel = CreateViewModel(client);
 
         await viewModel.InitializeAsync(CancellationToken.None);
 
@@ -30,6 +26,57 @@ public sealed class HomeViewModelRecoveryProjectionTests
         Assert.True(activity.CanRetry);
         Assert.True(activity.CanNavigate);
         Assert.Null(activity.RetryUnavailableReason);
+    }
+
+    [Fact]
+    public async Task RetryAsync_RejectedAdmissionSurfacesFeedbackOnActivityWithoutNewOperation()
+    {
+        var client = new FakeClient
+        {
+            InstallAccepted = new OperationAccepted("not-created", false, Now.AddMinutes(1)),
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        var result = await viewModel.RetryAsync("retained-failure", CancellationToken.None);
+
+        Assert.False(result.Started);
+        Assert.Equal("Install was not accepted for VLC.", result.Feedback);
+        Assert.Equal(1, client.InstallCalls);
+        var activity = Assert.Single(viewModel.ActivityItems);
+        Assert.Equal("retained-failure", activity.OperationId);
+        Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
+        Assert.True(activity.HasRetryAttemptFeedback);
+        Assert.Equal("Install was not accepted for VLC.", activity.RetryAttemptFeedback);
+    }
+
+    [Fact]
+    public async Task RetryAsync_DoesNotUsePresentationFallbackWhenCanonicalItemIsAbsent()
+    {
+        var client = new FakeClient();
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        client.Catalog = [];
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        viewModel.Items.Add(new UiOptionalInstallItem
+        {
+            ItemName = "VLC",
+            DisplayName = "Stale VLC presentation",
+            Observation = new Observation(ObservedState.Absent, null, Now, string.Empty, RequirementState.NotSatisfied),
+            Policy = new Policy(true, false, false, false, Selection.None),
+            InstallDecision = new ActionDecision(true, "allowed"),
+            RemoveDecision = new ActionDecision(false, "remove_unavailable"),
+        });
+
+        var result = await viewModel.RetryAsync("retained-failure", CancellationToken.None);
+
+        Assert.False(result.Started);
+        Assert.Contains("no longer available", result.Feedback, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, client.InstallCalls);
+        var activity = Assert.Single(viewModel.ActivityItems);
+        Assert.Equal("retained-failure", activity.OperationId);
+        Assert.Contains("no longer available", activity.RetryAttemptFeedback, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -59,6 +106,13 @@ public sealed class HomeViewModelRecoveryProjectionTests
         Assert.Contains($"Timestamp: {Now:O}", recovery.TechnicalDetails, StringComparison.Ordinal);
     }
 
+    private static HomeViewModel CreateViewModel(FakeClient client)
+        => new(
+            client,
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()),
+            new OperationTracker(client)
+        );
+
     private sealed class InMemoryCacheStore : IOptionalInstallsCacheStore
     {
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
@@ -70,31 +124,12 @@ public sealed class HomeViewModelRecoveryProjectionTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
+        public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [ProtocolItem()];
+        public OperationAccepted InstallAccepted { get; set; } = new("created", true, Now.AddMinutes(1));
+        public int InstallCalls { get; private set; }
+
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([
-                new OptionalInstallItem(
-                    "VLC",
-                    "VLC",
-                    "4.0",
-                    "testcatalog",
-                    "nupkg",
-                    "VLC",
-                    "packages/VLC/VLC.nupkg",
-                    true,
-                    false,
-                    OptionalInstallStatus.NotInstalled,
-                    Now,
-                    null,
-                    TargetVersion: "4.0",
-                    Observation: new Observation(ObservedState.Absent, null, Now, string.Empty, RequirementState.NotSatisfied),
-                    Policy: new Policy(true, false, false, false, Selection.None),
-                    Actions: new Actions(
-                        new ActionDecision(true, "allowed"),
-                        new ActionDecision(false, "remove_unavailable")
-                    ),
-                    Description: "VLC media player"
-                ),
-            ]);
+            => Task.FromResult(Catalog);
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([
@@ -111,14 +146,43 @@ public sealed class HomeViewModelRecoveryProjectionTests
             ]);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
+        {
+            InstallCalls++;
+            return Task.FromResult(InstallAccepted);
+        }
 
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
-        public IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
+        public async IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
             string operationId,
-            CancellationToken cancellationToken)
-            => throw new NotSupportedException();
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
     }
+
+    private static OptionalInstallItem ProtocolItem() => new(
+        "VLC",
+        "VLC",
+        "4.0",
+        "testcatalog",
+        "nupkg",
+        "VLC",
+        "packages/VLC/VLC.nupkg",
+        true,
+        false,
+        OptionalInstallStatus.NotInstalled,
+        Now,
+        null,
+        TargetVersion: "4.0",
+        Observation: new Observation(ObservedState.Absent, null, Now, string.Empty, RequirementState.NotSatisfied),
+        Policy: new Policy(true, false, false, false, Selection.None),
+        Actions: new Actions(
+            new ActionDecision(true, "allowed"),
+            new ActionDecision(false, "remove_unavailable")
+        ),
+        Description: "VLC media player"
+    );
 }

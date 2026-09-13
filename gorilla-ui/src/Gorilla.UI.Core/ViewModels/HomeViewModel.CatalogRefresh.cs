@@ -22,6 +22,7 @@ public sealed partial class HomeViewModel
             (items, _) =>
             {
                 ApplyItems(items);
+                RefreshActivityRecoveryPresentations();
                 return Task.CompletedTask;
             },
             cancellationToken

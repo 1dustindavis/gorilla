@@ -67,8 +67,7 @@ internal sealed class AppDetailsPageDriver
     public string OpenAndReadTechnicalDetails(string operationId)
     {
         WaitById($"DetailsTechnicalDetails-{operationId}").Click();
-        var content = WaitById($"DetailsTechnicalDetailsContent-{operationId}");
-        return SafeValueOrName(content);
+        return WaitById($"DetailsTechnicalDetailsContent-{operationId}").AsTextBox().Text;
     }
 
     private AutomationElement WaitById(string automationId)
@@ -103,21 +102,6 @@ internal sealed class AppDetailsPageDriver
     {
         var element = FindById(automationId);
         return element is null ? string.Empty : SafeHelpText(element);
-    }
-
-    private static string SafeValueOrName(AutomationElement element)
-    {
-        try
-        {
-            if (element.Patterns.Value.IsSupported)
-            {
-                return element.Patterns.Value.Pattern.Value.Value;
-            }
-        }
-        catch (PropertyNotSupportedException)
-        {
-        }
-        return SafeName(element);
     }
 
     private static string SafeName(AutomationElement element)

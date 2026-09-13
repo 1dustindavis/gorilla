@@ -33,10 +33,10 @@ public sealed record AppDetailsPresentation(
     public double ProgressValue => ProgressPercent ?? 0;
     public bool HasLatestResult => !string.IsNullOrWhiteSpace(LatestResultHeading);
     public bool HasLatestResultDetail => !string.IsNullOrWhiteSpace(LatestResultDetail);
-    public bool HasLatestRecovery => LatestRecovery?.IsRetryCandidate == true;
+    public bool HasLatestRecovery => LatestRecovery is not null;
     public bool CanRetryLatest => LatestRecovery?.CanRetry == true;
     public bool HasRetryUnavailableReason => LatestRecovery?.HasRetryUnavailableReason == true;
-    public bool HasLatestTechnicalDetails => HasLatestRecovery && LatestRecovery?.HasTechnicalDetails == true;
+    public bool HasLatestTechnicalDetails => LatestRecovery?.HasTechnicalDetails == true;
     public string LatestFailureTitle => LatestRecovery?.OutcomeTitle ?? LatestResultHeading ?? string.Empty;
     public string? LatestFailureMessage => LatestRecovery?.UserMessage ?? LatestResultDetail;
     public bool HasLatestFailureMessage => !string.IsNullOrWhiteSpace(LatestFailureMessage);
@@ -63,14 +63,16 @@ public static class AppDetailsPresentationMapper
         var card = item.CardPresentation;
         var active = item.ActiveOperation;
         var latest = item.LatestOperation;
-        var recovery = latest is null
-            ? null
-            : OperationRecoveryPresentationMapper.Map(
+        OperationRecoveryPresentation? recovery = null;
+        if (latest is not null && OperationRecoveryPresentationMapper.IsRetryCandidate(latest.Result, latest.State))
+        {
+            recovery = OperationRecoveryPresentationMapper.Map(
                 latest,
                 item,
                 hasConflictingActiveOperation: active is not null &&
                     !string.Equals(active.OperationId, latest.OperationId, StringComparison.Ordinal)
             );
+        }
 
         return new AppDetailsPresentation(
             Description: EmptyToNull(item.Description),

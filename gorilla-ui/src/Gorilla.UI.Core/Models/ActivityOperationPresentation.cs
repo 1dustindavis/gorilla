@@ -7,10 +7,9 @@ using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
 
 namespace Gorilla.UI.Core.Models;
 
-// Presentation-only projection of one retained service operation. The structured
-// operation identity/result are deliberately preserved so a later retry surface
-// can re-enter the current service-authorized action path without replaying the
-// historical mutation.
+// Presentation-only projection of one retained service operation. Historical
+// operation identity/result remain immutable truth; Recovery describes only what
+// can be done now against the current canonical catalog item.
 public sealed class ActivityOperationPresentation : INotifyPropertyChanged
 {
     private string _itemName = string.Empty;
@@ -22,6 +21,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     private string _message = string.Empty;
     private DateTimeOffset _timestampUtc;
     private bool _canNavigate;
+    private OperationRecoveryPresentation? _recovery;
 
     public ActivityOperationPresentation(string operationId)
     {
@@ -38,6 +38,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string Message => _message;
     public DateTimeOffset TimestampUtc => _timestampUtc;
     public bool CanNavigate => _canNavigate;
+    public OperationRecoveryPresentation? Recovery => _recovery;
 
     public bool IsActive => State != OperationState.Completed;
     public bool IsTerminal => !IsActive;
@@ -45,6 +46,16 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public bool IsProgressIndeterminate => IsActive && !ProgressPercent.HasValue;
     public double ProgressValue => ProgressPercent ?? 0;
     public bool HasDetail => !string.IsNullOrWhiteSpace(DetailText);
+    public bool HasRecovery => Recovery?.IsRetryCandidate == true;
+    public bool CanRetry => Recovery?.CanRetry == true;
+    public bool HasRetryUnavailableReason => Recovery?.HasRetryUnavailableReason == true;
+    public bool HasTechnicalDetails => Recovery?.HasTechnicalDetails == true;
+    public string FailureTitle => Recovery?.OutcomeTitle ?? StateText;
+    public string? FailureMessage => Recovery?.UserMessage;
+    public bool HasFailureMessage => !string.IsNullOrWhiteSpace(FailureMessage);
+    public string RetryLabel => Recovery?.RetryLabel ?? "Retry";
+    public string? RetryUnavailableReason => Recovery?.RetryUnavailableReason;
+    public string TechnicalDetails => Recovery?.TechnicalDetails ?? string.Empty;
 
     // Retained service action is historical truth. Contextual Stage 5 labels such
     // as Update/Keep Installed are intentionally not reconstructed from current state.
@@ -70,8 +81,18 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string StateAutomationId => $"ActivityState-{OperationId}";
     public string ProgressAutomationId => $"ActivityProgress-{OperationId}";
     public string DetailAutomationId => $"ActivityDetail-{OperationId}";
+    public string FailureTitleAutomationId => $"ActivityFailureTitle-{OperationId}";
+    public string RetryAutomationId => $"ActivityRetry-{OperationId}";
+    public string RetryUnavailableAutomationId => $"ActivityRetryUnavailable-{OperationId}";
+    public string TechnicalDetailsAutomationId => $"OperationTechnicalDetails-{OperationId}";
+    public string TechnicalDetailsContentAutomationId => $"OperationTechnicalDetailsContent-{OperationId}";
 
-    internal void Apply(OperationStatusEvent operation, string displayName, bool canNavigate)
+    internal void Apply(
+        OperationStatusEvent operation,
+        string displayName,
+        bool canNavigate,
+        OperationRecoveryPresentation recovery
+    )
     {
         if (!string.Equals(operation.OperationId, OperationId, StringComparison.Ordinal))
         {
@@ -87,6 +108,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         SetField(ref _message, operation.Message, nameof(Message));
         SetField(ref _timestampUtc, operation.TimestampUtc, nameof(TimestampUtc));
         SetField(ref _canNavigate, canNavigate, nameof(CanNavigate));
+        SetField(ref _recovery, recovery, nameof(Recovery));
 
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(IsTerminal));
@@ -98,6 +120,16 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         OnPropertyChanged(nameof(DetailText));
         OnPropertyChanged(nameof(HasDetail));
         OnPropertyChanged(nameof(TimestampText));
+        OnPropertyChanged(nameof(HasRecovery));
+        OnPropertyChanged(nameof(CanRetry));
+        OnPropertyChanged(nameof(HasRetryUnavailableReason));
+        OnPropertyChanged(nameof(HasTechnicalDetails));
+        OnPropertyChanged(nameof(FailureTitle));
+        OnPropertyChanged(nameof(FailureMessage));
+        OnPropertyChanged(nameof(HasFailureMessage));
+        OnPropertyChanged(nameof(RetryLabel));
+        OnPropertyChanged(nameof(RetryUnavailableReason));
+        OnPropertyChanged(nameof(TechnicalDetails));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -90,9 +90,11 @@ public sealed class OptionalInstallsCacheCoordinator
     private readonly IOptionalInstallsCacheStore _cacheStore;
     private readonly object _refreshLock = new();
     private readonly object _cacheWriteLock = new();
+    private readonly object _stateNotificationLock = new();
     private Task<OptionalInstallsRefreshResult>? _refreshTask;
     private Task _cacheWriteTail = Task.CompletedTask;
     private CatalogDataState _state = CatalogDataState.InitialLoading;
+    private SynchronizationContext? _stateNotificationContext;
 
     public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
     {
@@ -106,6 +108,8 @@ public sealed class OptionalInstallsCacheCoordinator
 
     public async Task<OptionalInstallsCacheDocument?> LoadCachedAsync(CancellationToken cancellationToken)
     {
+        CaptureStateNotificationContext();
+
         var cached = await _cacheStore.LoadAsync(cancellationToken);
         if (cached is not null)
         {
@@ -128,6 +132,8 @@ public sealed class OptionalInstallsCacheCoordinator
 
     public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
+        CaptureStateNotificationContext();
+
         lock (_refreshLock)
         {
             if (_refreshTask is not null)
@@ -245,9 +251,15 @@ public sealed class OptionalInstallsCacheCoordinator
 
     private async Task PersistCacheAfterAsync(Task previousWrite, OptionalInstallsCacheDocument document)
     {
-        // Each queued write handles its own failures, but await the predecessor so
-        // cache snapshots cannot be persisted out of live-refresh order.
-        await previousWrite.ConfigureAwait(false);
+        // Preserve write ordering, but never let an unexpected failure in an older
+        // best-effort persistence task prevent a newer live snapshot from being saved.
+        try
+        {
+            await previousWrite.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
 
         try
         {
@@ -274,6 +286,20 @@ public sealed class OptionalInstallsCacheCoordinator
         }
     }
 
+    private void CaptureStateNotificationContext()
+    {
+        var current = SynchronizationContext.Current;
+        if (current is null)
+        {
+            return;
+        }
+
+        lock (_stateNotificationLock)
+        {
+            _stateNotificationContext ??= current;
+        }
+    }
+
     private void SetState(CatalogDataState state)
     {
         if (Equals(_state, state))
@@ -282,6 +308,32 @@ public sealed class OptionalInstallsCacheCoordinator
         }
 
         _state = state;
-        StateChanged?.Invoke(this, EventArgs.Empty);
+
+        var handler = StateChanged;
+        if (handler is null)
+        {
+            return;
+        }
+
+        SynchronizationContext? notificationContext;
+        lock (_stateNotificationLock)
+        {
+            notificationContext = _stateNotificationContext;
+        }
+
+        if (notificationContext is not null && !ReferenceEquals(SynchronizationContext.Current, notificationContext))
+        {
+            notificationContext.Post(
+                static payload =>
+                {
+                    var (owner, stateChanged) = ((OptionalInstallsCacheCoordinator Owner, EventHandler StateChanged))payload!;
+                    stateChanged(owner, EventArgs.Empty);
+                },
+                (this, handler)
+            );
+            return;
+        }
+
+        handler(this, EventArgs.Empty);
     }
 }

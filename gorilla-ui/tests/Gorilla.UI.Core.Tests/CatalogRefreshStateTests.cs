@@ -150,6 +150,7 @@ public sealed class CatalogRefreshStateTests
     [Fact]
     public async Task BlockedCacheSave_DoesNotDelayFreshLiveSnapshot()
     {
+        OptionalInstallsCacheDocument? persistedDocument = null;
         var saveStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseSave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var store = new TestCacheStore
@@ -158,10 +159,9 @@ public sealed class CatalogRefreshStateTests
             {
                 saveStarted.TrySetResult(true);
                 await releaseSave.Task;
-                storeDocument = document;
+                persistedDocument = document;
             },
         };
-        OptionalInstallsCacheDocument? storeDocument = null;
         var client = new FakeClient
         {
             ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("live", "Live")]),
@@ -176,12 +176,12 @@ public sealed class CatalogRefreshStateTests
         Assert.True(coordinator.State.HasUsableData);
         Assert.False(coordinator.State.IsRefreshing);
         Assert.NotNull(coordinator.State.LastSuccessfulRefreshUtc);
-        Assert.Null(storeDocument);
+        Assert.Null(persistedDocument);
         Assert.False(releaseSave.Task.IsCompleted);
 
         releaseSave.TrySetResult(true);
-        await WaitUntilAsync(() => storeDocument is not null);
-        Assert.Equal(result.RefreshedAtUtc, storeDocument!.CachedAtUtc);
+        await WaitUntilAsync(() => persistedDocument is not null);
+        Assert.Equal(result.RefreshedAtUtc, persistedDocument!.CachedAtUtc);
     }
 
     [Fact]

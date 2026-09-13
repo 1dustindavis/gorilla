@@ -37,7 +37,7 @@ namespace Gorilla.UI.App
             catch
             {
                 // CatalogDataState owns the user-facing failure state and retains
-                // the underlying exception for the later troubleshooting surface.
+                // the underlying exception for the troubleshooting disclosure.
             }
         }
 
@@ -63,6 +63,12 @@ namespace Gorilla.UI.App
             var warning = BuildDegradedWarning(state);
             CatalogDegradedText.Text = warning;
             CatalogDegradedBanner.Visibility = string.IsNullOrWhiteSpace(warning)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            var technicalDetails = BuildTechnicalDetails(state);
+            CatalogTechnicalDetailsText.Text = technicalDetails;
+            CatalogTechnicalDetails.Visibility = string.IsNullOrWhiteSpace(technicalDetails)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
         }
@@ -120,7 +126,41 @@ namespace Gorilla.UI.App
                 return "Gorilla couldn't save the latest catalog for fallback use.";
             }
 
+            if (state.HasLoadFailure)
+            {
+                return "Gorilla couldn't load the App Catalog.";
+            }
+
             return string.Empty;
+        }
+
+        private static string BuildTechnicalDetails(CatalogDataState state)
+        {
+            Exception? exception = null;
+            string? context = null;
+
+            if (state.RefreshFailure is not null)
+            {
+                context = "Catalog refresh failure";
+                exception = state.RefreshFailure;
+            }
+            else if (state.CacheWriteFailure is not null)
+            {
+                context = "Catalog cache write failure";
+                exception = state.CacheWriteFailure;
+            }
+            else if (state.LoadFailure is not null)
+            {
+                context = "Catalog load failure";
+                exception = state.LoadFailure;
+            }
+
+            if (exception is null)
+            {
+                return string.Empty;
+            }
+
+            return $"{context}{Environment.NewLine}{exception}";
         }
 
         private static string FormatLocalTime(DateTimeOffset timestamp)

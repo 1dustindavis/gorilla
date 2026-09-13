@@ -4,6 +4,12 @@ using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
 
 namespace Gorilla.UI.Core.ViewModels;
 
+public sealed record RetryAttemptResult(bool Started, string? Feedback)
+{
+    public static RetryAttemptResult Accepted { get; } = new(true, null);
+    public static RetryAttemptResult NotStarted(string feedback) => new(false, feedback);
+}
+
 public sealed partial class HomeViewModel
 {
     private const string RetryActiveFeedback = "Another operation for this app is already active.";
@@ -11,7 +17,7 @@ public sealed partial class HomeViewModel
     public void RefreshActivityRecoveryPresentations()
         => RebuildActivityProjection();
 
-    public async Task RetryAsync(string historicalOperationId, CancellationToken cancellationToken)
+    public async Task<RetryAttemptResult> RetryAsync(string historicalOperationId, CancellationToken cancellationToken)
     {
         if (!_operationTracker.TryGetLatest(historicalOperationId, out var historical) || historical is null)
         {
@@ -23,23 +29,27 @@ public sealed partial class HomeViewModel
             throw new InvalidOperationException("This operation is not eligible for retry.");
         }
 
+        SetRetryAttemptFeedback(historicalOperationId, null);
+
         // Retry is a new intent. Resolve current canonical catalog truth immediately
-        // before dispatch and never reuse the historical operation or mutation identity.
-        var item = FindItem(historical.ItemName);
+        // before dispatch and never reuse historical operation or mutation identity.
+        var item = FindCanonicalItem(historical.ItemName);
         if (item is null)
         {
-            throw new InvalidOperationException("This app is no longer available in the current catalog.");
+            const string feedback = "This app is no longer available in the current catalog.";
+            SetRetryAttemptFeedback(historicalOperationId, feedback);
+            RebuildActivityProjection();
+            return RetryAttemptResult.NotStarted(feedback);
         }
 
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         if (active is not null || item.IsBusy)
         {
-            // A stale/double UI activation must not submit a second mutation. This
-            // feedback is bounded to the admission race and cleared by the accepted
-            // attempt once it finishes, so it cannot survive as stale terminal state.
+            // A stale/double UI activation must not submit a second mutation.
             item.TransientFeedback = RetryActiveFeedback;
+            SetRetryAttemptFeedback(historicalOperationId, RetryActiveFeedback);
             RebuildActivityProjection();
-            return;
+            return RetryAttemptResult.NotStarted(RetryActiveFeedback);
         }
 
         var currentDecision = historical.Action == CatalogAction.Remove
@@ -47,9 +57,11 @@ public sealed partial class HomeViewModel
             : item.InstallDecision;
         if (!currentDecision.Allowed)
         {
-            item.TransientFeedback = OperationRecoveryPresentationMapper.ReasonText(currentDecision.Reason);
+            var feedback = OperationRecoveryPresentationMapper.ReasonText(currentDecision.Reason);
+            item.TransientFeedback = feedback;
+            SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
-            return;
+            return RetryAttemptResult.NotStarted(feedback);
         }
 
         // Converge on the ordinary action path. The client creates a fresh mutation
@@ -63,10 +75,30 @@ public sealed partial class HomeViewModel
             await InstallAsync(item, cancellationToken);
         }
 
-        if (string.Equals(item.TransientFeedback, RetryActiveFeedback, StringComparison.Ordinal))
+        // Ordinary Install/Remove admission rejection is intentionally non-operation
+        // feedback. Surface it on both Details/card item state and the Activity row
+        // where Retry was initiated, without manufacturing retained operation history.
+        if (!string.IsNullOrWhiteSpace(item.TransientFeedback))
         {
-            item.TransientFeedback = null;
+            var feedback = item.TransientFeedback;
+            SetRetryAttemptFeedback(historicalOperationId, feedback);
+            RebuildActivityProjection();
+            return RetryAttemptResult.NotStarted(feedback);
         }
+
+        SetRetryAttemptFeedback(historicalOperationId, null);
         RebuildActivityProjection();
+        return RetryAttemptResult.Accepted;
+    }
+
+    private UiOptionalInstallItem? FindCanonicalItem(string itemName)
+        => _catalogItems.TryGetValue(itemName, out var item) ? item : null;
+
+    private void SetRetryAttemptFeedback(string operationId, string? feedback)
+    {
+        if (_activityItems.TryGetValue(operationId, out var activity))
+        {
+            activity.SetRetryAttemptFeedback(feedback);
+        }
     }
 }

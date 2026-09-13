@@ -89,8 +89,9 @@ public sealed class OptionalInstallsCacheCoordinator
     private readonly IGorillaServiceClient _client;
     private readonly IOptionalInstallsCacheStore _cacheStore;
     private readonly object _refreshLock = new();
-    private readonly SemaphoreSlim _cacheWriteLock = new(1, 1);
+    private readonly object _cacheWriteLock = new();
     private Task<OptionalInstallsRefreshResult>? _refreshTask;
+    private Task _cacheWriteTail = Task.CompletedTask;
     private CatalogDataState _state = CatalogDataState.InitialLoading;
 
     public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
@@ -177,7 +178,7 @@ public sealed class OptionalInstallsCacheCoordinator
                 CacheWriteFailure: null
             ));
 
-            _ = PersistCacheAsync(document);
+            QueueCachePersistence(document);
 
             return new OptionalInstallsRefreshResult(
                 refreshedAtUtc,
@@ -234,38 +235,42 @@ public sealed class OptionalInstallsCacheCoordinator
         }
     }
 
-    private async Task PersistCacheAsync(OptionalInstallsCacheDocument document)
+    private void QueueCachePersistence(OptionalInstallsCacheDocument document)
     {
-        await _cacheWriteLock.WaitAsync(CancellationToken.None);
+        lock (_cacheWriteLock)
+        {
+            _cacheWriteTail = PersistCacheAfterAsync(_cacheWriteTail, document);
+        }
+    }
+
+    private async Task PersistCacheAfterAsync(Task previousWrite, OptionalInstallsCacheDocument document)
+    {
+        // Each queued write handles its own failures, but await the predecessor so
+        // cache snapshots cannot be persisted out of live-refresh order.
+        await previousWrite.ConfigureAwait(false);
+
         try
         {
-            try
-            {
-                await _cacheStore.SaveAsync(document, CancellationToken.None);
+            await _cacheStore.SaveAsync(document, CancellationToken.None).ConfigureAwait(false);
 
-                var state = _state;
-                var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
-                    ? currentCachedAt
-                    : document.CachedAtUtc;
-                var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
-                SetState(state with
-                {
-                    CachedAtUtc = cachedAtUtc,
-                    CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
-                });
-            }
-            catch (Exception ex)
+            var state = _state;
+            var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
+                ? currentCachedAt
+                : document.CachedAtUtc;
+            var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
+            SetState(state with
             {
-                var state = _state;
-                if (state.LastSuccessfulRefreshUtc == document.CachedAtUtc)
-                {
-                    SetState(state with { CacheWriteFailure = ex });
-                }
-            }
+                CachedAtUtc = cachedAtUtc,
+                CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+            });
         }
-        finally
+        catch (Exception ex)
         {
-            _cacheWriteLock.Release();
+            var state = _state;
+            if (state.LastSuccessfulRefreshUtc == document.CachedAtUtc)
+            {
+                SetState(state with { CacheWriteFailure = ex });
+            }
         }
     }
 

@@ -66,7 +66,7 @@ namespace Gorilla.UI.App
                 ? Visibility.Collapsed
                 : Visibility.Visible;
 
-            var technicalDetails = BuildTechnicalDetails(state);
+            var technicalDetails = CatalogTroubleshootingPresentation.BuildTechnicalDetails(state);
             CatalogTechnicalDetailsText.Text = technicalDetails;
             CatalogTechnicalDetails.Visibility = string.IsNullOrWhiteSpace(technicalDetails)
                 ? Visibility.Collapsed
@@ -132,35 +132,6 @@ namespace Gorilla.UI.App
             }
 
             return string.Empty;
-        }
-
-        private static string BuildTechnicalDetails(CatalogDataState state)
-        {
-            Exception? exception = null;
-            string? context = null;
-
-            if (state.RefreshFailure is not null)
-            {
-                context = "Catalog refresh failure";
-                exception = state.RefreshFailure;
-            }
-            else if (state.CacheWriteFailure is not null)
-            {
-                context = "Catalog cache write failure";
-                exception = state.CacheWriteFailure;
-            }
-            else if (state.LoadFailure is not null)
-            {
-                context = "Catalog load failure";
-                exception = state.LoadFailure;
-            }
-
-            if (exception is null)
-            {
-                return string.Empty;
-            }
-
-            return $"{context}{Environment.NewLine}{exception}";
         }
 
         private static string FormatLocalTime(DateTimeOffset timestamp)

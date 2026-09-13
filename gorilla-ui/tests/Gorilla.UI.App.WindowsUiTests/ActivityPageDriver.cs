@@ -51,6 +51,39 @@ internal sealed class ActivityPageDriver
     public string DetailText(string operationId)
         => NameOfDescendant(operationId, $"ActivityDetail-{operationId}");
 
+    public string FailureTitle(string operationId)
+        => NameOfDescendant(operationId, $"ActivityFailureTitle-{operationId}");
+
+    public string RetryUnavailableText(string operationId)
+        => NameOfDescendant(operationId, $"ActivityRetryUnavailable-{operationId}");
+
+    public Button RetryButton(string operationId)
+        => _session.WaitFor(
+            () => WaitForOperation(operationId)
+                .FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}"))
+                ?.AsButton()
+        );
+
+    public bool HasRetryButton(string operationId)
+        => WaitForOperation(operationId)
+            .FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
+
+    public AutomationElement TechnicalDetailsDisclosure(string operationId)
+        => _session.WaitFor(
+            () => WaitForOperation(operationId)
+                .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}"))
+        );
+
+    public string OpenAndReadTechnicalDetails(string operationId)
+    {
+        TechnicalDetailsDisclosure(operationId).Click();
+        var content = _session.WaitFor(
+            () => WaitForOperation(operationId)
+                .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}"))
+        );
+        return SafeValueOrName(content);
+    }
+
     public int CountEntries(string operationId)
         => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
 
@@ -65,6 +98,14 @@ internal sealed class ActivityPageDriver
             () => ListEntries().FirstOrDefault(item =>
                 item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
                     .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase))),
+            timeout
+        );
+
+    public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
+        => _session.WaitFor(
+            () => ListEntries().FirstOrDefault(item =>
+                !string.Equals(SafeHelpText(item), previousOperationId, StringComparison.Ordinal)
+                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)),
             timeout
         );
 
@@ -98,6 +139,21 @@ internal sealed class ActivityPageDriver
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+
+    private static string SafeValueOrName(AutomationElement element)
+    {
+        try
+        {
+            if (element.Patterns.Value.IsSupported)
+            {
+                return element.Patterns.Value.Pattern.Value.Value;
+            }
+        }
+        catch (PropertyNotSupportedException)
+        {
+        }
+        return SafeName(element);
+    }
 
     private static string SafeName(AutomationElement element)
     {

@@ -74,7 +74,7 @@ public class OptionalInstallsCacheTests
     }
 
     [Fact]
-    public async Task Coordinator_RefreshSavesAndReturnsFreshData()
+    public async Task Coordinator_RefreshReturnsFreshDataBeforeSecondaryCachePersistenceCompletes()
     {
         var now = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
         var store = new InMemoryCacheStore();
@@ -82,14 +82,19 @@ public class OptionalInstallsCacheTests
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
         var refreshed = await coordinator.RefreshAsync(CancellationToken.None);
-        var cached = await coordinator.LoadCachedAsync(CancellationToken.None);
 
         Assert.Single(refreshed.Items);
         Assert.Equal("VLC", refreshed.Items[0].ItemName);
+        Assert.Null(refreshed.CacheWriteFailure);
+        Assert.True(coordinator.State.IsLive);
+        Assert.False(coordinator.State.IsRefreshing);
+
+        await store.Saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var cached = await coordinator.LoadCachedAsync(CancellationToken.None);
+
         Assert.NotNull(cached);
         Assert.Equal(refreshed.RefreshedAtUtc, cached!.CachedAtUtc);
         Assert.Equal(refreshed.Items, cached.Items);
-        Assert.Null(refreshed.CacheWriteFailure);
     }
 
     private static string MakeTempDirectory()
@@ -122,11 +127,14 @@ public class OptionalInstallsCacheTests
     {
         private OptionalInstallsCacheDocument? _document;
 
+        public TaskCompletionSource<bool> Saved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_document);
 
         public Task SaveAsync(OptionalInstallsCacheDocument document, CancellationToken cancellationToken)
         {
             _document = document;
+            Saved.TrySetResult(true);
             return Task.CompletedTask;
         }
     }

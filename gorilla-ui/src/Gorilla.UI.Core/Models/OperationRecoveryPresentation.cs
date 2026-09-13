@@ -189,34 +189,34 @@ public static class OperationRecoveryPresentationMapper
         text.AppendLine("Gorilla App Catalog operation");
         if (!string.IsNullOrWhiteSpace(displayName))
         {
-            text.AppendLine($"App: {displayName}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"App: {displayName}");
         }
-        text.AppendLine($"Item: {itemName}");
-        text.AppendLine($"Action: {ActionLabel(action)}");
-        text.AppendLine($"Operation ID: {operationId}");
-        text.AppendLine($"State: {state}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Item: {itemName}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Action: {ActionLabel(action)}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Operation ID: {operationId}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"State: {state}");
         if (result is not null)
         {
-            text.AppendLine($"Outcome: {result.Outcome}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"Outcome: {result.Outcome}");
             if (!string.IsNullOrWhiteSpace(result.Code))
             {
-                text.AppendLine($"Code: {result.Code}");
+                text.AppendLine(CultureInfo.InvariantCulture, $"Code: {result.Code}");
             }
             if (!string.IsNullOrWhiteSpace(result.DetailCode))
             {
-                text.AppendLine($"Detail code: {result.DetailCode}");
+                text.AppendLine(CultureInfo.InvariantCulture, $"Detail code: {result.DetailCode}");
             }
             if (!string.IsNullOrWhiteSpace(result.Message))
             {
-                text.AppendLine($"Result message: {result.Message}");
+                text.AppendLine(CultureInfo.InvariantCulture, $"Result message: {result.Message}");
             }
         }
         if (!string.IsNullOrWhiteSpace(operationMessage) &&
             !string.Equals(operationMessage, result?.Message, StringComparison.Ordinal))
         {
-            text.AppendLine($"Operation message: {operationMessage}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"Operation message: {operationMessage}");
         }
-        text.Append($"Time: {timestampUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)}");
+        text.Append(CultureInfo.CurrentCulture, $"Time: {timestampUtc.ToLocalTime():g}");
         return text.ToString();
     }
 

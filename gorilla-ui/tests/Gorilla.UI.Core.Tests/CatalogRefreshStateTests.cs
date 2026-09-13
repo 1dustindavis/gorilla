@@ -136,14 +136,52 @@ public sealed class CatalogRefreshStateTests
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
         var result = await coordinator.RefreshAsync(CancellationToken.None);
+        await WaitUntilAsync(() => coordinator.State.HasCacheWriteFailure);
 
         Assert.Single(result.Items);
-        Assert.NotNull(result.CacheWriteFailure);
+        Assert.Null(result.CacheWriteFailure);
         Assert.True(coordinator.State.IsLive);
         Assert.True(coordinator.State.HasUsableData);
         Assert.True(coordinator.State.HasCacheWriteFailure);
         Assert.False(coordinator.State.HasRefreshFailure);
         Assert.NotNull(coordinator.State.LastSuccessfulRefreshUtc);
+    }
+
+    [Fact]
+    public async Task BlockedCacheSave_DoesNotDelayFreshLiveSnapshot()
+    {
+        var saveStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new TestCacheStore
+        {
+            SaveAsyncOverride = async (document, _) =>
+            {
+                saveStarted.TrySetResult(true);
+                await releaseSave.Task;
+                storeDocument = document;
+            },
+        };
+        OptionalInstallsCacheDocument? storeDocument = null;
+        var client = new FakeClient
+        {
+            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("live", "Live")]),
+        };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, store);
+
+        var result = await coordinator.RefreshAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+        await saveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Single(result.Items);
+        Assert.True(coordinator.State.IsLive);
+        Assert.True(coordinator.State.HasUsableData);
+        Assert.False(coordinator.State.IsRefreshing);
+        Assert.NotNull(coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.Null(storeDocument);
+        Assert.False(releaseSave.Task.IsCompleted);
+
+        releaseSave.TrySetResult(true);
+        await WaitUntilAsync(() => storeDocument is not null);
+        Assert.Equal(result.RefreshedAtUtc, storeDocument!.CachedAtUtc);
     }
 
     [Fact]
@@ -260,6 +298,15 @@ public sealed class CatalogRefreshStateTests
         Assert.Null(viewModel.SelectedItem);
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
     private static OptionalInstallItem Item(string itemName, string displayName, string version = "1.0")
     {
         var now = DateTimeOffset.Parse("2026-09-12T18:00:00Z");
@@ -297,12 +344,18 @@ public sealed class CatalogRefreshStateTests
     {
         public OptionalInstallsCacheDocument? Document { get; set; }
         public Exception? SaveFailure { get; set; }
+        public Func<OptionalInstallsCacheDocument, CancellationToken, Task>? SaveAsyncOverride { get; set; }
 
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
             => Task.FromResult(Document);
 
         public Task SaveAsync(OptionalInstallsCacheDocument document, CancellationToken cancellationToken)
         {
+            if (SaveAsyncOverride is not null)
+            {
+                return SaveAsyncOverride(document, cancellationToken);
+            }
+
             if (SaveFailure is not null)
             {
                 return Task.FromException(SaveFailure);

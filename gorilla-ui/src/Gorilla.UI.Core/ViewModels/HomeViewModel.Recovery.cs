@@ -1,4 +1,3 @@
-using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core.Models;
 using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
@@ -29,16 +28,6 @@ public sealed partial class HomeViewModel
                 conflictingActive
             ));
         }
-    }
-
-    public OperationRecoveryPresentation GetRecoveryPresentation(UiOperationPresentation operation)
-    {
-        var itemName = SelectedItemName;
-        var item = itemName is null ? null : FindItem(itemName);
-        var active = item is null ? null : _operationTracker.GetActiveForItem(item.ItemName);
-        var conflictingActive = active is not null &&
-            !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
-        return OperationRecoveryPresentationMapper.Map(operation, item, conflictingActive);
     }
 
     public async Task RetryAsync(string historicalOperationId, CancellationToken cancellationToken)

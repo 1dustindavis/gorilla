@@ -95,6 +95,7 @@ public sealed class OptionalInstallsCacheCoordinator
     private Task _cacheWriteTail = Task.CompletedTask;
     private CatalogDataState _state = CatalogDataState.InitialLoading;
     private SynchronizationContext? _stateNotificationContext;
+    private Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task>? _defaultSnapshotAcceptor;
 
     public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
     {
@@ -128,6 +129,21 @@ public sealed class OptionalInstallsCacheCoordinator
         }
 
         return cached;
+    }
+
+    public void RegisterSnapshotAcceptor(
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot
+    )
+    {
+        ArgumentNullException.ThrowIfNull(acceptSnapshot);
+        _defaultSnapshotAcceptor = acceptSnapshot;
+    }
+
+    public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
+    {
+        var acceptSnapshot = _defaultSnapshotAcceptor
+            ?? static (_, _) => Task.CompletedTask;
+        return RefreshAsync(acceptSnapshot, cancellationToken);
     }
 
     public Task<OptionalInstallsRefreshResult> RefreshAsync(

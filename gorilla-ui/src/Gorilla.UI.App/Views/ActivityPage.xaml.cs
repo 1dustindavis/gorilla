@@ -2,6 +2,7 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
@@ -35,6 +36,7 @@ public sealed partial class ActivityPage : Page
         try
         {
             await _session.EnsureInitializedAsync();
+            ViewModel.RefreshActivityRecoveryPresentations();
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
@@ -81,10 +83,15 @@ public sealed partial class ActivityPage : Page
         {
             UpdateEmptyState();
         }
+        if (e.PropertyName == nameof(HomeViewModel.CatalogState))
+        {
+            ViewModel.RefreshActivityRecoveryPresentations();
+        }
     }
 
     private void ActivityItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        ViewModel.RefreshActivityRecoveryPresentations();
         UpdateEmptyState();
     }
 
@@ -113,6 +120,32 @@ public sealed partial class ActivityPage : Page
         AutomationProperties.SetAutomationId(args.ItemContainer, item.EntryAutomationId);
         AutomationProperties.SetName(args.ItemContainer, $"{item.DisplayName}, {item.ActionLabel}, {item.StateText}");
         AutomationProperties.SetHelpText(args.ItemContainer, item.OperationId);
+    }
+
+    private async void RetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not ActivityOperationPresentation item || !item.CanRetry)
+        {
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await ViewModel.RetryAsync(item.OperationId, _session.LifetimeToken);
+        }
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.SetWarningBanner($"Retry could not be started: {ex.Message}");
+        }
+        finally
+        {
+            ViewModel.RefreshActivityRecoveryPresentations();
+            button.IsEnabled = item.CanRetry;
+        }
     }
 
     private void ActivityItems_ItemClick(object sender, ItemClickEventArgs e)

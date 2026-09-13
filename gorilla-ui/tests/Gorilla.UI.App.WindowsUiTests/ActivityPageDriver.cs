@@ -77,11 +77,11 @@ internal sealed class ActivityPageDriver
     public string OpenAndReadTechnicalDetails(string operationId)
     {
         TechnicalDetailsDisclosure(operationId).Click();
-        var content = _session.WaitFor(
+        return _session.WaitFor(
             () => WaitForOperation(operationId)
                 .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}"))
-        );
-        return SafeValueOrName(content);
+                ?.AsTextBox()
+        ).Text;
     }
 
     public int CountEntries(string operationId)
@@ -139,21 +139,6 @@ internal sealed class ActivityPageDriver
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
-
-    private static string SafeValueOrName(AutomationElement element)
-    {
-        try
-        {
-            if (element.Patterns.Value.IsSupported)
-            {
-                return element.Patterns.Value.Pattern.Value.Value;
-            }
-        }
-        catch (PropertyNotSupportedException)
-        {
-        }
-        return SafeName(element);
-    }
 
     private static string SafeName(AutomationElement element)
     {

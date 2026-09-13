@@ -100,9 +100,9 @@ public sealed partial class AppDetailsPage : Page
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
         }
-        catch (Exception ex)
+        catch
         {
-            item.TransientFeedback = $"Retry could not be started: {ex.Message}";
+            item.TransientFeedback = "Retry could not be started. Refresh and try again.";
         }
         finally
         {

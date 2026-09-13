@@ -88,17 +88,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string TechnicalDetailsContentAutomationId => $"OperationTechnicalDetailsContent-{OperationId}";
 
     internal void Apply(OperationStatusEvent operation, string displayName, bool canNavigate)
-    {
-        ApplyHistorical(operation, displayName, canNavigate);
-        // RebuildActivityProjection predates PR G and intentionally does not own
-        // current-action retry policy. HomeViewModel.RefreshActivityRecoveryPresentations
-        // immediately overlays current canonical truth for recovery surfaces.
-        ApplyRecovery(OperationRecoveryPresentationMapper.Map(
-            operation,
-            currentItem: null,
-            hasConflictingActiveOperation: false
-        ));
-    }
+        => ApplyHistorical(operation, displayName, canNavigate);
 
     internal void ApplyRecovery(OperationRecoveryPresentation recovery)
     {

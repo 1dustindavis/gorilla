@@ -79,6 +79,37 @@ public sealed partial class AppDetailsPage : Page
         }
     }
 
+    private async void RetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not UiOptionalInstallItem item)
+        {
+            return;
+        }
+
+        var presentation = item.DetailsPresentation;
+        if (!presentation.CanRetryLatest || string.IsNullOrWhiteSpace(presentation.LatestOperationId))
+        {
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await _viewModel.RetryAsync(presentation.LatestOperationId, _session.LifetimeToken);
+        }
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            item.TransientFeedback = $"Retry could not be started: {ex.Message}";
+        }
+        finally
+        {
+            button.IsEnabled = item.DetailsPresentation.CanRetryLatest;
+        }
+    }
+
     private async void ActionButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || DataContext is not UiOptionalInstallItem item)

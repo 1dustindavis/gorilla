@@ -15,6 +15,8 @@ public sealed record AppDetailsPresentation(
     int? ProgressPercent,
     string? LatestResultHeading,
     string? LatestResultDetail,
+    OperationRecoveryPresentation? LatestRecovery,
+    string? LatestOperationId,
     CatalogCardActionPresentation? PrimaryAction,
     CatalogCardActionPresentation? SecondaryAction,
     string? InstallUnavailableExplanation,
@@ -31,6 +33,16 @@ public sealed record AppDetailsPresentation(
     public double ProgressValue => ProgressPercent ?? 0;
     public bool HasLatestResult => !string.IsNullOrWhiteSpace(LatestResultHeading);
     public bool HasLatestResultDetail => !string.IsNullOrWhiteSpace(LatestResultDetail);
+    public bool HasLatestRecovery => LatestRecovery?.IsRetryCandidate == true;
+    public bool CanRetryLatest => LatestRecovery?.CanRetry == true;
+    public bool HasRetryUnavailableReason => LatestRecovery?.HasRetryUnavailableReason == true;
+    public bool HasLatestTechnicalDetails => LatestRecovery?.HasTechnicalDetails == true;
+    public string LatestFailureTitle => LatestRecovery?.OutcomeTitle ?? LatestResultHeading ?? string.Empty;
+    public string? LatestFailureMessage => LatestRecovery?.UserMessage;
+    public bool HasLatestFailureMessage => !string.IsNullOrWhiteSpace(LatestFailureMessage);
+    public string RetryLabel => LatestRecovery?.RetryLabel ?? "Retry";
+    public string? RetryUnavailableReason => LatestRecovery?.RetryUnavailableReason;
+    public string LatestTechnicalDetails => LatestRecovery?.TechnicalDetails ?? string.Empty;
     public bool HasPrimaryAction => PrimaryAction is not null;
     public bool HasSecondaryAction => SecondaryAction is not null;
     public bool HasInstallUnavailableExplanation => !string.IsNullOrWhiteSpace(InstallUnavailableExplanation);
@@ -46,6 +58,14 @@ public static class AppDetailsPresentationMapper
         var card = item.CardPresentation;
         var active = item.ActiveOperation;
         var latest = item.LatestOperation;
+        var recovery = latest is null
+            ? null
+            : OperationRecoveryPresentationMapper.Map(
+                latest,
+                item,
+                hasConflictingActiveOperation: active is not null &&
+                    !string.Equals(active.OperationId, latest.OperationId, StringComparison.Ordinal)
+            );
 
         return new AppDetailsPresentation(
             Description: EmptyToNull(item.Description),
@@ -58,6 +78,8 @@ public static class AppDetailsPresentationMapper
             ProgressPercent: active?.ProgressPercent,
             LatestResultHeading: LatestResultHeading(active, latest),
             LatestResultDetail: LatestResultDetail(latest),
+            LatestRecovery: recovery,
+            LatestOperationId: latest?.OperationId,
             PrimaryAction: card.PrimaryAction,
             SecondaryAction: card.SecondaryAction,
             InstallUnavailableExplanation: Explanation("Install", item.InstallDecision),
@@ -148,29 +170,8 @@ public static class AppDetailsPresentationMapper
             return null;
         }
 
-        return $"{actionLabel} unavailable: {ReasonText(decision.Reason)}";
+        return $"{actionLabel} unavailable: {OperationRecoveryPresentationMapper.ReasonText(decision.Reason)}";
     }
-
-    // Service reason codes remain authoritative. This is intentionally only a
-    // deterministic wording map; it never inspects policy or observation to infer
-    // a different decision.
-    private static string ReasonText(string reason) => reason switch
-    {
-        "not_optional" => "This app is not optional software.",
-        "policy_conflict" => "Conflicting managed policy currently prevents this action.",
-        "managed_uninstall" => "This app is required to be removed by managed policy.",
-        "required_install" => "This app is required to stay installed by managed policy.",
-        "operation_active" => "Another operation for this app is already active.",
-        "invalid_selection" => "The app's current managed selection does not permit this action.",
-        "state_unknown" => "The current app state is unavailable.",
-        "detection_failed" => "Gorilla could not determine the current app state.",
-        "install_unavailable" => "No supported install action is available.",
-        "already_selected" => "This app is already selected to stay installed and updated.",
-        "required_dependency" => "Another managed app requires this app as a dependency.",
-        "already_absent" => "This app is already absent and is not selected to stay installed.",
-        "remove_unavailable" => "No supported remove action is available.",
-        _ => reason,
-    };
 
     private static string? EmptyToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;

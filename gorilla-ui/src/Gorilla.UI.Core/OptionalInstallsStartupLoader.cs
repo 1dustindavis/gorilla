@@ -17,7 +17,36 @@ public sealed class OptionalInstallsStartupLoader
         CancellationToken cancellationToken
     )
     {
-        var cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        Task AcceptRefreshedSnapshotAsync(
+            IReadOnlyList<OptionalInstallItem> items,
+            CancellationToken _
+        )
+        {
+            applyRefreshedItems(items);
+            return Task.CompletedTask;
+        }
+
+        // Register the canonical reconciler for later coordinator-owned refreshes,
+        // including post-operation refreshes that do not flow through the manual
+        // HomeViewModel.RefreshCatalogAsync entry point.
+        _cacheCoordinator.RegisterSnapshotAcceptor(AcceptRefreshedSnapshotAsync);
+
+        OptionalInstallsCacheDocument? cached = null;
+        try
+        {
+            cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // An unreadable or invalid fallback cache is not authoritative. Treat it
+            // as absent and continue to the live service instead of aborting session
+            // initialization before a live catalog request can be attempted.
+        }
+
         if (cached is not null)
         {
             applyCachedItems(cached.Items);
@@ -25,13 +54,19 @@ public sealed class OptionalInstallsStartupLoader
 
         try
         {
-            var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
-            applyRefreshedItems(refreshed.Items);
-            return string.Empty;
+            await _cacheCoordinator.RefreshAsync(AcceptRefreshedSnapshotAsync, cancellationToken);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return $"Showing cached data. Refresh failed: {ex.Message}";
+            throw;
         }
+        catch
+        {
+            // Catalog load/refresh failures are represented by the coordinator's
+            // explicit CatalogDataState. WarningBanner remains reserved for other
+            // service/operation infrastructure warnings.
+        }
+
+        return string.Empty;
     }
 }

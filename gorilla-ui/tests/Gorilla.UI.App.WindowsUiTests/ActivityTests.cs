@@ -47,6 +47,43 @@ public sealed class ActivityTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
+    public void CatalogRefreshPreservesActiveOperationAndActivityIdentity()
+    {
+        RunWithDiagnostics(nameof(CatalogRefreshPreservesActiveOperationAndActivityIdentity), session =>
+        {
+            var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
+            var home = new HomePageDriver(session);
+            var shell = new CatalogShellDriver(session);
+            EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
+
+            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            var operationId = home.OperationId(SlowFixtureItemName);
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+
+            shell.Refresh();
+            shell.WaitForRefreshStarted(TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+
+            var activity = ActivityPageDriver.OpenFromCatalog(session);
+            activity.WaitForOperationState(operationId, "Installing", TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+            Assert.Equal("Install", activity.ActionText(operationId));
+            session.CaptureCheckpoint("activity-during-catalog-refresh", includeAutomationTree: true);
+
+            session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+            activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            Assert.Equal(1, activity.CountEntries(operationId));
+            Assert.Equal("Succeeded", activity.StateText(operationId));
+            session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
     public void RetainedFailureStaysLocalAndShowsStructuredDetail()
     {
         RunWithDiagnostics(nameof(RetainedFailureStaysLocalAndShowsStructuredDetail), session =>

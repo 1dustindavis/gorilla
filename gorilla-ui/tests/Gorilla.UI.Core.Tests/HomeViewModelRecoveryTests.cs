@@ -66,6 +66,39 @@ public class HomeViewModelRecoveryTests
         Assert.Equal(1, client.ListOperationsCalls);
     }
 
+    [Fact]
+    public async Task PostOperationRefreshFailure_UsesCatalogStateAndManualRecoveryClearsIt()
+    {
+        var listAttempt = 0;
+        var client = new FakeClient
+        {
+            ListAsync = _ => ++listAttempt switch
+            {
+                1 => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]),
+                2 => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("catalog refresh failed")),
+                _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]),
+            },
+            StreamAsync = (_, _) => CompletedStream(),
+        };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
+        var viewModel = new HomeViewModel(client, coordinator, new OperationTracker(client));
+
+        await viewModel.InitializeAsync(CancellationToken.None);
+        var item = Assert.Single(viewModel.Items);
+
+        await viewModel.InstallAsync(item, CancellationToken.None);
+
+        Assert.Equal(string.Empty, viewModel.WarningBanner);
+        Assert.True(viewModel.CatalogState.HasRefreshFailure);
+        Assert.Contains("catalog refresh failed", viewModel.CatalogState.RefreshFailure!.Message);
+
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+
+        Assert.Equal(string.Empty, viewModel.WarningBanner);
+        Assert.False(viewModel.CatalogState.HasRefreshFailure);
+        Assert.True(viewModel.CatalogState.IsLive);
+    }
+
     private static UiOptionalInstallItem MakeUiItem() => new()
     {
         ItemName = "VLC",
@@ -76,6 +109,25 @@ public class HomeViewModelRecoveryTests
         InstallAllowed = true,
         RemoveAllowed = false,
     };
+
+    private static OptionalInstallItem CatalogItem() => new(
+        "VLC",
+        "VLC",
+        "1.0.0",
+        "testcatalog",
+        "ps1",
+        "VLC",
+        "VLC.ps1",
+        true,
+        false,
+        OptionalInstallStatus.NotInstalled,
+        Now,
+        null,
+        Actions: new Actions(
+            new ActionDecision(true, "allowed"),
+            new ActionDecision(false, "not_installed")
+        )
+    );
 
     private static OperationStatusEvent ActiveOperation() => new(
         "op-1",
@@ -135,32 +187,14 @@ public class HomeViewModelRecoveryTests
         public IReadOnlyList<OperationStatusEvent> Operations { get; init; } = [];
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; set; }
             = (_, _) => EmptyStream();
+        public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; }
+            = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]);
 
         public int StreamCalls { get; private set; }
         public int ListOperationsCalls { get; private set; }
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<OptionalInstallItem>>
-            ([
-                new OptionalInstallItem(
-                    "VLC",
-                    "VLC",
-                    "1.0.0",
-                    "testcatalog",
-                    "ps1",
-                    "VLC",
-                    "VLC.ps1",
-                    true,
-                    false,
-                    OptionalInstallStatus.NotInstalled,
-                    Now,
-                    null,
-                    Actions: new Actions(
-                        new ActionDecision(true, "allowed"),
-                        new ActionDecision(false, "not_installed")
-                    )
-                ),
-            ]);
+            => ListAsync(cancellationToken);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
             => Task.FromResult(new OperationAccepted("op-1", true, Now));

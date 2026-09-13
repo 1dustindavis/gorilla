@@ -176,7 +176,7 @@ public class HomeViewModelMutationTests
     }
 
     [Fact]
-    public async Task InstallAsync_RefreshFailureAfterOperationFailure_ShowsRefreshWarningAndKeepsItemFailureLocal()
+    public async Task InstallAsync_RefreshFailureAfterOperationFailure_UsesCatalogStateAndKeepsItemFailureLocal()
     {
         var client = new FakeClient
         {
@@ -188,8 +188,9 @@ public class HomeViewModelMutationTests
         var item = MakeUiItem("VLC");
         await viewModel.InstallAsync(item, CancellationToken.None);
         Assert.Equal("Failed: exit code 1", item.CardPresentation.TerminalFeedbackText);
-        Assert.Contains("Operation completed, but optional installs refresh failed", viewModel.WarningBanner);
-        Assert.Contains("refresh unavailable", viewModel.WarningBanner);
+        Assert.Empty(viewModel.WarningBanner);
+        Assert.True(viewModel.CatalogState.HasLoadFailure);
+        Assert.Contains("refresh unavailable", viewModel.CatalogState.LoadFailure!.Message);
         Assert.Equal(1, client.ListCalls);
     }
 

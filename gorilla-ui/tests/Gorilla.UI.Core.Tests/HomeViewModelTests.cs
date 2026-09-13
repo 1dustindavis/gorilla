@@ -136,7 +136,7 @@ public class HomeViewModelTests
     }
 
     [Fact]
-    public async Task InstallAsync_RefreshFailureAfterSuccess_SetsRefreshWarning()
+    public async Task InstallAsync_RefreshFailureAfterSuccess_RecordsCatalogFailureWithoutWarningBanner()
     {
         var client = new FakeClient
         {
@@ -153,8 +153,9 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.Equal(1, client.ListCalls);
-        Assert.Contains("Operation completed, but optional installs refresh failed:", viewModel.WarningBanner);
-        Assert.Contains("refresh unavailable", viewModel.WarningBanner);
+        Assert.Empty(viewModel.WarningBanner);
+        Assert.True(viewModel.CatalogState.HasLoadFailure);
+        Assert.Contains("refresh unavailable", viewModel.CatalogState.LoadFailure!.Message);
         Assert.False(item.IsBusy);
     }
 

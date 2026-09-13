@@ -10,7 +10,7 @@ using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.Core.ViewModels;
 
-public sealed class HomeViewModel : INotifyPropertyChanged
+public sealed partial class HomeViewModel : INotifyPropertyChanged
 {
     private static readonly TimeSpan RecoveryRetryDelay = TimeSpan.FromSeconds(1);
     private readonly IGorillaServiceClient _client;
@@ -408,16 +408,12 @@ public sealed class HomeViewModel : INotifyPropertyChanged
         {
             throw;
         }
-        catch (Exception ex)
+        catch
         {
-            if (!preserveExistingWarning && string.IsNullOrWhiteSpace(WarningBanner))
-            {
-                WarningBanner = $"Operation completed, but optional installs refresh failed: {ex.Message}";
-            }
-            else if (preserveExistingWarning)
-            {
-                WarningBanner = $"{WarningBanner} Refresh also failed: {ex.Message}";
-            }
+            // Ordinary catalog-refresh failures are fully represented by
+            // CatalogDataState. WarningBanner is reserved for independent operation-
+            // tracking uncertainty and must not duplicate or retain raw refresh errors.
+            _ = preserveExistingWarning;
         }
     }
 

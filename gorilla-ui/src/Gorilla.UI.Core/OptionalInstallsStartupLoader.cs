@@ -17,7 +17,22 @@ public sealed class OptionalInstallsStartupLoader
         CancellationToken cancellationToken
     )
     {
-        var cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        OptionalInstallsCacheDocument? cached = null;
+        try
+        {
+            cached = await _cacheCoordinator.LoadCachedAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // An unreadable or invalid fallback cache is not authoritative. Treat it
+            // as absent and continue to the live service instead of aborting session
+            // initialization before a live catalog request can be attempted.
+        }
+
         if (cached is not null)
         {
             applyCachedItems(cached.Items);

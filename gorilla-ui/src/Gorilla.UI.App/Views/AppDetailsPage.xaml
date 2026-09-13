@@ -32,7 +32,7 @@
                     <TextBlock Text="{Binding DetailsPresentation.Description}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsDescription" />
 
                     <StackPanel Spacing="5">
-                        <TextBlock Text="Status" FontSize="18" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="Current status" FontSize="18" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{Binding DetailsPresentation.ObservationText}" FontSize="16" AutomationProperties.AutomationId="DetailsObservation" />
                     </StackPanel>
 
@@ -56,10 +56,44 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsLatestResult" AutomationProperties.Name="{Binding DetailsPresentation.LatestResultHeading}" AutomationProperties.LiveSetting="Polite">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="{Binding DetailsPresentation.LatestResultHeading}" FontSize="16" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding DetailsPresentation.LatestResultDetail}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasLatestResultDetail, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsLatestResult" AutomationProperties.Name="{Binding DetailsPresentation.LatestFailureTitle}" AutomationProperties.LiveSetting="Polite">
+                        <StackPanel Spacing="7">
+                            <TextBlock
+                                Text="{Binding DetailsPresentation.LatestFailureTitle}"
+                                FontSize="16"
+                                FontWeight="SemiBold"
+                                AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestFailureTitleAutomationId}" />
+                            <TextBlock
+                                Text="{Binding DetailsPresentation.LatestFailureMessage}"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding DetailsPresentation.HasLatestFailureMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Button
+                                Content="{Binding DetailsPresentation.RetryLabel}"
+                                HorizontalAlignment="Left"
+                                Click="RetryButton_Click"
+                                Visibility="{Binding DetailsPresentation.CanRetryLatest, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestRetryAutomationId}"
+                                AutomationProperties.Name="Retry latest operation" />
+                            <TextBlock
+                                Text="{Binding DetailsPresentation.RetryUnavailableReason}"
+                                TextWrapping="Wrap"
+                                Opacity="0.75"
+                                Visibility="{Binding DetailsPresentation.HasRetryUnavailableReason, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestRetryUnavailableAutomationId}" />
+                            <Expander
+                                Header="Technical details"
+                                Visibility="{Binding DetailsPresentation.HasLatestTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestTechnicalDetailsAutomationId}">
+                                <TextBox
+                                    Text="{Binding DetailsPresentation.LatestTechnicalDetails}"
+                                    IsReadOnly="True"
+                                    AcceptsReturn="True"
+                                    TextWrapping="Wrap"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestTechnicalDetailsContentAutomationId}"
+                                    AutomationProperties.Name="Operation technical details" />
+                            </Expander>
                         </StackPanel>
                     </Border>
 

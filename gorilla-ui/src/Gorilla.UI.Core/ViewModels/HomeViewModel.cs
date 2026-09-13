@@ -500,8 +500,8 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
 
         RebuildVisibleItems();
-        // Catalog arrival/removal may change Activity display name and navigation,
-        // but never operation existence or identity.
+        // Catalog arrival/removal may change Activity display name, navigation, and
+        // recovery eligibility. RebuildActivityProjection owns all current recovery truth.
         RebuildActivityProjection();
     }
 
@@ -578,6 +578,15 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 item?.DisplayName ?? operation.ItemName,
                 canNavigate: item is not null
             );
+
+            var active = _operationTracker.GetActiveForItem(operation.ItemName);
+            var conflictingActive = active is not null &&
+                !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
+            presentation.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
+                operation,
+                item,
+                conflictingActive
+            ));
         }
 
         var desired = retained

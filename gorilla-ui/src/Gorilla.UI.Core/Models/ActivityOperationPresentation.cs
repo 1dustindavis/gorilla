@@ -45,8 +45,8 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public bool HasDeterminateProgress => IsActive && ProgressPercent.HasValue;
     public bool IsProgressIndeterminate => IsActive && !ProgressPercent.HasValue;
     public double ProgressValue => ProgressPercent ?? 0;
-    public bool HasDetail => !string.IsNullOrWhiteSpace(DetailText);
     public bool HasRecovery => Recovery?.IsRetryCandidate == true;
+    public bool HasDetail => !HasRecovery && !string.IsNullOrWhiteSpace(DetailText);
     public bool CanRetry => Recovery?.CanRetry == true;
     public bool HasRetryUnavailableReason => Recovery?.HasRetryUnavailableReason == true;
     public bool HasTechnicalDetails => Recovery?.HasTechnicalDetails == true;
@@ -104,6 +104,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     {
         SetField(ref _recovery, recovery, nameof(Recovery));
         OnPropertyChanged(nameof(HasRecovery));
+        OnPropertyChanged(nameof(HasDetail));
         OnPropertyChanged(nameof(CanRetry));
         OnPropertyChanged(nameof(HasRetryUnavailableReason));
         OnPropertyChanged(nameof(HasTechnicalDetails));

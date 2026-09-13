@@ -23,6 +23,8 @@ public sealed record OperationRecoveryPresentation(
 
 public static class OperationRecoveryPresentationMapper
 {
+    private const int MaxPrimaryMessageLength = 300;
+
     public static OperationRecoveryPresentation Map(
         UiOperationPresentation operation,
         UiOptionalInstallItem? currentItem,
@@ -162,16 +164,24 @@ public static class OperationRecoveryPresentationMapper
     }
 
     private static string? UserMessage(Result? result, string operationMessage)
+        => ConciseUserMessage(result?.Message) ?? ConciseUserMessage(operationMessage);
+
+    private static string? ConciseUserMessage(string? message)
     {
-        if (!string.IsNullOrWhiteSpace(result?.Message))
+        if (string.IsNullOrWhiteSpace(message))
         {
-            return result.Message;
+            return null;
         }
-        if (!string.IsNullOrWhiteSpace(operationMessage))
+
+        var trimmed = message.Trim();
+        if (trimmed.Length > MaxPrimaryMessageLength ||
+            trimmed.Contains('\r', StringComparison.Ordinal) ||
+            trimmed.Contains('\n', StringComparison.Ordinal))
         {
-            return operationMessage;
+            return null;
         }
-        return null;
+
+        return trimmed;
     }
 
     private static string TechnicalDetails(

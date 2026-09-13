@@ -62,7 +62,9 @@ public sealed partial class HomeViewModel
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         if (active is not null || item.IsBusy)
         {
-            item.TransientFeedback = "Another operation for this app is already active.";
+            // A stale/double UI activation must not submit a second mutation or leave
+            // transient failure-like feedback. The accepted active operation is the
+            // current truth and all surfaces already project it.
             RefreshActivityRecoveryPresentations();
             return;
         }

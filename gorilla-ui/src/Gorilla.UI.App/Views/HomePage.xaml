@@ -199,6 +199,7 @@
                 HorizontalAlignment="Left"
                 Spacing="10"
                 AutomationProperties.AutomationId="CatalogInitialLoading"
+                AutomationProperties.AccessibilityView="Content"
                 AutomationProperties.LiveSetting="Polite">
                 <ProgressRing Width="28" Height="28" IsActive="True" />
                 <TextBlock Text="Loading App Catalog…" FontSize="18" />
@@ -210,6 +211,7 @@
                 HorizontalAlignment="Left"
                 Spacing="6"
                 AutomationProperties.AutomationId="CatalogLoadFailed"
+                AutomationProperties.AccessibilityView="Content"
                 AutomationProperties.LiveSetting="Polite">
                 <TextBlock Text="Couldn't load the App Catalog." FontSize="18" FontWeight="SemiBold" />
                 <TextBlock Text="Use Refresh to try again." TextWrapping="Wrap" />

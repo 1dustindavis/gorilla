@@ -82,9 +82,6 @@ internal sealed class ActivityPageDriver
 
     public string OpenAndReadTechnicalDetails(string operationId)
     {
-        // WinUI exposes Expander as a Button control type, but its semantic UIA
-        // contract is ExpandCollapse rather than Invoke. Exercise that pattern
-        // directly after bringing the containing virtualized row into view.
         var disclosure = TechnicalDetailsDisclosure(operationId);
         var expandCollapse = disclosure.Patterns.ExpandCollapse.Pattern;
         expandCollapse.Expand();
@@ -107,11 +104,31 @@ internal sealed class ActivityPageDriver
 
     public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
         => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
-                item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
-                    .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase))),
+            () => ListEntries().FirstOrDefault(item => EntryContainsDetail(item, detail)),
             timeout
         );
+
+    public IReadOnlySet<string> OperationIdsForItem(string itemName)
+        => ListEntries()
+            .Where(item => SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase))
+            .Select(OperationId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+    public AutomationElement WaitForNewEntryWithDetail(
+        string detail,
+        IReadOnlySet<string> existingOperationIds,
+        TimeSpan? timeout = null
+    ) => _session.WaitFor(
+        () => ListEntries().FirstOrDefault(item =>
+        {
+            var operationId = OperationId(item);
+            return !string.IsNullOrWhiteSpace(operationId)
+                && !existingOperationIds.Contains(operationId)
+                && EntryContainsDetail(item, detail);
+        }),
+        timeout
+    );
 
     public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
         => _session.WaitFor(
@@ -149,6 +166,10 @@ internal sealed class ActivityPageDriver
 
     private AutomationElement[] ListEntries()
         => Items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
+
+    private static bool EntryContainsDetail(AutomationElement item, string detail)
+        => item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
+            .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase));
 
     private string NameOfDescendant(string operationId, string automationId)
     {

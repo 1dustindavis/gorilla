@@ -130,15 +130,25 @@ public sealed partial class ActivityPage : Page
         button.IsEnabled = false;
         try
         {
-            await ViewModel.RetryAsync(item.OperationId, _session.LifetimeToken);
+            var result = await ViewModel.RetryAsync(item.OperationId, _session.LifetimeToken);
+            if (result.Started)
+            {
+                ViewModel.ClearActionStartInfrastructureWarning(item.Action, item.ItemName);
+            }
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
         }
-        catch
+        catch (Exception ex)
         {
-            // Preserve the intentionally bounded Retry feedback semantics from #231.
-            ViewModel.SetWarningBanner("Retry could not be started. Refresh and try again.");
+            ViewModel.ReportInfrastructureWarning(
+                "Retry could not be started. Refresh and try again.",
+                "Activity Retry start failure",
+                ex,
+                operationId: item.OperationId,
+                itemName: item.ItemName,
+                expectedAction: item.Action.ToString()
+            );
         }
         finally
         {

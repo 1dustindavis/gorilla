@@ -29,6 +29,15 @@ internal sealed class CatalogShellDriver
         }
     }
 
+    public string InfrastructureWarningText
+    {
+        get
+        {
+            var warning = ById("InfrastructureWarningText");
+            return warning is null ? string.Empty : SafeName(warning);
+        }
+    }
+
     public bool IsRefreshing => ById("CatalogRefreshProgress") is not null && !RefreshButton.IsEnabled;
 
     public void Refresh() => RefreshButton.Invoke();
@@ -37,6 +46,12 @@ internal sealed class CatalogShellDriver
     {
         _session.WaitFor(() => ById("CatalogTechnicalDetails")).Click();
         return _session.WaitFor(() => ById("CatalogTechnicalDetailsContent")).AsTextBox().Text;
+    }
+
+    public string OpenAndReadInfrastructureTechnicalDetails()
+    {
+        _session.WaitFor(() => ById("InfrastructureTechnicalDetails")).Click();
+        return _session.WaitFor(() => ById("InfrastructureTechnicalDetailsContent")).AsTextBox().Text;
     }
 
     public void WaitForFreshnessContaining(string expected, TimeSpan? timeout = null)
@@ -51,6 +66,14 @@ internal sealed class CatalogShellDriver
     {
         _session.WaitUntil(
             () => DegradedWarningText.Contains(expected, StringComparison.OrdinalIgnoreCase),
+            timeout
+        );
+    }
+
+    public void WaitForInfrastructureWarningContaining(string expected, TimeSpan? timeout = null)
+    {
+        _session.WaitUntil(
+            () => InfrastructureWarningText.Contains(expected, StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }
@@ -75,7 +98,12 @@ internal sealed class CatalogShellDriver
 
     public bool HasLoadFailedState() => ById("CatalogLoadFailed") is not null;
 
+    public bool HasNoCachedDataState() => ById("CatalogNoCachedData") is not null;
+
     public bool HasSuccessfulEmptyState() => ById("CatalogEmpty") is not null;
+
+    public int InfrastructureWarningPresentationCount()
+        => _session.MainWindow.FindAllDescendants(cf => cf.ByAutomationId("InfrastructureWarning")).Length;
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));

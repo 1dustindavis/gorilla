@@ -52,4 +52,30 @@ public sealed partial class HomeViewModel
             ClearInfrastructureWarning();
         }
     }
+
+    private void ClearOperationStatusInfrastructureWarning(
+        string operationId,
+        string itemName,
+        AppCatalog.Action expectedAction
+    )
+    {
+        var warning = InfrastructureWarning;
+        if (!string.Equals(warning.OperationId, operationId, StringComparison.Ordinal) ||
+            (!string.IsNullOrWhiteSpace(warning.ItemName) &&
+             !string.Equals(warning.ItemName, itemName, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(warning.ExpectedAction) &&
+             !string.Equals(warning.ExpectedAction, expectedAction.ToString(), StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        if (warning.Context.Contains("operation-status", StringComparison.OrdinalIgnoreCase) ||
+            warning.Context.Contains("operation status", StringComparison.OrdinalIgnoreCase) ||
+            warning.Context.Contains("Recovered-operation tracking", StringComparison.OrdinalIgnoreCase) ||
+            warning.Context.Contains("tracking-loss reconciliation", StringComparison.OrdinalIgnoreCase) ||
+            warning.Context.Contains("Operation disappeared during tracking-loss reconciliation", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearInfrastructureWarning();
+        }
+    }
 }

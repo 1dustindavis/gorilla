@@ -15,7 +15,7 @@ public class Stage6RecoveryBoundaryTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-14T00:00:00Z");
 
     [Fact]
-    public async Task RetryAsync_ServicePolicyRejectionBecomesAttemptFeedbackWithoutNewOperation()
+    public async Task RetryAsync_ServicePolicyRejectionBlocksRetryUntilSuccessfulRefresh()
     {
         var client = new RejectingClient("already_selected") { Catalog = [ProtocolItem()] };
         var viewModel = CreateViewModel(client);
@@ -23,6 +23,9 @@ public class Stage6RecoveryBoundaryTests
 
         var before = Assert.Single(viewModel.ActivityItems);
         Assert.True(before.CanRetry);
+        var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+        Assert.True(item.DetailsPresentation.CanRetryLatest);
+        Assert.True(item.InstallDecision.Allowed);
 
         var result = await viewModel.RetryAsync("old-op", CancellationToken.None);
 
@@ -30,14 +33,53 @@ public class Stage6RecoveryBoundaryTests
         Assert.NotNull(result.Feedback);
         Assert.Contains("already selected", result.Feedback!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, client.InstallCalls);
+
         var activity = Assert.Single(viewModel.ActivityItems);
         Assert.Equal("old-op", activity.OperationId);
         Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
+        Assert.False(activity.CanRetry);
+        Assert.NotNull(activity.RetryUnavailableReason);
+        Assert.Contains("already selected", activity.RetryUnavailableReason!, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(activity.RetryAttemptFeedback);
         Assert.Contains("already selected", activity.RetryAttemptFeedback!, StringComparison.OrdinalIgnoreCase);
-        var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+
+        // The local guard must not rewrite the cached service-derived decision.
+        Assert.True(item.InstallDecision.Allowed);
+        Assert.Equal("old-op", item.RetryBlockedOperationId);
+        Assert.NotNull(item.RetryBlockedReason);
+        Assert.Contains("already selected", item.RetryBlockedReason!, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(item.TransientFeedback);
         Assert.Contains("already selected", item.TransientFeedback!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(item.DetailsPresentation.CanRetryLatest);
+        Assert.NotNull(item.DetailsPresentation.RetryUnavailableReason);
+        Assert.Contains(
+            "already selected",
+            item.DetailsPresentation.RetryUnavailableReason!,
+            StringComparison.OrdinalIgnoreCase
+        );
+
+        // Even a direct second invocation is blocked locally and does not resubmit.
+        var secondAttempt = await viewModel.RetryAsync("old-op", CancellationToken.None);
+        Assert.False(secondAttempt.Started);
+        Assert.Equal(1, client.InstallCalls);
+        Assert.Single(viewModel.ActivityItems);
+
+        // A successful manual Refresh replaces the stale snapshot. Clear the
+        // attempt-level guard and recompute Retry from that fresh catalog truth.
+        client.Catalog = [ProtocolItem()];
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+
+        item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+        activity = Assert.Single(viewModel.ActivityItems);
+        Assert.Null(item.RetryBlockedOperationId);
+        Assert.Null(item.RetryBlockedReason);
+        Assert.Null(item.TransientFeedback);
+        Assert.Null(activity.RetryAttemptFeedback);
+        Assert.True(activity.CanRetry);
+        Assert.True(item.DetailsPresentation.CanRetryLatest);
+        Assert.True(item.InstallDecision.Allowed);
+        Assert.Equal(1, client.InstallCalls);
+        Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
     }
 
     [Fact]
@@ -163,7 +205,7 @@ public class Stage6RecoveryBoundaryTests
             _errorCode = errorCode;
         }
 
-        public IReadOnlyList<OptionalInstallItem> Catalog { get; init; } = [];
+        public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [];
         public int InstallCalls { get; private set; }
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)

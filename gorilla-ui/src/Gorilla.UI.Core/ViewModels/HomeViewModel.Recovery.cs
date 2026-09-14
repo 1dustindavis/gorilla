@@ -14,6 +14,23 @@ public sealed partial class HomeViewModel
 {
     private const string RetryActiveFeedback = "Another operation for this app is already active.";
 
+    private static readonly HashSet<string> ActionRejectionReasons = new(StringComparer.Ordinal)
+    {
+        "not_optional",
+        "policy_conflict",
+        "managed_uninstall",
+        "required_install",
+        "operation_active",
+        "invalid_selection",
+        "state_unknown",
+        "detection_failed",
+        "install_unavailable",
+        "already_selected",
+        "required_dependency",
+        "already_absent",
+        "remove_unavailable",
+    };
+
     public void RefreshActivityRecoveryPresentations()
         => RebuildActivityProjection();
 
@@ -64,15 +81,28 @@ public sealed partial class HomeViewModel
             return RetryAttemptResult.NotStarted(feedback);
         }
 
-        // Converge on the ordinary action path. The client creates a fresh mutation
-        // identity for this user intent while preserving same-mutation transport retry.
-        if (historical.Action == CatalogAction.Remove)
+        try
         {
-            await RemoveAsync(item, cancellationToken);
+            // Converge on the ordinary action path. The client creates a fresh mutation
+            // identity for this user intent while preserving same-mutation transport retry.
+            if (historical.Action == CatalogAction.Remove)
+            {
+                await RemoveAsync(item, cancellationToken);
+            }
+            else
+            {
+                await InstallAsync(item, cancellationToken);
+            }
         }
-        else
+        catch (InvalidOperationException ex) when (TryGetActionRejectionFeedback(ex, out var rejectionFeedback))
         {
-            await InstallAsync(item, cancellationToken);
+            // The service owns final admission. A stale cached decision can therefore
+            // be rejected after Retry is clicked. That is current action feedback,
+            // not a new operation failure and must not manufacture Activity history.
+            item.TransientFeedback = rejectionFeedback;
+            SetRetryAttemptFeedback(historicalOperationId, rejectionFeedback);
+            RebuildActivityProjection();
+            return RetryAttemptResult.NotStarted(rejectionFeedback);
         }
 
         // Ordinary Install/Remove admission rejection is intentionally non-operation
@@ -89,6 +119,25 @@ public sealed partial class HomeViewModel
         SetRetryAttemptFeedback(historicalOperationId, null);
         RebuildActivityProjection();
         return RetryAttemptResult.Accepted;
+    }
+
+    private static bool TryGetActionRejectionFeedback(InvalidOperationException exception, out string feedback)
+    {
+        feedback = string.Empty;
+        var separator = exception.Message.IndexOf(':');
+        if (separator <= 0)
+        {
+            return false;
+        }
+
+        var reason = exception.Message[..separator].Trim();
+        if (!ActionRejectionReasons.Contains(reason))
+        {
+            return false;
+        }
+
+        feedback = OperationRecoveryPresentationMapper.ReasonText(reason);
+        return true;
     }
 
     private UiOptionalInstallItem? FindCanonicalItem(string itemName)

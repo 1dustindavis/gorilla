@@ -108,7 +108,7 @@ public static class OperationRecoveryPresentationMapper
         var actionDecision = currentItem is null
             ? null
             : action == CatalogAction.Remove ? currentItem.RemoveDecision : currentItem.InstallDecision;
-        var localRetryBlock = currentItem?.RetryBlockReasonFor(operationId);
+        var localRetryBlock = currentItem?.RetryBlockReasonFor(action);
 
         string? unavailableReason = null;
         var canRetry = false;

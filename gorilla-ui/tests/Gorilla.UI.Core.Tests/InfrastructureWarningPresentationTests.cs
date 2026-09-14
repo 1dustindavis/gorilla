@@ -61,6 +61,31 @@ public sealed class InfrastructureWarningPresentationTests
     }
 
     [Fact]
+    public async Task Initialize_RetainedOperationLookupFailureRemainsInfrastructureUncertainty()
+    {
+        var lookupFailure = new IOException("retained operation pipe unavailable");
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = _ => Task.FromException<IReadOnlyList<OperationStatusEvent>>(lookupFailure),
+        };
+        var viewModel = CreateViewModel(client);
+
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        Assert.False(viewModel.IsActivityLoaded);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Equal("Operation status is temporarily unavailable.", viewModel.WarningBanner);
+        Assert.DoesNotContain(lookupFailure.Message, viewModel.WarningBanner, StringComparison.Ordinal);
+        Assert.Contains(
+            "Retained operation lookup during App Catalog initialization",
+            viewModel.InfrastructureWarning.TechnicalDetails,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(lookupFailure.Message, viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+        Assert.Contains(typeof(IOException).FullName!, viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ActionStartTransportFailure_DoesNotFabricateActivityOrOperationOutcome()
     {
         var transportFailure = new IOException("named pipe unavailable");
@@ -117,6 +142,8 @@ public sealed class InfrastructureWarningPresentationTests
     {
         public Func<string, CancellationToken, Task<OperationAccepted>> InstallAsync { get; init; } =
             (_, _) => Task.FromException<OperationAccepted>(new NotSupportedException());
+        public Func<CancellationToken, Task<IReadOnlyList<OperationStatusEvent>>> ListOperationsAsyncImpl { get; init; } =
+            _ => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([]);
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
@@ -126,6 +153,9 @@ public sealed class InfrastructureWarningPresentationTests
 
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
+            => ListOperationsAsyncImpl(cancellationToken);
 
         public async IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
             string operationId,

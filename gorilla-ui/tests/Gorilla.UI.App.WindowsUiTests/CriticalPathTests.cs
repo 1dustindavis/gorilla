@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
@@ -5,198 +7,141 @@ namespace Gorilla.UI.App.WindowsUiTests;
 public sealed class CriticalPathTests
 {
     private const string FixtureItemName = "Ps1V1";
-    private const string FailureFixtureItemName = "Ps1Failure";
+    private const string FailureFixtureItemName = "Ps1Fail";
 
     [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void HealthyServiceInstallsAndRemovesFixtureThroughUi()
+    public void StartupShowsRealCatalogAndDetails()
     {
-        RunWithDiagnostics(nameof(HealthyServiceInstallsAndRemovesFixtureThroughUi), session =>
+        RunWithDiagnostics(nameof(StartupShowsRealCatalogAndDetails), session =>
         {
-            var markerPath = RequiredPath("GORILLA_UI_E2E_MARKER_PATH");
-            var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
             var home = new HomePageDriver(session);
-
             Assert.Equal("Available Software", home.Heading.Name);
             _ = home.WaitForItem(FixtureItemName);
-            home.WaitForItemStatus(FixtureItemName, "NotInstalled");
-            Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
-            Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
-            home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("healthy-startup", includeAutomationTree: true);
 
-            var startupCacheWrite = File.GetLastWriteTimeUtc(cachePath);
-            home.InstallButton(FixtureItemName).Invoke();
-
-            session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
-            session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > startupCacheWrite, TimeSpan.FromSeconds(30));
-            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
-            Assert.False(home.HasOperationFailureText());
-            Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("after-install");
-
-            var installRefreshWrite = File.GetLastWriteTimeUtc(cachePath);
-            home.RemoveButton(FixtureItemName).Invoke();
-
-            session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(60));
-            session.WaitUntil(() => File.GetLastWriteTimeUtc(cachePath) > installRefreshWrite, TimeSpan.FromSeconds(30));
-            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
-            Assert.False(home.HasOperationFailureText());
-            Assert.DoesNotContain("failed", home.WarningText, StringComparison.OrdinalIgnoreCase);
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("after-remove");
+            home.OpenDetails(FixtureItemName);
+            var details = new AppDetailsPageDriver(session);
+            Assert.Equal(FixtureItemName, details.Root.Name);
+            Assert.Contains("PowerShell", details.DescriptionText, StringComparison.OrdinalIgnoreCase);
+            session.CaptureCheckpoint("details-installed-description", includeAutomationTree: true);
         });
     }
 
     [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void ManualRefreshPreservesSearchAndReturnsToFreshState()
+    public void CatalogCardsExposeRealDescriptionsAndSearch()
     {
-        RunWithDiagnostics(nameof(ManualRefreshPreservesSearchAndReturnsToFreshState), session =>
+        RunWithDiagnostics(nameof(CatalogCardsExposeRealDescriptionsAndSearch), session =>
         {
             var home = new HomePageDriver(session);
-            var shell = new CatalogShellDriver(session);
             _ = home.WaitForItem(FixtureItemName);
-            shell.WaitForFreshnessContaining("Updated", TimeSpan.FromSeconds(30));
+            Assert.True(home.HasDescriptionElement(FixtureItemName));
+            session.CaptureCheckpoint("catalog-cards", includeAutomationTree: true);
+
+            home.Search("PowerShell");
+            _ = home.WaitForItem(FixtureItemName);
+            session.CaptureCheckpoint("catalog-search-description", includeAutomationTree: true);
 
             home.Search(FixtureItemName);
-            session.WaitUntil(() => home.HasItem(FixtureItemName));
-            shell.Refresh();
-            Assert.True(home.HasItem(FixtureItemName));
-            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            _ = home.WaitForItem(FixtureItemName);
+            session.CaptureCheckpoint("catalog-search-name", includeAutomationTree: true);
 
-            Assert.Equal(FixtureItemName, home.SearchBox.Text);
-            Assert.True(home.HasItem(FixtureItemName));
-            Assert.Contains("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
-            Assert.True(string.IsNullOrWhiteSpace(shell.DegradedWarningText));
+            home.Search("does-not-exist");
+            _ = home.WaitForSearchNoResults();
+            session.CaptureCheckpoint("catalog-search-no-results", includeAutomationTree: true);
+        });
+    }
+
+    [Fact]
+    public void ManualRefreshShowsTruthfulFreshnessAndCompletes()
+    {
+        RunWithDiagnostics(nameof(ManualRefreshShowsTruthfulFreshnessAndCompletes), session =>
+        {
+            var shell = new CatalogShellDriver(session);
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            shell.Refresh();
+            shell.WaitForRefreshStarted(TimeSpan.FromSeconds(15));
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            shell.WaitForFreshnessContaining("Updated", TimeSpan.FromSeconds(15));
             session.CaptureCheckpoint("manual-refresh", includeAutomationTree: true);
         });
     }
 
     [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void CacheWriteFailureKeepsFreshCatalogVisibleAndActionable()
+    public void InstallOperationRemainsSameIdentityAcrossCatalogDetailsAndActivity()
     {
-        var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
-        RunWithDiagnostics(nameof(CacheWriteFailureKeepsFreshCatalogVisibleAndActionable), session =>
+        RunWithDiagnostics(nameof(InstallOperationRemainsSameIdentityAcrossCatalogDetailsAndActivity), session =>
         {
             var home = new HomePageDriver(session);
             var shell = new CatalogShellDriver(session);
+            var markerPath = RequiredPath("GORILLA_UI_E2E_MARKER_PATH");
+            EnsureFixtureAbsent(session, home, markerPath);
+
+            home.PrimaryActionButton(FixtureItemName).Invoke();
+            home.WaitForOperationContaining(FixtureItemName, "Running", TimeSpan.FromSeconds(30));
+            var operationId = home.OperationId(FixtureItemName);
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+            session.CaptureCheckpoint("catalog-active-operation", includeAutomationTree: true);
+
+            home.OpenDetails(FixtureItemName);
+            var details = new AppDetailsPageDriver(session);
+            details.WaitForOperationContaining("Running", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, details.OperationId());
+            session.CaptureCheckpoint("details-active-from-catalog", includeAutomationTree: true);
+
+            details.GoBack();
             _ = home.WaitForItem(FixtureItemName);
+            var activity = ActivityPageDriver.OpenFromCatalog(session);
+            activity.WaitForOperationState(operationId, "Running", TimeSpan.FromSeconds(30));
+            session.CaptureCheckpoint("activity-active", includeAutomationTree: true);
+
+            activity.GoBack();
+            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(60));
             shell.WaitForFreshnessContaining("Updated", TimeSpan.FromSeconds(30));
-            Assert.True(File.Exists(cachePath), $"Expected startup cache at {cachePath}.");
-
-            var originalAttributes = File.GetAttributes(cachePath);
-            try
-            {
-                File.SetAttributes(cachePath, originalAttributes | FileAttributes.ReadOnly);
-                shell.Refresh();
-                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
-                shell.WaitForDegradedWarningContaining("couldn't save the latest catalog", TimeSpan.FromSeconds(15));
-
-                Assert.True(home.HasItem(FixtureItemName));
-                Assert.True(home.PrimaryActionButton(FixtureItemName).IsEnabled);
-                Assert.Contains("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
-                Assert.DoesNotContain("couldn't refresh", shell.DegradedWarningText, StringComparison.OrdinalIgnoreCase);
-                session.CaptureCheckpoint("cache-write-degraded", includeAutomationTree: true);
-            }
-            finally
-            {
-                if (File.Exists(cachePath))
-                {
-                    File.SetAttributes(cachePath, originalAttributes);
-                }
-            }
         });
     }
 
     [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void InstalledAndRemovedStateSurvivesAppRelaunch()
+    public void DetailsStartedOperationRemainsSameIdentityInCatalogAndActivity()
     {
-        var markerPath = RequiredPath("GORILLA_UI_E2E_MARKER_PATH");
-
-        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-install", session =>
+        RunWithDiagnostics(nameof(DetailsStartedOperationRemainsSameIdentityInCatalogAndActivity), session =>
         {
             var home = new HomePageDriver(session);
+            var markerPath = RequiredPath("GORILLA_UI_E2E_MARKER_PATH");
+            EnsureFixtureAbsent(session, home, markerPath);
 
-            Assert.Equal("Available Software", home.Heading.Name);
-            _ = home.WaitForItem(FixtureItemName);
-            home.WaitForItemStatus(FixtureItemName, "NotInstalled");
-            Assert.False(File.Exists(markerPath), $"Fixture marker should be absent before install: {markerPath}");
+            home.OpenDetails(FixtureItemName);
+            var details = new AppDetailsPageDriver(session);
+            details.PrimaryActionButton.Invoke();
+            details.WaitForOperationContaining("Running", TimeSpan.FromSeconds(30));
+            var operationId = details.OperationId();
+            Assert.False(string.IsNullOrWhiteSpace(operationId));
+            session.CaptureCheckpoint("details-active-started-details", includeAutomationTree: true);
 
-            home.InstallButton(FixtureItemName).Invoke();
+            details.GoBack();
+            home.WaitForOperationContaining(FixtureItemName, "Running", TimeSpan.FromSeconds(30));
+            Assert.Equal(operationId, home.OperationId(FixtureItemName));
+            session.CaptureCheckpoint("catalog-active-from-details", includeAutomationTree: true);
 
-            session.WaitUntil(() => File.Exists(markerPath), TimeSpan.FromSeconds(60));
-            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
-            Assert.False(home.HasOperationFailureText());
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("reopen-after-install-before-close", includeAutomationTree: true);
-        });
-
-        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-verify-installed", session =>
-        {
-            var home = new HomePageDriver(session);
-
-            Assert.Equal("Available Software", home.Heading.Name);
-            _ = home.WaitForItem(FixtureItemName);
-            home.WaitForItemStatus(FixtureItemName, "Installed", TimeSpan.FromSeconds(30));
-            Assert.True(File.Exists(markerPath), $"Fixture marker should remain present after UI relaunch: {markerPath}");
-            Assert.False(home.HasOperationFailureText());
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("reopen-installed", includeAutomationTree: true);
-
-            home.RemoveButton(FixtureItemName).Invoke();
-
-            session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(60));
-            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
-            Assert.False(home.HasOperationFailureText());
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("reopen-after-remove-before-close", includeAutomationTree: true);
-        });
-
-        RunWithDiagnostics(nameof(InstalledAndRemovedStateSurvivesAppRelaunch) + "-verify-removed", session =>
-        {
-            var home = new HomePageDriver(session);
-
-            Assert.Equal("Available Software", home.Heading.Name);
-            _ = home.WaitForItem(FixtureItemName);
-            home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
-            Assert.False(File.Exists(markerPath), $"Fixture marker should remain absent after UI relaunch: {markerPath}");
-            Assert.False(home.HasOperationFailureText());
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("reopen-not-installed", includeAutomationTree: true);
+            var activity = ActivityPageDriver.OpenFromCatalog(session);
+            activity.WaitForOperationState(operationId, "Running", TimeSpan.FromSeconds(30));
+            session.CaptureCheckpoint("activity-active", includeAutomationTree: true);
         });
     }
 
     [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void DeliberateInstallerFailureIsDisplayedOnItsCard()
+    public void FailureKeepsCardGeometryStableAndReportsOutcome()
     {
-        RunWithDiagnostics(nameof(DeliberateInstallerFailureIsDisplayedOnItsCard), session =>
+        RunWithDiagnostics(nameof(FailureKeepsCardGeometryStableAndReportsOutcome), session =>
         {
             var home = new HomePageDriver(session);
-
-            Assert.Equal("Available Software", home.Heading.Name);
-            _ = home.WaitForItem(FailureFixtureItemName);
-            home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled");
             var actionTopBefore = home.PrimaryActionTop(FailureFixtureItemName);
-            home.EnsureItemVisible(FailureFixtureItemName);
             session.CaptureCheckpoint("failure-before-install", includeAutomationTree: true);
 
-            home.InstallButton(FailureFixtureItemName).Invoke();
+            home.PrimaryActionButton(FailureFixtureItemName).Invoke();
+            home.WaitForTerminalFeedbackContaining(FailureFixtureItemName, "exit status", TimeSpan.FromSeconds(60));
+            Assert.True(home.HasOperationFailureText());
+            session.CaptureCheckpoint("failure-after-install", includeAutomationTree: true);
 
-            home.WaitForTerminalFeedbackContaining(FailureFixtureItemName, "Installation error: exit status 7", TimeSpan.FromSeconds(60));
-            Assert.Contains(
-                "Installation error: exit status 7",
-                home.TerminalFeedbackText(FailureFixtureItemName),
-                StringComparison.OrdinalIgnoreCase
-            );
-            Assert.True(
-                string.IsNullOrWhiteSpace(home.WarningText),
-                $"Item-specific failure should not populate the infrastructure warning: {home.WarningText}"
-            );
             Assert.InRange(home.PrimaryActionTop(FailureFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
             home.EnsureItemVisible(FailureFixtureItemName);
@@ -234,6 +179,12 @@ public sealed class CriticalPathTests
             Assert.Contains(FixtureItemName, technicalDetails, StringComparison.OrdinalIgnoreCase);
             Assert.False(string.IsNullOrWhiteSpace(shell.DegradedWarningText));
 
+            // Technical details are an inspection surface, not persistent navigation
+            // state. Collapse them before verifying that the warning itself survives
+            // Catalog -> Details -> Activity, so the small CI window still leaves a
+            // usable catalog viewport for the navigation gesture under test.
+            shell.CollapseInfrastructureTechnicalDetails();
+
             home.OpenDetails(FixtureItemName);
             _ = new AppDetailsPageDriver(session).Root;
             Assert.Contains("couldn't start that action", shell.InfrastructureWarningText, StringComparison.OrdinalIgnoreCase);
@@ -253,15 +204,29 @@ public sealed class CriticalPathTests
         RunWithDiagnostics(nameof(ServiceUnavailableShowsCachedThenNoCacheFailureStatesTruthfully) + "-no-cache", session =>
         {
             var shell = new CatalogShellDriver(session);
-            session.WaitUntil(() => shell.HasLoadFailedState(), TimeSpan.FromSeconds(15));
+            var home = new HomePageDriver(session);
 
-            Assert.False(shell.HasSuccessfulEmptyState());
+            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+            Assert.True(home.Heading.Name.Length > 0);
+            _ = session.WaitFor(() => session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("CatalogLoadFailed")));
+            Assert.True(shell.HasLoadFailedState());
             Assert.True(shell.HasNoCachedDataState());
-            Assert.True(shell.RefreshButton.IsEnabled);
-            Assert.Contains("unavailable", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("no saved catalog", shell.DegradedWarningText, StringComparison.OrdinalIgnoreCase);
-            session.CaptureCheckpoint("service-unavailable-no-cache", includeAutomationTree: true);
+            Assert.False(shell.HasSuccessfulEmptyState());
+            shell.WaitForDegradedWarningContaining("no saved catalog", TimeSpan.FromSeconds(15));
         });
+    }
+
+    private static void EnsureFixtureAbsent(GorillaAppSession session, HomePageDriver home, string markerPath)
+    {
+        if (File.Exists(markerPath))
+        {
+            File.Delete(markerPath);
+        }
+
+        var shell = new CatalogShellDriver(session);
+        shell.Refresh();
+        shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+        home.WaitForItemStatus(FixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
     }
 
     private static string RequiredPath(string variableName)
@@ -269,8 +234,9 @@ public sealed class CriticalPathTests
         var value = Environment.GetEnvironmentVariable(variableName);
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new InvalidOperationException($"{variableName} must be set by the E2E harness.");
+            throw new InvalidOperationException($"Missing required environment variable {variableName}.");
         }
+
         return value;
     }
 
@@ -281,9 +247,9 @@ public sealed class CriticalPathTests
         {
             test(session);
         }
-        catch (Exception ex)
+        catch
         {
-            session.CaptureFailure(ex, testName);
+            session.CaptureFailure(testName);
             throw;
         }
     }

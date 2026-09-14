@@ -48,6 +48,20 @@ public sealed class HomeViewModelRecoveryProjectionTests
         Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
         Assert.True(activity.HasRetryAttemptFeedback);
         Assert.Equal("Install was not accepted for VLC.", activity.RetryAttemptFeedback);
+
+        // Attempt feedback is immediate, temporal UX. A later successful Refresh
+        // replaces it with current recovery truth rather than leaving the old rejection
+        // beside a newly recomputed eligibility reason.
+        client.Catalog = [];
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+
+        activity = Assert.Single(viewModel.ActivityItems);
+        Assert.False(activity.HasRetryAttemptFeedback);
+        Assert.Null(activity.RetryAttemptFeedback);
+        Assert.False(activity.CanRetry);
+        Assert.False(activity.CanNavigate);
+        Assert.Contains("no longer available", activity.RetryUnavailableReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
     }
 
     [Fact]

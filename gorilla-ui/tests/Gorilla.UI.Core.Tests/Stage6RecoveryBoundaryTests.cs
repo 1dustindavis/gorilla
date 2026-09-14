@@ -43,36 +43,30 @@ public class Stage6RecoveryBoundaryTests
         Assert.NotNull(activity.RetryAttemptFeedback);
         Assert.Contains("already selected", activity.RetryAttemptFeedback!, StringComparison.OrdinalIgnoreCase);
 
-        // The local guard must not rewrite the cached service-derived decision.
         Assert.True(item.InstallDecision.Allowed);
-        Assert.Equal("old-op", item.RetryBlockedOperationId);
-        Assert.NotNull(item.RetryBlockedReason);
-        Assert.Contains("already selected", item.RetryBlockedReason!, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(item.InstallRetryBlockedReason);
+        Assert.Contains("already selected", item.InstallRetryBlockedReason!, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(item.RemoveRetryBlockedReason);
         Assert.NotNull(item.TransientFeedback);
-        Assert.Contains("already selected", item.TransientFeedback!, StringComparison.OrdinalIgnoreCase);
         Assert.False(item.DetailsPresentation.CanRetryLatest);
-        Assert.NotNull(item.DetailsPresentation.RetryUnavailableReason);
         Assert.Contains(
             "already selected",
             item.DetailsPresentation.RetryUnavailableReason!,
             StringComparison.OrdinalIgnoreCase
         );
 
-        // Even a direct second invocation is blocked locally and does not resubmit.
         var secondAttempt = await viewModel.RetryAsync("old-op", CancellationToken.None);
         Assert.False(secondAttempt.Started);
         Assert.Equal(1, client.InstallCalls);
         Assert.Single(viewModel.ActivityItems);
 
-        // A successful manual Refresh replaces the stale snapshot. Clear the
-        // attempt-level guard and recompute Retry from that fresh catalog truth.
         client.Catalog = [ProtocolItem()];
         await viewModel.RefreshCatalogAsync(CancellationToken.None);
 
         item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
         activity = Assert.Single(viewModel.ActivityItems);
-        Assert.Null(item.RetryBlockedOperationId);
-        Assert.Null(item.RetryBlockedReason);
+        Assert.Null(item.InstallRetryBlockedReason);
+        Assert.Null(item.RemoveRetryBlockedReason);
         Assert.Null(item.TransientFeedback);
         Assert.Null(activity.RetryAttemptFeedback);
         Assert.True(activity.CanRetry);
@@ -80,6 +74,47 @@ public class Stage6RecoveryBoundaryTests
         Assert.True(item.InstallDecision.Allowed);
         Assert.Equal(1, client.InstallCalls);
         Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
+    }
+
+    [Fact]
+    public async Task RetryAsync_ServiceRejectionBlocksAllRetainedFailuresForSameActionOnly()
+    {
+        var client = new RejectingClient("already_selected")
+        {
+            Catalog = [ProtocolItem(removeAllowed: true)],
+            Operations =
+            [
+                Historical("install-old", CatalogAction.Install, Now),
+                Historical("install-new", CatalogAction.Install, Now.AddMinutes(1)),
+                Historical("remove-old", CatalogAction.Remove, Now.AddMinutes(2)),
+            ],
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "install-old").CanRetry);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "install-new").CanRetry);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "remove-old").CanRetry);
+
+        await viewModel.RetryAsync("install-old", CancellationToken.None);
+
+        Assert.Equal(1, client.InstallCalls);
+        Assert.False(viewModel.ActivityItems.Single(x => x.OperationId == "install-old").CanRetry);
+        Assert.False(viewModel.ActivityItems.Single(x => x.OperationId == "install-new").CanRetry);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "remove-old").CanRetry);
+
+        var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+        Assert.NotNull(item.InstallRetryBlockedReason);
+        Assert.Null(item.RemoveRetryBlockedReason);
+
+        var secondInstall = await viewModel.RetryAsync("install-new", CancellationToken.None);
+        Assert.False(secondInstall.Started);
+        Assert.Equal(1, client.InstallCalls);
+
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "install-old").CanRetry);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "install-new").CanRetry);
+        Assert.True(viewModel.ActivityItems.Single(x => x.OperationId == "remove-old").CanRetry);
     }
 
     [Fact]
@@ -99,8 +134,7 @@ public class Stage6RecoveryBoundaryTests
         var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
         Assert.False(activity.CanRetry);
         Assert.False(item.DetailsPresentation.CanRetryLatest);
-        Assert.Equal("old-op", item.RetryBlockedOperationId);
-        Assert.Equal("Install was not accepted for VLC.", item.RetryBlockedReason);
+        Assert.Equal("Install was not accepted for VLC.", item.InstallRetryBlockedReason);
         Assert.True(item.InstallDecision.Allowed);
 
         await viewModel.RetryAsync("old-op", CancellationToken.None);
@@ -131,15 +165,7 @@ public class Stage6RecoveryBoundaryTests
     public void RecoveryPresentation_UnknownSingleLineDetailStaysTechnicalOnly()
     {
         const string diagnostic = "Future backend diagnostic that should not become primary UI";
-        var operation = new UiOperationPresentation(
-            "op-future",
-            CatalogAction.Install,
-            OperationState.Completed,
-            null,
-            new Result(Outcome.Failed, "execution_failed", "future_backend_detail", diagnostic),
-            diagnostic,
-            Now
-        );
+        var operation = FailedPresentation("op-future", "future_backend_detail", diagnostic);
 
         var recovery = OperationRecoveryPresentationMapper.Map(operation, UiItem(), false);
 
@@ -153,20 +179,29 @@ public class Stage6RecoveryBoundaryTests
     public void RecoveryPresentation_ExceptionLikeKnownMessageStaysTechnicalOnly()
     {
         const string diagnostic = "System.InvalidOperationException: installer bridge failed";
-        var operation = new UiOperationPresentation(
-            "op-exception",
-            CatalogAction.Install,
-            OperationState.Completed,
-            null,
-            new Result(Outcome.Failed, "execution_failed", "installer_failed", diagnostic),
-            diagnostic,
-            Now
-        );
+        var operation = FailedPresentation("op-exception", "installer_failed", diagnostic);
 
         var recovery = OperationRecoveryPresentationMapper.Map(operation, UiItem(), false);
 
         Assert.Null(recovery.UserMessage);
         Assert.Contains(diagnostic, recovery.TechnicalDetails);
+    }
+
+    [Theory]
+    [InlineData("future_backend_detail", "Future backend diagnostic that should not become primary UI")]
+    [InlineData("installer_failed", "System.InvalidOperationException: installer bridge failed")]
+    public void DetailsPresentation_DoesNotRestoreSuppressedRecoveryDiagnostic(string detailCode, string diagnostic)
+    {
+        var item = UiItem();
+        item.LatestOperation = FailedPresentation("details-op", detailCode, diagnostic);
+
+        var details = item.DetailsPresentation;
+
+        Assert.True(details.HasLatestRecovery);
+        Assert.Null(details.LatestRecovery?.UserMessage);
+        Assert.Null(details.LatestFailureMessage);
+        Assert.False(details.HasLatestFailureMessage);
+        Assert.Contains(diagnostic, details.LatestTechnicalDetails);
     }
 
     private static HomeViewModel CreateViewModel(IGorillaServiceClient client)
@@ -183,7 +218,7 @@ public class Stage6RecoveryBoundaryTests
         RemoveDecision = new ActionDecision(false, "already_absent"),
     };
 
-    private static OptionalInstallItem ProtocolItem()
+    private static OptionalInstallItem ProtocolItem(bool removeAllowed = false)
         => new(
             "VLC",
             "VLC",
@@ -200,20 +235,42 @@ public class Stage6RecoveryBoundaryTests
             TargetVersion: "4.0",
             Observation: new Observation(ObservedState.Absent, null, Now, string.Empty, RequirementState.NotSatisfied),
             Policy: new Policy(true, false, false, false, Selection.None),
-            Actions: new Actions(new ActionDecision(true, string.Empty), new ActionDecision(false, "already_absent")),
+            Actions: new Actions(
+                new ActionDecision(true, string.Empty),
+                new ActionDecision(removeAllowed, removeAllowed ? string.Empty : "already_absent")
+            ),
             Description: "VLC media player"
         );
 
-    private static OperationStatusEvent Historical()
+    private static UiOperationPresentation FailedPresentation(string id, string detailCode, string message)
         => new(
-            "old-op",
+            id,
+            CatalogAction.Install,
             OperationState.Completed,
             null,
-            "Installation error: exit status 7",
-            Now,
+            new Result(Outcome.Failed, "execution_failed", detailCode, message),
+            message,
+            Now
+        );
+
+    private static OperationStatusEvent Historical(
+        string id = "old-op",
+        CatalogAction action = CatalogAction.Install,
+        DateTimeOffset? timestamp = null)
+        => new(
+            id,
+            OperationState.Completed,
+            null,
+            action == CatalogAction.Remove ? "Removal error: exit status 7" : "Installation error: exit status 7",
+            timestamp ?? Now,
             "VLC",
-            CatalogAction.Install,
-            new Result(Outcome.Failed, "execution_failed", "installer_failed", "Installation error: exit status 7")
+            action,
+            new Result(
+                Outcome.Failed,
+                "execution_failed",
+                "installer_failed",
+                action == CatalogAction.Remove ? "Removal error: exit status 7" : "Installation error: exit status 7"
+            )
         );
 
     private static async IAsyncEnumerable<OperationStatusEvent> Empty(
@@ -243,13 +300,14 @@ public class Stage6RecoveryBoundaryTests
         }
 
         public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [];
+        public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [Historical()];
         public int InstallCalls { get; private set; }
 
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
             => Task.FromResult(Catalog);
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([Historical()]);
+            => Task.FromResult(Operations);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
         {

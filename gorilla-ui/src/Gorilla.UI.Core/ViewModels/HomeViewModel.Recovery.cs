@@ -136,13 +136,21 @@ public sealed partial class HomeViewModel
     }
 
     private UiOptionalInstallItem? FindCanonicalItem(string itemName)
-        => _catalogItems.TryGetValue(itemName, out var item) ? item : null;
+    {
+        lock (_projectionStateLock)
+        {
+            return _catalogItems.TryGetValue(itemName, out var item) ? item : null;
+        }
+    }
 
     private void SetRetryAttemptFeedback(string operationId, string? feedback)
     {
-        if (_activityItems.TryGetValue(operationId, out var activity))
+        lock (_projectionStateLock)
         {
-            activity.SetRetryAttemptFeedback(feedback);
+            if (_activityItems.TryGetValue(operationId, out var activity))
+            {
+                activity.SetRetryAttemptFeedback(feedback);
+            }
         }
     }
 }

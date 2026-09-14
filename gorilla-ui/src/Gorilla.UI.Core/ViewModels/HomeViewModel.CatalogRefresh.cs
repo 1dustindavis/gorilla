@@ -23,7 +23,7 @@ public sealed partial class HomeViewModel
             {
                 // First accept the live snapshot. Only after canonical reconciliation
                 // succeeds is it fresh truth that may supersede attempt-level feedback
-                // and a service-admission Retry block from the prior snapshot.
+                // and service-admission Retry blocks from the prior snapshot.
                 ApplyItems(items);
 
                 lock (_projectionStateLock)
@@ -34,11 +34,11 @@ public sealed partial class HomeViewModel
                     }
                     foreach (var item in _catalogItems.Values)
                     {
-                        item.ClearRetryBlock();
+                        item.ClearRetryBlocks();
                         item.TransientFeedback = null;
                     }
 
-                    // ApplyItems rebuilt recovery while the prior attempt guard still
+                    // ApplyItems rebuilt recovery while the prior attempt guards still
                     // existed. Recompute once more from the successfully applied snapshot
                     // after clearing local attempt state.
                     RebuildActivityProjection();

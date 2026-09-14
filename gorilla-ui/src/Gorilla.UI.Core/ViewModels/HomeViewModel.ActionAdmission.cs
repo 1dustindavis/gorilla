@@ -5,7 +5,7 @@ namespace Gorilla.UI.Core.ViewModels;
 
 public sealed partial class HomeViewModel
 {
-    public bool TryPresentActionAdmissionFailure(
+    public static bool TryPresentActionAdmissionFailure(
         UiOptionalInstallItem item,
         ServiceErrorException error
     )

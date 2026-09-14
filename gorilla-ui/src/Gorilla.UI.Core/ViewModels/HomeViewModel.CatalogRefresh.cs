@@ -26,20 +26,23 @@ public sealed partial class HomeViewModel
                 // and a service-admission Retry block from the prior snapshot.
                 ApplyItems(items);
 
-                foreach (var activity in _activityItems.Values)
+                lock (_projectionStateLock)
                 {
-                    activity.SetRetryAttemptFeedback(null);
-                }
-                foreach (var item in _catalogItems.Values)
-                {
-                    item.ClearRetryBlock();
-                    item.TransientFeedback = null;
-                }
+                    foreach (var activity in _activityItems.Values)
+                    {
+                        activity.SetRetryAttemptFeedback(null);
+                    }
+                    foreach (var item in _catalogItems.Values)
+                    {
+                        item.ClearRetryBlock();
+                        item.TransientFeedback = null;
+                    }
 
-                // ApplyItems rebuilt recovery while the prior attempt guard still
-                // existed. Recompute once more from the successfully applied snapshot
-                // after clearing local attempt state.
-                RebuildActivityProjection();
+                    // ApplyItems rebuilt recovery while the prior attempt guard still
+                    // existed. Recompute once more from the successfully applied snapshot
+                    // after clearing local attempt state.
+                    RebuildActivityProjection();
+                }
                 return Task.CompletedTask;
             },
             cancellationToken

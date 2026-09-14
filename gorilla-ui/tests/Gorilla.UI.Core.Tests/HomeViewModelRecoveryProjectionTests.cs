@@ -69,6 +69,10 @@ public sealed class HomeViewModelRecoveryProjectionTests
             RemoveDecision = new ActionDecision(false, "remove_unavailable"),
         });
 
+        var beforeRetry = Assert.Single(viewModel.ActivityItems);
+        Assert.False(beforeRetry.CanRetry);
+        Assert.False(beforeRetry.CanNavigate);
+
         var result = await viewModel.RetryAsync("retained-failure", CancellationToken.None);
 
         Assert.False(result.Started);
@@ -77,6 +81,9 @@ public sealed class HomeViewModelRecoveryProjectionTests
         var activity = Assert.Single(viewModel.ActivityItems);
         Assert.Equal("retained-failure", activity.OperationId);
         Assert.Contains("no longer available", activity.RetryAttemptFeedback, StringComparison.OrdinalIgnoreCase);
+        Assert.False(activity.CanRetry);
+        Assert.False(activity.CanNavigate);
+        Assert.Contains("no longer available", activity.RetryUnavailableReason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

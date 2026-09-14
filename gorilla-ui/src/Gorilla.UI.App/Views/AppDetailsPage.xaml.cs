@@ -183,6 +183,7 @@ public sealed partial class AppDetailsPage : Page
         try
         {
             await action();
+            _viewModel.ClearActionStartInfrastructureWarning(expectedAction, item.ItemName);
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {

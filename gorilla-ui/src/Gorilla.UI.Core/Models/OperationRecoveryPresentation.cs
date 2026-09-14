@@ -25,6 +25,34 @@ public static class OperationRecoveryPresentationMapper
 {
     private const int MaxPrimaryMessageLength = 300;
 
+    private static readonly HashSet<string> KnownResultCodes = new(StringComparer.Ordinal)
+    {
+        "execution_failed",
+        "postcondition_failed",
+        "verification_unavailable",
+        "execution_unknown",
+        "execution_interrupted",
+    };
+
+    private static readonly HashSet<string> KnownDetailCodes = new(StringComparer.Ordinal)
+    {
+        "installer_failed",
+        "dependency_failed",
+        "dependency_cycle",
+        "invalid_dependency",
+        "managed_run_failed",
+        "service_canceled",
+        "catalog_refresh_failed",
+        "catalog_item_unavailable",
+        "selection_read_failed",
+        "install_selection_not_persisted",
+        "install_selection_not_cleared",
+        "persistent_uninstall_present",
+        "requirement_unknown",
+        "absence_unknown",
+        "unsupported_action",
+    };
+
     public static OperationRecoveryPresentation Map(
         UiOperationPresentation operation,
         UiOptionalInstallItem? currentItem,
@@ -155,8 +183,8 @@ public static class OperationRecoveryPresentationMapper
         return outcome switch
         {
             Outcome.Failed => $"{noun} failed",
-            Outcome.Unverified => $"{noun} couldn't be verified",
-            Outcome.Interrupted => $"{noun} was interrupted",
+            Outcome.Unverified => $"{noun} couldn't be verified as successful",
+            Outcome.Interrupted => $"{noun} was interrupted before confirmation",
             Outcome.Succeeded => $"{noun} succeeded",
             Outcome.AlreadySatisfied => $"{noun} was already satisfied",
             _ => $"{noun} completed",
@@ -164,7 +192,20 @@ public static class OperationRecoveryPresentationMapper
     }
 
     private static string? UserMessage(Result? result, string operationMessage)
-        => ConciseUserMessage(result?.Message) ?? ConciseUserMessage(operationMessage);
+    {
+        if (result is null || !KnownResultCodes.Contains(result.Code))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.DetailCode) && !KnownDetailCodes.Contains(result.DetailCode))
+        {
+            return null;
+        }
+
+        return ConciseUserMessage(result.Message) ??
+            (string.IsNullOrWhiteSpace(result.Message) ? ConciseUserMessage(operationMessage) : null);
+    }
 
     private static string? ConciseUserMessage(string? message)
     {
@@ -176,13 +217,19 @@ public static class OperationRecoveryPresentationMapper
         var trimmed = message.Trim();
         if (trimmed.Length > MaxPrimaryMessageLength ||
             trimmed.Contains('\r', StringComparison.Ordinal) ||
-            trimmed.Contains('\n', StringComparison.Ordinal))
+            trimmed.Contains('\n', StringComparison.Ordinal) ||
+            LooksLikeException(trimmed))
         {
             return null;
         }
 
         return trimmed;
     }
+
+    private static bool LooksLikeException(string message)
+        => message.Contains("Exception:", StringComparison.OrdinalIgnoreCase) ||
+           message.StartsWith("System.", StringComparison.Ordinal) ||
+           message.Contains(" at Gorilla.", StringComparison.Ordinal);
 
     private static string TechnicalDetails(
         string operationId,

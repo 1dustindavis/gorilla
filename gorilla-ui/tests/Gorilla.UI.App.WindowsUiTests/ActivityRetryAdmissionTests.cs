@@ -53,6 +53,10 @@ public sealed class ActivityRetryAdmissionTests
                         .Contains("already selected", StringComparison.OrdinalIgnoreCase),
                     TimeSpan.FromSeconds(30)
                 );
+                session.WaitUntil(
+                    () => !activity.HasRetryButton(operationId),
+                    TimeSpan.FromSeconds(30)
+                );
 
                 Assert.Equal("Failed", activity.StateText(operationId));
                 Assert.Equal(1, activity.CountEntries(operationId));
@@ -61,6 +65,12 @@ public sealed class ActivityRetryAdmissionTests
                     activity.RetryAttemptFeedback(operationId),
                     StringComparison.OrdinalIgnoreCase
                 );
+                Assert.Contains(
+                    "already selected",
+                    activity.RetryUnavailableText(operationId),
+                    StringComparison.OrdinalIgnoreCase
+                );
+                Assert.False(activity.HasRetryButton(operationId));
                 session.CaptureCheckpoint("activity-retry-admission-rejected", includeAutomationTree: true);
             }
             finally

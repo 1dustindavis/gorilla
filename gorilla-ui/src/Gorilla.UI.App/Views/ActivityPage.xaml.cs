@@ -39,9 +39,13 @@ public sealed partial class ActivityPage : Page
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
         }
-        catch
+        catch (Exception ex)
         {
-            ViewModel.SetWarningBanner("Activity is temporarily unavailable. Refresh and try again.");
+            ViewModel.ReportInfrastructureWarning(
+                "Activity is temporarily unavailable. Refresh and try again.",
+                "Unexpected Activity initialization failure",
+                ex
+            );
         }
         UpdateEmptyState();
     }
@@ -132,6 +136,7 @@ public sealed partial class ActivityPage : Page
         }
         catch
         {
+            // Preserve the intentionally bounded Retry feedback semantics from #231.
             ViewModel.SetWarningBanner("Retry could not be started. Refresh and try again.");
         }
         finally

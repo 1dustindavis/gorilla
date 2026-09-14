@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
@@ -41,9 +42,10 @@ public class HomeViewModelRecoveryTests
     }
 
     [Fact]
-    public async Task InstallAsync_StreamFailuresThenActiveReconciliation_ContinuesUntilCompletion()
+    public async Task InstallAsync_StreamFailuresThenActiveReconciliation_ContinuesUntilCompletionAndClearsRecoveredStatusWarning()
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var warnings = new List<string>();
         var client = new FakeClient
         {
             Operations = [ActiveOperation()],
@@ -56,6 +58,13 @@ public class HomeViewModelRecoveryTests
 
         var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
         var viewModel = new HomeViewModel(client, coordinator, new OperationTracker(client));
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(HomeViewModel.InfrastructureWarning))
+            {
+                warnings.Add(viewModel.WarningBanner);
+            }
+        };
         var item = MakeUiItem();
 
         await viewModel.InstallAsync(item, cancellation.Token);
@@ -64,6 +73,41 @@ public class HomeViewModelRecoveryTests
         Assert.Equal("Succeeded: Installed", item.Status);
         Assert.Equal(3, client.StreamCalls);
         Assert.Equal(1, client.ListOperationsCalls);
+        Assert.Contains(
+            "Install was accepted, but Gorilla can't currently confirm its status.",
+            warnings
+        );
+        Assert.Empty(viewModel.WarningBanner);
+    }
+
+    [Fact]
+    public async Task InstallAsync_StatusEvidenceForDifferentOperationDoesNotClearUnrelatedWarning()
+    {
+        var client = new FakeClient
+        {
+            StreamAsync = (_, _) => CompletedStream(),
+        };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore());
+        var viewModel = new HomeViewModel(client, coordinator, new OperationTracker(client));
+        var item = MakeUiItem();
+        var unrelatedFailure = new IOException("other operation status unavailable");
+
+        viewModel.ReportInfrastructureWarning(
+            "Gorilla can't currently confirm another operation's status.",
+            "Operation status stream lost; operation remains known and active",
+            unrelatedFailure,
+            operationId: "op-2",
+            itemName: "OtherApp",
+            expectedAction: AppCatalog.Action.Install.ToString()
+        );
+
+        await viewModel.InstallAsync(item, CancellationToken.None);
+
+        Assert.Equal(
+            "Gorilla can't currently confirm another operation's status.",
+            viewModel.WarningBanner
+        );
+        Assert.Equal("op-2", viewModel.InfrastructureWarning.OperationId);
     }
 
     [Fact]

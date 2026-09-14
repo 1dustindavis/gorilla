@@ -71,6 +71,7 @@
                                         FontSize="17"
                                         FontWeight="SemiBold"
                                         TextWrapping="Wrap"
+                                        Tapped="ActivityApp_Tapped"
                                         AutomationProperties.AutomationId="{Binding AppAutomationId}" />
                                     <TextBlock
                                         Grid.Column="1"

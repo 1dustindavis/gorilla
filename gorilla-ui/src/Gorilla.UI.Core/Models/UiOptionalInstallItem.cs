@@ -207,45 +207,41 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     // decision, but it must not rewrite that service-derived snapshot. Keep a local
     // guard tied to the historical operation that was rejected; a successful manual
     // catalog Refresh clears it when new canonical truth arrives.
-    public string? RetryBlockedOperationId
-    {
-        get => _retryBlockedOperationId;
-        private set
-        {
-            if (SetField(ref _retryBlockedOperationId, value))
-            {
-                OnPresentationsChanged();
-            }
-        }
-    }
-
-    public string? RetryBlockedReason
-    {
-        get => _retryBlockedReason;
-        private set
-        {
-            if (SetField(ref _retryBlockedReason, value))
-            {
-                OnPresentationsChanged();
-            }
-        }
-    }
+    public string? RetryBlockedOperationId => _retryBlockedOperationId;
+    public string? RetryBlockedReason => _retryBlockedReason;
 
     public string? RetryBlockReasonFor(string operationId)
-        => string.Equals(RetryBlockedOperationId, operationId, StringComparison.Ordinal)
-            ? RetryBlockedReason
+        => string.Equals(_retryBlockedOperationId, operationId, StringComparison.Ordinal)
+            ? _retryBlockedReason
             : null;
 
     public void BlockRetry(string operationId, string reason)
     {
-        RetryBlockedOperationId = operationId;
-        RetryBlockedReason = reason;
+        if (string.Equals(_retryBlockedOperationId, operationId, StringComparison.Ordinal) &&
+            string.Equals(_retryBlockedReason, reason, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _retryBlockedOperationId = operationId;
+        _retryBlockedReason = reason;
+        OnPropertyChanged(nameof(RetryBlockedOperationId));
+        OnPropertyChanged(nameof(RetryBlockedReason));
+        OnPresentationsChanged();
     }
 
     public void ClearRetryBlock()
     {
-        RetryBlockedOperationId = null;
-        RetryBlockedReason = null;
+        if (_retryBlockedOperationId is null && _retryBlockedReason is null)
+        {
+            return;
+        }
+
+        _retryBlockedOperationId = null;
+        _retryBlockedReason = null;
+        OnPropertyChanged(nameof(RetryBlockedOperationId));
+        OnPropertyChanged(nameof(RetryBlockedReason));
+        OnPresentationsChanged();
     }
 
     public bool IsInstalled

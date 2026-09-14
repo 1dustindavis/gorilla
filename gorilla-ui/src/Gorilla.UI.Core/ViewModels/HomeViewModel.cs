@@ -330,6 +330,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                     update =>
                     {
                         ValidateOperationIdentity(itemName, expectedAction, update);
+                        ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                         ProjectOperation(update, initiatingItem);
                         completedObserved |= update.State == OperationState.Completed;
                     },
@@ -446,6 +447,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
             {
                 ValidateOperationIdentity(itemName, expectedAction, latest);
+                ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                 ProjectOperation(latest, fallbackItem);
                 if (latest.State == OperationState.Completed)
                 {

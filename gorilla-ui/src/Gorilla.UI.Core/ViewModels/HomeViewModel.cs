@@ -58,8 +58,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
     }
 
-    // Items is the ordered, searchable presentation projection. _catalogItems is
-    // the canonical catalog and remains the source of selection and reconciliation.
     public string SearchQuery
     {
         get => _searchQuery;
@@ -111,8 +109,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
     }
 
-    // Temporary compatibility surface for tests and callers that only need the
-    // authored primary text. InfrastructureWarning remains the authoritative state.
     public string WarningBanner => InfrastructureWarning.Message;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -145,8 +141,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            // Do not mark Activity loaded: an unavailable retained-operation query
-            // is not truthful evidence that no recent activity exists.
             SetInfrastructureWarning(
                 "Operation status is temporarily unavailable.",
                 "Retained operation lookup during App Catalog initialization",
@@ -174,6 +168,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 return;
             }
 
+            ClearActionStartInfrastructureWarning(AppCatalog.Action.Install, item.ItemName);
             await TrackAndRefreshAsync(
                 item.ItemName,
                 item.DisplayName,
@@ -208,6 +203,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 return;
             }
 
+            ClearActionStartInfrastructureWarning(AppCatalog.Action.Remove, item.ItemName);
             await TrackAndRefreshAsync(
                 item.ItemName,
                 item.DisplayName,
@@ -238,8 +234,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 return item;
             }
 
-            // Supports the existing Stage 4 action entry points while callers migrate
-            // from manually supplied list items to canonical catalog state.
             return Items.FirstOrDefault(i => string.Equals(i.ItemName, itemName, StringComparison.OrdinalIgnoreCase));
         }
     }
@@ -330,6 +324,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                     update =>
                     {
                         ValidateOperationIdentity(itemName, expectedAction, update);
+                        ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                         ProjectOperation(update, initiatingItem);
                         completedObserved |= update.State == OperationState.Completed;
                     },
@@ -342,8 +337,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             }
             catch (InvalidOperationException ex)
             {
-                // A malformed or mismatched service event is a protocol/status error,
-                // not evidence that the service restarted or forgot the operation.
                 SetInfrastructureWarning(
                     streamFailureMessage,
                     "Malformed or mismatched operation-status event",
@@ -446,6 +439,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
             {
                 ValidateOperationIdentity(itemName, expectedAction, latest);
+                ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                 ProjectOperation(latest, fallbackItem);
                 if (latest.State == OperationState.Completed)
                 {
@@ -510,9 +504,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch
         {
-            // Ordinary catalog-refresh failures are fully represented by
-            // CatalogDataState. InfrastructureWarning is reserved for independent
-            // operation-tracking uncertainty and must not duplicate refresh errors.
             _ = preserveExistingWarning;
         }
     }
@@ -543,9 +534,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 item.PreferOperationStatus();
             }
 
-            // OperationTracker owns the structured per-item terminal result. The card
-            // presentation consumes LatestOperation directly; shell warnings are reserved
-            // for service/catalog/status infrastructure problems.
             ReprojectOperation(item);
         }
     }
@@ -599,190 +587,91 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             {
                 SelectedItemName = null;
             }
-            else
-            {
-                OnPropertyChanged(nameof(SelectedItem));
-            }
 
             RebuildVisibleItems();
-            // Catalog arrival/removal may change Activity display name, navigation, and
-            // recovery eligibility. RebuildActivityProjection owns all current recovery truth.
             RebuildActivityProjection();
         }
     }
 
-    private static void ApplyCatalogSnapshot(UiOptionalInstallItem item, OptionalInstallItem snapshot)
+    private void RebuildVisibleItems()
     {
-        item.DisplayName = snapshot.DisplayName;
-        item.Description = snapshot.Description;
-        item.TargetVersion = snapshot.TargetVersion ??
-            (string.IsNullOrEmpty(snapshot.Version) ? null : snapshot.Version);
-        item.Observation = snapshot.Observation ?? LegacyObservation(snapshot);
-        item.Policy = snapshot.Policy;
-        item.InstallDecision = snapshot.Actions?.Install ?? new AppCatalog.ActionDecision(false, "Refresh required before installing.");
-        item.RemoveDecision = snapshot.Actions?.Remove ?? new AppCatalog.ActionDecision(false, "Refresh required before removing.");
-    }
+        var visible = _catalogItems.Values
+            .Where(item => string.IsNullOrWhiteSpace(SearchQuery) ||
+                           item.DisplayName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                           item.ItemName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
 
-    private static AppCatalog.Observation LegacyObservation(OptionalInstallItem item)
-    {
-        var state = item.Status switch
+        Items.Clear();
+        foreach (var item in visible)
         {
-            OptionalInstallStatus.Installed => AppCatalog.ObservedState.Installed,
-            OptionalInstallStatus.UpdateAvailable => AppCatalog.ObservedState.UpdateAvailable,
-            OptionalInstallStatus.NotInstalled => AppCatalog.ObservedState.Absent,
-            _ => AppCatalog.ObservedState.Unknown,
-        };
-        return new AppCatalog.Observation(
-            state,
-            InstalledVersion: null,
-            CheckedAtUtc: item.StatusUpdatedAtUtc,
-            DetailCode: string.Empty,
-            InstallRequirement: AppCatalog.RequirementState.Unknown
-        );
+            Items.Add(item);
+        }
     }
-
-    private void ReprojectOperation(UiOptionalInstallItem item)
-    {
-        var active = _operationTracker.GetActiveForItem(item.ItemName);
-        var latest = _operationTracker.GetLatestTerminalForItem(item.ItemName);
-        item.ActiveOperation = active is null ? null : ToPresentation(active);
-        item.LatestOperation = latest is null ? null : ToPresentation(latest);
-        item.IsBusy = active is not null;
-    }
-
-    private static UiOperationPresentation ToPresentation(OperationStatusEvent operation) => new(
-        operation.OperationId,
-        operation.Action,
-        operation.State,
-        operation.ProgressPercent,
-        operation.Result,
-        operation.Message,
-        operation.TimestampUtc
-    );
 
     private void RebuildActivityProjection()
     {
         lock (_projectionStateLock)
         {
-            var retained = _operationTracker.GetRetainedOperations();
-            var retainedIds = retained.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
+            var operations = _operationTracker.Snapshot();
+            var currentIds = operations.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
 
-            foreach (var operationId in _activityItems.Keys.Where(id => !retainedIds.Contains(id)).ToArray())
+            foreach (var staleId in _activityItems.Keys.Where(id => !currentIds.Contains(id)).ToArray())
             {
-                _activityItems.Remove(operationId);
+                _activityItems.Remove(staleId);
             }
 
-            foreach (var operation in retained)
+            foreach (var operation in operations)
             {
+                var displayName = FindItem(operation.ItemName)?.DisplayName ?? operation.ItemName;
                 if (!_activityItems.TryGetValue(operation.OperationId, out var presentation))
                 {
                     presentation = new ActivityOperationPresentation(operation.OperationId);
                     _activityItems.Add(operation.OperationId, presentation);
                 }
 
-                // Activity authority must use the same canonical catalog as Retry dispatch.
-                // Presentation-only Items fallbacks may preserve legacy display behavior in
-                // other entry points, but they must never authorize Retry or navigation.
-                var item = FindCanonicalItem(operation.ItemName);
-                presentation.Apply(
-                    operation,
-                    item?.DisplayName ?? operation.ItemName,
-                    canNavigate: item is not null
-                );
-
-                var active = _operationTracker.GetActiveForItem(operation.ItemName);
-                var conflictingActive = active is not null &&
-                    !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
-                presentation.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
-                    operation,
-                    item,
-                    conflictingActive
-                ));
+                presentation.Apply(operation, displayName, FindItem(operation.ItemName) is not null);
+                presentation.ApplyRecovery(BuildRecoveryPresentation(operation));
             }
 
-            var desired = retained
-                .OrderBy(operation => operation.State == OperationState.Completed ? 1 : 0)
-                .ThenByDescending(operation => operation.TimestampUtc)
-                .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
-                .Select(operation => _activityItems[operation.OperationId])
+            var ordered = _activityItems.Values
+                .OrderByDescending(item => item.TimestampUtc)
                 .ToArray();
 
-            foreach (var existing in ActivityItems.Where(item => !desired.Contains(item)).ToArray())
+            ActivityItems.Clear();
+            foreach (var item in ordered)
             {
-                ActivityItems.Remove(existing);
-            }
-
-            for (var index = 0; index < desired.Length; index++)
-            {
-                if (index < ActivityItems.Count && ReferenceEquals(ActivityItems[index], desired[index]))
-                {
-                    continue;
-                }
-
-                var existingIndex = ActivityItems.IndexOf(desired[index]);
-                if (existingIndex >= 0)
-                {
-                    ActivityItems.Move(existingIndex, index);
-                }
-                else
-                {
-                    ActivityItems.Insert(index, desired[index]);
-                }
+                ActivityItems.Add(item);
             }
         }
     }
 
-    private void RebuildVisibleItems()
+    private OperationRecoveryPresentation BuildRecoveryPresentation(OperationStatusEvent operation)
     {
-        lock (_projectionStateLock)
-        {
-            var query = SearchQuery;
-            var desired = _catalogItems.Values
-                .Where(item => MatchesSearch(item, query))
-                .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(item => item.ItemName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(item => item.ItemName, StringComparer.Ordinal)
-                .ToArray();
-
-            foreach (var existing in Items.Where(item => !desired.Contains(item)).ToArray())
-            {
-                Items.Remove(existing);
-            }
-
-            for (var index = 0; index < desired.Length; index++)
-            {
-                if (index < Items.Count && ReferenceEquals(Items[index], desired[index]))
-                {
-                    continue;
-                }
-
-                var existingIndex = Items.IndexOf(desired[index]);
-                if (existingIndex >= 0)
-                {
-                    Items.Move(existingIndex, index);
-                }
-                else
-                {
-                    Items.Insert(index, desired[index]);
-                }
-            }
-        }
+        var item = FindItem(operation.ItemName);
+        return OperationRecoveryPresentationMapper.Map(operation, item);
     }
 
-    private static bool MatchesSearch(UiOptionalInstallItem item, string query)
+    private void ReprojectOperation(UiOptionalInstallItem item)
     {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return true;
-        }
+        var active = _operationTracker.GetActiveForItem(item.ItemName);
+        item.ActiveOperation = active;
+        item.LatestOperation = _operationTracker.GetLatestForItem(item.ItemName);
+    }
 
-        return item.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || item.ItemName.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || (!string.IsNullOrEmpty(item.Description) && item.Description.Contains(query, StringComparison.OrdinalIgnoreCase));
+    private static void ApplyCatalogSnapshot(UiOptionalInstallItem target, OptionalInstallItem snapshot)
+    {
+        target.ItemName = snapshot.ItemName;
+        target.DisplayName = snapshot.DisplayName;
+        target.Description = snapshot.Description;
+        target.Installed = snapshot.Installed;
+        target.Selected = snapshot.Selected;
+        target.NeedsUpdate = snapshot.NeedsUpdate;
+        target.IsManaged = snapshot.IsManaged;
+        target.InstallDecision = snapshot.InstallDecision;
+        target.RemoveDecision = snapshot.RemoveDecision;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

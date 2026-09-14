@@ -103,7 +103,12 @@ internal sealed class CatalogShellDriver
     public bool HasSuccessfulEmptyState() => ById("CatalogEmpty") is not null;
 
     public int InfrastructureWarningPresentationCount()
-        => _session.MainWindow.FindAllDescendants(cf => cf.ByAutomationId("InfrastructureWarning")).Length;
+        // The shell wrapper is a layout container and WinUI does not expose it as a
+        // UI Automation element. Count the warning text, which is the stable exposed
+        // element representing each rendered infrastructure-warning presentation.
+        => _session.MainWindow.FindAllDescendants(
+            cf => cf.ByAutomationId("InfrastructureWarningText")
+        ).Length;
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));

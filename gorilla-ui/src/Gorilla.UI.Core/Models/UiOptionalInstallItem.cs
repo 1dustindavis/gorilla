@@ -21,8 +21,8 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private UiOperationPresentation? _activeOperation;
     private UiOperationPresentation? _latestOperation;
     private string? _transientFeedback;
-    private string? _retryBlockedOperationId;
-    private string? _retryBlockedReason;
+    private string? _installRetryBlockedReason;
+    private string? _removeRetryBlockedReason;
     private bool _isBusy;
     private string? _legacyStatus;
     private bool _preferObservedStatus;
@@ -66,8 +66,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    // Compatibility alias for the existing Stage 4 surface. Version is target/offered
-    // metadata, never an inferred installed version.
     public string Version
     {
         get => TargetVersion ?? string.Empty;
@@ -92,7 +90,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     }
 
     public ObservedState ObservedState => Observation.State;
-
     public string? InstalledVersion => Observation.InstalledVersion;
 
     public Policy? Policy
@@ -174,8 +171,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    // The latest retained terminal operation. This remains separate from both
-    // ActiveOperation and Observation.
     public UiOperationPresentation? LatestOperation
     {
         get => _latestOperation;
@@ -189,8 +184,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    // Local, non-operation feedback for an item-specific action admission response.
-    // This is intentionally separate from authoritative operation and observation state.
     public string? TransientFeedback
     {
         get => _transientFeedback;
@@ -203,52 +196,50 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    // A known service-side admission rejection is fresher than the cached action
-    // decision, but it must not rewrite that service-derived snapshot. Keep a local
-    // guard tied to the historical operation that was rejected; a successful manual
-    // catalog Refresh clears it when new canonical truth arrives.
-    public string? RetryBlockedOperationId => _retryBlockedOperationId;
-    public string? RetryBlockedReason => _retryBlockedReason;
+    // A service-side admission rejection is fresher than the cached action
+    // decision, but it must not rewrite that service-derived snapshot. Admission
+    // applies to the current item/action, not to one historical row, so retain an
+    // independent temporary guard for Install and Remove until manual Refresh.
+    public string? InstallRetryBlockedReason => _installRetryBlockedReason;
+    public string? RemoveRetryBlockedReason => _removeRetryBlockedReason;
 
-    public string? RetryBlockReasonFor(string operationId)
-        => string.Equals(_retryBlockedOperationId, operationId, StringComparison.Ordinal)
-            ? _retryBlockedReason
-            : null;
+    public string? RetryBlockReasonFor(CatalogAction action)
+        => action == CatalogAction.Remove ? _removeRetryBlockedReason : _installRetryBlockedReason;
 
-    public void BlockRetry(string operationId, string reason)
+    public void BlockRetry(CatalogAction action, string reason)
     {
-        if (string.Equals(_retryBlockedOperationId, operationId, StringComparison.Ordinal) &&
-            string.Equals(_retryBlockedReason, reason, StringComparison.Ordinal))
+        ref var field = ref action == CatalogAction.Remove
+            ? ref _removeRetryBlockedReason
+            : ref _installRetryBlockedReason;
+        if (string.Equals(field, reason, StringComparison.Ordinal))
         {
             return;
         }
 
-        _retryBlockedOperationId = operationId;
-        _retryBlockedReason = reason;
-        OnPropertyChanged(nameof(RetryBlockedOperationId));
-        OnPropertyChanged(nameof(RetryBlockedReason));
+        field = reason;
+        OnPropertyChanged(action == CatalogAction.Remove
+            ? nameof(RemoveRetryBlockedReason)
+            : nameof(InstallRetryBlockedReason));
         OnPresentationsChanged();
     }
 
-    public void ClearRetryBlock()
+    public void ClearRetryBlocks()
     {
-        if (_retryBlockedOperationId is null && _retryBlockedReason is null)
+        if (_installRetryBlockedReason is null && _removeRetryBlockedReason is null)
         {
             return;
         }
 
-        _retryBlockedOperationId = null;
-        _retryBlockedReason = null;
-        OnPropertyChanged(nameof(RetryBlockedOperationId));
-        OnPropertyChanged(nameof(RetryBlockedReason));
+        _installRetryBlockedReason = null;
+        _removeRetryBlockedReason = null;
+        OnPropertyChanged(nameof(InstallRetryBlockedReason));
+        OnPropertyChanged(nameof(RemoveRetryBlockedReason));
         OnPresentationsChanged();
     }
 
     public bool IsInstalled
     {
         get => Observation.State is ObservedState.Installed or ObservedState.UpdateAvailable;
-        // Compatibility for existing callers that construct presentation items
-        // directly. Service snapshots always set Observation instead.
         set => Observation = Observation with
         {
             State = value ? ObservedState.Installed : ObservedState.Absent,
@@ -256,15 +247,10 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     }
 
     public bool CanInstall => InstallDecision.Allowed && !IsBusy;
-
     public bool CanRemove => RemoveDecision.Allowed && !IsBusy;
-
     public CatalogCardPresentation CardPresentation => CatalogCardPresentationMapper.Map(this);
-
     public AppDetailsPresentation DetailsPresentation => AppDetailsPresentationMapper.Map(this);
 
-    // Transitional compatibility state for the existing Stage 4 ListView. New UI
-    // should bind the typed Observation/ActiveOperation/LatestOperation properties.
     public string Status
     {
         get => ActiveOperation is not null
@@ -283,8 +269,6 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
         }
     }
 
-    // Keeps the legacy Stage 4 status binding tied to the refreshed catalog
-    // observation while LatestOperation remains available as separate typed state.
     internal void PreferObservedStatus()
     {
         if (!_preferObservedStatus)

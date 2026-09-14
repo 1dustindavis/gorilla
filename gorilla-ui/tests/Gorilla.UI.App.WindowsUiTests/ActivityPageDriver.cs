@@ -175,8 +175,19 @@ internal sealed class ActivityPageDriver
     {
         var entry = WaitForOperation(operationId);
         entry.AsListBoxItem().ScrollIntoView();
-        _session.WaitUntil(() => !entry.IsOffscreen);
-        return entry;
+
+        // ScrollIntoView can cause WinUI ListView virtualization to recycle the
+        // realized container and its descendants. Do not keep using the pre-scroll
+        // automation proxy: wait for, and then return, the currently realized row.
+        _session.WaitUntil(() =>
+        {
+            var realized = Items.FindFirstDescendant(
+                cf => cf.ByAutomationId($"ActivityOperation-{operationId}")
+            );
+            return realized is not null && !realized.IsOffscreen;
+        });
+
+        return WaitForOperation(operationId);
     }
 
     private AutomationElement[] ListEntries()

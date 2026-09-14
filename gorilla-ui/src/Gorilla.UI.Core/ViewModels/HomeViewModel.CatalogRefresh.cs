@@ -21,10 +21,11 @@ public sealed partial class HomeViewModel
         await _cacheCoordinator.RefreshAsync(
             (items, _) =>
             {
-                // Attempt-level feedback and service-admission retry blocks describe
-                // the truth observed by a specific user action against the prior
-                // catalog snapshot. A successful manual Refresh supplies new canonical
-                // catalog truth, so clear those local guards before recomputing recovery.
+                // First accept the live snapshot. Only after canonical reconciliation
+                // succeeds is it fresh truth that may supersede attempt-level feedback
+                // and a service-admission Retry block from the prior snapshot.
+                ApplyItems(items);
+
                 foreach (var activity in _activityItems.Values)
                 {
                     activity.SetRetryAttemptFeedback(null);
@@ -35,7 +36,10 @@ public sealed partial class HomeViewModel
                     item.TransientFeedback = null;
                 }
 
-                ApplyItems(items);
+                // ApplyItems rebuilt recovery while the prior attempt guard still
+                // existed. Recompute once more from the successfully applied snapshot
+                // after clearing local attempt state.
+                RebuildActivityProjection();
                 return Task.CompletedTask;
             },
             cancellationToken

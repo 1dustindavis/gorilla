@@ -38,7 +38,13 @@ public sealed record AppDetailsPresentation(
     public bool HasRetryUnavailableReason => LatestRecovery?.HasRetryUnavailableReason == true;
     public bool HasLatestTechnicalDetails => LatestRecovery?.HasTechnicalDetails == true;
     public string LatestFailureTitle => LatestRecovery?.OutcomeTitle ?? LatestResultHeading ?? string.Empty;
-    public string? LatestFailureMessage => LatestRecovery?.UserMessage ?? LatestResultDetail;
+    // Once a terminal result is represented by the recovery model, that model owns
+    // primary failure text. A null UserMessage is deliberate: unknown/future detail
+    // codes and exception-like diagnostics belong only in Technical details and must
+    // not leak back through the legacy LatestResultDetail fallback.
+    public string? LatestFailureMessage => LatestRecovery is not null
+        ? LatestRecovery.UserMessage
+        : LatestResultDetail;
     public bool HasLatestFailureMessage => !string.IsNullOrWhiteSpace(LatestFailureMessage);
     public string RetryLabel => LatestRecovery?.RetryLabel ?? "Retry";
     public string? RetryUnavailableReason => LatestRecovery?.RetryUnavailableReason;

@@ -1,9 +1,11 @@
 using Gorilla.UI.Client;
+using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
 using Gorilla.UI.Core.ViewModels;
 using Xunit;
+using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.Core.Tests;
 
@@ -38,11 +40,7 @@ public sealed class InfrastructureWarningPresentationTests
     public void ViewModel_ChangingAndClearingWarningKeepsCompatibilitySurfaceSynchronized()
     {
         var client = new FakeClient();
-        var viewModel = new HomeViewModel(
-            client,
-            new OptionalInstallsCacheCoordinator(client, new EmptyCacheStore()),
-            new OperationTracker(client)
-        );
+        var viewModel = CreateViewModel(client);
         var exception = new InvalidOperationException("protocol detail");
 
         viewModel.ReportInfrastructureWarning(
@@ -62,6 +60,50 @@ public sealed class InfrastructureWarningPresentationTests
         Assert.False(viewModel.InfrastructureWarning.HasTechnicalDetails);
     }
 
+    [Fact]
+    public async Task ActionStartTransportFailure_DoesNotFabricateActivityOrOperationOutcome()
+    {
+        var transportFailure = new IOException("named pipe unavailable");
+        var client = new FakeClient
+        {
+            InstallAsync = (_, _) => Task.FromException<OperationAccepted>(transportFailure),
+        };
+        var viewModel = CreateViewModel(client);
+        var item = new UiOptionalInstallItem
+        {
+            ItemName = "VLC",
+            DisplayName = "VLC",
+        };
+
+        var thrown = await Assert.ThrowsAsync<IOException>(
+            () => viewModel.InstallAsync(item, CancellationToken.None)
+        );
+
+        Assert.Same(transportFailure, thrown);
+        Assert.False(item.IsBusy);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Null(item.ActiveOperation);
+        Assert.Null(item.LatestOperation);
+
+        viewModel.SetActionStartInfrastructureWarning(AppCatalog.Action.Install, item.ItemName, thrown);
+
+        Assert.Equal(
+            "Gorilla couldn't start that action. Refresh and try again.",
+            viewModel.InfrastructureWarning.Message
+        );
+        Assert.DoesNotContain(transportFailure.Message, viewModel.InfrastructureWarning.Message, StringComparison.Ordinal);
+        Assert.Contains(transportFailure.Message, viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+        Assert.Contains("VLC", viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+        Assert.Contains("Install", viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+    }
+
+    private static HomeViewModel CreateViewModel(FakeClient client)
+        => new(
+            client,
+            new OptionalInstallsCacheCoordinator(client, new EmptyCacheStore()),
+            new OperationTracker(client)
+        );
+
     private sealed class EmptyCacheStore : IOptionalInstallsCacheStore
     {
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
@@ -73,11 +115,14 @@ public sealed class InfrastructureWarningPresentationTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
+        public Func<string, CancellationToken, Task<OperationAccepted>> InstallAsync { get; init; } =
+            (_, _) => Task.FromException<OperationAccepted>(new NotSupportedException());
+
         public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
+            => InstallAsync(itemName, cancellationToken);
 
         public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();

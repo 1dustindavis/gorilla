@@ -27,13 +27,17 @@ public class Stage6RecoveryBoundaryTests
         var result = await viewModel.RetryAsync("old-op", CancellationToken.None);
 
         Assert.False(result.Started);
-        Assert.Contains("already selected", result.Feedback, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(result.Feedback);
+        Assert.Contains("already selected", result.Feedback!, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, client.InstallCalls);
         var activity = Assert.Single(viewModel.ActivityItems);
         Assert.Equal("old-op", activity.OperationId);
         Assert.Equal(Outcome.Failed, activity.Result?.Outcome);
-        Assert.Contains("already selected", activity.RetryAttemptFeedback, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("already selected", viewModel.FindItem("VLC")?.TransientFeedback, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(activity.RetryAttemptFeedback);
+        Assert.Contains("already selected", activity.RetryAttemptFeedback!, StringComparison.OrdinalIgnoreCase);
+        var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+        Assert.NotNull(item.TransientFeedback);
+        Assert.Contains("already selected", item.TransientFeedback!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

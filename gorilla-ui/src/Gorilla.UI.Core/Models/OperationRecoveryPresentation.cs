@@ -37,6 +37,7 @@ public static class OperationRecoveryPresentationMapper
     private static readonly HashSet<string> KnownDetailCodes = new(StringComparer.Ordinal)
     {
         "installer_failed",
+        "installer_exit",
         "dependency_failed",
         "dependency_cycle",
         "invalid_dependency",

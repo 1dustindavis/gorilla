@@ -7,7 +7,6 @@ using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
-using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Gorilla.UI.App.Views;
@@ -15,7 +14,6 @@ namespace Gorilla.UI.App.Views;
 public sealed partial class HomePage : Page
 {
     private readonly AppCatalogSession _session;
-    private long _serviceWarningTextChangedToken;
     private bool _isObservingPageState;
 
     public HomeViewModel ViewModel { get; }
@@ -53,10 +51,6 @@ public sealed partial class HomePage : Page
 
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         ViewModel.Items.CollectionChanged += Items_CollectionChanged;
-        _serviceWarningTextChangedToken = ServiceWarning.RegisterPropertyChangedCallback(
-            TextBlock.TextProperty,
-            ServiceWarning_TextChanged
-        );
         _isObservingPageState = true;
     }
 
@@ -69,14 +63,6 @@ public sealed partial class HomePage : Page
 
         ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
         ViewModel.Items.CollectionChanged -= Items_CollectionChanged;
-        if (_serviceWarningTextChangedToken != 0)
-        {
-            ServiceWarning.UnregisterPropertyChangedCallback(
-                TextBlock.TextProperty,
-                _serviceWarningTextChangedToken
-            );
-            _serviceWarningTextChangedToken = 0;
-        }
         _isObservingPageState = false;
     }
 
@@ -110,6 +96,9 @@ public sealed partial class HomePage : Page
         LoadFailedState.Visibility = loadFailed
             ? Visibility.Visible
             : Visibility.Collapsed;
+        NoCachedDataText.Visibility = loadFailed && state.HasNoUsableCache
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         SearchNoResults.Visibility = !initialLoading &&
             !loadFailed &&
@@ -128,18 +117,6 @@ public sealed partial class HomePage : Page
         CatalogItems.Visibility = state.HasUsableData && !successfulEmpty
             ? Visibility.Visible
             : Visibility.Collapsed;
-    }
-
-    private void ServiceWarning_TextChanged(DependencyObject sender, DependencyProperty dp)
-    {
-        if (string.IsNullOrWhiteSpace(ServiceWarning.Text))
-        {
-            return;
-        }
-
-        var peer = FrameworkElementAutomationPeer.FromElement(ServiceWarning)
-            ?? FrameworkElementAutomationPeer.CreatePeerForElement(ServiceWarning);
-        peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     private void CatalogItems_ContainerContentChanging(
@@ -232,10 +209,10 @@ public sealed partial class HomePage : Page
         switch (action.Value)
         {
             case CatalogCardActionKind.Install:
-                await RunSafelyAsync(() => ViewModel.InstallAsync(item, _session.LifetimeToken));
+                await RunActionSafelyAsync(() => ViewModel.InstallAsync(item, _session.LifetimeToken), item, AppCatalog.Action.Install);
                 break;
             case CatalogCardActionKind.Remove:
-                await RunSafelyAsync(() => ViewModel.RemoveAsync(item, _session.LifetimeToken));
+                await RunActionSafelyAsync(() => ViewModel.RemoveAsync(item, _session.LifetimeToken), item, AppCatalog.Action.Remove);
                 break;
         }
     }
@@ -253,7 +230,26 @@ public sealed partial class HomePage : Page
         }
         catch (Exception ex)
         {
-            ViewModel.SetWarningBanner($"Operation failed: {ex.Message}");
+            ViewModel.SetActionStartInfrastructureWarning(AppCatalog.Action.Install, "App Catalog initialization", ex);
+        }
+    }
+
+    private async Task RunActionSafelyAsync(
+        Func<Task> action,
+        UiOptionalInstallItem item,
+        AppCatalog.Action expectedAction
+    )
+    {
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            ViewModel.SetActionStartInfrastructureWarning(expectedAction, item.ItemName, ex);
         }
     }
 }

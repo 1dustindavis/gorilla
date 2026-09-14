@@ -20,6 +20,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     private readonly ConcurrentDictionary<string, byte> _recoveryTracking = new(StringComparer.Ordinal);
     private readonly Dictionary<string, UiOptionalInstallItem> _catalogItems = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ActivityOperationPresentation> _activityItems = new(StringComparer.Ordinal);
+    private readonly object _projectionStateLock = new();
 
     private string _warningBanner = string.Empty;
     private string _searchQuery = string.Empty;
@@ -216,31 +217,37 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     public UiOptionalInstallItem? FindItem(string itemName)
     {
-        if (_catalogItems.TryGetValue(itemName, out var item))
+        lock (_projectionStateLock)
         {
-            return item;
-        }
+            if (_catalogItems.TryGetValue(itemName, out var item))
+            {
+                return item;
+            }
 
-        // Supports the existing Stage 4 action entry points while callers migrate
-        // from manually supplied list items to canonical catalog state.
-        return Items.FirstOrDefault(i => string.Equals(i.ItemName, itemName, StringComparison.OrdinalIgnoreCase));
+            // Supports the existing Stage 4 action entry points while callers migrate
+            // from manually supplied list items to canonical catalog state.
+            return Items.FirstOrDefault(i => string.Equals(i.ItemName, itemName, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     public bool SelectItem(string? itemName)
     {
-        if (string.IsNullOrWhiteSpace(itemName))
+        lock (_projectionStateLock)
         {
-            SelectedItemName = null;
+            if (string.IsNullOrWhiteSpace(itemName))
+            {
+                SelectedItemName = null;
+                return true;
+            }
+
+            if (!_catalogItems.TryGetValue(itemName, out var item))
+            {
+                return false;
+            }
+
+            SelectedItemName = item.ItemName;
             return true;
         }
-
-        if (!_catalogItems.TryGetValue(itemName, out var item))
-        {
-            return false;
-        }
-
-        SelectedItemName = item.ItemName;
-        return true;
     }
 
     public void SetWarningBanner(string message)
@@ -424,27 +431,30 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     private void ProjectOperation(OperationStatusEvent update, UiOptionalInstallItem? fallbackItem = null)
     {
-        RebuildActivityProjection();
-        var item = FindItem(update.ItemName);
-        if (item is null && fallbackItem is not null &&
-            string.Equals(fallbackItem.ItemName, update.ItemName, StringComparison.OrdinalIgnoreCase))
+        lock (_projectionStateLock)
         {
-            item = fallbackItem;
-        }
-        if (item is null)
-        {
-            return;
-        }
+            RebuildActivityProjection();
+            var item = FindItem(update.ItemName);
+            if (item is null && fallbackItem is not null &&
+                string.Equals(fallbackItem.ItemName, update.ItemName, StringComparison.OrdinalIgnoreCase))
+            {
+                item = fallbackItem;
+            }
+            if (item is null)
+            {
+                return;
+            }
 
-        if (update.State == OperationState.Completed)
-        {
-            item.PreferOperationStatus();
-        }
+            if (update.State == OperationState.Completed)
+            {
+                item.PreferOperationStatus();
+            }
 
-        // OperationTracker owns the structured per-item terminal result. The card
-        // presentation consumes LatestOperation directly; page warnings are reserved
-        // for service/catalog/status infrastructure problems.
-        ReprojectOperation(item);
+            // OperationTracker owns the structured per-item terminal result. The card
+            // presentation consumes LatestOperation directly; page warnings are reserved
+            // for service/catalog/status infrastructure problems.
+            ReprojectOperation(item);
+        }
     }
 
     private static void ValidateOperationIdentity(
@@ -470,39 +480,42 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     private void ApplyItems(IReadOnlyList<OptionalInstallItem> source)
     {
-        var incoming = source.ToDictionary(item => item.ItemName, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var itemName in _catalogItems.Keys.Where(itemName => !incoming.ContainsKey(itemName)).ToArray())
+        lock (_projectionStateLock)
         {
-            _catalogItems.Remove(itemName);
-        }
+            var incoming = source.ToDictionary(item => item.ItemName, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var snapshot in incoming.Values)
-        {
-            if (!_catalogItems.TryGetValue(snapshot.ItemName, out var item))
+            foreach (var itemName in _catalogItems.Keys.Where(itemName => !incoming.ContainsKey(itemName)).ToArray())
             {
-                item = new UiOptionalInstallItem { ItemName = snapshot.ItemName };
-                _catalogItems.Add(snapshot.ItemName, item);
+                _catalogItems.Remove(itemName);
             }
 
-            ApplyCatalogSnapshot(item, snapshot);
-            ReprojectOperation(item);
-            item.PreferObservedStatus();
-        }
+            foreach (var snapshot in incoming.Values)
+            {
+                if (!_catalogItems.TryGetValue(snapshot.ItemName, out var item))
+                {
+                    item = new UiOptionalInstallItem { ItemName = snapshot.ItemName };
+                    _catalogItems.Add(snapshot.ItemName, item);
+                }
 
-        if (SelectedItemName is not null && !_catalogItems.ContainsKey(SelectedItemName))
-        {
-            SelectedItemName = null;
-        }
-        else
-        {
-            OnPropertyChanged(nameof(SelectedItem));
-        }
+                ApplyCatalogSnapshot(item, snapshot);
+                ReprojectOperation(item);
+                item.PreferObservedStatus();
+            }
 
-        RebuildVisibleItems();
-        // Catalog arrival/removal may change Activity display name, navigation, and
-        // recovery eligibility. RebuildActivityProjection owns all current recovery truth.
-        RebuildActivityProjection();
+            if (SelectedItemName is not null && !_catalogItems.ContainsKey(SelectedItemName))
+            {
+                SelectedItemName = null;
+            }
+            else
+            {
+                OnPropertyChanged(nameof(SelectedItem));
+            }
+
+            RebuildVisibleItems();
+            // Catalog arrival/removal may change Activity display name, navigation, and
+            // recovery eligibility. RebuildActivityProjection owns all current recovery truth.
+            RebuildActivityProjection();
+        }
     }
 
     private static void ApplyCatalogSnapshot(UiOptionalInstallItem item, OptionalInstallItem snapshot)
@@ -556,103 +569,109 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     private void RebuildActivityProjection()
     {
-        var retained = _operationTracker.GetRetainedOperations();
-        var retainedIds = retained.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
-
-        foreach (var operationId in _activityItems.Keys.Where(id => !retainedIds.Contains(id)).ToArray())
+        lock (_projectionStateLock)
         {
-            _activityItems.Remove(operationId);
-        }
+            var retained = _operationTracker.GetRetainedOperations();
+            var retainedIds = retained.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
 
-        foreach (var operation in retained)
-        {
-            if (!_activityItems.TryGetValue(operation.OperationId, out var presentation))
+            foreach (var operationId in _activityItems.Keys.Where(id => !retainedIds.Contains(id)).ToArray())
             {
-                presentation = new ActivityOperationPresentation(operation.OperationId);
-                _activityItems.Add(operation.OperationId, presentation);
+                _activityItems.Remove(operationId);
             }
 
-            // Activity authority must use the same canonical catalog as Retry dispatch.
-            // Presentation-only Items fallbacks may preserve legacy display behavior in
-            // other entry points, but they must never authorize Retry or navigation.
-            var item = FindCanonicalItem(operation.ItemName);
-            presentation.Apply(
-                operation,
-                item?.DisplayName ?? operation.ItemName,
-                canNavigate: item is not null
-            );
-
-            var active = _operationTracker.GetActiveForItem(operation.ItemName);
-            var conflictingActive = active is not null &&
-                !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
-            presentation.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
-                operation,
-                item,
-                conflictingActive
-            ));
-        }
-
-        var desired = retained
-            .OrderBy(operation => operation.State == OperationState.Completed ? 1 : 0)
-            .ThenByDescending(operation => operation.TimestampUtc)
-            .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
-            .Select(operation => _activityItems[operation.OperationId])
-            .ToArray();
-
-        foreach (var existing in ActivityItems.Where(item => !desired.Contains(item)).ToArray())
-        {
-            ActivityItems.Remove(existing);
-        }
-
-        for (var index = 0; index < desired.Length; index++)
-        {
-            if (index < ActivityItems.Count && ReferenceEquals(ActivityItems[index], desired[index]))
+            foreach (var operation in retained)
             {
-                continue;
+                if (!_activityItems.TryGetValue(operation.OperationId, out var presentation))
+                {
+                    presentation = new ActivityOperationPresentation(operation.OperationId);
+                    _activityItems.Add(operation.OperationId, presentation);
+                }
+
+                // Activity authority must use the same canonical catalog as Retry dispatch.
+                // Presentation-only Items fallbacks may preserve legacy display behavior in
+                // other entry points, but they must never authorize Retry or navigation.
+                var item = FindCanonicalItem(operation.ItemName);
+                presentation.Apply(
+                    operation,
+                    item?.DisplayName ?? operation.ItemName,
+                    canNavigate: item is not null
+                );
+
+                var active = _operationTracker.GetActiveForItem(operation.ItemName);
+                var conflictingActive = active is not null &&
+                    !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
+                presentation.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
+                    operation,
+                    item,
+                    conflictingActive
+                ));
             }
 
-            var existingIndex = ActivityItems.IndexOf(desired[index]);
-            if (existingIndex >= 0)
+            var desired = retained
+                .OrderBy(operation => operation.State == OperationState.Completed ? 1 : 0)
+                .ThenByDescending(operation => operation.TimestampUtc)
+                .ThenByDescending(operation => operation.OperationId, StringComparer.Ordinal)
+                .Select(operation => _activityItems[operation.OperationId])
+                .ToArray();
+
+            foreach (var existing in ActivityItems.Where(item => !desired.Contains(item)).ToArray())
             {
-                ActivityItems.Move(existingIndex, index);
+                ActivityItems.Remove(existing);
             }
-            else
+
+            for (var index = 0; index < desired.Length; index++)
             {
-                ActivityItems.Insert(index, desired[index]);
+                if (index < ActivityItems.Count && ReferenceEquals(ActivityItems[index], desired[index]))
+                {
+                    continue;
+                }
+
+                var existingIndex = ActivityItems.IndexOf(desired[index]);
+                if (existingIndex >= 0)
+                {
+                    ActivityItems.Move(existingIndex, index);
+                }
+                else
+                {
+                    ActivityItems.Insert(index, desired[index]);
+                }
             }
         }
     }
 
     private void RebuildVisibleItems()
     {
-        var query = SearchQuery;
-        var desired = _catalogItems.Values
-            .Where(item => MatchesSearch(item, query))
-            .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.ItemName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.ItemName, StringComparer.Ordinal)
-            .ToArray();
-
-        foreach (var existing in Items.Where(item => !desired.Contains(item)).ToArray())
+        lock (_projectionStateLock)
         {
-            Items.Remove(existing);
-        }
+            var query = SearchQuery;
+            var desired = _catalogItems.Values
+                .Where(item => MatchesSearch(item, query))
+                .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.ItemName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.ItemName, StringComparer.Ordinal)
+                .ToArray();
 
-        for (var index = 0; index < desired.Length; index++)
-        {
-            if (index < Items.Count && ReferenceEquals(Items[index], desired[index]))
+            foreach (var existing in Items.Where(item => !desired.Contains(item)).ToArray())
             {
-                continue;
+                Items.Remove(existing);
             }
 
-            var existingIndex = Items.IndexOf(desired[index]);
-            if (existingIndex >= 0)
+            for (var index = 0; index < desired.Length; index++)
             {
-                Items.Move(existingIndex, index);
-            }
-            else
-            {
-                Items.Insert(index, desired[index]);
+                if (index < Items.Count && ReferenceEquals(Items[index], desired[index]))
+                {
+                    continue;
+                }
+
+                var existingIndex = Items.IndexOf(desired[index]);
+                if (existingIndex >= 0)
+                {
+                    Items.Move(existingIndex, index);
+                }
+                else
+                {
+                    Items.Insert(index, desired[index]);
+                }
             }
         }
     }

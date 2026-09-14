@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using Gorilla.UI.App.Services;
+using Gorilla.UI.Client;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
@@ -185,6 +186,10 @@ public sealed partial class AppDetailsPage : Page
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
+        }
+        catch (ServiceErrorException ex) when (_viewModel.TryPresentActionAdmissionFailure(item, ex))
+        {
+            // Known service-owned admission/policy rejection remains app-specific.
         }
         catch (Exception ex)
         {

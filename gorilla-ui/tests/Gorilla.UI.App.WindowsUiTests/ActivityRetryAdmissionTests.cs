@@ -24,6 +24,14 @@ public sealed class ActivityRetryAdmissionTests
                 shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
                 home.WaitForItemStatus(FailureFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
 
+                // The service intentionally retains recent operations across UI test
+                // processes. Capture the existing Ps1Failure identities so the later
+                // assertion targets the operation created by this test rather than an
+                // older retained row with the same failure message.
+                var activity = ActivityPageDriver.OpenFromCatalog(session);
+                var existingOperationIds = activity.OperationIdsForItem(FailureFixtureItemName);
+                activity.GoBack();
+
                 home.PrimaryActionButton(FailureFixtureItemName).Invoke();
                 home.WaitForTerminalFeedbackContaining(
                     FailureFixtureItemName,
@@ -31,9 +39,10 @@ public sealed class ActivityRetryAdmissionTests
                     TimeSpan.FromSeconds(60)
                 );
 
-                var activity = ActivityPageDriver.OpenFromCatalog(session);
-                var failedEntry = activity.WaitForEntryWithDetail(
+                activity = ActivityPageDriver.OpenFromCatalog(session);
+                var failedEntry = activity.WaitForNewEntryWithDetail(
                     "Installation error: exit status 7",
+                    existingOperationIds,
                     TimeSpan.FromSeconds(30)
                 );
                 var operationId = ActivityPageDriver.OperationId(failedEntry);

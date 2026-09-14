@@ -27,6 +27,10 @@ public sealed class InfrastructureWarningPresentationTests
         Assert.Equal("Operation status is temporarily unavailable.", warning.Message);
         Assert.DoesNotContain(exception.Message, warning.Message, StringComparison.Ordinal);
         Assert.True(warning.HasTechnicalDetails);
+        Assert.Equal("Retained operation lookup", warning.Context);
+        Assert.Equal("operation-17", warning.OperationId);
+        Assert.Equal("VLC", warning.ItemName);
+        Assert.Equal("Install", warning.ExpectedAction);
         Assert.Contains("Retained operation lookup", warning.TechnicalDetails, StringComparison.Ordinal);
         Assert.Contains(typeof(IOException).FullName!, warning.TechnicalDetails, StringComparison.Ordinal);
         Assert.Contains(exception.Message, warning.TechnicalDetails, StringComparison.Ordinal);
@@ -57,6 +61,47 @@ public sealed class InfrastructureWarningPresentationTests
         Assert.Empty(viewModel.WarningBanner);
         Assert.Equal(InfrastructureWarningPresentation.None, viewModel.InfrastructureWarning);
         Assert.False(viewModel.InfrastructureWarning.HasTechnicalDetails);
+    }
+
+    [Fact]
+    public void CatalogRecoveryClearsOnlyCatalogInitializationWarnings()
+    {
+        var viewModel = CreateViewModel(new FakeClient());
+        var failure = new IOException("pipe unavailable");
+
+        viewModel.ReportInfrastructureWarning(
+            "App Catalog is temporarily unavailable. Refresh and try again.",
+            "Unexpected catalog-page initialization failure",
+            failure
+        );
+        viewModel.ClearCatalogRecoveryInfrastructureWarning();
+        Assert.Empty(viewModel.WarningBanner);
+
+        viewModel.ReportInfrastructureWarning(
+            "Operation status is temporarily unavailable.",
+            "Retained operation lookup during App Catalog initialization",
+            failure
+        );
+        viewModel.ClearCatalogRecoveryInfrastructureWarning();
+
+        Assert.Equal("Operation status is temporarily unavailable.", viewModel.WarningBanner);
+    }
+
+    [Fact]
+    public void ActionRecoveryClearsOnlyMatchingActionStartWarning()
+    {
+        var viewModel = CreateViewModel(new FakeClient());
+        var failure = new IOException("pipe unavailable");
+
+        viewModel.SetActionStartInfrastructureWarning(AppCatalog.Action.Install, "VLC", failure);
+        viewModel.ClearActionStartInfrastructureWarning(AppCatalog.Action.Remove, "VLC");
+        Assert.NotEmpty(viewModel.WarningBanner);
+
+        viewModel.ClearActionStartInfrastructureWarning(AppCatalog.Action.Install, "OtherApp");
+        Assert.NotEmpty(viewModel.WarningBanner);
+
+        viewModel.ClearActionStartInfrastructureWarning(AppCatalog.Action.Install, "vlc");
+        Assert.Empty(viewModel.WarningBanner);
     }
 
     [Fact]

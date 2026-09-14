@@ -1,3 +1,4 @@
+using Gorilla.UI.Client;
 using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core.Models;
 using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
@@ -94,15 +95,16 @@ public sealed partial class HomeViewModel
                 await InstallAsync(item, cancellationToken);
             }
         }
-        catch (InvalidOperationException ex) when (TryGetActionRejectionFeedback(ex, out var rejectionFeedback))
+        catch (ServiceErrorException ex) when (ActionRejectionReasons.Contains(ex.ErrorCode))
         {
             // The service owns final admission. A stale cached decision can therefore
             // be rejected after Retry is clicked. That is current action feedback,
             // not a new operation failure and must not manufacture Activity history.
-            item.TransientFeedback = rejectionFeedback;
-            SetRetryAttemptFeedback(historicalOperationId, rejectionFeedback);
+            var feedback = OperationRecoveryPresentationMapper.ReasonText(ex.ErrorCode);
+            item.TransientFeedback = feedback;
+            SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
-            return RetryAttemptResult.NotStarted(rejectionFeedback);
+            return RetryAttemptResult.NotStarted(feedback);
         }
 
         // Ordinary Install/Remove admission rejection is intentionally non-operation
@@ -119,25 +121,6 @@ public sealed partial class HomeViewModel
         SetRetryAttemptFeedback(historicalOperationId, null);
         RebuildActivityProjection();
         return RetryAttemptResult.Accepted;
-    }
-
-    private static bool TryGetActionRejectionFeedback(InvalidOperationException exception, out string feedback)
-    {
-        feedback = string.Empty;
-        var separator = exception.Message.IndexOf(':');
-        if (separator <= 0)
-        {
-            return false;
-        }
-
-        var reason = exception.Message[..separator].Trim();
-        if (!ActionRejectionReasons.Contains(reason))
-        {
-            return false;
-        }
-
-        feedback = OperationRecoveryPresentationMapper.ReasonText(reason);
-        return true;
     }
 
     private UiOptionalInstallItem? FindCanonicalItem(string itemName)

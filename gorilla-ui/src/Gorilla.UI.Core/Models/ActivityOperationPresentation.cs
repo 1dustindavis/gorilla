@@ -7,10 +7,9 @@ using CatalogAction = Gorilla.UI.Client.AppCatalog.Action;
 
 namespace Gorilla.UI.Core.Models;
 
-// Presentation-only projection of one retained service operation. The structured
-// operation identity/result are deliberately preserved so a later retry surface
-// can re-enter the current service-authorized action path without replaying the
-// historical mutation.
+// Presentation-only projection of one retained service operation. Historical
+// operation identity/result remain immutable truth; Recovery describes only what
+// can be done now against the current canonical catalog item.
 public sealed class ActivityOperationPresentation : INotifyPropertyChanged
 {
     private string _itemName = string.Empty;
@@ -22,6 +21,8 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     private string _message = string.Empty;
     private DateTimeOffset _timestampUtc;
     private bool _canNavigate;
+    private OperationRecoveryPresentation? _recovery;
+    private string? _retryAttemptFeedback;
 
     public ActivityOperationPresentation(string operationId)
     {
@@ -38,13 +39,26 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string Message => _message;
     public DateTimeOffset TimestampUtc => _timestampUtc;
     public bool CanNavigate => _canNavigate;
+    public OperationRecoveryPresentation? Recovery => _recovery;
+    public string? RetryAttemptFeedback => _retryAttemptFeedback;
 
     public bool IsActive => State != OperationState.Completed;
     public bool IsTerminal => !IsActive;
     public bool HasDeterminateProgress => IsActive && ProgressPercent.HasValue;
     public bool IsProgressIndeterminate => IsActive && !ProgressPercent.HasValue;
     public double ProgressValue => ProgressPercent ?? 0;
-    public bool HasDetail => !string.IsNullOrWhiteSpace(DetailText);
+    public bool HasRecovery => Recovery?.IsRetryCandidate == true;
+    public bool HasDetail => !HasRecovery && !string.IsNullOrWhiteSpace(DetailText);
+    public bool CanRetry => Recovery?.CanRetry == true;
+    public bool HasRetryUnavailableReason => Recovery?.HasRetryUnavailableReason == true;
+    public bool HasTechnicalDetails => Recovery?.HasTechnicalDetails == true;
+    public bool HasRetryAttemptFeedback => !string.IsNullOrWhiteSpace(RetryAttemptFeedback);
+    public string FailureTitle => Recovery?.OutcomeTitle ?? StateText;
+    public string? FailureMessage => Recovery?.UserMessage;
+    public bool HasFailureMessage => !string.IsNullOrWhiteSpace(FailureMessage);
+    public string RetryLabel => Recovery?.RetryLabel ?? "Retry";
+    public string? RetryUnavailableReason => Recovery?.RetryUnavailableReason;
+    public string TechnicalDetails => Recovery?.TechnicalDetails ?? string.Empty;
 
     // Retained service action is historical truth. Contextual Stage 5 labels such
     // as Update/Keep Installed are intentionally not reconstructed from current state.
@@ -70,8 +84,41 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
     public string StateAutomationId => $"ActivityState-{OperationId}";
     public string ProgressAutomationId => $"ActivityProgress-{OperationId}";
     public string DetailAutomationId => $"ActivityDetail-{OperationId}";
+    public string FailureTitleAutomationId => $"ActivityFailureTitle-{OperationId}";
+    public string RetryAutomationId => $"ActivityRetry-{OperationId}";
+    public string RetryUnavailableAutomationId => $"ActivityRetryUnavailable-{OperationId}";
+    public string RetryAttemptFeedbackAutomationId => $"ActivityRetryFeedback-{OperationId}";
+    public string TechnicalDetailsAutomationId => $"OperationTechnicalDetails-{OperationId}";
+    public string TechnicalDetailsContentAutomationId => $"OperationTechnicalDetailsContent-{OperationId}";
 
     internal void Apply(OperationStatusEvent operation, string displayName, bool canNavigate)
+        => ApplyHistorical(operation, displayName, canNavigate);
+
+    internal void ApplyRecovery(OperationRecoveryPresentation recovery)
+    {
+        SetField(ref _recovery, recovery, nameof(Recovery));
+        OnPropertyChanged(nameof(HasRecovery));
+        OnPropertyChanged(nameof(HasDetail));
+        OnPropertyChanged(nameof(CanRetry));
+        OnPropertyChanged(nameof(HasRetryUnavailableReason));
+        OnPropertyChanged(nameof(HasTechnicalDetails));
+        OnPropertyChanged(nameof(FailureTitle));
+        OnPropertyChanged(nameof(FailureMessage));
+        OnPropertyChanged(nameof(HasFailureMessage));
+        OnPropertyChanged(nameof(RetryLabel));
+        OnPropertyChanged(nameof(RetryUnavailableReason));
+        OnPropertyChanged(nameof(TechnicalDetails));
+    }
+
+    internal void SetRetryAttemptFeedback(string? feedback)
+    {
+        if (SetField(ref _retryAttemptFeedback, feedback, nameof(RetryAttemptFeedback)))
+        {
+            OnPropertyChanged(nameof(HasRetryAttemptFeedback));
+        }
+    }
+
+    private void ApplyHistorical(OperationStatusEvent operation, string displayName, bool canNavigate)
     {
         if (!string.Equals(operation.OperationId, OperationId, StringComparison.Ordinal))
         {
@@ -123,15 +170,16 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         _ => outcome.ToString(),
     };
 
-    private void SetField<T>(ref T field, T value, string propertyName)
+    private bool SetField<T>(ref T field, T value, string propertyName)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

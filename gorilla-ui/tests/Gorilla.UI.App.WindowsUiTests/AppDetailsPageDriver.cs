@@ -52,6 +52,24 @@ internal sealed class AppDetailsPageDriver
             timeout
         );
 
+    public Button RetryButton(string operationId)
+        => WaitById($"DetailsRetry-{operationId}").AsButton();
+
+    public bool HasRetryButton(string operationId)
+        => FindById($"DetailsRetry-{operationId}") is not null;
+
+    public string FailureTitle(string operationId)
+        => OptionalName($"DetailsFailureTitle-{operationId}");
+
+    public string RetryUnavailableText(string operationId)
+        => OptionalName($"DetailsRetryUnavailable-{operationId}");
+
+    public string OpenAndReadTechnicalDetails(string operationId)
+    {
+        WaitById($"DetailsTechnicalDetails-{operationId}").Click();
+        return WaitById($"DetailsTechnicalDetailsContent-{operationId}").AsTextBox().Text;
+    }
+
     private AutomationElement WaitById(string automationId)
         => _session.WaitFor(() => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
 

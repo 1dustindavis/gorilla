@@ -150,7 +150,7 @@ public sealed class AppDetailsTests
             var details = new AppDetailsPageDriver(session);
             details.PrimaryAction.Invoke();
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
-            Assert.Equal("Latest result: Install — Failed", details.LatestResultHeading);
+            Assert.Equal("Installation failed", details.LatestResultHeading);
             Assert.Contains("Installation error: exit status 7", details.LatestResult, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("details-retained-failure", includeAutomationTree: true);
             details.GoBack();
@@ -162,7 +162,7 @@ public sealed class AppDetailsTests
 
             details = new AppDetailsPageDriver(session);
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(30));
-            Assert.Equal("Latest result: Install — Failed", details.LatestResultHeading);
+            Assert.Equal("Installation failed", details.LatestResultHeading);
             Assert.Contains("Installation error: exit status 7", details.LatestResult, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("details-retained-failure-reopened");
         });

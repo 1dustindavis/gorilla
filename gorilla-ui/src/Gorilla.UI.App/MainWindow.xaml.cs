@@ -37,7 +37,7 @@ namespace Gorilla.UI.App
             catch
             {
                 // CatalogDataState owns the user-facing failure state and retains
-                // the underlying exception for the later troubleshooting surface.
+                // the underlying exception for the troubleshooting disclosure.
             }
         }
 
@@ -63,6 +63,12 @@ namespace Gorilla.UI.App
             var warning = BuildDegradedWarning(state);
             CatalogDegradedText.Text = warning;
             CatalogDegradedBanner.Visibility = string.IsNullOrWhiteSpace(warning)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            var technicalDetails = CatalogTroubleshootingPresentation.BuildTechnicalDetails(state);
+            CatalogTechnicalDetailsText.Text = technicalDetails;
+            CatalogTechnicalDetails.Visibility = string.IsNullOrWhiteSpace(technicalDetails)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
         }
@@ -118,6 +124,11 @@ namespace Gorilla.UI.App
             if (state.HasCacheWriteFailure)
             {
                 return "Gorilla couldn't save the latest catalog for fallback use.";
+            }
+
+            if (state.HasLoadFailure)
+            {
+                return "Gorilla couldn't load the App Catalog.";
             }
 
             return string.Empty;

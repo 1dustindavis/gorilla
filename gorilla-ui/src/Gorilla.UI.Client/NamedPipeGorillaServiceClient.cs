@@ -234,9 +234,6 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
                 var isTerminal = ev.State == OperationState.Completed;
                 if (isTerminal)
                 {
-                    // Record lifecycle truth before yielding. Consumers intentionally
-                    // stop enumeration after Completed, which disposes this iterator
-                    // without executing statements after the yield.
                     completed = true;
                     terminalState = ev.State.ToString();
                     terminalOutcome = ev.Result!.Outcome.ToString();
@@ -408,7 +405,7 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
             ? "Service returned an error response."
             : err.Payload.ErrorMessage;
 
-        throw new InvalidOperationException($"{err.Payload.ErrorCode}: {message}");
+        throw new ServiceErrorException(err.Payload.ErrorCode, message);
     }
 
     private async Task<NamedPipeClientStream> ConnectAsync(CancellationToken cancellationToken)

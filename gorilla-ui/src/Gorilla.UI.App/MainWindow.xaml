@@ -50,11 +50,28 @@
             Visibility="Collapsed"
             AutomationProperties.AutomationId="CatalogDegradedWarning"
             AutomationProperties.LiveSetting="Polite">
-            <TextBlock
-                x:Name="CatalogDegradedText"
-                Foreground="DarkOrange"
-                TextWrapping="Wrap"
-                AutomationProperties.AutomationId="CatalogDegradedWarningText" />
+            <StackPanel Spacing="4">
+                <TextBlock
+                    x:Name="CatalogDegradedText"
+                    Foreground="DarkOrange"
+                    TextWrapping="Wrap"
+                    AutomationProperties.AutomationId="CatalogDegradedWarningText" />
+                <Expander
+                    x:Name="CatalogTechnicalDetails"
+                    Header="Technical details"
+                    Visibility="Collapsed"
+                    AutomationProperties.AutomationId="CatalogTechnicalDetails">
+                    <TextBox
+                        x:Name="CatalogTechnicalDetailsText"
+                        IsReadOnly="True"
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="CatalogTechnicalDetailsContent"
+                        AutomationProperties.Name="Catalog technical details" />
+                </Expander>
+            </StackPanel>
         </Border>
 
         <Frame

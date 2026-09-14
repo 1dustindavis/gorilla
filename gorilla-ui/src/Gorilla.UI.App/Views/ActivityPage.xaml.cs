@@ -39,9 +39,9 @@ public sealed partial class ActivityPage : Page
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {
         }
-        catch (Exception ex)
+        catch
         {
-            ViewModel.SetWarningBanner($"Operation failed: {ex.Message}");
+            ViewModel.SetWarningBanner("Activity is temporarily unavailable. Refresh and try again.");
         }
         UpdateEmptyState();
     }
@@ -113,6 +113,31 @@ public sealed partial class ActivityPage : Page
         AutomationProperties.SetAutomationId(args.ItemContainer, item.EntryAutomationId);
         AutomationProperties.SetName(args.ItemContainer, $"{item.DisplayName}, {item.ActionLabel}, {item.StateText}");
         AutomationProperties.SetHelpText(args.ItemContainer, item.OperationId);
+    }
+
+    private async void RetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.DataContext is not ActivityOperationPresentation item || !item.CanRetry)
+        {
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await ViewModel.RetryAsync(item.OperationId, _session.LifetimeToken);
+        }
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            ViewModel.SetWarningBanner("Retry could not be started. Refresh and try again.");
+        }
+        finally
+        {
+            button.IsEnabled = item.CanRetry;
+        }
     }
 
     private void ActivityItems_ItemClick(object sender, ItemClickEventArgs e)

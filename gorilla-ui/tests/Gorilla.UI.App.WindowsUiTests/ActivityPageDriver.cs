@@ -51,6 +51,48 @@ internal sealed class ActivityPageDriver
     public string DetailText(string operationId)
         => NameOfDescendant(operationId, $"ActivityDetail-{operationId}");
 
+    public string FailureTitle(string operationId)
+        => NameOfDescendant(operationId, $"ActivityFailureTitle-{operationId}");
+
+    public string RetryAttemptFeedback(string operationId)
+        => NameOfDescendant(operationId, $"ActivityRetryFeedback-{operationId}");
+
+    public string RetryUnavailableText(string operationId)
+        => NameOfDescendant(operationId, $"ActivityRetryUnavailable-{operationId}");
+
+    public Button RetryButton(string operationId)
+    {
+        var entry = ScrollOperationIntoView(operationId);
+        return _session.WaitFor(
+            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}"))?.AsButton()
+        );
+    }
+
+    public bool HasRetryButton(string operationId)
+        => WaitForOperation(operationId)
+            .FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
+
+    public AutomationElement TechnicalDetailsDisclosure(string operationId)
+    {
+        var entry = ScrollOperationIntoView(operationId);
+        return _session.WaitFor(
+            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}"))
+        );
+    }
+
+    public string OpenAndReadTechnicalDetails(string operationId)
+    {
+        var disclosure = TechnicalDetailsDisclosure(operationId);
+        var expandCollapse = disclosure.Patterns.ExpandCollapse.Pattern;
+        expandCollapse.Expand();
+
+        return _session.WaitFor(
+            () => ScrollOperationIntoView(operationId)
+                .FindFirstDescendant(cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}"))
+                ?.AsTextBox()
+        ).Text;
+    }
+
     public int CountEntries(string operationId)
         => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
 
@@ -63,8 +105,51 @@ internal sealed class ActivityPageDriver
     public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
         => _session.WaitFor(
             () => ListEntries().FirstOrDefault(item =>
-                item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
-                    .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase))),
+            {
+                if (!EntryContainsDetail(item, detail))
+                {
+                    return false;
+                }
+
+                // Existing Stage 6 callers use this helper to inspect a retryable
+                // retained failure immediately after creating it. Older retained rows
+                // may carry the same detail while a new operation is still active,
+                // which temporarily suppresses Retry for those rows. Wait for the
+                // matching retryable row instead of returning stale text identity.
+                var operationId = OperationId(item);
+                return !string.IsNullOrWhiteSpace(operationId)
+                    && item.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
+            }),
+            timeout
+        );
+
+    public IReadOnlySet<string> OperationIdsForItem(string itemName)
+        => ListEntries()
+            .Where(item => SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase))
+            .Select(OperationId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+    public AutomationElement WaitForNewEntryWithDetail(
+        string detail,
+        IReadOnlySet<string> existingOperationIds,
+        TimeSpan? timeout = null
+    ) => _session.WaitFor(
+        () => ListEntries().FirstOrDefault(item =>
+        {
+            var operationId = OperationId(item);
+            return !string.IsNullOrWhiteSpace(operationId)
+                && !existingOperationIds.Contains(operationId)
+                && EntryContainsDetail(item, detail);
+        }),
+        timeout
+    );
+
+    public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
+        => _session.WaitFor(
+            () => ListEntries().FirstOrDefault(item =>
+                !string.Equals(SafeHelpText(item), previousOperationId, StringComparison.Ordinal)
+                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)),
             timeout
         );
 
@@ -72,7 +157,7 @@ internal sealed class ActivityPageDriver
 
     public void OpenDetails(string operationId)
     {
-        var entry = WaitForOperation(operationId);
+        var entry = ScrollOperationIntoView(operationId);
         var nonActionTarget = _session.WaitFor(
             () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
         );
@@ -86,8 +171,20 @@ internal sealed class ActivityPageDriver
         _ = _session.WaitFor(() => ById("HomeHeading"));
     }
 
+    private AutomationElement ScrollOperationIntoView(string operationId)
+    {
+        var entry = WaitForOperation(operationId);
+        entry.AsListBoxItem().ScrollIntoView();
+        _session.WaitUntil(() => !entry.IsOffscreen);
+        return entry;
+    }
+
     private AutomationElement[] ListEntries()
         => Items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
+
+    private static bool EntryContainsDetail(AutomationElement item, string detail)
+        => item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))
+            .Any(text => SafeName(text).Contains(detail, StringComparison.OrdinalIgnoreCase));
 
     private string NameOfDescendant(string operationId, string automationId)
     {

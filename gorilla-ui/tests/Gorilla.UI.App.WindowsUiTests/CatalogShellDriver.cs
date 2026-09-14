@@ -54,6 +54,9 @@ internal sealed class CatalogShellDriver
         return _session.WaitFor(() => ById("InfrastructureTechnicalDetailsContent")).AsTextBox().Text;
     }
 
+    public void CollapseInfrastructureTechnicalDetails()
+        => Collapse("InfrastructureTechnicalDetails");
+
     public void WaitForFreshnessContaining(string expected, TimeSpan? timeout = null)
     {
         _session.WaitUntil(
@@ -114,6 +117,12 @@ internal sealed class CatalogShellDriver
     {
         var disclosure = _session.WaitFor(() => ById(automationId));
         disclosure.Patterns.ExpandCollapse.Pattern.Expand();
+    }
+
+    private void Collapse(string automationId)
+    {
+        var disclosure = _session.WaitFor(() => ById(automationId));
+        disclosure.Patterns.ExpandCollapse.Pattern.Collapse();
     }
 
     private AutomationElement? ById(string automationId)

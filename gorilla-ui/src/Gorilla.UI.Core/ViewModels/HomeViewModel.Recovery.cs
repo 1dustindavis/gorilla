@@ -118,12 +118,13 @@ public sealed partial class HomeViewModel
             return RetryAttemptResult.NotStarted(feedback);
         }
 
-        // Ordinary Install/Remove admission rejection is intentionally non-operation
-        // feedback. Surface it on both Details/card item state and the Activity row
-        // where Retry was initiated, without manufacturing retained operation history.
+        // OperationAccepted(false) is also an admission rejection. It lacks a
+        // structured policy reason, but it is still fresher than the cached action
+        // snapshot and must suppress another Retry until fresh catalog truth arrives.
         if (!string.IsNullOrWhiteSpace(item.TransientFeedback))
         {
             var feedback = item.TransientFeedback;
+            item.BlockRetry(historicalOperationId, feedback);
             SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
             return RetryAttemptResult.NotStarted(feedback);

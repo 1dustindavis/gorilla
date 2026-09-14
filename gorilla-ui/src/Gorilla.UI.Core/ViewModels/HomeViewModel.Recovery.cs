@@ -60,6 +60,15 @@ public sealed partial class HomeViewModel
             return RetryAttemptResult.NotStarted(feedback);
         }
 
+        var blockedReason = item.RetryBlockReasonFor(historicalOperationId);
+        if (!string.IsNullOrWhiteSpace(blockedReason))
+        {
+            item.TransientFeedback = blockedReason;
+            SetRetryAttemptFeedback(historicalOperationId, blockedReason);
+            RebuildActivityProjection();
+            return RetryAttemptResult.NotStarted(blockedReason);
+        }
+
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         if (active is not null || item.IsBusy)
         {
@@ -98,10 +107,12 @@ public sealed partial class HomeViewModel
         catch (ServiceErrorException ex) when (ActionRejectionReasons.Contains(ex.ErrorCode))
         {
             // The service owns final admission. A stale cached decision can therefore
-            // be rejected after Retry is clicked. That is current action feedback,
-            // not a new operation failure and must not manufacture Activity history.
+            // be rejected after Retry is clicked. Preserve that fresher current-action
+            // truth as an attempt-level guard until a successful catalog Refresh
+            // replaces the cached snapshot; do not mutate the snapshot itself.
             var feedback = OperationRecoveryPresentationMapper.ReasonText(ex.ErrorCode);
             item.TransientFeedback = feedback;
+            item.BlockRetry(historicalOperationId, feedback);
             SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
             return RetryAttemptResult.NotStarted(feedback);

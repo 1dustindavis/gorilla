@@ -220,8 +220,32 @@ public sealed class CriticalPathTests
             shell.WaitForDegradedWarningContaining("couldn't refresh the catalog", TimeSpan.FromSeconds(15));
             Assert.DoesNotContain("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
             Assert.False(shell.HasNoCachedDataState());
-            home.EnsureItemVisible(FixtureItemName);
-            session.CaptureCheckpoint("cached-service-unavailable", includeAutomationTree: true);
+
+            var action = home.PrimaryActionButton(FixtureItemName);
+            Assert.True(action.IsEnabled);
+            action.Invoke();
+            shell.WaitForInfrastructureWarningContaining("couldn't start that action", TimeSpan.FromSeconds(15));
+
+            Assert.Equal(1, shell.InfrastructureWarningPresentationCount());
+            Assert.DoesNotContain("Exception", shell.InfrastructureWarningText, StringComparison.OrdinalIgnoreCase);
+            var technicalDetails = shell.OpenAndReadInfrastructureTechnicalDetails();
+            Assert.Contains("Exception type:", technicalDetails, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Exception message:", technicalDetails, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(FixtureItemName, technicalDetails, StringComparison.OrdinalIgnoreCase);
+            Assert.False(string.IsNullOrWhiteSpace(shell.DegradedWarningText));
+
+            home.OpenDetails(FixtureItemName);
+            _ = new AppDetailsPageDriver(session).Root;
+            Assert.Contains("couldn't start that action", shell.InfrastructureWarningText, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, shell.InfrastructureWarningPresentationCount());
+
+            new AppDetailsPageDriver(session).GoBack();
+            _ = home.WaitForItem(FixtureItemName);
+            _ = ActivityPageDriver.OpenFromCatalog(session).Root;
+            Assert.Contains("couldn't start that action", shell.InfrastructureWarningText, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, shell.InfrastructureWarningPresentationCount());
+
+            session.CaptureCheckpoint("cached-service-unavailable-infrastructure-warning", includeAutomationTree: true);
         });
 
         File.Delete(cachePath);

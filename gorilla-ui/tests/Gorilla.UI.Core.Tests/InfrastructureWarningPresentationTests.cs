@@ -1,5 +1,4 @@
 using Gorilla.UI.Client;
-using Gorilla.UI.Client.AppCatalog;
 using Gorilla.UI.Core;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.Services;
@@ -83,6 +82,42 @@ public sealed class InfrastructureWarningPresentationTests
         );
         Assert.Contains(lookupFailure.Message, viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
         Assert.Contains(typeof(IOException).FullName!, viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KnownServiceAdmissionRejection_RemainsAppSpecific()
+    {
+        var viewModel = CreateViewModel(new FakeClient());
+        var item = new UiOptionalInstallItem
+        {
+            ItemName = "VLC",
+            DisplayName = "VLC",
+        };
+        var rejection = new ServiceErrorException("already_selected", "Current service truth rejected the request.");
+
+        var handled = viewModel.TryPresentActionAdmissionFailure(item, rejection);
+
+        Assert.True(handled);
+        Assert.NotNull(item.TransientFeedback);
+        Assert.Contains("already selected", item.TransientFeedback!, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(viewModel.WarningBanner);
+        Assert.Empty(viewModel.ActivityItems);
+    }
+
+    [Fact]
+    public void UnknownServiceError_IsNotMisclassifiedAsAdmissionFeedback()
+    {
+        var viewModel = CreateViewModel(new FakeClient());
+        var item = new UiOptionalInstallItem
+        {
+            ItemName = "VLC",
+            DisplayName = "VLC",
+        };
+        var failure = new ServiceErrorException("unexpected_backend_error", "transport/protocol detail");
+
+        Assert.False(viewModel.TryPresentActionAdmissionFailure(item, failure));
+        Assert.Null(item.TransientFeedback);
+        Assert.Empty(viewModel.WarningBanner);
     }
 
     [Fact]

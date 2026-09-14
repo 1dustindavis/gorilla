@@ -4,7 +4,11 @@ namespace Gorilla.UI.Core.Models;
 
 public sealed record InfrastructureWarningPresentation(
     string Message,
-    string TechnicalDetails
+    string TechnicalDetails,
+    string Context = "",
+    string? OperationId = null,
+    string? ItemName = null,
+    string? ExpectedAction = null
 )
 {
     public static InfrastructureWarningPresentation None { get; } = new(string.Empty, string.Empty);
@@ -49,6 +53,13 @@ public sealed record InfrastructureWarningPresentation(
             details.AppendLine().Append(additionalTechnicalDetails.Trim());
         }
 
-        return new InfrastructureWarningPresentation(message, details.ToString());
+        return new InfrastructureWarningPresentation(
+            message,
+            details.ToString(),
+            context,
+            operationId,
+            itemName,
+            expectedAction
+        );
     }
 }

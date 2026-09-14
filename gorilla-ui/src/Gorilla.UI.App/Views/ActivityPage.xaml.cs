@@ -8,6 +8,7 @@ using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 
 namespace Gorilla.UI.App.Views;
 
@@ -145,19 +146,40 @@ public sealed partial class ActivityPage : Page
         }
     }
 
-    private void ActivityItems_ItemClick(object sender, ItemClickEventArgs e)
+    private void ActivityApp_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (e.ClickedItem is not ActivityOperationPresentation item || !item.CanNavigate)
+        if (sender is not FrameworkElement element ||
+            element.DataContext is not ActivityOperationPresentation item)
         {
             return;
         }
 
-        if (!ViewModel.SelectItem(item.ItemName))
+        if (NavigateToActivityItem(item))
         {
-            return;
+            // The title is an explicit navigation target. Handling the gesture here
+            // avoids depending on ListView.ItemClick routing through sibling controls
+            // such as Retry and the expanded Technical details content.
+            e.Handled = true;
+        }
+    }
+
+    private void ActivityItems_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is ActivityOperationPresentation item)
+        {
+            _ = NavigateToActivityItem(item);
+        }
+    }
+
+    private bool NavigateToActivityItem(ActivityOperationPresentation item)
+    {
+        if (!item.CanNavigate || !ViewModel.SelectItem(item.ItemName))
+        {
+            return false;
         }
 
         Frame.Navigate(typeof(AppDetailsPage), item.ItemName);
+        return true;
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)

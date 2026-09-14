@@ -249,6 +249,7 @@ public sealed partial class HomePage : Page
         try
         {
             await action();
+            ViewModel.ClearActionStartInfrastructureWarning(expectedAction, item.ItemName);
         }
         catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
         {

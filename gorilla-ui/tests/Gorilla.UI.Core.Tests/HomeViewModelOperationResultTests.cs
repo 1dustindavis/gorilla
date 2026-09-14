@@ -79,8 +79,14 @@ public class HomeViewModelOperationResultTests
 
         await viewModel.InstallAsync(item, CancellationToken.None);
 
-        Assert.Contains("Install was accepted, but operation status is temporarily unavailable", viewModel.WarningBanner);
-        Assert.Contains("identity mismatch", viewModel.WarningBanner);
+        Assert.Equal(
+            "Install was accepted, but Gorilla can't currently confirm its status.",
+            viewModel.WarningBanner
+        );
+        Assert.DoesNotContain("identity mismatch", viewModel.WarningBanner, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("identity mismatch", viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DifferentItem", viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.Ordinal);
+        Assert.Null(item.LatestOperation);
         Assert.Equal(0, client.ListCalls);
     }
 
@@ -105,8 +111,13 @@ public class HomeViewModelOperationResultTests
 
         await viewModel.InstallAsync(item, CancellationToken.None);
 
-        Assert.Contains("Install was accepted, but operation status is temporarily unavailable", viewModel.WarningBanner);
-        Assert.Contains("action mismatch", viewModel.WarningBanner);
+        Assert.Equal(
+            "Install was accepted, but Gorilla can't currently confirm its status.",
+            viewModel.WarningBanner
+        );
+        Assert.DoesNotContain("action mismatch", viewModel.WarningBanner, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("action mismatch", viewModel.InfrastructureWarning.TechnicalDetails, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(item.LatestOperation);
         Assert.Equal(0, client.ListCalls);
     }
 

@@ -77,6 +77,33 @@ public sealed class CacheFallbackStateTests
     }
 
     [Fact]
+    public async Task NoCache_LoadFailureThenSuccessfulRefresh_ReplacesFailureWithLiveCatalog()
+    {
+        var attempt = 0;
+        var client = new FakeClient
+        {
+            ListAsync = _ => ++attempt == 1
+                ? Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("service unavailable"))
+                : Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("VLC")]),
+        };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, new TestCacheStore());
+
+        Assert.Null(await coordinator.LoadCachedAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<IOException>(() => coordinator.RefreshAsync(CancellationToken.None));
+        Assert.True(coordinator.State.HasLoadFailure);
+        Assert.True(coordinator.State.HasNoUsableCache);
+
+        var refreshed = await coordinator.RefreshAsync(CancellationToken.None);
+
+        Assert.Single(refreshed.Items);
+        Assert.True(coordinator.State.IsLive);
+        Assert.True(coordinator.State.HasUsableData);
+        Assert.False(coordinator.State.HasLoadFailure);
+        Assert.False(coordinator.State.IsSuccessfulEmpty);
+        await WaitUntilAsync(() => coordinator.State.CacheFallback == CacheFallbackState.Available);
+    }
+
+    [Fact]
     public async Task ValidCache_LiveFailure_PreservesFallbackAndDoesNotReportNoCache()
     {
         var cachedAt = DateTimeOffset.Parse("2026-09-13T18:00:00Z");
@@ -119,6 +146,21 @@ public sealed class CacheFallbackStateTests
         Assert.True(coordinator.State.IsSuccessfulEmpty);
         Assert.False(coordinator.State.HasLoadFailure);
     }
+
+    private static OptionalInstallItem Item(string itemName) => new(
+        ItemName: itemName,
+        DisplayName: itemName,
+        Version: "1.0",
+        Catalog: "test",
+        InstallerType: "msi",
+        InstallerPackageId: itemName,
+        InstallerLocation: $"{itemName}.msi",
+        IsManaged: false,
+        IsInstalled: false,
+        Status: OptionalInstallStatus.NotInstalled,
+        StatusUpdatedAtUtc: DateTimeOffset.Parse("2026-09-13T18:00:00Z"),
+        LastOperationId: null
+    );
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
     {

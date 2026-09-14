@@ -108,6 +108,7 @@ public static class OperationRecoveryPresentationMapper
         var actionDecision = currentItem is null
             ? null
             : action == CatalogAction.Remove ? currentItem.RemoveDecision : currentItem.InstallDecision;
+        var localRetryBlock = currentItem?.RetryBlockReasonFor(operationId);
 
         string? unavailableReason = null;
         var canRetry = false;
@@ -120,6 +121,10 @@ public static class OperationRecoveryPresentationMapper
             else if (hasConflictingActiveOperation || currentItem.IsBusy)
             {
                 unavailableReason = "Another operation for this app is already active.";
+            }
+            else if (!string.IsNullOrWhiteSpace(localRetryBlock))
+            {
+                unavailableReason = localRetryBlock;
             }
             else if (actionDecision is not { Allowed: true })
             {

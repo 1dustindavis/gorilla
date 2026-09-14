@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Exceptions;
@@ -157,12 +158,34 @@ internal sealed class ActivityPageDriver
 
     public void OpenDetails(string operationId)
     {
-        var entry = ScrollOperationIntoView(operationId);
-        var nonActionTarget = _session.WaitFor(
-            () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
+        var timeout = TimeSpan.FromSeconds(30);
+        var stopwatch = Stopwatch.StartNew();
+
+        while (stopwatch.Elapsed < timeout)
+        {
+            var entry = ScrollOperationIntoView(operationId);
+            var nonActionTarget = _session.WaitFor(
+                () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
+            );
+            nonActionTarget.Click();
+
+            try
+            {
+                _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
+                return;
+            }
+            catch (TimeoutException) when (stopwatch.Elapsed < timeout)
+            {
+                // Match HomePageDriver's established WinUI/FlaUI boundary: pointer
+                // delivery can race ListView settling after ScrollIntoView, especially
+                // when an expanded operation row changes the realized layout. Reacquire
+                // the current row and retry the same non-action target.
+            }
+        }
+
+        throw new TimeoutException(
+            $"Timed out after {timeout.TotalSeconds:n0}s opening Activity details for operation '{operationId}'."
         );
-        nonActionTarget.Click();
-        _ = _session.WaitFor(() => ById("AppDetailsRoot"));
     }
 
     public void GoBack()

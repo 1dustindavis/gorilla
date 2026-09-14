@@ -54,6 +54,9 @@ internal sealed class ActivityPageDriver
     public string FailureTitle(string operationId)
         => NameOfDescendant(operationId, $"ActivityFailureTitle-{operationId}");
 
+    public string RetryAttemptFeedback(string operationId)
+        => NameOfDescendant(operationId, $"ActivityRetryFeedback-{operationId}");
+
     public string RetryUnavailableText(string operationId)
         => NameOfDescendant(operationId, $"ActivityRetryUnavailable-{operationId}");
 

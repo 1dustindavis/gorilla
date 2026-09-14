@@ -208,18 +208,25 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
 
     public void BlockRetry(CatalogAction action, string reason)
     {
-        ref var field = ref action == CatalogAction.Remove
-            ? ref _removeRetryBlockedReason
-            : ref _installRetryBlockedReason;
-        if (string.Equals(field, reason, StringComparison.Ordinal))
+        if (action == CatalogAction.Remove)
         {
-            return;
+            if (string.Equals(_removeRetryBlockedReason, reason, StringComparison.Ordinal))
+            {
+                return;
+            }
+            _removeRetryBlockedReason = reason;
+            OnPropertyChanged(nameof(RemoveRetryBlockedReason));
+        }
+        else
+        {
+            if (string.Equals(_installRetryBlockedReason, reason, StringComparison.Ordinal))
+            {
+                return;
+            }
+            _installRetryBlockedReason = reason;
+            OnPropertyChanged(nameof(InstallRetryBlockedReason));
         }
 
-        field = reason;
-        OnPropertyChanged(action == CatalogAction.Remove
-            ? nameof(RemoveRetryBlockedReason)
-            : nameof(InstallRetryBlockedReason));
         OnPresentationsChanged();
     }
 

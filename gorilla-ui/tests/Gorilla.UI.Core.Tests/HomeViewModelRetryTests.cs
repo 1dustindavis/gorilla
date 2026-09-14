@@ -110,8 +110,8 @@ public class HomeViewModelRetryTests
 
     [Theory]
     [InlineData(Outcome.Failed, "Installation failed")]
-    [InlineData(Outcome.Unverified, "Installation couldn't be verified")]
-    [InlineData(Outcome.Interrupted, "Installation was interrupted")]
+    [InlineData(Outcome.Unverified, "Installation couldn't be verified as successful")]
+    [InlineData(Outcome.Interrupted, "Installation was interrupted before confirmation")]
     [InlineData(Outcome.Succeeded, "Installation succeeded")]
     [InlineData(Outcome.AlreadySatisfied, "Installation was already satisfied")]
     public void RecoveryPresentation_UsesDistinctOutcomeLanguage(Outcome outcome, string expected)

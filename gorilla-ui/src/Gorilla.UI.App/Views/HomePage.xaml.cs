@@ -8,6 +8,7 @@ using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.App.Views;
 
@@ -230,7 +231,11 @@ public sealed partial class HomePage : Page
         }
         catch (Exception ex)
         {
-            ViewModel.SetActionStartInfrastructureWarning(AppCatalog.Action.Install, "App Catalog initialization", ex);
+            ViewModel.ReportInfrastructureWarning(
+                "App Catalog is temporarily unavailable. Refresh and try again.",
+                "Unexpected catalog-page initialization failure",
+                ex
+            );
         }
     }
 

@@ -50,14 +50,14 @@ public sealed class ActivityRetryAdmissionTests
                 activity.RetryButton(operationId).Invoke();
                 session.WaitUntil(
                     () => activity.RetryAttemptFeedback(operationId)
-                        .Contains("Install was not accepted", StringComparison.OrdinalIgnoreCase),
+                        .Contains("already selected", StringComparison.OrdinalIgnoreCase),
                     TimeSpan.FromSeconds(30)
                 );
 
                 Assert.Equal("Failed", activity.StateText(operationId));
                 Assert.Equal(1, activity.CountEntries(operationId));
                 Assert.Contains(
-                    FailureFixtureItemName,
+                    "already selected",
                     activity.RetryAttemptFeedback(operationId),
                     StringComparison.OrdinalIgnoreCase
                 );

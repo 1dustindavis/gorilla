@@ -195,7 +195,7 @@ public sealed class CriticalPathTests
             );
             Assert.True(
                 string.IsNullOrWhiteSpace(home.WarningText),
-                $"Item-specific failure should not populate the page warning: {home.WarningText}"
+                $"Item-specific failure should not populate the infrastructure warning: {home.WarningText}"
             );
             Assert.InRange(home.PrimaryActionTop(FailureFixtureItemName), actionTopBefore - 1.0, actionTopBefore + 1.0);
             home.WaitForItemStatus(FailureFixtureItemName, "NotInstalled", TimeSpan.FromSeconds(30));
@@ -219,6 +219,7 @@ public sealed class CriticalPathTests
             shell.WaitForFreshnessContaining("Showing saved data", TimeSpan.FromSeconds(15));
             shell.WaitForDegradedWarningContaining("couldn't refresh the catalog", TimeSpan.FromSeconds(15));
             Assert.DoesNotContain("Updated", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
+            Assert.False(shell.HasNoCachedDataState());
             home.EnsureItemVisible(FixtureItemName);
             session.CaptureCheckpoint("cached-service-unavailable", includeAutomationTree: true);
         });
@@ -231,8 +232,10 @@ public sealed class CriticalPathTests
             session.WaitUntil(() => shell.HasLoadFailedState(), TimeSpan.FromSeconds(15));
 
             Assert.False(shell.HasSuccessfulEmptyState());
+            Assert.True(shell.HasNoCachedDataState());
             Assert.True(shell.RefreshButton.IsEnabled);
             Assert.Contains("unavailable", shell.FreshnessText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("no saved catalog", shell.DegradedWarningText, StringComparison.OrdinalIgnoreCase);
             session.CaptureCheckpoint("service-unavailable-no-cache", includeAutomationTree: true);
         });
     }

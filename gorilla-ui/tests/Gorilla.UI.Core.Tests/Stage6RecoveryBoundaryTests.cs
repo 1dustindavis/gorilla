@@ -83,6 +83,35 @@ public class Stage6RecoveryBoundaryTests
     }
 
     [Fact]
+    public async Task RetryAsync_GenericRejectedAdmissionAlsoBlocksUntilRefresh()
+    {
+        var client = new FalseAdmissionClient { Catalog = [ProtocolItem()] };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        Assert.True(Assert.Single(viewModel.ActivityItems).CanRetry);
+
+        var result = await viewModel.RetryAsync("old-op", CancellationToken.None);
+
+        Assert.False(result.Started);
+        Assert.Equal(1, client.InstallCalls);
+        var activity = Assert.Single(viewModel.ActivityItems);
+        var item = Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC"));
+        Assert.False(activity.CanRetry);
+        Assert.False(item.DetailsPresentation.CanRetryLatest);
+        Assert.Equal("old-op", item.RetryBlockedOperationId);
+        Assert.Equal("Install was not accepted for VLC.", item.RetryBlockedReason);
+        Assert.True(item.InstallDecision.Allowed);
+
+        await viewModel.RetryAsync("old-op", CancellationToken.None);
+        Assert.Equal(1, client.InstallCalls);
+
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.True(Assert.Single(viewModel.ActivityItems).CanRetry);
+        Assert.True(Assert.IsType<UiOptionalInstallItem>(viewModel.FindItem("VLC")).DetailsPresentation.CanRetryLatest);
+    }
+
+    [Fact]
     public async Task RetryAsync_UnknownServiceErrorStillPropagatesAsInfrastructureFailure()
     {
         var client = new RejectingClient("unexpected_backend_error") { Catalog = [ProtocolItem()] };
@@ -140,7 +169,7 @@ public class Stage6RecoveryBoundaryTests
         Assert.Contains(diagnostic, recovery.TechnicalDetails);
     }
 
-    private static HomeViewModel CreateViewModel(RejectingClient client)
+    private static HomeViewModel CreateViewModel(IGorillaServiceClient client)
         => new(client, new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), new OperationTracker(client));
 
     private static UiOptionalInstallItem UiItem() => new()
@@ -187,6 +216,14 @@ public class Stage6RecoveryBoundaryTests
             new Result(Outcome.Failed, "execution_failed", "installer_failed", "Installation error: exit status 7")
         );
 
+    private static async IAsyncEnumerable<OperationStatusEvent> Empty(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default
+    )
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
     private sealed class InMemoryCacheStore : IOptionalInstallsCacheStore
     {
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
@@ -227,13 +264,31 @@ public class Stage6RecoveryBoundaryTests
             string operationId,
             CancellationToken cancellationToken
         ) => Empty(cancellationToken);
+    }
 
-        private static async IAsyncEnumerable<OperationStatusEvent> Empty(
-            [EnumeratorCancellation] CancellationToken cancellationToken = default
-        )
+    private sealed class FalseAdmissionClient : IGorillaServiceClient
+    {
+        public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [];
+        public int InstallCalls { get; private set; }
+
+        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+            => Task.FromResult(Catalog);
+
+        public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([Historical()]);
+
+        public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
-            yield break;
+            InstallCalls++;
+            return Task.FromResult(new OperationAccepted(string.Empty, false, default));
         }
+
+        public Task<OperationAccepted> RemoveItemAsync(string itemName, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("Unexpected remove request.");
+
+        public IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
+            string operationId,
+            CancellationToken cancellationToken
+        ) => Empty(cancellationToken);
     }
 }

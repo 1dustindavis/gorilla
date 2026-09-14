@@ -21,6 +21,15 @@ public sealed partial class HomeViewModel
         await _cacheCoordinator.RefreshAsync(
             (items, _) =>
             {
+                // RetryAttemptFeedback describes one specific user attempt. Once a
+                // manual Refresh supplies new canonical catalog truth, that attempt
+                // must not continue to read as current state beside the recomputed
+                // recovery decision.
+                foreach (var activity in _activityItems.Values)
+                {
+                    activity.SetRetryAttemptFeedback(null);
+                }
+
                 ApplyItems(items);
                 return Task.CompletedTask;
             },

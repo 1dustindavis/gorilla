@@ -16,9 +16,9 @@ internal sealed class HomePageDriver
 
     public AutomationElement Heading => _session.WaitFor(() => ById("HomeHeading"));
     public AutomationElement CatalogItems => _session.WaitFor(() => ById("CatalogItems"));
-    public AutomationElement ServiceWarning => _session.WaitFor(() => ById("ServiceWarning"));
+    public AutomationElement? InfrastructureWarning => ById("InfrastructureWarningText");
     public TextBox SearchBox => _session.WaitFor(() => ById("CatalogSearchBox")?.AsTextBox());
-    public string WarningText => SafeName(ServiceWarning);
+    public string WarningText => InfrastructureWarning is null ? string.Empty : SafeName(InfrastructureWarning);
 
     public AutomationElement WaitForItem(string itemName)
     {
@@ -227,9 +227,6 @@ internal sealed class HomePageDriver
         return _session.WaitFor(() => item.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.AsButton());
     }
 
-    private static string Normalize(string value)
-        => value.Replace(" ", string.Empty, StringComparison.Ordinal);
-
     private static string SafeName(AutomationElement element)
     {
         try
@@ -246,11 +243,14 @@ internal sealed class HomePageDriver
     {
         try
         {
-            return element.Properties.HelpText.ValueOrDefault ?? string.Empty;
+            return element.HelpText;
         }
         catch (PropertyNotSupportedException)
         {
             return string.Empty;
         }
     }
+
+    private static string Normalize(string value)
+        => value.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("_", string.Empty, StringComparison.Ordinal);
 }

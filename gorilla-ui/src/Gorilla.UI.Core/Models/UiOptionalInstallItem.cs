@@ -21,6 +21,8 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private UiOperationPresentation? _activeOperation;
     private UiOperationPresentation? _latestOperation;
     private string? _transientFeedback;
+    private string? _retryBlockedOperationId;
+    private string? _retryBlockedReason;
     private bool _isBusy;
     private string? _legacyStatus;
     private bool _preferObservedStatus;
@@ -199,6 +201,51 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
                 OnPresentationsChanged();
             }
         }
+    }
+
+    // A known service-side admission rejection is fresher than the cached action
+    // decision, but it must not rewrite that service-derived snapshot. Keep a local
+    // guard tied to the historical operation that was rejected; a successful manual
+    // catalog Refresh clears it when new canonical truth arrives.
+    public string? RetryBlockedOperationId
+    {
+        get => _retryBlockedOperationId;
+        private set
+        {
+            if (SetField(ref _retryBlockedOperationId, value))
+            {
+                OnPresentationsChanged();
+            }
+        }
+    }
+
+    public string? RetryBlockedReason
+    {
+        get => _retryBlockedReason;
+        private set
+        {
+            if (SetField(ref _retryBlockedReason, value))
+            {
+                OnPresentationsChanged();
+            }
+        }
+    }
+
+    public string? RetryBlockReasonFor(string operationId)
+        => string.Equals(RetryBlockedOperationId, operationId, StringComparison.Ordinal)
+            ? RetryBlockedReason
+            : null;
+
+    public void BlockRetry(string operationId, string reason)
+    {
+        RetryBlockedOperationId = operationId;
+        RetryBlockedReason = reason;
+    }
+
+    public void ClearRetryBlock()
+    {
+        RetryBlockedOperationId = null;
+        RetryBlockedReason = null;
     }
 
     public bool IsInstalled

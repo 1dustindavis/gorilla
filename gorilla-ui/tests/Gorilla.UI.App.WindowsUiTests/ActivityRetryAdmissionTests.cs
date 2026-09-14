@@ -48,7 +48,13 @@ public sealed class ActivityRetryAdmissionTests
                 var operationId = ActivityPageDriver.OperationId(failedEntry);
                 Assert.False(string.IsNullOrWhiteSpace(operationId));
                 activity.WaitForOperationState(operationId, "Failed", TimeSpan.FromSeconds(30));
-                Assert.True(activity.HasRetryButton(operationId));
+
+                // The operation reaches its terminal service state before the initiating
+                // Core action necessarily finishes its post-terminal catalog refresh and
+                // clears IsBusy. Retry is intentionally suppressed during that short
+                // cleanup window, so wait for the actual actionable control rather than
+                // asserting synchronously at the first Failed projection.
+                var retryButton = activity.RetryButton(operationId);
 
                 // Change detection truth after the UI has projected Retry eligibility,
                 // without refreshing the client. The service must revalidate the new
@@ -56,7 +62,7 @@ public sealed class ActivityRetryAdmissionTests
                 Directory.CreateDirectory(Path.GetDirectoryName(FailureMarkerPath)!);
                 File.WriteAllText(FailureMarkerPath, "externally-installed");
 
-                activity.RetryButton(operationId).Invoke();
+                retryButton.Invoke();
                 session.WaitUntil(
                     () => activity.RetryAttemptFeedback(operationId)
                         .Contains("already selected", StringComparison.OrdinalIgnoreCase),

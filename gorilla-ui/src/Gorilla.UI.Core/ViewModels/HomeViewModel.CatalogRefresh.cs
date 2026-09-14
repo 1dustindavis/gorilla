@@ -43,6 +43,12 @@ public sealed partial class HomeViewModel
                     // after clearing local attempt state.
                     RebuildActivityProjection();
                 }
+
+                // A live snapshot that was successfully accepted is affirmative evidence
+                // that catalog/page initialization uncertainty has recovered. Do not clear
+                // operation-status or action-start warnings here; this refresh says nothing
+                // about those independent failure domains.
+                ClearCatalogRecoveryInfrastructureWarning();
                 return Task.CompletedTask;
             },
             cancellationToken

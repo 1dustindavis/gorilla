@@ -44,13 +44,13 @@ internal sealed class CatalogShellDriver
 
     public string OpenAndReadTechnicalDetails()
     {
-        _session.WaitFor(() => ById("CatalogTechnicalDetails")).Click();
+        Expand("CatalogTechnicalDetails");
         return _session.WaitFor(() => ById("CatalogTechnicalDetailsContent")).AsTextBox().Text;
     }
 
     public string OpenAndReadInfrastructureTechnicalDetails()
     {
-        _session.WaitFor(() => ById("InfrastructureTechnicalDetails")).Click();
+        Expand("InfrastructureTechnicalDetails");
         return _session.WaitFor(() => ById("InfrastructureTechnicalDetailsContent")).AsTextBox().Text;
     }
 
@@ -109,6 +109,12 @@ internal sealed class CatalogShellDriver
         => _session.MainWindow.FindAllDescendants(
             cf => cf.ByAutomationId("InfrastructureWarningText")
         ).Length;
+
+    private void Expand(string automationId)
+    {
+        var disclosure = _session.WaitFor(() => ById(automationId));
+        disclosure.Patterns.ExpandCollapse.Pattern.Expand();
+    }
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));

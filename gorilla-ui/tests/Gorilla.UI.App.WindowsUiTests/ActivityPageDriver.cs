@@ -104,7 +104,22 @@ internal sealed class ActivityPageDriver
 
     public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
         => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item => EntryContainsDetail(item, detail)),
+            () => ListEntries().FirstOrDefault(item =>
+            {
+                if (!EntryContainsDetail(item, detail))
+                {
+                    return false;
+                }
+
+                // Existing Stage 6 callers use this helper to inspect a retryable
+                // retained failure immediately after creating it. Older retained rows
+                // may carry the same detail while a new operation is still active,
+                // which temporarily suppresses Retry for those rows. Wait for the
+                // matching retryable row instead of returning stale text identity.
+                var operationId = OperationId(item);
+                return !string.IsNullOrWhiteSpace(operationId)
+                    && item.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
+            }),
             timeout
         );
 

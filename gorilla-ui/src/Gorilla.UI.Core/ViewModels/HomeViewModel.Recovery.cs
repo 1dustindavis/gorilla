@@ -49,8 +49,6 @@ public sealed partial class HomeViewModel
 
         SetRetryAttemptFeedback(historicalOperationId, null);
 
-        // Retry is a new intent. Resolve current canonical catalog truth immediately
-        // before dispatch and never reuse historical operation or mutation identity.
         var item = FindCanonicalItem(historical.ItemName);
         if (item is null)
         {
@@ -60,7 +58,7 @@ public sealed partial class HomeViewModel
             return RetryAttemptResult.NotStarted(feedback);
         }
 
-        var blockedReason = item.RetryBlockReasonFor(historicalOperationId);
+        var blockedReason = item.RetryBlockReasonFor(historical.Action);
         if (!string.IsNullOrWhiteSpace(blockedReason))
         {
             item.TransientFeedback = blockedReason;
@@ -72,7 +70,6 @@ public sealed partial class HomeViewModel
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         if (active is not null || item.IsBusy)
         {
-            // A stale/double UI activation must not submit a second mutation.
             item.TransientFeedback = RetryActiveFeedback;
             SetRetryAttemptFeedback(historicalOperationId, RetryActiveFeedback);
             RebuildActivityProjection();
@@ -93,8 +90,6 @@ public sealed partial class HomeViewModel
 
         try
         {
-            // Converge on the ordinary action path. The client creates a fresh mutation
-            // identity for this user intent while preserving same-mutation transport retry.
             if (historical.Action == CatalogAction.Remove)
             {
                 await RemoveAsync(item, cancellationToken);
@@ -106,25 +101,20 @@ public sealed partial class HomeViewModel
         }
         catch (ServiceErrorException ex) when (ActionRejectionReasons.Contains(ex.ErrorCode))
         {
-            // The service owns final admission. A stale cached decision can therefore
-            // be rejected after Retry is clicked. Preserve that fresher current-action
-            // truth as an attempt-level guard until a successful catalog Refresh
-            // replaces the cached snapshot; do not mutate the snapshot itself.
+            // Admission is authoritative for the current item/action, so every retained
+            // failure for that same action is temporarily blocked until manual Refresh.
             var feedback = OperationRecoveryPresentationMapper.ReasonText(ex.ErrorCode);
             item.TransientFeedback = feedback;
-            item.BlockRetry(historicalOperationId, feedback);
+            item.BlockRetry(historical.Action, feedback);
             SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
             return RetryAttemptResult.NotStarted(feedback);
         }
 
-        // OperationAccepted(false) is also an admission rejection. It lacks a
-        // structured policy reason, but it is still fresher than the cached action
-        // snapshot and must suppress another Retry until fresh catalog truth arrives.
         if (!string.IsNullOrWhiteSpace(item.TransientFeedback))
         {
             var feedback = item.TransientFeedback;
-            item.BlockRetry(historicalOperationId, feedback);
+            item.BlockRetry(historical.Action, feedback);
             SetRetryAttemptFeedback(historicalOperationId, feedback);
             RebuildActivityProjection();
             return RetryAttemptResult.NotStarted(feedback);

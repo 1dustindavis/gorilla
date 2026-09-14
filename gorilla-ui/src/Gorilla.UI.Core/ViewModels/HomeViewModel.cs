@@ -572,7 +572,10 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 _activityItems.Add(operation.OperationId, presentation);
             }
 
-            var item = FindItem(operation.ItemName);
+            // Activity authority must use the same canonical catalog as Retry dispatch.
+            // Presentation-only Items fallbacks may preserve legacy display behavior in
+            // other entry points, but they must never authorize Retry or navigation.
+            var item = FindCanonicalItem(operation.ItemName);
             presentation.Apply(
                 operation,
                 item?.DisplayName ?? operation.ItemName,

@@ -131,6 +131,23 @@ internal sealed class ActivityPageDriver
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
 
+    public AutomationElement WaitForNewOperation(
+        string itemName,
+        string expectedAction,
+        IReadOnlySet<string> existingOperationIds,
+        TimeSpan? timeout = null
+    ) => _session.WaitFor(
+        () => ListEntries().FirstOrDefault(item =>
+        {
+            var operationId = OperationId(item);
+            return !string.IsNullOrWhiteSpace(operationId)
+                && !existingOperationIds.Contains(operationId)
+                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ActionText(operationId), expectedAction, StringComparison.OrdinalIgnoreCase);
+        }),
+        timeout
+    );
+
     public AutomationElement WaitForNewEntryWithDetail(
         string detail,
         IReadOnlySet<string> existingOperationIds,
@@ -145,14 +162,6 @@ internal sealed class ActivityPageDriver
         }),
         timeout
     );
-
-    public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
-                !string.Equals(SafeHelpText(item), previousOperationId, StringComparison.Ordinal)
-                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)),
-            timeout
-        );
 
     public static string OperationId(AutomationElement entry) => SafeHelpText(entry);
 

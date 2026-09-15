@@ -34,11 +34,23 @@ namespace Gorilla.UI.App
             }
             catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
             {
+                return;
             }
             catch
             {
                 // CatalogDataState owns the user-facing failure state and retains
                 // the underlying exception for the troubleshooting disclosure.
+            }
+
+            if (!_viewModel.IsActivityLoaded)
+            {
+                try
+                {
+                    await _viewModel.RetryActivityLoadAsync(_session.LifetimeToken);
+                }
+                catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+                {
+                }
             }
         }
 

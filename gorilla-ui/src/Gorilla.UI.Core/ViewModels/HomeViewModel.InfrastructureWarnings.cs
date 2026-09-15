@@ -53,6 +53,21 @@ public sealed partial class HomeViewModel
         }
     }
 
+    private void ClearRetainedOperationLookupInfrastructureWarning()
+    {
+        if (string.Equals(
+                InfrastructureWarning.Context,
+                "Retained operation lookup during App Catalog initialization",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                InfrastructureWarning.Context,
+                "Retained operation lookup during App Catalog refresh",
+                StringComparison.Ordinal))
+        {
+            ClearInfrastructureWarning();
+        }
+    }
+
     private void ClearOperationStatusInfrastructureWarning(
         string operationId,
         string itemName,

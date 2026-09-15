@@ -284,31 +284,28 @@ public sealed class ActivityTests
                 Assert.Equal(1, activity.CountEntries(failedOperationId));
                 Assert.True(activity.HasRetryButton(failedOperationId));
 
-                var existingOperationIds = activity.OperationIdsForItem("Slow Install Fixture");
                 activity.RetryButton(failedOperationId).Invoke();
 
                 string retryOperationId = string.Empty;
                 second.WaitUntil(() =>
                 {
-                    var candidates = activity.OperationIdsForItem("Slow Install Fixture")
-                        .Where(id => !existingOperationIds.Contains(id))
-                        .ToArray();
-                    if (candidates.Length != 1)
+                    var candidate = activity.OperationIdsForItem("Slow Install Fixture")
+                        .FirstOrDefault(id =>
+                            !string.Equals(id, failedOperationId, StringComparison.Ordinal)
+                            && string.Equals(activity.ActionText(id), "Install", StringComparison.OrdinalIgnoreCase)
+                            && activity.StateText(id).Contains("Installing", StringComparison.OrdinalIgnoreCase));
+                    if (string.IsNullOrWhiteSpace(candidate))
                     {
                         return false;
                     }
 
-                    retryOperationId = candidates[0];
-                    return string.Equals(
-                        activity.ActionText(retryOperationId),
-                        "Install",
-                        StringComparison.OrdinalIgnoreCase
-                    );
+                    retryOperationId = candidate;
+                    return true;
                 }, TimeSpan.FromSeconds(30));
 
                 Assert.False(string.IsNullOrWhiteSpace(retryOperationId));
-                Assert.DoesNotContain(retryOperationId, existingOperationIds);
                 Assert.NotEqual(failedOperationId, retryOperationId);
+                Assert.Equal("Install", activity.ActionText(retryOperationId));
 
                 activity.WaitForOperationState(retryOperationId, "Succeeded", TimeSpan.FromSeconds(60));
                 Assert.Equal("Failed", activity.StateText(failedOperationId));

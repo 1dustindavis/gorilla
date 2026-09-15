@@ -164,6 +164,22 @@ internal sealed class ActivityPageDriver
         while (stopwatch.Elapsed < timeout)
         {
             var entry = ScrollOperationIntoView(operationId);
+
+            // An expanded technical-details disclosure changes the ListView item's
+            // realized layout and can consume the pointer interaction intended for the
+            // app title. Normalize that known state before attempting row navigation.
+            var technicalDetails = entry.FindFirstDescendant(
+                cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}")
+            );
+            var technicalDetailsContent = entry.FindFirstDescendant(
+                cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}")
+            );
+            if (technicalDetails is not null && technicalDetailsContent is not null)
+            {
+                technicalDetails.Patterns.ExpandCollapse.Pattern.Collapse();
+                entry = ScrollOperationIntoView(operationId);
+            }
+
             var nonActionTarget = _session.WaitFor(
                 () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
             );
@@ -177,8 +193,7 @@ internal sealed class ActivityPageDriver
             catch (TimeoutException) when (stopwatch.Elapsed < timeout)
             {
                 // Match HomePageDriver's established WinUI/FlaUI boundary: pointer
-                // delivery can race ListView settling after ScrollIntoView, especially
-                // when an expanded operation row changes the realized layout. Reacquire
+                // delivery can race ListView settling after ScrollIntoView. Reacquire
                 // the current row and retry the same non-action target.
             }
         }

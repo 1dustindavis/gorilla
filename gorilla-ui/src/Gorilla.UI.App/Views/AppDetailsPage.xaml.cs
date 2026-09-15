@@ -2,12 +2,14 @@ using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using Gorilla.UI.App.Services;
+using Gorilla.UI.Client;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using AppCatalog = Gorilla.UI.Client.AppCatalog;
 
 namespace Gorilla.UI.App.Views;
 
@@ -143,10 +145,10 @@ public sealed partial class AppDetailsPage : Page
         switch (action.Value)
         {
             case CatalogCardActionKind.Install:
-                await RunSafelyAsync(() => _viewModel.InstallAsync(item, _session.LifetimeToken));
+                await RunActionSafelyAsync(() => _viewModel.InstallAsync(item, _session.LifetimeToken), item, AppCatalog.Action.Install);
                 break;
             case CatalogCardActionKind.Remove:
-                await RunSafelyAsync(() => _viewModel.RemoveAsync(item, _session.LifetimeToken));
+                await RunActionSafelyAsync(() => _viewModel.RemoveAsync(item, _session.LifetimeToken), item, AppCatalog.Action.Remove);
                 break;
         }
     }
@@ -163,7 +165,36 @@ public sealed partial class AppDetailsPage : Page
         }
         catch (Exception ex)
         {
-            _viewModel.SetWarningBanner($"Operation failed: {ex.Message}");
+            _viewModel.ReportInfrastructureWarning(
+                "App details are temporarily unavailable. Refresh and try again.",
+                "Unexpected App Details initialization failure",
+                ex,
+                itemName: _itemName
+            );
+        }
+    }
+
+    private async Task RunActionSafelyAsync(
+        Func<Task> action,
+        UiOptionalInstallItem item,
+        AppCatalog.Action expectedAction
+    )
+    {
+        try
+        {
+            await action();
+            _viewModel.ClearActionStartInfrastructureWarning(expectedAction, item.ItemName);
+        }
+        catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+        {
+        }
+        catch (ServiceErrorException ex) when (_viewModel.TryPresentActionAdmissionFailure(item, ex))
+        {
+            // Known service-owned admission/policy rejection remains app-specific.
+        }
+        catch (Exception ex)
+        {
+            _viewModel.SetActionStartInfrastructureWarning(expectedAction, item.ItemName, ex);
         }
     }
 }

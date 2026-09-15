@@ -13,7 +13,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
         <Grid Padding="20,12,20,8" ColumnDefinitions="*,Auto,Auto">
             <TextBlock
                 x:Name="CatalogFreshnessStatus"
@@ -74,9 +74,43 @@
             </StackPanel>
         </Border>
 
+        <Border
+            x:Name="InfrastructureWarningBanner"
+            Grid.Row="2"
+            Margin="20,0,20,4"
+            Padding="10,8"
+            CornerRadius="6"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            Visibility="Collapsed"
+            AutomationProperties.AutomationId="InfrastructureWarning"
+            AutomationProperties.LiveSetting="Polite">
+            <StackPanel Spacing="4">
+                <TextBlock
+                    x:Name="InfrastructureWarningText"
+                    Foreground="DarkOrange"
+                    TextWrapping="Wrap"
+                    AutomationProperties.AutomationId="InfrastructureWarningText" />
+                <Expander
+                    x:Name="InfrastructureTechnicalDetails"
+                    Header="Technical details"
+                    Visibility="Collapsed"
+                    AutomationProperties.AutomationId="InfrastructureTechnicalDetails">
+                    <TextBox
+                        x:Name="InfrastructureTechnicalDetailsText"
+                        IsReadOnly="True"
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        AutomationProperties.AutomationId="InfrastructureTechnicalDetailsContent"
+                        AutomationProperties.Name="Infrastructure warning technical details" />
+                </Expander>
+            </StackPanel>
+        </Border>
+
         <Frame
             x:Name="RootFrame"
-            Grid.Row="2"
+            Grid.Row="3"
             AutomationProperties.AutomationId="NavigationFrame" />
     </Grid>
 </Window>

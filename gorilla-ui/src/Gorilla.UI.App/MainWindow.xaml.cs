@@ -22,6 +22,7 @@ namespace Gorilla.UI.App
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             Closed += MainWindow_Closed;
             UpdateCatalogFreshnessPresentation();
+            UpdateInfrastructureWarningPresentation();
             RootFrame.Navigate(typeof(HomePage));
         }
 
@@ -33,11 +34,23 @@ namespace Gorilla.UI.App
             }
             catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
             {
+                return;
             }
             catch
             {
                 // CatalogDataState owns the user-facing failure state and retains
                 // the underlying exception for the troubleshooting disclosure.
+            }
+
+            if (!_viewModel.IsActivityLoaded)
+            {
+                try
+                {
+                    await _viewModel.RetryActivityLoadAsync(_session.LifetimeToken);
+                }
+                catch (OperationCanceledException) when (_session.LifetimeToken.IsCancellationRequested)
+                {
+                }
             }
         }
 
@@ -46,6 +59,10 @@ namespace Gorilla.UI.App
             if (e.PropertyName == nameof(HomeViewModel.CatalogState))
             {
                 UpdateCatalogFreshnessPresentation();
+            }
+            else if (e.PropertyName == nameof(HomeViewModel.InfrastructureWarning))
+            {
+                UpdateInfrastructureWarningPresentation();
             }
         }
 
@@ -71,6 +88,20 @@ namespace Gorilla.UI.App
             CatalogTechnicalDetails.Visibility = string.IsNullOrWhiteSpace(technicalDetails)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+        }
+
+        private void UpdateInfrastructureWarningPresentation()
+        {
+            var warning = _viewModel.InfrastructureWarning;
+            InfrastructureWarningText.Text = warning.Message;
+            InfrastructureWarningBanner.Visibility = string.IsNullOrWhiteSpace(warning.Message)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            InfrastructureTechnicalDetailsText.Text = warning.TechnicalDetails;
+            InfrastructureTechnicalDetails.Visibility = warning.HasTechnicalDetails
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private static string BuildFreshnessText(CatalogDataState state)
@@ -128,7 +159,9 @@ namespace Gorilla.UI.App
 
             if (state.HasLoadFailure)
             {
-                return "Gorilla couldn't load the App Catalog.";
+                return state.HasNoUsableCache
+                    ? "Gorilla couldn't load the App Catalog, and no saved catalog is available."
+                    : "Gorilla couldn't load the App Catalog.";
             }
 
             return string.Empty;

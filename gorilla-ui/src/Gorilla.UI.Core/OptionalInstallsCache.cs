@@ -121,22 +121,44 @@ public sealed class OptionalInstallsCacheCoordinator
     {
         CaptureStateNotificationContext();
 
-        var cached = await _cacheStore.LoadAsync(cancellationToken);
-        if (cached is not null)
+        OptionalInstallsCacheDocument? cached;
+        try
         {
-            UpdateState(state => new CatalogDataState(
-                HasUsableData: true,
-                DataSource: CatalogDataSource.Cached,
-                IsInitialLoading: false,
-                IsRefreshing: true,
-                IsSuccessfulEmpty: false,
-                LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
-                CachedAtUtc: cached.CachedAtUtc,
-                RefreshFailure: null,
-                LoadFailure: null,
-                CacheWriteFailure: state.CacheWriteFailure
-            ));
+            cached = await _cacheStore.LoadAsync(cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Cache discovery completed, but did not yield a trustworthy fallback.
+            // The startup loader may still continue to live loading.
+            UpdateState(state => state with { CacheFallback = CacheFallbackState.Unavailable });
+            throw;
+        }
+
+        if (cached is null)
+        {
+            // A cache miss is distinct from the pre-discovery Unknown state. Keep
+            // initial loading active while the live request is still pending.
+            UpdateState(state => state with { CacheFallback = CacheFallbackState.Unavailable });
+            return null;
+        }
+
+        UpdateState(state => new CatalogDataState(
+            HasUsableData: true,
+            DataSource: CatalogDataSource.Cached,
+            IsInitialLoading: false,
+            IsRefreshing: true,
+            IsSuccessfulEmpty: false,
+            LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
+            CachedAtUtc: cached.CachedAtUtc,
+            RefreshFailure: null,
+            LoadFailure: null,
+            CacheWriteFailure: state.CacheWriteFailure,
+            CacheFallback: CacheFallbackState.Available
+        ));
 
         return cached;
     }
@@ -220,7 +242,8 @@ public sealed class OptionalInstallsCacheCoordinator
                 LoadFailure: null,
                 // Cache persistence is an independent degradation axis. A new live
                 // response does not prove fallback durability has recovered.
-                CacheWriteFailure: state.CacheWriteFailure
+                CacheWriteFailure: state.CacheWriteFailure,
+                CacheFallback: state.CacheFallback
             ));
 
             // Persistence is secondary durability work. It begins only after the
@@ -264,7 +287,8 @@ public sealed class OptionalInstallsCacheCoordinator
                     CachedAtUtc: null,
                     RefreshFailure: null,
                     LoadFailure: ex,
-                    CacheWriteFailure: state.CacheWriteFailure
+                    CacheWriteFailure: state.CacheWriteFailure,
+                    CacheFallback: state.CacheFallback
                 ));
 
             throw;
@@ -316,6 +340,7 @@ public sealed class OptionalInstallsCacheCoordinator
                 {
                     CachedAtUtc = cachedAtUtc,
                     CacheWriteFailure = isCurrentLiveSnapshot ? null : state.CacheWriteFailure,
+                    CacheFallback = CacheFallbackState.Available,
                 };
             });
         }

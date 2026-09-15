@@ -7,6 +7,13 @@ public enum CatalogDataSource
     Cached,
 }
 
+public enum CacheFallbackState
+{
+    Unknown,
+    Available,
+    Unavailable,
+}
+
 public sealed record CatalogDataState(
     bool HasUsableData,
     CatalogDataSource DataSource,
@@ -17,7 +24,8 @@ public sealed record CatalogDataState(
     DateTimeOffset? CachedAtUtc,
     Exception? RefreshFailure,
     Exception? LoadFailure,
-    Exception? CacheWriteFailure
+    Exception? CacheWriteFailure,
+    CacheFallbackState CacheFallback = CacheFallbackState.Unknown
 )
 {
     public static CatalogDataState InitialLoading { get; } = new(
@@ -30,7 +38,8 @@ public sealed record CatalogDataState(
         CachedAtUtc: null,
         RefreshFailure: null,
         LoadFailure: null,
-        CacheWriteFailure: null
+        CacheWriteFailure: null,
+        CacheFallback: CacheFallbackState.Unknown
     );
 
     public bool IsLive => HasUsableData && DataSource == CatalogDataSource.Live;
@@ -42,4 +51,6 @@ public sealed record CatalogDataState(
     public bool HasLoadFailure => !HasUsableData && LoadFailure is not null;
 
     public bool HasCacheWriteFailure => CacheWriteFailure is not null;
+
+    public bool HasNoUsableCache => CacheFallback == CacheFallbackState.Unavailable;
 }

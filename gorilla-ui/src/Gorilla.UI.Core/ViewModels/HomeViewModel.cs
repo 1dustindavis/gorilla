@@ -22,7 +22,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     private readonly Dictionary<string, ActivityOperationPresentation> _activityItems = new(StringComparer.Ordinal);
     private readonly object _projectionStateLock = new();
 
-    private string _warningBanner = string.Empty;
+    private InfrastructureWarningPresentation _infrastructureWarning = InfrastructureWarningPresentation.None;
     private string _searchQuery = string.Empty;
     private string? _selectedItemName;
     private bool _isActivityLoaded;
@@ -95,15 +95,25 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     public UiOptionalInstallItem? SelectedItem => SelectedItemName is null ? null : FindItem(SelectedItemName);
 
-    public string WarningBanner
+    public InfrastructureWarningPresentation InfrastructureWarning
     {
-        get => _warningBanner;
+        get => _infrastructureWarning;
         private set
         {
-            _warningBanner = value;
+            if (Equals(_infrastructureWarning, value))
+            {
+                return;
+            }
+
+            _infrastructureWarning = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(WarningBanner));
         }
     }
+
+    // Temporary compatibility surface for tests and callers that only need the
+    // authored primary text. InfrastructureWarning remains the authoritative state.
+    public string WarningBanner => InfrastructureWarning.Message;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -137,13 +147,17 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         {
             // Do not mark Activity loaded: an unavailable retained-operation query
             // is not truthful evidence that no recent activity exists.
-            WarningBanner = $"Operation status is temporarily unavailable: {ex.Message}";
+            SetInfrastructureWarning(
+                "Operation status is temporarily unavailable.",
+                "Retained operation lookup during App Catalog initialization",
+                ex
+            );
         }
 
         var startupWarning = await catalogInitialization;
         if (!string.IsNullOrWhiteSpace(startupWarning))
         {
-            WarningBanner = startupWarning;
+            SetInfrastructureWarning(startupWarning, "App Catalog startup warning");
         }
     }
 
@@ -165,7 +179,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 item.DisplayName,
                 accepted.OperationId,
                 AppCatalog.Action.Install,
-                streamFailurePrefix: "Install was accepted, but operation status is temporarily unavailable",
+                streamFailureMessage: "Install was accepted, but Gorilla can't currently confirm its status.",
                 cancellationToken,
                 initiatingItem: item
             );
@@ -199,7 +213,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 item.DisplayName,
                 accepted.OperationId,
                 AppCatalog.Action.Remove,
-                streamFailurePrefix: "Remove was accepted, but operation status is temporarily unavailable",
+                streamFailureMessage: "Remove was accepted, but Gorilla can't currently confirm its status.",
                 cancellationToken,
                 initiatingItem: item
             );
@@ -252,7 +266,48 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     public void SetWarningBanner(string message)
     {
-        WarningBanner = message;
+        SetInfrastructureWarning(message, "App Catalog UI warning");
+    }
+
+    public void SetActionStartInfrastructureWarning(
+        AppCatalog.Action action,
+        string itemName,
+        Exception exception
+    )
+    {
+        SetInfrastructureWarning(
+            "Gorilla couldn't start that action. Refresh and try again.",
+            $"Unexpected {action} action-start failure",
+            exception,
+            itemName: itemName,
+            expectedAction: action.ToString()
+        );
+    }
+
+    public void ClearInfrastructureWarning()
+    {
+        InfrastructureWarning = InfrastructureWarningPresentation.None;
+    }
+
+    private void SetInfrastructureWarning(
+        string message,
+        string context,
+        Exception? exception = null,
+        string? operationId = null,
+        string? itemName = null,
+        string? expectedAction = null,
+        string? additionalTechnicalDetails = null
+    )
+    {
+        InfrastructureWarning = InfrastructureWarningPresentation.Create(
+            message,
+            context,
+            exception,
+            operationId,
+            itemName,
+            expectedAction,
+            additionalTechnicalDetails
+        );
     }
 
     private async Task TrackAndRefreshAsync(
@@ -260,7 +315,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         string displayName,
         string operationId,
         AppCatalog.Action expectedAction,
-        string streamFailurePrefix,
+        string streamFailureMessage,
         CancellationToken cancellationToken,
         UiOptionalInstallItem? initiatingItem = null
     )
@@ -275,6 +330,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                     update =>
                     {
                         ValidateOperationIdentity(itemName, expectedAction, update);
+                        ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                         ProjectOperation(update, initiatingItem);
                         completedObserved |= update.State == OperationState.Completed;
                     },
@@ -289,7 +345,14 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             {
                 // A malformed or mismatched service event is a protocol/status error,
                 // not evidence that the service restarted or forgot the operation.
-                WarningBanner = $"{streamFailurePrefix}: {ex.Message}";
+                SetInfrastructureWarning(
+                    streamFailureMessage,
+                    "Malformed or mismatched operation-status event",
+                    ex,
+                    operationId,
+                    itemName,
+                    expectedAction.ToString()
+                );
                 return;
             }
             catch (Exception ex)
@@ -299,7 +362,8 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                     itemName,
                     displayName,
                     expectedAction,
-                    $"{streamFailurePrefix}: {ex.Message}",
+                    streamFailureMessage,
+                    ex,
                     cancellationToken,
                     initiatingItem
                 );
@@ -340,7 +404,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 FindItem(operation.ItemName)?.DisplayName ?? operation.ItemName,
                 operation.OperationId,
                 operation.Action,
-                streamFailurePrefix: "Recovered operation is still known, but live status is temporarily unavailable",
+                streamFailureMessage: "Recovered operation is still known, but Gorilla can't currently confirm its status.",
                 cancellationToken
             );
         }
@@ -349,7 +413,14 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            WarningBanner = $"Recovered operation status is temporarily unavailable: {ex.Message}";
+            SetInfrastructureWarning(
+                "Recovered operation status is temporarily unavailable.",
+                "Recovered-operation tracking failure",
+                ex,
+                operation.OperationId,
+                operation.ItemName,
+                operation.Action.ToString()
+            );
         }
         finally
         {
@@ -363,6 +434,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         string displayName,
         AppCatalog.Action expectedAction,
         string uncertaintyMessage,
+        Exception trackingException,
         CancellationToken cancellationToken,
         UiOptionalInstallItem? fallbackItem = null
     )
@@ -375,6 +447,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             if (_operationTracker.TryGetLatest(operationId, out var latest) && latest is not null)
             {
                 ValidateOperationIdentity(itemName, expectedAction, latest);
+                ClearOperationStatusInfrastructureWarning(operationId, itemName, expectedAction);
                 ProjectOperation(latest, fallbackItem);
                 if (latest.State == OperationState.Completed)
                 {
@@ -382,11 +455,25 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                     return false;
                 }
 
-                WarningBanner = uncertaintyMessage;
+                SetInfrastructureWarning(
+                    uncertaintyMessage,
+                    "Operation status stream lost; operation remains known and active",
+                    trackingException,
+                    operationId,
+                    itemName,
+                    expectedAction.ToString()
+                );
                 return true;
             }
 
-            WarningBanner = $"Operation tracking for {displayName} is no longer available. The service may have restarted; current installation state will be refreshed without assuming the previous operation succeeded or failed.";
+            SetInfrastructureWarning(
+                $"Operation tracking for {displayName} is no longer available. Gorilla refreshed current installation state without assuming the previous operation succeeded or failed.",
+                "Operation disappeared during tracking-loss reconciliation; the service may have restarted",
+                trackingException,
+                operationId,
+                itemName,
+                expectedAction.ToString()
+            );
             await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
             return false;
         }
@@ -396,7 +483,15 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            WarningBanner = $"{uncertaintyMessage}. Reconciliation also failed: {ex.Message}";
+            SetInfrastructureWarning(
+                "Gorilla couldn't reconcile the operation after losing status updates.",
+                "Operation tracking-loss reconciliation failed",
+                ex,
+                operationId,
+                itemName,
+                expectedAction.ToString(),
+                additionalTechnicalDetails: $"Original tracking exception type: {trackingException.GetType().FullName}\nOriginal tracking exception message: {trackingException.Message}"
+            );
             return false;
         }
     }
@@ -418,8 +513,8 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         catch
         {
             // Ordinary catalog-refresh failures are fully represented by
-            // CatalogDataState. WarningBanner is reserved for independent operation-
-            // tracking uncertainty and must not duplicate or retain raw refresh errors.
+            // CatalogDataState. InfrastructureWarning is reserved for independent
+            // operation-tracking uncertainty and must not duplicate refresh errors.
             _ = preserveExistingWarning;
         }
     }
@@ -451,7 +546,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
             }
 
             // OperationTracker owns the structured per-item terminal result. The card
-            // presentation consumes LatestOperation directly; page warnings are reserved
+            // presentation consumes LatestOperation directly; shell warnings are reserved
             // for service/catalog/status infrastructure problems.
             ReprojectOperation(item);
         }

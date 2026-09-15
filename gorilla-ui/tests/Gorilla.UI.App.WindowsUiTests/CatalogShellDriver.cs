@@ -29,15 +29,33 @@ internal sealed class CatalogShellDriver
         }
     }
 
+    public string InfrastructureWarningText
+    {
+        get
+        {
+            var warning = ById("InfrastructureWarningText");
+            return warning is null ? string.Empty : SafeName(warning);
+        }
+    }
+
     public bool IsRefreshing => ById("CatalogRefreshProgress") is not null && !RefreshButton.IsEnabled;
 
     public void Refresh() => RefreshButton.Invoke();
 
     public string OpenAndReadTechnicalDetails()
     {
-        _session.WaitFor(() => ById("CatalogTechnicalDetails")).Click();
+        Expand("CatalogTechnicalDetails");
         return _session.WaitFor(() => ById("CatalogTechnicalDetailsContent")).AsTextBox().Text;
     }
+
+    public string OpenAndReadInfrastructureTechnicalDetails()
+    {
+        Expand("InfrastructureTechnicalDetails");
+        return _session.WaitFor(() => ById("InfrastructureTechnicalDetailsContent")).AsTextBox().Text;
+    }
+
+    public void CollapseInfrastructureTechnicalDetails()
+        => Collapse("InfrastructureTechnicalDetails");
 
     public void WaitForFreshnessContaining(string expected, TimeSpan? timeout = null)
     {
@@ -51,6 +69,14 @@ internal sealed class CatalogShellDriver
     {
         _session.WaitUntil(
             () => DegradedWarningText.Contains(expected, StringComparison.OrdinalIgnoreCase),
+            timeout
+        );
+    }
+
+    public void WaitForInfrastructureWarningContaining(string expected, TimeSpan? timeout = null)
+    {
+        _session.WaitUntil(
+            () => InfrastructureWarningText.Contains(expected, StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }
@@ -75,7 +101,29 @@ internal sealed class CatalogShellDriver
 
     public bool HasLoadFailedState() => ById("CatalogLoadFailed") is not null;
 
+    public bool HasNoCachedDataState() => ById("CatalogNoCachedData") is not null;
+
     public bool HasSuccessfulEmptyState() => ById("CatalogEmpty") is not null;
+
+    public int InfrastructureWarningPresentationCount()
+        // The shell wrapper is a layout container and WinUI does not expose it as a
+        // UI Automation element. Count the warning text, which is the stable exposed
+        // element representing each rendered infrastructure-warning presentation.
+        => _session.MainWindow.FindAllDescendants(
+            cf => cf.ByAutomationId("InfrastructureWarningText")
+        ).Length;
+
+    private void Expand(string automationId)
+    {
+        var disclosure = _session.WaitFor(() => ById(automationId));
+        disclosure.Patterns.ExpandCollapse.Pattern.Expand();
+    }
+
+    private void Collapse(string automationId)
+    {
+        var disclosure = _session.WaitFor(() => ById(automationId));
+        disclosure.Patterns.ExpandCollapse.Pattern.Collapse();
+    }
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));

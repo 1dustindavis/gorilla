@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading.Tasks;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
@@ -50,7 +51,7 @@ public sealed partial class ActivityPage : Page
             );
         }
         UpdateEmptyState();
-        RestoreNavigationFocus();
+        await RestoreNavigationFocusAsync();
     }
 
     private void ActivityPage_Unloaded(object sender, RoutedEventArgs e)
@@ -122,7 +123,7 @@ public sealed partial class ActivityPage : Page
         AutomationProperties.SetHelpText(args.ItemContainer, item.OperationId);
     }
 
-    private void RestoreNavigationFocus()
+    private async Task RestoreNavigationFocusAsync()
     {
         var operationId = NavigationFocusState.ConsumeActivityOperation();
         if (string.IsNullOrWhiteSpace(operationId))
@@ -139,18 +140,25 @@ public sealed partial class ActivityPage : Page
             return;
         }
 
-        ActivityItems.ScrollIntoView(item);
-        DispatcherQueue.TryEnqueue(() =>
+        var container = await VirtualizedContainerRealizer.RealizeAsync(
+            ActivityItems,
+            item,
+            TimeSpan.FromSeconds(2)
+        );
+
+        if (!IsLoaded)
         {
-            if (ActivityItems.ContainerFromItem(item) is ListViewItem container)
-            {
-                container.Focus(FocusState.Programmatic);
-            }
-            else
-            {
-                BackButton.Focus(FocusState.Programmatic);
-            }
-        });
+            return;
+        }
+
+        if (container is ListViewItem realized)
+        {
+            realized.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            BackButton.Focus(FocusState.Programmatic);
+        }
     }
 
     private async void RetryButton_Click(object sender, RoutedEventArgs e)

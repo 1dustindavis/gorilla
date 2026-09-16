@@ -51,9 +51,9 @@
                                 <Grid Grid.Row="2" Margin="0,6,0,0">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top" Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="CatalogOperation" AutomationProperties.Name="{Binding CardPresentation.OperationText}" AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}">
                                         <ProgressRing Width="15" Height="15" Margin="0,1,0,0" IsActive="{Binding CardPresentation.HasOperation}" IsIndeterminate="{Binding CardPresentation.IsProgressIndeterminate}" Value="{Binding CardPresentation.ProgressValue}" AutomationProperties.Name="Operation progress" />
-                                        <controls:LiveRegionTextBlock Text="{Binding CardPresentation.OperationText}" FontSize="13" TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis" MaxLines="2" AutomationProperties.AutomationId="CatalogOperationStatus" AutomationProperties.Name="{Binding CardPresentation.OperationText}" AutomationProperties.LiveSetting="Polite" />
+                                        <TextBlock Text="{Binding CardPresentation.OperationText}" FontSize="13" TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis" MaxLines="2" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="CatalogOperationStatus" AutomationProperties.Name="{Binding CardPresentation.OperationText}" AutomationProperties.LiveSetting="Polite" />
                                     </StackPanel>
-                                    <controls:LiveRegionTextBlock Text="{Binding CardPresentation.TerminalFeedbackText}" FontSize="13" TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis" MaxLines="2" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="{Binding CardPresentation.HasTerminalFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="CatalogTerminalFeedback" AutomationProperties.Name="{Binding CardPresentation.TerminalFeedbackText}" AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock Text="{Binding CardPresentation.TerminalFeedbackText}" FontSize="13" TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis" MaxLines="2" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="{Binding CardPresentation.HasTerminalFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="CatalogTerminalFeedback" AutomationProperties.Name="{Binding CardPresentation.TerminalFeedbackText}" AutomationProperties.LiveSetting="Polite" />
                                 </Grid>
                                 <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Bottom">
                                     <Button Content="{Binding CardPresentation.PrimaryAction.Label}" Tag="{Binding CardPresentation.PrimaryAction.Kind}" IsEnabled="{Binding CardPresentation.PrimaryAction.Enabled}" Visibility="{Binding CardPresentation.HasPrimaryAction, Converter={StaticResource BooleanToVisibilityConverter}}" Style="{StaticResource AccentButtonStyle}" Click="ActionButton_Click" AutomationProperties.AutomationId="PrimaryActionButton" AutomationProperties.Name="{Binding CardPresentation.PrimaryAction.Label}" />
@@ -67,15 +67,15 @@
 
             <StackPanel x:Name="InitialLoadingState" Visibility="Collapsed" HorizontalAlignment="Left" Spacing="10">
                 <ProgressRing Width="28" Height="28" IsActive="True" AutomationProperties.Name="Loading App Catalog" />
-                <controls:LiveRegionTextBlock Text="Loading App Catalog…" FontSize="18" AutomationProperties.AutomationId="CatalogInitialLoading" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock Text="Loading App Catalog…" FontSize="18" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="CatalogInitialLoading" AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
             <StackPanel x:Name="LoadFailedState" Visibility="Collapsed" HorizontalAlignment="Left" Spacing="6">
-                <controls:LiveRegionTextBlock Text="Couldn't load the App Catalog." FontSize="18" FontWeight="SemiBold" AutomationProperties.AutomationId="CatalogLoadFailed" AutomationProperties.Name="Couldn't load the App Catalog" AutomationProperties.LiveSetting="Assertive" />
+                <TextBlock Text="Couldn't load the App Catalog." FontSize="18" FontWeight="SemiBold" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="CatalogLoadFailed" AutomationProperties.Name="Couldn't load the App Catalog" AutomationProperties.LiveSetting="Assertive" />
                 <TextBlock x:Name="NoCachedDataText" Text="Gorilla can't reach the catalog service, and no saved catalog is available." TextWrapping="Wrap" Visibility="Collapsed" AutomationProperties.AutomationId="CatalogNoCachedData" />
                 <TextBlock Text="Use Refresh to try again." TextWrapping="Wrap" />
             </StackPanel>
-            <controls:LiveRegionTextBlock x:Name="SearchNoResults" Visibility="Collapsed" FontSize="18" TextWrapping="Wrap" AutomationProperties.AutomationId="SearchNoResults" AutomationProperties.LiveSetting="Polite" />
-            <controls:LiveRegionTextBlock x:Name="CatalogEmpty" Visibility="Collapsed" Text="No optional software is assigned." FontSize="18" TextWrapping="Wrap" AutomationProperties.AutomationId="CatalogEmpty" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="SearchNoResults" Visibility="Collapsed" FontSize="18" TextWrapping="Wrap" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="SearchNoResults" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="CatalogEmpty" Visibility="Collapsed" Text="No optional software is assigned." FontSize="18" TextWrapping="Wrap" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="CatalogEmpty" AutomationProperties.LiveSetting="Polite" />
         </Grid>
     </Grid>
 </Page>

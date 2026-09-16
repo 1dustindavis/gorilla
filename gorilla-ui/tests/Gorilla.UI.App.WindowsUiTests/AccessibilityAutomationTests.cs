@@ -29,6 +29,7 @@ public sealed class AccessibilityAutomationTests
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
 
             var detailsBack = session.WaitFor(() => ById(session, "DetailsBackButton"));
+            Assert.Equal("Back", detailsBack.Name);
             session.WaitUntil(() => HasKeyboardFocus(detailsBack));
             Keyboard.Type(VirtualKeyShort.ENTER);
 
@@ -118,6 +119,9 @@ public sealed class AccessibilityAutomationTests
 
             var activity = new ActivityPageDriver(session);
             var row = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
+            var activityState = session.WaitFor(() => ById(session, $"ActivityState-{operationId}"));
+            Assert.Equal("Installing. Installing item via managed run", activityState.Name);
+
             row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
             row = activity.WaitForOperation(operationId);
             session.FocusForKeyboard(row);
@@ -125,7 +129,11 @@ public sealed class AccessibilityAutomationTests
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
 
             var detailsBack = session.WaitFor(() => ById(session, "DetailsBackButton"));
+            Assert.Equal("Back", detailsBack.Name);
             session.WaitUntil(() => HasKeyboardFocus(detailsBack));
+            var detailsAnnouncement = session.WaitFor(() => ById(session, "DetailsActiveOperationAnnouncement"));
+            Assert.Equal("Installing. Installing item via managed run", detailsAnnouncement.Name);
+
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
             var restored = activity.WaitForOperation(operationId);
@@ -205,6 +213,51 @@ public sealed class AccessibilityAutomationTests
             // yielding the shared fixture to the next test.
             session.WaitUntil(() => File.Exists(RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH")), TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+        });
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void ExistingActivityContentDoesNotRaiseLiveRegionEventWhenPageIsOpened()
+    {
+        RunWithDiagnostics(nameof(ExistingActivityContentDoesNotRaiseLiveRegionEventWhenPageIsOpened), session =>
+        {
+            var home = new HomePageDriver(session);
+            EnsureSlowFixtureAbsent(session, home);
+            home.EnsureItemVisible(SlowFixtureItemName);
+            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+            var operationId = home.OperationId(SlowFixtureItemName);
+            session.WaitUntil(() => File.Exists(RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH")), TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
+
+            var events = new ConcurrentQueue<(string AutomationId, string Name)>();
+            var handler = session.MainWindow.RegisterAutomationEvent(
+                AutomationObjectIds.LiveRegionChangedEvent,
+                TreeScope.Descendants,
+                (element, _) => events.Enqueue((SafeAutomationId(element), SafeName(element)))
+            );
+
+            try
+            {
+                var activityButton = session.WaitFor(() => ById(session, "ActivityNavigationButton"));
+                session.FocusForKeyboard(activityButton);
+                Keyboard.Type(VirtualKeyShort.ENTER);
+                _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
+                var activity = new ActivityPageDriver(session);
+                _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
+
+                // Give any queued Loaded/binding callbacks an opportunity to fire.
+                Thread.Sleep(500);
+                Assert.DoesNotContain(
+                    events,
+                    entry => entry.AutomationId == $"ActivityState-{operationId}"
+                );
+            }
+            finally
+            {
+                session.MainWindow.FrameworkAutomationElement.UnregisterAutomationEventHandler(handler);
+            }
         });
     }
 

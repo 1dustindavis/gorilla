@@ -29,6 +29,7 @@ public sealed record AppDetailsPresentation(
     public bool HasInstalledVersion => !string.IsNullOrWhiteSpace(InstalledVersion);
     public bool HasActiveOperation => !string.IsNullOrWhiteSpace(ActiveOperationTitle);
     public bool HasActiveOperationMessage => !string.IsNullOrWhiteSpace(ActiveOperationMessage);
+    public string ActiveOperationAnnouncement => JoinAnnouncement(ActiveOperationState, ActiveOperationMessage);
     public bool IsProgressIndeterminate => ProgressPercent is null;
     public double ProgressValue => ProgressPercent ?? 0;
     public bool HasLatestResult => !string.IsNullOrWhiteSpace(LatestResultHeading);
@@ -46,6 +47,7 @@ public sealed record AppDetailsPresentation(
         ? LatestRecovery.UserMessage
         : LatestResultDetail;
     public bool HasLatestFailureMessage => !string.IsNullOrWhiteSpace(LatestFailureMessage);
+    public string LatestResultAnnouncement => JoinAnnouncement(LatestFailureTitle, LatestFailureMessage);
     public string RetryLabel => LatestRecovery?.RetryLabel ?? "Retry";
     public string? RetryUnavailableReason => LatestRecovery?.RetryUnavailableReason;
     public string LatestTechnicalDetails => LatestRecovery?.TechnicalDetails ?? string.Empty;
@@ -60,6 +62,21 @@ public sealed record AppDetailsPresentation(
     public bool HasRemoveUnavailableExplanation => !string.IsNullOrWhiteSpace(RemoveUnavailableExplanation);
     public bool HasActionExplanation => HasInstallUnavailableExplanation || HasRemoveUnavailableExplanation;
     public bool HasActionFeedback => !string.IsNullOrWhiteSpace(ActionFeedbackText);
+
+    private static string JoinAnnouncement(string? primary, string? detail)
+    {
+        var first = primary?.Trim();
+        var second = detail?.Trim();
+        if (string.IsNullOrWhiteSpace(first))
+        {
+            return second ?? string.Empty;
+        }
+        if (string.IsNullOrWhiteSpace(second))
+        {
+            return first;
+        }
+        return $"{first}. {second}";
+    }
 }
 
 public static class AppDetailsPresentationMapper

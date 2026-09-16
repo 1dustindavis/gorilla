@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
@@ -9,12 +10,17 @@ namespace Gorilla.UI.App.Controls;
 /// <summary>
 /// Adds explicit UIA live-region notifications to ordinary WinUI TextBlocks.
 ///
-/// AutomationProperties.LiveSetting communicates politeness to accessibility
-/// clients, but WinUI does not reliably raise LiveRegionChanged when bound text
-/// and visibility change together. This attached behavior observes the native
-/// TextBlock and raises one event for each distinct, visible, non-empty message.
-/// Keeping the native TextBlock avoids replacing framework semantics with a
-/// custom control solely for announcement delivery.
+/// The semantic announcement is AutomationProperties.Name when one is supplied;
+/// otherwise the visible Text is used. Existing content is baselined when an
+/// element begins observation so navigating to or realizing an element does not
+/// announce stale state as though it just changed. Subsequent semantic changes
+/// raise one deduplicated LiveRegionChanged event.
+///
+/// If an enabled live element is hidden through its own Visibility property,
+/// semantic changes remain silent while hidden. When that element later becomes
+/// visible, its current message is announced once. This intentionally treats the
+/// appearance of a new status/banner as a user-facing transition while avoiding
+/// announcements merely because a page or virtualized row was loaded.
 /// </summary>
 public static class LiveRegionAnnouncer
 {
@@ -60,6 +66,7 @@ public static class LiveRegionAnnouncer
     {
         private readonly TextBlock _textBlock;
         private long _textCallbackToken;
+        private long _nameCallbackToken;
         private long _visibilityCallbackToken;
         private string? _lastAnnouncedText;
         private bool _disposed;
@@ -106,10 +113,25 @@ public static class LiveRegionAnnouncer
                 return;
             }
 
+            // Loading/re-realization is not itself a semantic transition. Baseline
+            // the current visible content before registering callbacks so Activity
+            // rows and Details state do not announce historical content on entry.
+            _lastAnnouncedText = _textBlock.Visibility == Visibility.Visible
+                ? CurrentSemanticMessage()
+                : null;
+
             if (_textCallbackToken == 0)
             {
                 _textCallbackToken = _textBlock.RegisterPropertyChangedCallback(
                     TextBlock.TextProperty,
+                    (_, _) => QueueAnnouncement()
+                );
+            }
+
+            if (_nameCallbackToken == 0)
+            {
+                _nameCallbackToken = _textBlock.RegisterPropertyChangedCallback(
+                    AutomationProperties.NameProperty,
                     (_, _) => QueueAnnouncement()
                 );
             }
@@ -121,8 +143,6 @@ public static class LiveRegionAnnouncer
                     (_, _) => QueueAnnouncement()
                 );
             }
-
-            QueueAnnouncement();
         }
 
         private void StopObserving()
@@ -133,11 +153,29 @@ public static class LiveRegionAnnouncer
                 _textCallbackToken = 0;
             }
 
+            if (_nameCallbackToken != 0)
+            {
+                _textBlock.UnregisterPropertyChangedCallback(AutomationProperties.NameProperty, _nameCallbackToken);
+                _nameCallbackToken = 0;
+            }
+
             if (_visibilityCallbackToken != 0)
             {
                 _textBlock.UnregisterPropertyChangedCallback(UIElement.VisibilityProperty, _visibilityCallbackToken);
                 _visibilityCallbackToken = 0;
             }
+        }
+
+        private string? CurrentSemanticMessage()
+        {
+            var accessibleName = AutomationProperties.GetName(_textBlock)?.Trim();
+            if (!string.IsNullOrWhiteSpace(accessibleName))
+            {
+                return accessibleName;
+            }
+
+            var visibleText = _textBlock.Text?.Trim();
+            return string.IsNullOrWhiteSpace(visibleText) ? null : visibleText;
         }
 
         private void QueueAnnouncement()
@@ -147,7 +185,7 @@ public static class LiveRegionAnnouncer
                 return;
             }
 
-            var message = _textBlock.Text?.Trim();
+            var message = CurrentSemanticMessage();
             if (string.IsNullOrWhiteSpace(message) ||
                 string.Equals(message, _lastAnnouncedText, StringComparison.Ordinal))
             {
@@ -161,7 +199,7 @@ public static class LiveRegionAnnouncer
                     return;
                 }
 
-                var currentMessage = _textBlock.Text?.Trim();
+                var currentMessage = CurrentSemanticMessage();
                 if (string.IsNullOrWhiteSpace(currentMessage) ||
                     string.Equals(currentMessage, _lastAnnouncedText, StringComparison.Ordinal))
                 {

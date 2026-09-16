@@ -42,9 +42,9 @@ public sealed class AccessibilityAutomationTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void KeyboardEmbeddedActionStartsMutationWithoutOpeningDetailsAndKeepsFocus()
+    public void KeyboardEmbeddedActionStartsMutationWithoutOpeningDetailsAndKeepsLogicalFocus()
     {
-        RunWithDiagnostics(nameof(KeyboardEmbeddedActionStartsMutationWithoutOpeningDetailsAndKeepsFocus), session =>
+        RunWithDiagnostics(nameof(KeyboardEmbeddedActionStartsMutationWithoutOpeningDetailsAndKeepsLogicalFocus), session =>
         {
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home);
@@ -60,8 +60,9 @@ public sealed class AccessibilityAutomationTests
 
             var currentAction = home.PrimaryActionButton(SlowFixtureItemName);
             Assert.False(currentAction.IsEnabled);
-            session.WaitUntil(() => HasKeyboardFocus(currentAction));
-            Assert.Equal("PrimaryActionButton", currentAction.AutomationId);
+            var logicalCard = home.WaitForItem(SlowFixtureItemName);
+            session.WaitUntil(() => HasKeyboardFocus(logicalCard));
+            Assert.Equal(SlowFixtureItemName, logicalCard.AutomationId);
 
             session.WaitUntil(() => File.Exists(RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH")), TimeSpan.FromSeconds(30));
             home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));

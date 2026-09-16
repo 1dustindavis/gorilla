@@ -38,6 +38,7 @@ public sealed partial class AppDetailsPage : Page
             _viewModel.SelectItem(_itemName);
         }
         ResolveCanonicalItem();
+        DispatcherQueue.TryEnqueue(() => BackButton.Focus(FocusState.Programmatic));
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -77,6 +78,7 @@ public sealed partial class AppDetailsPage : Page
         }
         else
         {
+            NavigationFocusState.RequestCatalogFallback();
             Frame.Navigate(typeof(HomePage));
         }
     }

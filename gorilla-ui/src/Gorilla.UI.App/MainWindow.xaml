@@ -3,6 +3,7 @@
     x:Class="Gorilla.UI.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Gorilla.UI.App.Controls"
     xmlns:local="using:Gorilla.UI.App"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -50,7 +51,7 @@
             Visibility="Collapsed"
             AutomationProperties.AutomationId="CatalogDegradedWarning">
             <StackPanel Spacing="4">
-                <TextBlock
+                <controls:LiveRegionTextBlock
                     x:Name="CatalogDegradedText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
@@ -85,7 +86,7 @@
             Visibility="Collapsed"
             AutomationProperties.AutomationId="InfrastructureWarning">
             <StackPanel Spacing="4">
-                <TextBlock
+                <controls:LiveRegionTextBlock
                     x:Name="InfrastructureWarningText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"

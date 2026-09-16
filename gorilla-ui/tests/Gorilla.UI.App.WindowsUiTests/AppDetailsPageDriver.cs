@@ -26,8 +26,13 @@ internal sealed class AppDetailsPageDriver
     public string InstalledVersion => OptionalText("DetailsInstalledVersion");
     public string ActiveOperation => OptionalText("DetailsActiveOperation");
     public string ActiveOperationId => OptionalHelpText("DetailsActiveOperation");
+    public string ActiveOperationAnnouncement => OptionalName("DetailsActiveOperationAnnouncement");
     public string LatestResult => OptionalText("DetailsLatestResult");
     public string LatestResultHeading => OptionalName("DetailsLatestResult");
+    public string LatestFailureAnnouncement => SafeName(
+        _session.WaitFor(() => Root.FindAllDescendants()
+            .FirstOrDefault(element => SafeAutomationId(element).StartsWith("DetailsFailureTitle-", StringComparison.Ordinal)))
+    );
     public string ActionExplanation => OptionalText("DetailsActionExplanation");
 
     public Button SecondaryAction => WaitById("DetailsSecondaryAction").AsButton();
@@ -102,6 +107,18 @@ internal sealed class AppDetailsPageDriver
     {
         var element = FindById(automationId);
         return element is null ? string.Empty : SafeHelpText(element);
+    }
+
+    private static string SafeAutomationId(AutomationElement element)
+    {
+        try
+        {
+            return element.AutomationId;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
     }
 
     private static string SafeName(AutomationElement element)

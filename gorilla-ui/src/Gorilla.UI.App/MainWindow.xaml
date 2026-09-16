@@ -19,7 +19,8 @@
                 x:Name="CatalogFreshnessStatus"
                 VerticalAlignment="Center"
                 Opacity="0.72"
-                AutomationProperties.AutomationId="CatalogFreshnessStatus" />
+                AutomationProperties.AutomationId="CatalogFreshnessStatus"
+                AutomationProperties.Name="App Catalog status" />
             <ProgressRing
                 x:Name="CatalogRefreshProgress"
                 Grid.Column="1"
@@ -48,19 +49,21 @@
             CornerRadius="6"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             Visibility="Collapsed"
-            AutomationProperties.AutomationId="CatalogDegradedWarning"
-            AutomationProperties.LiveSetting="Polite">
+            AutomationProperties.AutomationId="CatalogDegradedWarning">
             <StackPanel Spacing="4">
                 <TextBlock
                     x:Name="CatalogDegradedText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
-                    AutomationProperties.AutomationId="CatalogDegradedWarningText" />
+                    AutomationProperties.AutomationId="CatalogDegradedWarningText"
+                    AutomationProperties.Name="Catalog warning"
+                    AutomationProperties.LiveSetting="Polite" />
                 <Expander
                     x:Name="CatalogTechnicalDetails"
                     Header="Technical details"
                     Visibility="Collapsed"
-                    AutomationProperties.AutomationId="CatalogTechnicalDetails">
+                    AutomationProperties.AutomationId="CatalogTechnicalDetails"
+                    AutomationProperties.Name="Catalog technical details">
                     <TextBox
                         x:Name="CatalogTechnicalDetailsText"
                         IsReadOnly="True"
@@ -69,7 +72,7 @@
                         BorderThickness="0"
                         Background="Transparent"
                         AutomationProperties.AutomationId="CatalogTechnicalDetailsContent"
-                        AutomationProperties.Name="Catalog technical details" />
+                        AutomationProperties.Name="Catalog technical details content" />
                 </Expander>
             </StackPanel>
         </Border>
@@ -82,19 +85,21 @@
             CornerRadius="6"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             Visibility="Collapsed"
-            AutomationProperties.AutomationId="InfrastructureWarning"
-            AutomationProperties.LiveSetting="Polite">
+            AutomationProperties.AutomationId="InfrastructureWarning">
             <StackPanel Spacing="4">
                 <TextBlock
                     x:Name="InfrastructureWarningText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
-                    AutomationProperties.AutomationId="InfrastructureWarningText" />
+                    AutomationProperties.AutomationId="InfrastructureWarningText"
+                    AutomationProperties.Name="Infrastructure warning"
+                    AutomationProperties.LiveSetting="Assertive" />
                 <Expander
                     x:Name="InfrastructureTechnicalDetails"
                     Header="Technical details"
                     Visibility="Collapsed"
-                    AutomationProperties.AutomationId="InfrastructureTechnicalDetails">
+                    AutomationProperties.AutomationId="InfrastructureTechnicalDetails"
+                    AutomationProperties.Name="Infrastructure warning technical details">
                     <TextBox
                         x:Name="InfrastructureTechnicalDetailsText"
                         IsReadOnly="True"
@@ -103,7 +108,7 @@
                         BorderThickness="0"
                         Background="Transparent"
                         AutomationProperties.AutomationId="InfrastructureTechnicalDetailsContent"
-                        AutomationProperties.Name="Infrastructure warning technical details" />
+                        AutomationProperties.Name="Infrastructure warning technical details content" />
                 </Expander>
             </StackPanel>
         </Border>
@@ -111,6 +116,7 @@
         <Frame
             x:Name="RootFrame"
             Grid.Row="3"
-            AutomationProperties.AutomationId="NavigationFrame" />
+            AutomationProperties.AutomationId="NavigationFrame"
+            AutomationProperties.Name="App Catalog content" />
     </Grid>
 </Window>

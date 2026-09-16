@@ -102,6 +102,28 @@ internal sealed class GorillaAppSession : IDisposable
         _ = WaitFor<object>(() => condition() ? new object() : null, timeout);
     }
 
+    public AutomationElement FocusedElement() => _automation.FocusedElement();
+
+    public void FocusForKeyboard(AutomationElement element, TimeSpan? timeout = null)
+    {
+        RefreshAndFocusMainWindow();
+        element.Focus();
+        WaitUntil(
+            () =>
+            {
+                try
+                {
+                    return _automation.Compare(_automation.FocusedElement(), element);
+                }
+                catch
+                {
+                    return element.Properties.HasKeyboardFocus.ValueOrDefault;
+                }
+            },
+            timeout ?? TimeSpan.FromSeconds(5)
+        );
+    }
+
     public void AssertStillRunning(TimeSpan duration)
     {
         var sw = Stopwatch.StartNew();

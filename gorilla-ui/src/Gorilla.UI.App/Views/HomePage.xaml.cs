@@ -226,6 +226,27 @@ public sealed partial class HomePage : Page
         });
     }
 
+    private void PreserveLogicalActionFocus(Button button, UiOptionalInstallItem item)
+    {
+        if (button.FocusState == FocusState.Unfocused)
+        {
+            return;
+        }
+
+        // Starting an operation disables/replaces the invoked action. Letting WinUI
+        // choose the next focus target can jump to an unrelated shell control. Move
+        // focus to the stable logical card before that transition instead. This is
+        // action-specific focus continuity, not focus movement for ordinary state or
+        // live-region updates.
+        if (CatalogItems.ContainerFromItem(item) is GridViewItem container)
+        {
+            var focusState = button.FocusState == FocusState.Keyboard
+                ? FocusState.Keyboard
+                : FocusState.Programmatic;
+            container.Focus(focusState);
+        }
+    }
+
     private async void ActionButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.DataContext is not UiOptionalInstallItem item)
@@ -256,6 +277,8 @@ public sealed partial class HomePage : Page
         {
             return;
         }
+
+        PreserveLogicalActionFocus(button, item);
 
         switch (action.Value)
         {

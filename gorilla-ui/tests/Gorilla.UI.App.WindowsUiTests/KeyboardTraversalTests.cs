@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Exceptions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
@@ -8,8 +9,6 @@ namespace Gorilla.UI.App.WindowsUiTests;
 
 public sealed class KeyboardTraversalTests
 {
-    private const string FixtureItemName = "Ps1V1";
-
     [Fact]
     [Trait("E2EPhase", "Healthy")]
     public void TabTraversalReachesShellSearchCardAndEmbeddedActionInOrder()
@@ -17,57 +16,50 @@ public sealed class KeyboardTraversalTests
         RunWithDiagnostics(nameof(TabTraversalReachesShellSearchCardAndEmbeddedActionInOrder), session =>
         {
             var home = new HomePageDriver(session);
-            _ = home.WaitForItem(FixtureItemName);
+            _ = home.CatalogItems;
             var refresh = session.WaitFor(() => ById(session, "CatalogRefreshButton"));
             session.FocusForKeyboard(refresh);
 
-            var visited = new List<string>();
-            for (var i = 0; i < 14; i++)
+            Keyboard.Type(VirtualKeyShort.TAB);
+            var activity = WaitForFocused(session, "ActivityNavigationButton");
+            Assert.Equal(ControlType.Button, activity.ControlType);
+
+            Keyboard.Type(VirtualKeyShort.TAB);
+            var search = WaitForFocused(session, "CatalogSearchBox");
+            Assert.Equal(ControlType.Edit, search.ControlType);
+
+            Keyboard.Type(VirtualKeyShort.TAB);
+            var card = session.WaitFor(() =>
             {
-                Keyboard.Type(VirtualKeyShort.TAB);
-                Thread.Sleep(100);
-
-                // Ask UI Automation for the actual system-focused element. Scanning
-                // descendants for HasKeyboardFocus is unreliable with WinUI because
-                // the property is not guaranteed to be materialized on every proxy.
                 var focused = session.FocusedElement();
-                var automationId = SafeAutomationId(focused);
-                if (!string.IsNullOrWhiteSpace(automationId))
-                {
-                    visited.Add(automationId);
-                }
-                if (visited.Contains("PrimaryActionButton", StringComparer.Ordinal))
-                {
-                    break;
-                }
-            }
+                return focused.ControlType == ControlType.ListItem &&
+                    !string.IsNullOrWhiteSpace(SafeAutomationId(focused))
+                        ? focused
+                        : null;
+            }, TimeSpan.FromSeconds(5));
+            var itemName = SafeAutomationId(card);
+            Assert.NotNull(home.CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(itemName)));
 
-            AssertAppearsBefore(visited, "ActivityNavigationButton", "CatalogSearchBox");
-            AssertAppearsBefore(visited, "CatalogSearchBox", FixtureItemName);
-            AssertAppearsBefore(visited, FixtureItemName, "PrimaryActionButton");
+            Keyboard.Type(VirtualKeyShort.TAB);
+            var action = WaitForFocused(session, "PrimaryActionButton");
+            Assert.Equal(ControlType.Button, action.ControlType);
+
+            // Repeated child IDs are intentionally scoped by their stable ItemName
+            // container. Verify the focused action belongs to the card reached by the
+            // immediately preceding Tab rather than assuming fixture/catalog order.
+            var focusedCard = home.WaitForItem(itemName);
+            Assert.NotNull(focusedCard.FindFirstDescendant(cf => cf.ByAutomationId("PrimaryActionButton")));
         });
     }
 
-    private static void AssertAppearsBefore(IReadOnlyList<string> visited, string first, string second)
-    {
-        var firstIndex = IndexOf(visited, first);
-        var secondIndex = IndexOf(visited, second);
-        Assert.True(firstIndex >= 0, $"Expected keyboard traversal to reach '{first}'. Visited: {string.Join(", ", visited)}");
-        Assert.True(secondIndex >= 0, $"Expected keyboard traversal to reach '{second}'. Visited: {string.Join(", ", visited)}");
-        Assert.True(firstIndex < secondIndex, $"Expected '{first}' before '{second}'. Visited: {string.Join(", ", visited)}");
-    }
-
-    private static int IndexOf(IReadOnlyList<string> values, string value)
-    {
-        for (var i = 0; i < values.Count; i++)
+    private static AutomationElement WaitForFocused(GorillaAppSession session, string automationId)
+        => session.WaitFor(() =>
         {
-            if (string.Equals(values[i], value, StringComparison.Ordinal))
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
+            var focused = session.FocusedElement();
+            return string.Equals(SafeAutomationId(focused), automationId, StringComparison.Ordinal)
+                ? focused
+                : null;
+        }, TimeSpan.FromSeconds(5));
 
     private static string SafeAutomationId(AutomationElement element)
     {

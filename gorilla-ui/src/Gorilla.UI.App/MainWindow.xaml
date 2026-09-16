@@ -51,10 +51,11 @@
             Visibility="Collapsed"
             AutomationProperties.AutomationId="CatalogDegradedWarning">
             <StackPanel Spacing="4">
-                <controls:LiveRegionTextBlock
+                <TextBlock
                     x:Name="CatalogDegradedText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
+                    controls:LiveRegionAnnouncer.IsEnabled="True"
                     AutomationProperties.AutomationId="CatalogDegradedWarningText"
                     AutomationProperties.LiveSetting="Polite" />
                 <Expander
@@ -86,10 +87,11 @@
             Visibility="Collapsed"
             AutomationProperties.AutomationId="InfrastructureWarning">
             <StackPanel Spacing="4">
-                <controls:LiveRegionTextBlock
+                <TextBlock
                     x:Name="InfrastructureWarningText"
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
+                    controls:LiveRegionAnnouncer.IsEnabled="True"
                     AutomationProperties.AutomationId="InfrastructureWarningText"
                     AutomationProperties.LiveSetting="Assertive" />
                 <Expander

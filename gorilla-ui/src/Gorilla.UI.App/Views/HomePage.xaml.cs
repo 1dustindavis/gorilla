@@ -38,7 +38,7 @@ public sealed partial class HomePage : Page
         await RunSafelyAsync(_session.EnsureInitializedAsync);
         UpdateEmptyStates();
         UpdateCardWidths(CatalogItems.ActualWidth);
-        RestoreNavigationFocus();
+        await RestoreNavigationFocusAsync();
     }
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
@@ -180,7 +180,7 @@ public sealed partial class HomePage : Page
         panel.ItemWidth = Math.Max(1, Math.Min(maximumCardWidth, availableWidth / columns));
     }
 
-    private void RestoreNavigationFocus()
+    private async Task RestoreNavigationFocusAsync()
     {
         var requestedItemName = NavigationFocusState.ConsumeCatalogItem();
         var fallbackRequested = NavigationFocusState.ConsumeCatalogFallbackRequest();
@@ -201,29 +201,25 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        CatalogItems.ScrollIntoView(item);
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (CatalogItems.ContainerFromItem(item) is GridViewItem container)
-            {
-                container.Focus(FocusState.Programmatic);
-                return;
-            }
+        var container = await VirtualizedContainerRealizer.RealizeAsync(
+            CatalogItems,
+            item,
+            TimeSpan.FromSeconds(2)
+        );
 
-            // The logical item can survive a refresh while its container is still
-            // being realized. A second dispatcher turn lets GridView finish recycling.
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (CatalogItems.ContainerFromItem(item) is GridViewItem realized)
-                {
-                    realized.Focus(FocusState.Programmatic);
-                }
-                else
-                {
-                    SearchBox.Focus(FocusState.Programmatic);
-                }
-            });
-        });
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        if (container is GridViewItem realized)
+        {
+            realized.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            SearchBox.Focus(FocusState.Programmatic);
+        }
     }
 
     private void PreserveLogicalActionFocus(Button button, UiOptionalInstallItem item)

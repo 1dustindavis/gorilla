@@ -130,6 +130,10 @@ public sealed class AccessibilityAutomationTests
             _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
             var restored = activity.WaitForOperation(operationId);
             session.WaitUntil(() => HasKeyboardFocus(restored));
+
+            // This test starts a service-owned operation. Do not let it leak into
+            // a later test merely because navigation validation completes first.
+            session.WaitUntil(() => File.Exists(RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH")), TimeSpan.FromSeconds(30));
         });
     }
 
@@ -195,6 +199,12 @@ public sealed class AccessibilityAutomationTests
             {
                 session.MainWindow.FrameworkAutomationElement.UnregisterAutomationEventHandler(handler);
             }
+
+            // Operation ownership belongs to the service, so closing this UI session
+            // would not cancel the install. Drain it to a stable observed state before
+            // yielding the shared fixture to the next test.
+            session.WaitUntil(() => File.Exists(RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH")), TimeSpan.FromSeconds(30));
+            home.WaitForItemStatus(SlowFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
         });
     }
 
@@ -202,12 +212,34 @@ public sealed class AccessibilityAutomationTests
     {
         var markerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
         _ = home.WaitForItem(SlowFixtureItemName);
+
+        // A previous UI session can legitimately disappear while a service-owned
+        // install/remove continues. Never normalize the fixture from a transient
+        // observation; first wait for any known in-flight state to settle.
+        session.WaitUntil(
+            () => !IsSlowFixtureOperationInFlight(home.OperationText(SlowFixtureItemName)),
+            TimeSpan.FromSeconds(30)
+        );
+
         if (string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
         {
+            home.EnsureItemVisible(SlowFixtureItemName);
             home.RemoveButton(SlowFixtureItemName).Invoke();
             session.WaitUntil(() => !File.Exists(markerPath), TimeSpan.FromSeconds(30));
+            session.WaitUntil(
+                () => !IsSlowFixtureOperationInFlight(home.OperationText(SlowFixtureItemName)),
+                TimeSpan.FromSeconds(30)
+            );
         }
+
         home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
+    }
+
+    private static bool IsSlowFixtureOperationInFlight(string operationText)
+    {
+        return operationText.Contains("Queued", StringComparison.OrdinalIgnoreCase) ||
+            operationText.Contains("Installing", StringComparison.OrdinalIgnoreCase) ||
+            operationText.Contains("Removing", StringComparison.OrdinalIgnoreCase);
     }
 
     private static AutomationElement? ById(GorillaAppSession session, string automationId)

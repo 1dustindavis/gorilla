@@ -27,8 +27,8 @@ Gorilla uses normal WinUI keyboard behavior rather than a custom navigation engi
 - Technical-detail disclosures are named as technical details; exception and protocol text remains inside the disclosure instead of becoming the primary accessible status.
 - Live-region semantics belong to the smallest stable element containing the complete user-facing message. Parent cards/banners are not also live regions when a child status element announces the same transition.
 - When visible layout splits a status across a coarse state/title and a detail/message, the live element's UIA name combines those fragments into one semantic announcement. This includes Details active operation state + message, Details terminal title + user explanation, and Activity state/outcome + detail.
-- `LiveRegionAnnouncer` baselines existing content when an element begins observation. Loading a page or realizing a virtualized row therefore does not announce historical content as though it were a new transition.
-- If an enabled live element changes while its own `Visibility` is hidden, that update is silent. If that element later becomes visible, its current semantic message is announced once. Subsequent `Text` or `AutomationProperties.Name` changes announce only when the complete semantic message actually changes.
+- `LiveRegionAnnouncer` baselines existing content after the initial load/binding turn. Loading a page or realizing a virtualized row therefore does not announce historical content as though it were a new transition.
+- If an enabled live element changes while it or any visual ancestor is collapsed, that update is silent. When the region later becomes effectively visible, its current semantic message is announced once. Subsequent `Text` or `AutomationProperties.Name` changes announce only when the complete semantic message actually changes.
 - Routine operation state uses polite announcements. Blocking load/infrastructure failures use assertive announcements. A state update must not steal keyboard focus.
 
 ## Stable automation IDs

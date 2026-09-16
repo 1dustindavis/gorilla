@@ -44,10 +44,10 @@ public sealed class VirtualizedFocusRestorationTests
                 // Prove the service has consumed the temporary catalog without using
                 // the deep full-list container as our navigation mechanism.
                 home.Search($"ZZ Virtualization Fixture {CatalogExpansionCount:00}");
-                _ = home.WaitForItem(targetItemName, TimeSpan.FromSeconds(30));
+                _ = session.WaitFor(() => home.HasItem(targetItemName) ? home.WaitForItem(targetItemName) : null, TimeSpan.FromSeconds(30));
                 home.Search(string.Empty);
 
-                var first = home.WaitForItem(BasicFixtureItemName, TimeSpan.FromSeconds(30));
+                var first = session.WaitFor(() => home.HasItem(BasicFixtureItemName) ? home.WaitForItem(BasicFixtureItemName) : null, TimeSpan.FromSeconds(30));
                 first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
                 first = home.WaitForItem(BasicFixtureItemName);
 

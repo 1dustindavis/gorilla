@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace Gorilla.UI.App.Controls;
 
@@ -16,11 +18,11 @@ namespace Gorilla.UI.App.Controls;
 /// announce stale state as though it just changed. Subsequent semantic changes
 /// raise one deduplicated LiveRegionChanged event.
 ///
-/// If an enabled live element is hidden through its own Visibility property,
-/// semantic changes remain silent while hidden. When that element later becomes
-/// visible, its current message is announced once. This intentionally treats the
-/// appearance of a new status/banner as a user-facing transition while avoiding
-/// announcements merely because a page or virtualized row was loaded.
+/// Semantic changes remain silent while the element or any visual ancestor is
+/// collapsed. When that region later becomes effectively visible, its current
+/// message is announced once. This treats the appearance of a new status/banner
+/// as a user-facing transition while avoiding announcements merely because a page
+/// or virtualized row was loaded.
 /// </summary>
 public static class LiveRegionAnnouncer
 {
@@ -65,9 +67,9 @@ public static class LiveRegionAnnouncer
     private sealed class Subscription : IDisposable
     {
         private readonly TextBlock _textBlock;
+        private readonly List<(UIElement Element, long Token)> _visibilityObservers = new();
         private long _textCallbackToken;
         private long _nameCallbackToken;
-        private long _visibilityCallbackToken;
         private string? _lastAnnouncedText;
         private bool _isPriming;
         private bool _disposed;
@@ -132,13 +134,7 @@ public static class LiveRegionAnnouncer
                 );
             }
 
-            if (_visibilityCallbackToken == 0)
-            {
-                _visibilityCallbackToken = _textBlock.RegisterPropertyChangedCallback(
-                    UIElement.VisibilityProperty,
-                    (_, _) => QueueAnnouncement()
-                );
-            }
+            RegisterVisibilityObservers();
 
             // XAML bindings can complete after Loaded. Absorb one dispatcher turn of
             // initial binding/realization churn into the baseline so that content that
@@ -149,6 +145,31 @@ public static class LiveRegionAnnouncer
             }
         }
 
+        private void RegisterVisibilityObservers()
+        {
+            UnregisterVisibilityObservers();
+
+            DependencyObject? current = _textBlock;
+            while (current is UIElement element)
+            {
+                var token = element.RegisterPropertyChangedCallback(
+                    UIElement.VisibilityProperty,
+                    (_, _) => QueueAnnouncement()
+                );
+                _visibilityObservers.Add((element, token));
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+
+        private void UnregisterVisibilityObservers()
+        {
+            foreach (var (element, token) in _visibilityObservers)
+            {
+                element.UnregisterPropertyChangedCallback(UIElement.VisibilityProperty, token);
+            }
+            _visibilityObservers.Clear();
+        }
+
         private void CompletePriming()
         {
             if (_disposed || !_textBlock.IsLoaded)
@@ -156,7 +177,7 @@ public static class LiveRegionAnnouncer
                 return;
             }
 
-            _lastAnnouncedText = _textBlock.Visibility == Visibility.Visible
+            _lastAnnouncedText = IsEffectivelyVisible()
                 ? CurrentSemanticMessage()
                 : null;
             _isPriming = false;
@@ -178,11 +199,21 @@ public static class LiveRegionAnnouncer
                 _nameCallbackToken = 0;
             }
 
-            if (_visibilityCallbackToken != 0)
+            UnregisterVisibilityObservers();
+        }
+
+        private bool IsEffectivelyVisible()
+        {
+            DependencyObject? current = _textBlock;
+            while (current is UIElement element)
             {
-                _textBlock.UnregisterPropertyChangedCallback(UIElement.VisibilityProperty, _visibilityCallbackToken);
-                _visibilityCallbackToken = 0;
+                if (element.Visibility != Visibility.Visible)
+                {
+                    return false;
+                }
+                current = VisualTreeHelper.GetParent(current);
             }
+            return true;
         }
 
         private string? CurrentSemanticMessage()
@@ -199,7 +230,7 @@ public static class LiveRegionAnnouncer
 
         private void QueueAnnouncement()
         {
-            if (_disposed || _isPriming || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
+            if (_disposed || _isPriming || !_textBlock.IsLoaded || !IsEffectivelyVisible())
             {
                 return;
             }
@@ -213,7 +244,7 @@ public static class LiveRegionAnnouncer
 
             _textBlock.DispatcherQueue.TryEnqueue(() =>
             {
-                if (_disposed || _isPriming || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
+                if (_disposed || _isPriming || !_textBlock.IsLoaded || !IsEffectivelyVisible())
                 {
                     return;
                 }

@@ -48,6 +48,7 @@ public sealed class AccessibilityAutomationTests
         {
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home);
+            home.EnsureItemVisible(SlowFixtureItemName);
 
             var action = home.PrimaryActionButton(SlowFixtureItemName);
             Assert.Equal(ControlType.Button, action.ControlType);
@@ -99,6 +100,8 @@ public sealed class AccessibilityAutomationTests
         {
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home);
+            home.EnsureItemVisible(SlowFixtureItemName);
+
             var action = home.PrimaryActionButton(SlowFixtureItemName);
             session.FocusForKeyboard(action);
             Keyboard.Type(VirtualKeyShort.ENTER);
@@ -164,6 +167,8 @@ public sealed class AccessibilityAutomationTests
         {
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home);
+            home.EnsureItemVisible(SlowFixtureItemName);
+
             var events = new ConcurrentQueue<(string AutomationId, string Name)>();
             var handler = session.MainWindow.RegisterAutomationEvent(
                 AutomationObjectIds.LiveRegionChangedEvent,

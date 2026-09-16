@@ -19,8 +19,7 @@
                 x:Name="CatalogFreshnessStatus"
                 VerticalAlignment="Center"
                 Opacity="0.72"
-                AutomationProperties.AutomationId="CatalogFreshnessStatus"
-                AutomationProperties.Name="App Catalog status" />
+                AutomationProperties.AutomationId="CatalogFreshnessStatus" />
             <ProgressRing
                 x:Name="CatalogRefreshProgress"
                 Grid.Column="1"
@@ -56,7 +55,6 @@
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
                     AutomationProperties.AutomationId="CatalogDegradedWarningText"
-                    AutomationProperties.Name="Catalog warning"
                     AutomationProperties.LiveSetting="Polite" />
                 <Expander
                     x:Name="CatalogTechnicalDetails"
@@ -92,7 +90,6 @@
                     Foreground="DarkOrange"
                     TextWrapping="Wrap"
                     AutomationProperties.AutomationId="InfrastructureWarningText"
-                    AutomationProperties.Name="Infrastructure warning"
                     AutomationProperties.LiveSetting="Assertive" />
                 <Expander
                     x:Name="InfrastructureTechnicalDetails"

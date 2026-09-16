@@ -28,6 +28,7 @@
         </Grid>
 
         <TextBox
+            x:Name="SearchBox"
             Grid.Row="1"
             Margin="0,12,0,0"
             MaxWidth="520"

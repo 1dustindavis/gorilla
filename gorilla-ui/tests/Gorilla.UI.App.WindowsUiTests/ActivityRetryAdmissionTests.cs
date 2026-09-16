@@ -15,7 +15,7 @@ public sealed class ActivityRetryAdmissionTests
         {
             try
             {
-                File.Delete(FailureMarkerPath);
+                DeleteFailureMarkerIfPresent();
 
                 var home = new HomePageDriver(session);
                 var shell = new CatalogShellDriver(session);
@@ -90,9 +90,17 @@ public sealed class ActivityRetryAdmissionTests
             }
             finally
             {
-                File.Delete(FailureMarkerPath);
+                DeleteFailureMarkerIfPresent();
             }
         });
+    }
+
+    private static void DeleteFailureMarkerIfPresent()
+    {
+        if (File.Exists(FailureMarkerPath))
+        {
+            File.Delete(FailureMarkerPath);
+        }
     }
 
     private static void RunWithDiagnostics(string testName, Action<GorillaAppSession> test)

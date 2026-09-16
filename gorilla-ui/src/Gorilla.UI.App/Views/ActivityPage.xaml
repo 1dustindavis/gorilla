@@ -15,7 +15,8 @@
         x:Name="ActivityRoot"
         Padding="20"
         RowDefinitions="Auto,*"
-        AutomationProperties.AutomationId="ActivityPageRoot">
+        AutomationProperties.AutomationId="ActivityPageRoot"
+        AutomationProperties.Name="Activity">
         <Grid ColumnDefinitions="Auto,*,Auto">
             <Button
                 x:Name="BackButton"
@@ -72,7 +73,8 @@
                                         FontWeight="SemiBold"
                                         TextWrapping="Wrap"
                                         Tapped="ActivityApp_Tapped"
-                                        AutomationProperties.AutomationId="{Binding AppAutomationId}" />
+                                        AutomationProperties.AutomationId="{Binding AppAutomationId}"
+                                        AutomationProperties.Name="{Binding DisplayName}" />
                                     <TextBlock
                                         Grid.Column="1"
                                         Text="{Binding TimestampText}"
@@ -88,6 +90,7 @@
                                     <TextBlock
                                         Text="{Binding StateText}"
                                         AutomationProperties.AutomationId="{Binding StateAutomationId}"
+                                        AutomationProperties.Name="{Binding StateText}"
                                         AutomationProperties.LiveSetting="Polite" />
                                 </StackPanel>
 
@@ -97,7 +100,8 @@
                                     Value="{Binding ProgressValue}"
                                     IsIndeterminate="{Binding IsProgressIndeterminate}"
                                     Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    AutomationProperties.AutomationId="{Binding ProgressAutomationId}" />
+                                    AutomationProperties.AutomationId="{Binding ProgressAutomationId}"
+                                    AutomationProperties.Name="Operation progress" />
 
                                 <TextBlock
                                     Text="{Binding DetailText}"
@@ -112,7 +116,8 @@
                                         Text="{Binding FailureTitle}"
                                         FontWeight="SemiBold"
                                         TextWrapping="Wrap"
-                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}" />
+                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}"
+                                        AutomationProperties.Name="{Binding FailureTitle}" />
                                     <TextBlock
                                         Text="{Binding FailureMessage}"
                                         TextWrapping="Wrap"
@@ -129,6 +134,7 @@
                                         TextWrapping="Wrap"
                                         Visibility="{Binding HasRetryAttemptFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         AutomationProperties.AutomationId="{Binding RetryAttemptFeedbackAutomationId}"
+                                        AutomationProperties.Name="{Binding RetryAttemptFeedback}"
                                         AutomationProperties.LiveSetting="Polite" />
                                     <TextBlock
                                         Text="{Binding RetryUnavailableReason}"
@@ -139,7 +145,8 @@
                                     <Expander
                                         Header="Technical details"
                                         Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        AutomationProperties.AutomationId="{Binding TechnicalDetailsAutomationId}">
+                                        AutomationProperties.AutomationId="{Binding TechnicalDetailsAutomationId}"
+                                        AutomationProperties.Name="Operation technical details">
                                         <TextBox
                                             Text="{Binding TechnicalDetails}"
                                             IsReadOnly="True"
@@ -148,7 +155,7 @@
                                             BorderThickness="0"
                                             Background="Transparent"
                                             AutomationProperties.AutomationId="{Binding TechnicalDetailsContentAutomationId}"
-                                            AutomationProperties.Name="Operation technical details" />
+                                            AutomationProperties.Name="Operation technical details content" />
                                     </Expander>
                                 </StackPanel>
                             </StackPanel>
@@ -163,7 +170,8 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Spacing="4"
-                AutomationProperties.AutomationId="ActivityEmptyState">
+                AutomationProperties.AutomationId="ActivityEmptyState"
+                AutomationProperties.Name="No recent activity">
                 <TextBlock
                     Text="No recent activity"
                     FontSize="20"

@@ -11,8 +11,8 @@ namespace Gorilla.UI.App.Controls;
 /// Adds explicit UIA live-region notifications to ordinary WinUI TextBlocks.
 ///
 /// The semantic announcement is AutomationProperties.Name when one is supplied;
-/// otherwise the visible Text is used. Existing content is baselined when an
-/// element begins observation so navigating to or realizing an element does not
+/// otherwise the visible Text is used. Existing content is baselined after the
+/// initial load/binding turn so navigating to or realizing an element does not
 /// announce stale state as though it just changed. Subsequent semantic changes
 /// raise one deduplicated LiveRegionChanged event.
 ///
@@ -69,6 +69,7 @@ public static class LiveRegionAnnouncer
         private long _nameCallbackToken;
         private long _visibilityCallbackToken;
         private string? _lastAnnouncedText;
+        private bool _isPriming;
         private bool _disposed;
 
         public Subscription(TextBlock textBlock)
@@ -113,12 +114,7 @@ public static class LiveRegionAnnouncer
                 return;
             }
 
-            // Loading/re-realization is not itself a semantic transition. Baseline
-            // the current visible content before registering callbacks so Activity
-            // rows and Details state do not announce historical content on entry.
-            _lastAnnouncedText = _textBlock.Visibility == Visibility.Visible
-                ? CurrentSemanticMessage()
-                : null;
+            _isPriming = true;
 
             if (_textCallbackToken == 0)
             {
@@ -143,10 +139,33 @@ public static class LiveRegionAnnouncer
                     (_, _) => QueueAnnouncement()
                 );
             }
+
+            // XAML bindings can complete after Loaded. Absorb one dispatcher turn of
+            // initial binding/realization churn into the baseline so that content that
+            // merely appeared with the page is never raised as a fresh live update.
+            if (!_textBlock.DispatcherQueue.TryEnqueue(CompletePriming))
+            {
+                CompletePriming();
+            }
+        }
+
+        private void CompletePriming()
+        {
+            if (_disposed || !_textBlock.IsLoaded)
+            {
+                return;
+            }
+
+            _lastAnnouncedText = _textBlock.Visibility == Visibility.Visible
+                ? CurrentSemanticMessage()
+                : null;
+            _isPriming = false;
         }
 
         private void StopObserving()
         {
+            _isPriming = false;
+
             if (_textCallbackToken != 0)
             {
                 _textBlock.UnregisterPropertyChangedCallback(TextBlock.TextProperty, _textCallbackToken);
@@ -180,7 +199,7 @@ public static class LiveRegionAnnouncer
 
         private void QueueAnnouncement()
         {
-            if (_disposed || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
+            if (_disposed || _isPriming || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
             {
                 return;
             }
@@ -194,7 +213,7 @@ public static class LiveRegionAnnouncer
 
             _textBlock.DispatcherQueue.TryEnqueue(() =>
             {
-                if (_disposed || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
+                if (_disposed || _isPriming || !_textBlock.IsLoaded || _textBlock.Visibility != Visibility.Visible)
                 {
                     return;
                 }

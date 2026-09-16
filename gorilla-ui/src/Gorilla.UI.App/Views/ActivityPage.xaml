@@ -27,7 +27,7 @@
                                 </Grid>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding ActionLabel}" FontWeight="SemiBold" AutomationProperties.AutomationId="{Binding ActionAutomationId}" />
-                                    <TextBlock Text="{Binding StateText}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="{Binding StateAutomationId}" AutomationProperties.Name="{Binding StateText}" AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock Text="{Binding StateText}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="{Binding StateAutomationId}" AutomationProperties.Name="{Binding AnnouncementText}" AutomationProperties.LiveSetting="Polite" />
                                 </StackPanel>
                                 <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" IsIndeterminate="{Binding IsProgressIndeterminate}" Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding ProgressAutomationId}" AutomationProperties.Name="Operation progress" />
                                 <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding DetailAutomationId}" />

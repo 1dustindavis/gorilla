@@ -141,6 +141,8 @@
                                             TextWrapping="WrapWholeWords"
                                             TextTrimming="CharacterEllipsis"
                                             MaxLines="2"
+                                            AutomationProperties.AutomationId="CatalogOperationStatus"
+                                            AutomationProperties.Name="{Binding CardPresentation.OperationText}"
                                             AutomationProperties.LiveSetting="Polite" />
                                     </StackPanel>
 

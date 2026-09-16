@@ -23,7 +23,7 @@ public sealed class AccessibilityAutomationTests
             var card = home.WaitForItem(BasicFixtureItemName);
             card.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
             card = home.WaitForItem(BasicFixtureItemName);
-            card.Focus();
+            session.FocusForKeyboard(card);
 
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
@@ -52,7 +52,7 @@ public sealed class AccessibilityAutomationTests
             var action = home.PrimaryActionButton(SlowFixtureItemName);
             Assert.Equal(ControlType.Button, action.ControlType);
             Assert.Equal("Install", action.Name);
-            action.Focus();
+            session.FocusForKeyboard(action);
             Keyboard.Type(VirtualKeyShort.SPACE);
 
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
@@ -81,7 +81,7 @@ public sealed class AccessibilityAutomationTests
 
             target.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
             target = home.WaitForItem(SlowFixtureItemName);
-            target.Focus();
+            session.FocusForKeyboard(target);
             Assert.Equal(SlowFixtureItemName, target.AutomationId);
 
             Keyboard.Type(VirtualKeyShort.ENTER);
@@ -100,14 +100,14 @@ public sealed class AccessibilityAutomationTests
             var home = new HomePageDriver(session);
             EnsureSlowFixtureAbsent(session, home);
             var action = home.PrimaryActionButton(SlowFixtureItemName);
-            action.Focus();
+            session.FocusForKeyboard(action);
             Keyboard.Type(VirtualKeyShort.ENTER);
             home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
             var operationId = home.OperationId(SlowFixtureItemName);
             Assert.False(string.IsNullOrWhiteSpace(operationId));
 
             var activityButton = session.WaitFor(() => ById(session, "ActivityNavigationButton"));
-            activityButton.Focus();
+            session.FocusForKeyboard(activityButton);
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
             var activityBack = session.WaitFor(() => ById(session, "ActivityBackButton"));
@@ -117,7 +117,7 @@ public sealed class AccessibilityAutomationTests
             var row = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
             row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
             row = activity.WaitForOperation(operationId);
-            row.Focus();
+            session.FocusForKeyboard(row);
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
 
@@ -174,7 +174,7 @@ public sealed class AccessibilityAutomationTests
             try
             {
                 var action = home.PrimaryActionButton(SlowFixtureItemName);
-                action.Focus();
+                session.FocusForKeyboard(action);
                 Keyboard.Type(VirtualKeyShort.ENTER);
                 home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
                 session.WaitUntil(

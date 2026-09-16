@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Exceptions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Xunit;
@@ -26,9 +27,10 @@ public sealed class KeyboardTraversalTests
                 Keyboard.Type(VirtualKeyShort.TAB);
                 Thread.Sleep(100);
                 var focused = FindFocusedElement(session);
-                if (focused is not null && !string.IsNullOrWhiteSpace(focused.AutomationId))
+                var automationId = focused is null ? string.Empty : SafeAutomationId(focused);
+                if (!string.IsNullOrWhiteSpace(automationId))
                 {
-                    visited.Add(focused.AutomationId);
+                    visited.Add(automationId);
                 }
                 if (visited.Contains("PrimaryActionButton", StringComparer.Ordinal))
                 {
@@ -78,6 +80,18 @@ public sealed class KeyboardTraversalTests
                     return false;
                 }
             });
+    }
+
+    private static string SafeAutomationId(AutomationElement element)
+    {
+        try
+        {
+            return element.AutomationId;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
     }
 
     private static AutomationElement? ById(GorillaAppSession session, string automationId)

@@ -2,160 +2,43 @@
     x:Class="Gorilla.UI.App.Views.ActivityPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Gorilla.UI.App.Controls"
     xmlns:converters="using:Gorilla.UI.App.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-
-    <Page.Resources>
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-    </Page.Resources>
-
-    <Grid
-        x:Name="ActivityRoot"
-        Padding="20"
-        RowDefinitions="Auto,*"
-        AutomationProperties.AutomationId="ActivityPageRoot"
-        AutomationProperties.Name="Activity">
+    <Page.Resources><converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" /></Page.Resources>
+    <Grid x:Name="ActivityRoot" Padding="20" RowDefinitions="Auto,*" AutomationProperties.AutomationId="ActivityPageRoot" AutomationProperties.Name="Activity">
         <Grid ColumnDefinitions="Auto,*,Auto">
-            <Button
-                x:Name="BackButton"
-                Content="Back"
-                Click="BackButton_Click"
-                AutomationProperties.AutomationId="ActivityBackButton"
-                AutomationProperties.Name="Back to catalog" />
-            <TextBlock
-                Grid.Column="1"
-                Margin="12,0,0,0"
-                Text="Activity"
-                FontSize="28"
-                FontWeight="SemiBold"
-                VerticalAlignment="Center"
-                AutomationProperties.AutomationId="ActivityHeading"
-                AutomationProperties.HeadingLevel="Level1" />
-            <Button
-                Grid.Column="2"
-                Content="Catalog"
-                Click="CatalogButton_Click"
-                AutomationProperties.AutomationId="CatalogNavigationButton"
-                AutomationProperties.Name="Catalog" />
+            <Button x:Name="BackButton" Content="Back" Click="BackButton_Click" AutomationProperties.AutomationId="ActivityBackButton" AutomationProperties.Name="Back to catalog" />
+            <TextBlock Grid.Column="1" Margin="12,0,0,0" Text="Activity" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.AutomationId="ActivityHeading" AutomationProperties.HeadingLevel="Level1" />
+            <Button Grid.Column="2" Content="Catalog" Click="CatalogButton_Click" AutomationProperties.AutomationId="CatalogNavigationButton" AutomationProperties.Name="Catalog" />
         </Grid>
-
         <Grid Grid.Row="1" Margin="0,14,0,0">
-            <ListView
-                x:Name="ActivityItems"
-                ItemsSource="{Binding ActivityItems}"
-                SelectionMode="None"
-                IsItemClickEnabled="True"
-                ItemClick="ActivityItems_ItemClick"
-                ContainerContentChanging="ActivityItems_ContainerContentChanging"
-                AutomationProperties.AutomationId="ActivityItems"
-                AutomationProperties.Name="Recent activity">
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Margin" Value="0,0,0,8" />
-                    </Style>
-                </ListView.ItemContainerStyle>
+            <ListView x:Name="ActivityItems" ItemsSource="{Binding ActivityItems}" SelectionMode="None" IsItemClickEnabled="True" ItemClick="ActivityItems_ItemClick" ContainerContentChanging="ActivityItems_ContainerContentChanging" AutomationProperties.AutomationId="ActivityItems" AutomationProperties.Name="Recent activity">
+                <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Margin" Value="0,0,0,8" /></Style></ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Border
-                            Padding="14"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
+                        <Border Padding="14" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                             <StackPanel Spacing="7">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock
-                                        Text="{Binding DisplayName}"
-                                        FontSize="17"
-                                        FontWeight="SemiBold"
-                                        TextWrapping="Wrap"
-                                        Tapped="ActivityApp_Tapped"
-                                        AutomationProperties.AutomationId="{Binding AppAutomationId}"
-                                        AutomationProperties.Name="{Binding DisplayName}" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        Text="{Binding TimestampText}"
-                                        Opacity="0.65"
-                                        FontSize="12" />
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" Tapped="ActivityApp_Tapped" AutomationProperties.AutomationId="{Binding AppAutomationId}" AutomationProperties.Name="{Binding DisplayName}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding TimestampText}" Opacity="0.65" FontSize="12" />
                                 </Grid>
-
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock
-                                        Text="{Binding ActionLabel}"
-                                        FontWeight="SemiBold"
-                                        AutomationProperties.AutomationId="{Binding ActionAutomationId}" />
-                                    <TextBlock
-                                        Text="{Binding StateText}"
-                                        AutomationProperties.AutomationId="{Binding StateAutomationId}"
-                                        AutomationProperties.Name="{Binding StateText}"
-                                        AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock Text="{Binding ActionLabel}" FontWeight="SemiBold" AutomationProperties.AutomationId="{Binding ActionAutomationId}" />
+                                    <controls:LiveRegionTextBlock Text="{Binding StateText}" AutomationProperties.AutomationId="{Binding StateAutomationId}" AutomationProperties.Name="{Binding StateText}" AutomationProperties.LiveSetting="Polite" />
                                 </StackPanel>
-
-                                <ProgressBar
-                                    Minimum="0"
-                                    Maximum="100"
-                                    Value="{Binding ProgressValue}"
-                                    IsIndeterminate="{Binding IsProgressIndeterminate}"
-                                    Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    AutomationProperties.AutomationId="{Binding ProgressAutomationId}"
-                                    AutomationProperties.Name="Operation progress" />
-
-                                <TextBlock
-                                    Text="{Binding DetailText}"
-                                    TextWrapping="Wrap"
-                                    Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    AutomationProperties.AutomationId="{Binding DetailAutomationId}" />
-
-                                <StackPanel
-                                    Spacing="6"
-                                    Visibility="{Binding HasRecovery, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock
-                                        Text="{Binding FailureTitle}"
-                                        FontWeight="SemiBold"
-                                        TextWrapping="Wrap"
-                                        AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}"
-                                        AutomationProperties.Name="{Binding FailureTitle}" />
-                                    <TextBlock
-                                        Text="{Binding FailureMessage}"
-                                        TextWrapping="Wrap"
-                                        Visibility="{Binding HasFailureMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                    <Button
-                                        Content="{Binding RetryLabel}"
-                                        HorizontalAlignment="Left"
-                                        Click="RetryButton_Click"
-                                        Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        AutomationProperties.AutomationId="{Binding RetryAutomationId}"
-                                        AutomationProperties.Name="Retry operation" />
-                                    <TextBlock
-                                        Text="{Binding RetryAttemptFeedback}"
-                                        TextWrapping="Wrap"
-                                        Visibility="{Binding HasRetryAttemptFeedback, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        AutomationProperties.AutomationId="{Binding RetryAttemptFeedbackAutomationId}"
-                                        AutomationProperties.Name="{Binding RetryAttemptFeedback}"
-                                        AutomationProperties.LiveSetting="Polite" />
-                                    <TextBlock
-                                        Text="{Binding RetryUnavailableReason}"
-                                        TextWrapping="Wrap"
-                                        Opacity="0.75"
-                                        Visibility="{Binding HasRetryUnavailableReason, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        AutomationProperties.AutomationId="{Binding RetryUnavailableAutomationId}" />
-                                    <Expander
-                                        Header="Technical details"
-                                        Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        AutomationProperties.AutomationId="{Binding TechnicalDetailsAutomationId}"
-                                        AutomationProperties.Name="Operation technical details">
-                                        <TextBox
-                                            Text="{Binding TechnicalDetails}"
-                                            IsReadOnly="True"
-                                            AcceptsReturn="True"
-                                            TextWrapping="Wrap"
-                                            BorderThickness="0"
-                                            Background="Transparent"
-                                            AutomationProperties.AutomationId="{Binding TechnicalDetailsContentAutomationId}"
-                                            AutomationProperties.Name="Operation technical details content" />
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" IsIndeterminate="{Binding IsProgressIndeterminate}" Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding ProgressAutomationId}" AutomationProperties.Name="Operation progress" />
+                                <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding DetailAutomationId}" />
+                                <StackPanel Spacing="6" Visibility="{Binding HasRecovery, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding FailureTitle}" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.AutomationId="{Binding FailureTitleAutomationId}" AutomationProperties.Name="{Binding FailureTitle}" />
+                                    <TextBlock Text="{Binding FailureMessage}" TextWrapping="Wrap" Visibility="{Binding HasFailureMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <Button Content="{Binding RetryLabel}" HorizontalAlignment="Left" Click="RetryButton_Click" Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding RetryAutomationId}" AutomationProperties.Name="Retry operation" />
+                                    <controls:LiveRegionTextBlock Text="{Binding RetryAttemptFeedback}" TextWrapping="Wrap" Visibility="{Binding HasRetryAttemptFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding RetryAttemptFeedbackAutomationId}" AutomationProperties.Name="{Binding RetryAttemptFeedback}" AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock Text="{Binding RetryUnavailableReason}" TextWrapping="Wrap" Opacity="0.75" Visibility="{Binding HasRetryUnavailableReason, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding RetryUnavailableAutomationId}" />
+                                    <Expander Header="Technical details" Visibility="{Binding HasTechnicalDetails, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding TechnicalDetailsAutomationId}" AutomationProperties.Name="Operation technical details">
+                                        <TextBox Text="{Binding TechnicalDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AutomationProperties.AutomationId="{Binding TechnicalDetailsContentAutomationId}" AutomationProperties.Name="Operation technical details content" />
                                     </Expander>
                                 </StackPanel>
                             </StackPanel>
@@ -163,25 +46,9 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
-
-            <StackPanel
-                x:Name="ActivityEmpty"
-                Visibility="Collapsed"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="4"
-                AutomationProperties.AutomationId="ActivityEmptyState"
-                AutomationProperties.Name="No recent activity">
-                <TextBlock
-                    Text="No recent activity"
-                    FontSize="20"
-                    FontWeight="SemiBold"
-                    HorizontalAlignment="Center" />
-                <TextBlock
-                    Text="Installs, updates, and removals will appear here."
-                    Opacity="0.7"
-                    TextWrapping="Wrap"
-                    HorizontalAlignment="Center" />
+            <StackPanel x:Name="ActivityEmpty" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4" AutomationProperties.AutomationId="ActivityEmptyState" AutomationProperties.Name="No recent activity">
+                <TextBlock Text="No recent activity" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="Installs, updates, and removals will appear here." Opacity="0.7" TextWrapping="Wrap" HorizontalAlignment="Center" />
             </StackPanel>
         </Grid>
     </Grid>

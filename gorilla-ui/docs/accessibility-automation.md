@@ -10,12 +10,13 @@ Gorilla uses normal WinUI keyboard behavior rather than a custom navigation engi
 - Arrow-key movement within `GridView` / `ListView` remains framework-owned.
 - Activating a catalog item with Enter or Space opens Details through `GridView.ItemClick`.
 - Embedded card action buttons are independent focus targets. Enter or Space invokes that button only; the action must not also activate the containing card.
+- When an invoked card action is focused and starting the operation will disable or replace that control, focus moves to the containing catalog item so the user remains in the same logical app context instead of being sent to an unrelated shell control.
 - Catalog item identity is always the canonical `ItemName`, including after `GridView` virtualization or container recycling.
 - Catalog → Details gives predictable entry focus to `DetailsBackButton`.
 - Details → Catalog restores focus to the originating `ItemName` when it still exists. If it no longer exists, focus falls back to `CatalogSearchBox`.
 - Catalog → Activity gives predictable entry focus to `ActivityBackButton`.
 - Activity → Details records the originating `OperationId`; back navigation restores focus to that logical Activity row when it still exists, otherwise to `ActivityBackButton`.
-- Catalog reconciliation and operation-state presentation must not deliberately move focus merely because data or a live region changed.
+- Catalog reconciliation and operation-state presentation must not deliberately move focus merely because data or a live region changed. The focused-action handoff above is the narrow exception because the focused control itself is becoming unavailable.
 
 ## Accessible semantics and announcements
 

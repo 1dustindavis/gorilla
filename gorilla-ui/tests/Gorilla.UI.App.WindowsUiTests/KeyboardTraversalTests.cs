@@ -19,15 +19,19 @@ public sealed class KeyboardTraversalTests
             var home = new HomePageDriver(session);
             _ = home.WaitForItem(FixtureItemName);
             var refresh = session.WaitFor(() => ById(session, "CatalogRefreshButton"));
-            refresh.Focus();
+            session.FocusForKeyboard(refresh);
 
             var visited = new List<string>();
             for (var i = 0; i < 14; i++)
             {
                 Keyboard.Type(VirtualKeyShort.TAB);
                 Thread.Sleep(100);
-                var focused = FindFocusedElement(session);
-                var automationId = focused is null ? string.Empty : SafeAutomationId(focused);
+
+                // Ask UI Automation for the actual system-focused element. Scanning
+                // descendants for HasKeyboardFocus is unreliable with WinUI because
+                // the property is not guaranteed to be materialized on every proxy.
+                var focused = session.FocusedElement();
+                var automationId = SafeAutomationId(focused);
                 if (!string.IsNullOrWhiteSpace(automationId))
                 {
                     visited.Add(automationId);
@@ -63,23 +67,6 @@ public sealed class KeyboardTraversalTests
             }
         }
         return -1;
-    }
-
-    private static AutomationElement? FindFocusedElement(GorillaAppSession session)
-    {
-        return session.MainWindow
-            .FindAllDescendants()
-            .FirstOrDefault(element =>
-            {
-                try
-                {
-                    return element.Properties.HasKeyboardFocus.ValueOrDefault;
-                }
-                catch
-                {
-                    return false;
-                }
-            });
     }
 
     private static string SafeAutomationId(AutomationElement element)

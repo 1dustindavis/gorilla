@@ -126,21 +126,22 @@
                                         Visibility="{Binding CardPresentation.HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         AutomationProperties.AutomationId="CatalogOperation"
                                         AutomationProperties.Name="{Binding CardPresentation.OperationText}"
-                                        AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}"
-                                        AutomationProperties.LiveSetting="Polite">
+                                        AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}">
                                         <ProgressRing
                                             Width="15"
                                             Height="15"
                                             Margin="0,1,0,0"
                                             IsActive="{Binding CardPresentation.HasOperation}"
                                             IsIndeterminate="{Binding CardPresentation.IsProgressIndeterminate}"
-                                            Value="{Binding CardPresentation.ProgressValue}" />
+                                            Value="{Binding CardPresentation.ProgressValue}"
+                                            AutomationProperties.Name="Operation progress" />
                                         <TextBlock
                                             Text="{Binding CardPresentation.OperationText}"
                                             FontSize="13"
                                             TextWrapping="WrapWholeWords"
                                             TextTrimming="CharacterEllipsis"
-                                            MaxLines="2" />
+                                            MaxLines="2"
+                                            AutomationProperties.LiveSetting="Polite" />
                                     </StackPanel>
 
                                     <TextBlock
@@ -168,14 +169,16 @@
                                         Visibility="{Binding CardPresentation.HasPrimaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         Style="{StaticResource AccentButtonStyle}"
                                         Click="ActionButton_Click"
-                                        AutomationProperties.AutomationId="PrimaryActionButton" />
+                                        AutomationProperties.AutomationId="PrimaryActionButton"
+                                        AutomationProperties.Name="{Binding CardPresentation.PrimaryAction.Label}" />
                                     <Button
                                         Content="{Binding CardPresentation.SecondaryAction.Label}"
                                         Tag="{Binding CardPresentation.SecondaryAction.Kind}"
                                         IsEnabled="{Binding CardPresentation.SecondaryAction.Enabled}"
                                         Visibility="{Binding CardPresentation.HasSecondaryAction, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         Click="ActionButton_Click"
-                                        AutomationProperties.AutomationId="SecondaryActionButton" />
+                                        AutomationProperties.AutomationId="SecondaryActionButton"
+                                        AutomationProperties.Name="{Binding CardPresentation.SecondaryAction.Label}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -188,7 +191,7 @@
                 Visibility="Collapsed"
                 HorizontalAlignment="Left"
                 Spacing="10">
-                <ProgressRing Width="28" Height="28" IsActive="True" />
+                <ProgressRing Width="28" Height="28" IsActive="True" AutomationProperties.Name="Loading App Catalog" />
                 <TextBlock
                     Text="Loading App Catalog…"
                     FontSize="18"
@@ -206,7 +209,8 @@
                     FontSize="18"
                     FontWeight="SemiBold"
                     AutomationProperties.AutomationId="CatalogLoadFailed"
-                    AutomationProperties.LiveSetting="Polite" />
+                    AutomationProperties.Name="Couldn't load the App Catalog"
+                    AutomationProperties.LiveSetting="Assertive" />
                 <TextBlock
                     x:Name="NoCachedDataText"
                     Text="Gorilla can't reach the catalog service, and no saved catalog is available."

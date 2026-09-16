@@ -45,11 +45,26 @@ public sealed class KeyboardTraversalTests
             Assert.Equal(ControlType.Button, action.ControlType);
 
             // Repeated child IDs are intentionally scoped by their stable ItemName
-            // container. Verify the focused action belongs to the card reached by the
-            // immediately preceding Tab rather than assuming fixture/catalog order.
-            var focusedCard = home.WaitForItem(itemName);
-            Assert.NotNull(focusedCard.FindFirstDescendant(cf => cf.ByAutomationId("PrimaryActionButton")));
+            // container. Prove the actual focused action is descended from the exact
+            // card reached by the immediately preceding Tab.
+            var actionCard = FindListItemAncestor(action);
+            Assert.NotNull(actionCard);
+            Assert.Equal(itemName, SafeAutomationId(actionCard!));
         });
+    }
+
+    private static AutomationElement? FindListItemAncestor(AutomationElement element)
+    {
+        var current = element.Parent;
+        while (current is not null)
+        {
+            if (current.ControlType == ControlType.ListItem)
+            {
+                return current;
+            }
+            current = current.Parent;
+        }
+        return null;
     }
 
     private static AutomationElement WaitForFocused(GorillaAppSession session, string automationId)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.Client;
@@ -37,6 +38,7 @@ public sealed partial class HomePage : Page
         await RunSafelyAsync(_session.EnsureInitializedAsync);
         UpdateEmptyStates();
         UpdateCardWidths(CatalogItems.ActualWidth);
+        RestoreNavigationFocus();
     }
 
     private void HomePage_Unloaded(object sender, RoutedEventArgs e)
@@ -151,6 +153,7 @@ public sealed partial class HomePage : Page
             return;
         }
 
+        NavigationFocusState.RememberCatalogItem(item.ItemName);
         Frame.Navigate(typeof(AppDetailsPage), item.ItemName);
     }
 
@@ -175,6 +178,52 @@ public sealed partial class HomePage : Page
         const double maximumCardWidth = 340;
         var columns = Math.Max(1, (int)Math.Floor(availableWidth / minimumCardWidth));
         panel.ItemWidth = Math.Max(1, Math.Min(maximumCardWidth, availableWidth / columns));
+    }
+
+    private void RestoreNavigationFocus()
+    {
+        var requestedItemName = NavigationFocusState.ConsumeCatalogItem();
+        var fallbackRequested = NavigationFocusState.ConsumeCatalogFallbackRequest();
+        if (string.IsNullOrWhiteSpace(requestedItemName))
+        {
+            if (fallbackRequested)
+            {
+                SearchBox.Focus(FocusState.Programmatic);
+            }
+            return;
+        }
+
+        var item = ViewModel.Items.FirstOrDefault(candidate =>
+            string.Equals(candidate.ItemName, requestedItemName, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            SearchBox.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        CatalogItems.ScrollIntoView(item);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (CatalogItems.ContainerFromItem(item) is GridViewItem container)
+            {
+                container.Focus(FocusState.Programmatic);
+                return;
+            }
+
+            // The logical item can survive a refresh while its container is still
+            // being realized. A second dispatcher turn lets GridView finish recycling.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (CatalogItems.ContainerFromItem(item) is GridViewItem realized)
+                {
+                    realized.Focus(FocusState.Programmatic);
+                }
+                else
+                {
+                    SearchBox.Focus(FocusState.Programmatic);
+                }
+            });
+        });
     }
 
     private async void ActionButton_Click(object sender, RoutedEventArgs e)

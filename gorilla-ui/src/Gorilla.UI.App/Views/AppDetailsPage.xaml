@@ -11,7 +11,7 @@
     <Page.Resources><converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" /></Page.Resources>
 
     <Grid RowDefinitions="Auto,*">
-        <Button x:Name="BackButton" Margin="20,16,20,0" HorizontalAlignment="Left" Click="BackButton_Click" AutomationProperties.AutomationId="DetailsBackButton" AutomationProperties.Name="Back to catalog">
+        <Button x:Name="BackButton" Margin="20,16,20,0" HorizontalAlignment="Left" Click="BackButton_Click" AutomationProperties.AutomationId="DetailsBackButton" AutomationProperties.Name="Back">
             <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE72B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" /><TextBlock Text="Back" /></StackPanel>
         </Button>
         <ScrollViewer Grid.Row="1" AutomationProperties.AutomationId="AppDetailsRoot" AutomationProperties.Name="App details">
@@ -30,14 +30,14 @@
                     <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasActiveOperation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsActiveOperation" AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationTitle}" AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}">
                         <StackPanel Spacing="7">
                             <TextBlock Text="{Binding DetailsPresentation.ActiveOperationTitle}" FontSize="17" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding DetailsPresentation.ActiveOperationState}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationState}" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock Text="{Binding DetailsPresentation.ActiveOperationState}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="DetailsActiveOperationAnnouncement" AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationAnnouncement}" AutomationProperties.LiveSetting="Polite" />
                             <TextBlock Text="{Binding DetailsPresentation.ActiveOperationMessage}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasActiveOperationMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding DetailsPresentation.ProgressValue}" IsIndeterminate="{Binding DetailsPresentation.IsProgressIndeterminate}" AutomationProperties.Name="Operation progress" />
                         </StackPanel>
                     </Border>
                     <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasLatestResult, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsLatestResult" AutomationProperties.Name="{Binding DetailsPresentation.LatestFailureTitle}">
                         <StackPanel Spacing="7">
-                            <TextBlock Text="{Binding DetailsPresentation.LatestFailureTitle}" FontSize="16" FontWeight="SemiBold" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestFailureTitleAutomationId}" AutomationProperties.Name="{Binding DetailsPresentation.LatestFailureTitle}" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock Text="{Binding DetailsPresentation.LatestFailureTitle}" FontSize="16" FontWeight="SemiBold" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestFailureTitleAutomationId}" AutomationProperties.Name="{Binding DetailsPresentation.LatestResultAnnouncement}" AutomationProperties.LiveSetting="Polite" />
                             <TextBlock Text="{Binding DetailsPresentation.LatestFailureMessage}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasLatestFailureMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Button Content="{Binding DetailsPresentation.RetryLabel}" HorizontalAlignment="Left" Click="RetryButton_Click" Visibility="{Binding DetailsPresentation.CanRetryLatest, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestRetryAutomationId}" AutomationProperties.Name="Retry latest operation" />
                             <TextBlock Text="{Binding DetailsPresentation.RetryUnavailableReason}" TextWrapping="Wrap" Opacity="0.75" Visibility="{Binding DetailsPresentation.HasRetryUnavailableReason, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="{Binding DetailsPresentation.LatestRetryUnavailableAutomationId}" />

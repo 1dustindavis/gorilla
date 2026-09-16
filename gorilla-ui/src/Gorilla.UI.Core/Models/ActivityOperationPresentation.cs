@@ -76,6 +76,20 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         ? OperationDisplay.Details(Result)
         : Message;
 
+    public string AnnouncementText
+    {
+        get
+        {
+            var title = HasRecovery ? FailureTitle : StateText;
+            var detail = HasRecovery ? FailureMessage : DetailText;
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                return title;
+            }
+            return $"{title}. {detail.Trim()}";
+        }
+    }
+
     public string TimestampText => TimestampUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
 
     public string EntryAutomationId => $"ActivityOperation-{OperationId}";
@@ -108,6 +122,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         OnPropertyChanged(nameof(RetryLabel));
         OnPropertyChanged(nameof(RetryUnavailableReason));
         OnPropertyChanged(nameof(TechnicalDetails));
+        OnPropertyChanged(nameof(AnnouncementText));
     }
 
     internal void SetRetryAttemptFeedback(string? feedback)
@@ -145,6 +160,7 @@ public sealed class ActivityOperationPresentation : INotifyPropertyChanged
         OnPropertyChanged(nameof(DetailText));
         OnPropertyChanged(nameof(HasDetail));
         OnPropertyChanged(nameof(TimestampText));
+        OnPropertyChanged(nameof(AnnouncementText));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

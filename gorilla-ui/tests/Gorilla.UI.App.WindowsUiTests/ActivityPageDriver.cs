@@ -43,7 +43,14 @@ internal sealed class ActivityPageDriver
         );
     }
 
+    // StateText intentionally exposes the coarse visual state used by the legacy
+    // behavior tests. Stage 7 gives the same live TextBlock a richer UIA Name that
+    // combines state/outcome and detail; accessibility tests assert that semantic
+    // Name directly instead of conflating it with the visible coarse state.
     public string StateText(string operationId)
+        => CoarseState(NameOfDescendant(operationId, $"ActivityState-{operationId}"));
+
+    public string SemanticStateText(string operationId)
         => NameOfDescendant(operationId, $"ActivityState-{operationId}");
 
     public string ActionText(string operationId)
@@ -53,6 +60,9 @@ internal sealed class ActivityPageDriver
         => NameOfDescendant(operationId, $"ActivityDetail-{operationId}");
 
     public string FailureTitle(string operationId)
+        => LeadingSentence(NameOfDescendant(operationId, $"ActivityFailureTitle-{operationId}"));
+
+    public string SemanticFailureTitle(string operationId)
         => NameOfDescendant(operationId, $"ActivityFailureTitle-{operationId}");
 
     public string RetryAttemptFeedback(string operationId)
@@ -112,11 +122,6 @@ internal sealed class ActivityPageDriver
                     return false;
                 }
 
-                // Existing Stage 6 callers use this helper to inspect a retryable
-                // retained failure immediately after creating it. Older retained rows
-                // may carry the same detail while a new operation is still active,
-                // which temporarily suppresses Retry for those rows. Wait for the
-                // matching retryable row instead of returning stale text identity.
                 var operationId = OperationId(item);
                 return !string.IsNullOrWhiteSpace(operationId)
                     && item.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
@@ -165,9 +170,6 @@ internal sealed class ActivityPageDriver
         {
             var entry = ScrollOperationIntoView(operationId);
 
-            // An expanded technical-details disclosure changes the ListView item's
-            // realized layout and can consume the pointer interaction intended for the
-            // app title. Normalize that known state before attempting row navigation.
             var technicalDetails = entry.FindFirstDescendant(
                 cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}")
             );
@@ -192,9 +194,6 @@ internal sealed class ActivityPageDriver
             }
             catch (TimeoutException) when (stopwatch.Elapsed < timeout)
             {
-                // Match HomePageDriver's established WinUI/FlaUI boundary: pointer
-                // delivery can race ListView settling after ScrollIntoView. Reacquire
-                // the current row and retry the same non-action target.
             }
         }
 
@@ -214,9 +213,6 @@ internal sealed class ActivityPageDriver
         var entry = WaitForOperation(operationId);
         entry.AsListBoxItem().ScrollIntoView();
 
-        // ScrollIntoView can cause WinUI ListView virtualization to recycle the
-        // realized container and its descendants. Do not keep using the pre-scroll
-        // automation proxy: wait for, and then return, the currently realized row.
         _session.WaitUntil(() =>
         {
             var realized = Items.FindFirstDescendant(
@@ -244,6 +240,33 @@ internal sealed class ActivityPageDriver
 
     private AutomationElement? ById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+
+    private static string CoarseState(string semanticName)
+    {
+        if (semanticName.StartsWith("Installation failed", StringComparison.OrdinalIgnoreCase) ||
+            semanticName.StartsWith("Removal failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Failed";
+        }
+
+        if (semanticName.Contains("couldn't be verified", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Unverified";
+        }
+
+        if (semanticName.Contains("was interrupted", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Interrupted";
+        }
+
+        return LeadingSentence(semanticName);
+    }
+
+    private static string LeadingSentence(string value)
+    {
+        var separator = value.IndexOf(". ", StringComparison.Ordinal);
+        return separator < 0 ? value : value[..separator];
+    }
 
     private static string SafeName(AutomationElement element)
     {

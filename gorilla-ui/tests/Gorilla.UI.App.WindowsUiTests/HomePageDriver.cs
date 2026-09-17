@@ -2,6 +2,8 @@ using System.Diagnostics;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Exceptions;
+using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
 
 namespace Gorilla.UI.App.WindowsUiTests;
 
@@ -43,36 +45,36 @@ internal sealed class HomePageDriver
     {
         var timeout = TimeSpan.FromSeconds(30);
         var stopwatch = Stopwatch.StartNew();
+        Exception? lastError = null;
 
         while (stopwatch.Elapsed < timeout)
         {
-            EnsureItemVisible(itemName);
-            var item = WaitForItem(itemName);
-            var nonActionTarget = _session.WaitFor(
-                () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
-            );
-
             try
             {
-                nonActionTarget.Click();
+                // Activate the GridViewItem through the same stable focus/keyboard
+                // contract the product exposes to users. Child TextBlock UIA peers can
+                // be realized and on-screen while still lacking a FlaUI clickable point.
+                var item = WaitForItem(itemName);
+                item.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+                _session.FocusForKeyboard(item, TimeSpan.FromSeconds(5));
+                Keyboard.Type(VirtualKeyShort.SPACE);
+
                 _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
                 return;
             }
-            catch (NoClickablePointException) when (stopwatch.Elapsed < timeout)
+            catch (TimeoutException ex)
             {
-                // WinUI can report a realized, on-screen TextBlock through UIA before
-                // FlaUI can obtain a clickable point for that particular automation
-                // proxy. Reacquire the current virtualized item and non-action target.
-            }
-            catch (TimeoutException) when (stopwatch.Elapsed < timeout)
-            {
-                // Pointer delivery can race GridView settling after ScrollIntoView/focus.
-                // Reacquire the current realized card and retry the same non-action target.
+                // Reacquire the virtualized container and retry until the outer
+                // deadline. Do not filter this catch on elapsed time: an inner wait
+                // can cross the deadline, and the helper should still fail with its
+                // deterministic navigation timeout rather than leaking that transient.
+                lastError = ex;
             }
         }
 
         throw new TimeoutException(
-            $"Timed out after {timeout.TotalSeconds:n0}s opening details for '{itemName}'."
+            $"Timed out after {timeout.TotalSeconds:n0}s opening details for '{itemName}'.",
+            lastError
         );
     }
 

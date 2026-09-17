@@ -41,8 +41,6 @@ public sealed class VirtualizedFocusRestorationTests
                     ?? throw new InvalidOperationException("Catalog refresh button was not found.");
                 refresh.AsButton().Invoke();
 
-                // Prove the service has consumed the temporary catalog without using
-                // the deep full-list container as our navigation mechanism.
                 home.Search($"ZZ Virtualization Fixture {CatalogExpansionCount:00}");
                 _ = session.WaitFor(() => home.HasItem(targetItemName) ? home.WaitForItem(targetItemName) : null, TimeSpan.FromSeconds(30));
                 home.Search(string.Empty);
@@ -51,8 +49,6 @@ public sealed class VirtualizedFocusRestorationTests
                 first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
                 first = home.WaitForItem(BasicFixtureItemName);
 
-                // With 30 extra cards, the last logical item must not already have a
-                // realized UIA container when the viewport is back at the beginning.
                 session.WaitUntil(
                     () => home.CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(targetItemName)) is null,
                     TimeSpan.FromSeconds(5)
@@ -60,7 +56,7 @@ public sealed class VirtualizedFocusRestorationTests
 
                 session.FocusForKeyboard(first);
                 Keyboard.Type(VirtualKeyShort.END);
-                var deepCard = session.WaitFor(() =>
+                _ = session.WaitFor(() =>
                 {
                     var focused = session.FocusedElement();
                     return string.Equals(focused.AutomationId, targetItemName, StringComparison.Ordinal)
@@ -110,6 +106,15 @@ public sealed class VirtualizedFocusRestorationTests
                 session.WaitUntil(() => action.IsEnabled, TimeSpan.FromSeconds(30));
                 action.Invoke();
 
+                // Terminal failures leave the in-progress CatalogOperationStatus surface
+                // and are projected through CatalogTerminalFeedback. Wait for that real
+                // terminal presentation before capturing the service-owned OperationId.
+                home.WaitForTerminalFeedbackContaining(
+                    FailureFixtureItemName,
+                    "Installation error: exit status 7",
+                    TimeSpan.FromSeconds(60)
+                );
+
                 var operationId = session.WaitFor(() =>
                 {
                     var candidate = home.OperationId(FailureFixtureItemName);
@@ -119,11 +124,8 @@ public sealed class VirtualizedFocusRestorationTests
                         return null;
                     }
 
-                    return home.OperationText(FailureFixtureItemName)
-                        .Contains("failed", StringComparison.OrdinalIgnoreCase)
-                            ? candidate
-                            : null;
-                }, TimeSpan.FromSeconds(60));
+                    return candidate;
+                }, TimeSpan.FromSeconds(30));
 
                 createdOperationIds.Add(operationId);
                 previousOperationId = operationId;
@@ -140,9 +142,6 @@ public sealed class VirtualizedFocusRestorationTests
             var newest = activity.WaitForOperation(newestId, TimeSpan.FromSeconds(30));
             session.FocusForKeyboard(newest);
 
-            // Walk through the ten newly retained rows using real keyboard ListView
-            // navigation. This necessarily scrolls/recycles the viewport on the compact
-            // CI window before reaching our oldest generated operation.
             for (var i = 1; i < ActivityOperationCount; i++)
             {
                 Keyboard.Type(VirtualKeyShort.DOWN);

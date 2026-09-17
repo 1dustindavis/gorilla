@@ -51,12 +51,18 @@ internal sealed class HomePageDriver
             var nonActionTarget = _session.WaitFor(
                 () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
             );
-            nonActionTarget.Click();
 
             try
             {
+                nonActionTarget.Click();
                 _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
                 return;
+            }
+            catch (NoClickablePointException) when (stopwatch.Elapsed < timeout)
+            {
+                // WinUI can report a realized, on-screen TextBlock through UIA before
+                // FlaUI can obtain a clickable point for that particular automation
+                // proxy. Reacquire the current virtualized item and non-action target.
             }
             catch (TimeoutException) when (stopwatch.Elapsed < timeout)
             {
@@ -93,7 +99,23 @@ internal sealed class HomePageDriver
 
     public string OperationText(string itemName)
     {
-        var operation = FindOperation(itemName);
+        var item = FindItem(itemName);
+        if (item is null)
+        {
+            return string.Empty;
+        }
+
+        // Stage 7 makes the smallest status TextBlock the stable/live UIA surface.
+        // Read that element directly instead of relying on the containing Group's
+        // derived accessible Name, which WinUI may cache across bound state changes.
+        var status = item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperationStatus"));
+        if (status is not null)
+        {
+            return SafeName(status);
+        }
+
+        // Backward-compatible fallback for older UI builds/tests.
+        var operation = item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
         return operation is null ? string.Empty : SafeName(operation);
     }
 
@@ -105,8 +127,7 @@ internal sealed class HomePageDriver
 
     public string TerminalFeedbackText(string itemName)
     {
-        var catalog = ById("CatalogItems");
-        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var item = FindItem(itemName);
         var feedback = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogTerminalFeedback"));
         return feedback is null ? string.Empty : SafeName(feedback);
     }
@@ -184,17 +205,21 @@ internal sealed class HomePageDriver
 
     public static string AutomationName(AutomationElement element) => SafeName(element);
 
-    private AutomationElement? FindOperation(string itemName)
+    private AutomationElement? FindItem(string itemName)
     {
         var catalog = ById("CatalogItems");
-        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        return catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+    }
+
+    private AutomationElement? FindOperation(string itemName)
+    {
+        var item = FindItem(itemName);
         return item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogOperation"));
     }
 
     private string? TryItemStatus(string itemName)
     {
-        var catalog = ById("CatalogItems");
-        var item = catalog?.FindFirstDescendant(cf => cf.ByAutomationId(itemName));
+        var item = FindItem(itemName);
         var status = item?.FindFirstDescendant(cf => cf.ByAutomationId("CatalogObservation"));
         return status is null ? null : SafeName(status);
     }

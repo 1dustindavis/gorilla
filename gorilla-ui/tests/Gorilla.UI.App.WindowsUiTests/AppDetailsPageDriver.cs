@@ -26,8 +26,13 @@ internal sealed class AppDetailsPageDriver
     public string InstalledVersion => OptionalText("DetailsInstalledVersion");
     public string ActiveOperation => OptionalText("DetailsActiveOperation");
     public string ActiveOperationId => OptionalHelpText("DetailsActiveOperation");
+    public string ActiveOperationAnnouncement => OptionalName("DetailsActiveOperationAnnouncement");
     public string LatestResult => OptionalText("DetailsLatestResult");
     public string LatestResultHeading => OptionalName("DetailsLatestResult");
+    public string LatestFailureAnnouncement => SafeName(
+        _session.WaitFor(() => Root.FindAllDescendants()
+            .FirstOrDefault(element => SafeAutomationId(element).StartsWith("DetailsFailureTitle-", StringComparison.Ordinal)))
+    );
     public string ActionExplanation => OptionalText("DetailsActionExplanation");
 
     public Button SecondaryAction => WaitById("DetailsSecondaryAction").AsButton();
@@ -58,7 +63,13 @@ internal sealed class AppDetailsPageDriver
     public bool HasRetryButton(string operationId)
         => FindById($"DetailsRetry-{operationId}") is not null;
 
+    // Behavior tests use the visible coarse title. The same TextBlock intentionally
+    // exposes a richer semantic UIA Name for Stage 7 live announcements; callers that
+    // need that accessibility contract use SemanticFailureTitle/LatestFailureAnnouncement.
     public string FailureTitle(string operationId)
+        => LeadingSentence(OptionalName($"DetailsFailureTitle-{operationId}"));
+
+    public string SemanticFailureTitle(string operationId)
         => OptionalName($"DetailsFailureTitle-{operationId}");
 
     public string RetryUnavailableText(string operationId)
@@ -102,6 +113,24 @@ internal sealed class AppDetailsPageDriver
     {
         var element = FindById(automationId);
         return element is null ? string.Empty : SafeHelpText(element);
+    }
+
+    private static string LeadingSentence(string value)
+    {
+        var separator = value.IndexOf(". ", StringComparison.Ordinal);
+        return separator < 0 ? value : value[..separator];
+    }
+
+    private static string SafeAutomationId(AutomationElement element)
+    {
+        try
+        {
+            return element.AutomationId;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
+        }
     }
 
     private static string SafeName(AutomationElement element)

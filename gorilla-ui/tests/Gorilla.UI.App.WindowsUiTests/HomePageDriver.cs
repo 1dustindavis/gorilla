@@ -51,12 +51,18 @@ internal sealed class HomePageDriver
             var nonActionTarget = _session.WaitFor(
                 () => item.FindFirstDescendant(cf => cf.ByAutomationId("CatalogDisplayName"))
             );
-            nonActionTarget.Click();
 
             try
             {
+                nonActionTarget.Click();
                 _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
                 return;
+            }
+            catch (NoClickablePointException) when (stopwatch.Elapsed < timeout)
+            {
+                // WinUI can report a realized, on-screen TextBlock through UIA before
+                // FlaUI can obtain a clickable point for that particular automation
+                // proxy. Reacquire the current virtualized item and non-action target.
             }
             catch (TimeoutException) when (stopwatch.Elapsed < timeout)
             {

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Exceptions;
+using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
 
 namespace Gorilla.UI.App.WindowsUiTests;
 
@@ -165,40 +167,45 @@ internal sealed class ActivityPageDriver
     {
         var timeout = TimeSpan.FromSeconds(30);
         var stopwatch = Stopwatch.StartNew();
+        Exception? lastError = null;
 
         while (stopwatch.Elapsed < timeout)
         {
-            var entry = ScrollOperationIntoView(operationId);
-
-            var technicalDetails = entry.FindFirstDescendant(
-                cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}")
-            );
-            var technicalDetailsContent = entry.FindFirstDescendant(
-                cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}")
-            );
-            if (technicalDetails is not null && technicalDetailsContent is not null)
-            {
-                technicalDetails.Patterns.ExpandCollapse.Pattern.Collapse();
-                entry = ScrollOperationIntoView(operationId);
-            }
-
-            var nonActionTarget = _session.WaitFor(
-                () => entry.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityApp-{operationId}"))
-            );
-            nonActionTarget.Click();
-
             try
             {
+                var entry = ScrollOperationIntoView(operationId);
+
+                var technicalDetails = entry.FindFirstDescendant(
+                    cf => cf.ByAutomationId($"OperationTechnicalDetails-{operationId}")
+                );
+                var technicalDetailsContent = entry.FindFirstDescendant(
+                    cf => cf.ByAutomationId($"OperationTechnicalDetailsContent-{operationId}")
+                );
+                if (technicalDetails is not null && technicalDetailsContent is not null)
+                {
+                    technicalDetails.Patterns.ExpandCollapse.Pattern.Collapse();
+                    entry = ScrollOperationIntoView(operationId);
+                }
+
+                // Use the ListViewItem activation contract instead of a child TextBlock
+                // clickable point. Virtualized child peers can temporarily be present
+                // in UIA without exposing a mouse point, while the entry itself remains
+                // the stable keyboard activation surface.
+                _session.FocusForKeyboard(entry, TimeSpan.FromSeconds(5));
+                Keyboard.Type(VirtualKeyShort.SPACE);
+
                 _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
                 return;
             }
-            catch (TimeoutException) when (stopwatch.Elapsed < timeout)
+            catch (TimeoutException ex)
             {
+                lastError = ex;
             }
         }
 
         throw new TimeoutException(
-            $"Timed out after {timeout.TotalSeconds:n0}s opening Activity details for operation '{operationId}'."
+            $"Timed out after {timeout.TotalSeconds:n0}s opening Activity details for operation '{operationId}'.",
+            lastError
         );
     }
 

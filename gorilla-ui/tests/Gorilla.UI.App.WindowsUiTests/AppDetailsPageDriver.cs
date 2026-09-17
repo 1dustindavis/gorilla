@@ -63,7 +63,13 @@ internal sealed class AppDetailsPageDriver
     public bool HasRetryButton(string operationId)
         => FindById($"DetailsRetry-{operationId}") is not null;
 
+    // Behavior tests use the visible coarse title. The same TextBlock intentionally
+    // exposes a richer semantic UIA Name for Stage 7 live announcements; callers that
+    // need that accessibility contract use SemanticFailureTitle/LatestFailureAnnouncement.
     public string FailureTitle(string operationId)
+        => LeadingSentence(OptionalName($"DetailsFailureTitle-{operationId}"));
+
+    public string SemanticFailureTitle(string operationId)
         => OptionalName($"DetailsFailureTitle-{operationId}");
 
     public string RetryUnavailableText(string operationId)
@@ -107,6 +113,12 @@ internal sealed class AppDetailsPageDriver
     {
         var element = FindById(automationId);
         return element is null ? string.Empty : SafeHelpText(element);
+    }
+
+    private static string LeadingSentence(string value)
+    {
+        var separator = value.IndexOf(". ", StringComparison.Ordinal);
+        return separator < 0 ? value : value[..separator];
     }
 
     private static string SafeAutomationId(AutomationElement element)

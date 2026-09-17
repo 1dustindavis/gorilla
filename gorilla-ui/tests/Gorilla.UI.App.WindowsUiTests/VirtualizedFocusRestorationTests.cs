@@ -106,15 +106,14 @@ public sealed class VirtualizedFocusRestorationTests
                 session.WaitUntil(() => action.IsEnabled, TimeSpan.FromSeconds(30));
                 action.Invoke();
 
-                // Terminal failures leave the in-progress CatalogOperationStatus surface
-                // and are projected through CatalogTerminalFeedback. Wait for that real
-                // terminal presentation before capturing the service-owned OperationId.
-                home.WaitForTerminalFeedbackContaining(
+                // OperationId is exposed on the active Catalog operation surface. Capture
+                // the new identity while that surface is present, then drain the service-
+                // owned operation to terminal feedback before starting the next one.
+                home.WaitForOperationContaining(
                     FailureFixtureItemName,
-                    "Installation error: exit status 7",
-                    TimeSpan.FromSeconds(60)
+                    "Installing",
+                    TimeSpan.FromSeconds(30)
                 );
-
                 var operationId = session.WaitFor(() =>
                 {
                     var candidate = home.OperationId(FailureFixtureItemName);
@@ -126,6 +125,12 @@ public sealed class VirtualizedFocusRestorationTests
 
                     return candidate;
                 }, TimeSpan.FromSeconds(30));
+
+                home.WaitForTerminalFeedbackContaining(
+                    FailureFixtureItemName,
+                    "Installation error: exit status 7",
+                    TimeSpan.FromSeconds(60)
+                );
 
                 createdOperationIds.Add(operationId);
                 previousOperationId = operationId;

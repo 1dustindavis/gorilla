@@ -35,14 +35,14 @@ public sealed class PresentationValidationTests
 
             var primaryAction = details.PrimaryAction;
             primaryAction.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-            primaryAction = details.PrimaryAction;
+            primaryAction = WaitForVisibleById(session, "DetailsPrimaryAction");
             AssertVisible(primaryAction, "Details primary action");
-            primaryAction.Invoke();
+            primaryAction.AsButton().Invoke();
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
 
             var latestResult = ById(session, "DetailsLatestResult");
             latestResult.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-            latestResult = ById(session, "DetailsLatestResult");
+            latestResult = WaitForVisibleById(session, "DetailsLatestResult");
             AssertVisible(latestResult, "Details failure result");
 
             session.CaptureCheckpoint("stage7-presentation-details-failure", includeAutomationTree: true);
@@ -51,6 +51,19 @@ public sealed class PresentationValidationTests
 
     private static AutomationElement ById(GorillaAppSession session, string automationId)
         => session.WaitFor(() => session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
+
+    private static AutomationElement WaitForVisibleById(GorillaAppSession session, string automationId)
+        => session.WaitFor(() =>
+        {
+            var element = session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            if (element is null || element.IsOffscreen)
+            {
+                return null;
+            }
+
+            var bounds = element.BoundingRectangle;
+            return bounds.Width > 0 && bounds.Height > 0 ? element : null;
+        });
 
     private static void AssertVisible(AutomationElement element, string description)
     {

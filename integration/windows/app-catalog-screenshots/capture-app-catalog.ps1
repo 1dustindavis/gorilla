@@ -216,12 +216,21 @@ function Set-CanonicalWindow {
 
     [ScreenshotNativeMethods]::ShowWindow($Handle, [ScreenshotNativeMethods]::SW_RESTORE) | Out-Null
     $workingArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    if ($WindowWidth -gt $workingArea.Width -or $WindowHeight -gt $workingArea.Height) {
-        throw "Requested $WindowWidth x $WindowHeight window does not fit in runner working area $($workingArea.Width) x $($workingArea.Height)"
+    if ($ExpectedDpi -le 96) {
+        if ($WindowWidth -gt $workingArea.Width -or $WindowHeight -gt $workingArea.Height) {
+            throw "Requested $WindowWidth x $WindowHeight window does not fit in runner working area $($workingArea.Width) x $($workingArea.Height)"
+        }
+        $x = $workingArea.Left + [Math]::Floor(($workingArea.Width - $WindowWidth) / 2)
+        $y = $workingArea.Top + [Math]::Floor(($workingArea.Height - $WindowHeight) / 2)
+    } else {
+        # Screen.WorkingArea is DPI-virtualized in the PowerShell host. For an
+        # explicitly DPI-validated capture, do not reject the canonical physical
+        # window based on those logical dimensions. GetWindowRect below remains
+        # the authoritative 1280x800 size check.
+        Write-Host "DPI-virtualized working area: $($workingArea.Width)x$($workingArea.Height); preserving canonical $WindowWidth x $WindowHeight window."
+        $x = 40
+        $y = 40
     }
-
-    $x = $workingArea.Left + [Math]::Floor(($workingArea.Width - $WindowWidth) / 2)
-    $y = $workingArea.Top + [Math]::Floor(($workingArea.Height - $WindowHeight) / 2)
     $flags = [ScreenshotNativeMethods]::SWP_NOZORDER -bor [ScreenshotNativeMethods]::SWP_NOACTIVATE
     if (-not [ScreenshotNativeMethods]::SetWindowPos($Handle, [IntPtr]::Zero, $x, $y, $WindowWidth, $WindowHeight, $flags)) {
         throw "Unable to size Gorilla UI window"

@@ -39,6 +39,10 @@ public sealed class PresentationValidationTests
             AssertVisible(visiblePrimaryAction, "Details primary action");
             visiblePrimaryAction.AsButton().Invoke();
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
+            session.WaitUntil(
+                () => FindById(session, "DetailsActiveOperation") is null,
+                TimeSpan.FromSeconds(30)
+            );
 
             var latestResult = ById(session, "DetailsLatestResult");
             latestResult.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
@@ -50,12 +54,15 @@ public sealed class PresentationValidationTests
     }
 
     private static AutomationElement ById(GorillaAppSession session, string automationId)
-        => session.WaitFor(() => session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
+        => session.WaitFor(() => FindById(session, automationId));
+
+    private static AutomationElement? FindById(GorillaAppSession session, string automationId)
+        => session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
 
     private static AutomationElement WaitForVisibleById(GorillaAppSession session, string automationId)
         => session.WaitFor(() =>
         {
-            var element = session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            var element = FindById(session, automationId);
             if (element is null || element.IsOffscreen)
             {
                 return null;

@@ -32,9 +32,12 @@ public sealed class PresentationValidationTests
             AssertVisible(details.Root, "Details root");
             AssertVisible(details.BackButton, "Details back action");
             AssertVisible(details.DisplayName, "Details heading");
-            AssertVisible(details.PrimaryAction, "Details primary action");
 
-            details.PrimaryAction.Invoke();
+            var primaryAction = details.PrimaryAction;
+            primaryAction.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+            primaryAction = details.PrimaryAction;
+            AssertVisible(primaryAction, "Details primary action");
+            primaryAction.Invoke();
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
 
             var latestResult = ById(session, "DetailsLatestResult");

@@ -17,10 +17,9 @@ public sealed class VirtualizedFocusRestorationTests
     [Trait("E2EPhase", "Healthy")]
     public void DeepVirtualizedCatalogItemRestoresFocusByItemName()
     {
-        var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
-        var workRoot = Directory.GetParent(Directory.GetParent(cachePath)!.FullName)!.FullName;
-        var catalogPath = Path.Combine(workRoot, "fixture", "repo", "catalogs", "integration.yaml");
-        var manifestPath = Path.Combine(workRoot, "fixture", "repo", "manifests", "ui-e2e.yaml");
+        var fixtureRoot = RequiredPath("GORILLA_UI_E2E_FIXTURE_ROOT");
+        var catalogPath = Path.Combine(fixtureRoot, "catalogs", "integration.yaml");
+        var manifestPath = Path.Combine(fixtureRoot, "manifests", "ui-e2e.yaml");
         var originalCatalog = File.ReadAllText(catalogPath);
         var originalManifest = File.ReadAllText(manifestPath);
         var targetItemName = $"ZZVirtualizationFixture{CatalogExpansionCount:00}";

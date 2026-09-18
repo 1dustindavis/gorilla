@@ -43,6 +43,29 @@ public static class ScreenshotNativeMethods
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+    public static readonly IntPtr DpiAwarenessContextPerMonitorAwareV2 = new IntPtr(-4);
+
+    public static IntPtr EnterPerMonitorAwareV2()
+    {
+        var previous = SetThreadDpiAwarenessContext(DpiAwarenessContextPerMonitorAwareV2);
+        if (previous == IntPtr.Zero)
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return previous;
+    }
+
+    public static void RestoreDpiAwarenessContext(IntPtr previous)
+    {
+        if (SetThreadDpiAwarenessContext(previous) == IntPtr.Zero)
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref HIGHCONTRAST pvParam, uint fWinIni);
 
@@ -201,19 +224,26 @@ function Wait-ForMainWindow {
 function Get-WindowSize {
     param([Parameter(Mandatory)][IntPtr]$Handle)
 
-    [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
-    if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
-        throw "Unable to read Gorilla UI window bounds"
-    }
-    return [pscustomobject]@{
-        Width = $rect.Right - $rect.Left
-        Height = $rect.Bottom - $rect.Top
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
+        [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
+        if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
+            throw "Unable to read Gorilla UI window bounds"
+        }
+        return [pscustomobject]@{
+            Width = $rect.Right - $rect.Left
+            Height = $rect.Bottom - $rect.Top
+        }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
 function Set-CanonicalWindow {
     param([Parameter(Mandatory)][IntPtr]$Handle)
 
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
     [ScreenshotNativeMethods]::ShowWindow($Handle, [ScreenshotNativeMethods]::SW_RESTORE) | Out-Null
     $workingArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     if ($ExpectedDpi -le 96) {
@@ -241,6 +271,9 @@ function Set-CanonicalWindow {
     $actual = Get-WindowSize -Handle $Handle
     if ($actual.Width -ne $WindowWidth -or $actual.Height -ne $WindowHeight) {
         throw "Canonical Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $($actual.Width) x $($actual.Height)."
+    }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
@@ -335,6 +368,8 @@ function Save-WindowScreenshot {
         [Parameter(Mandatory)][string]$Name
     )
 
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
     [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
     if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
         throw "Unable to read window bounds for screenshot '$Name'"
@@ -358,6 +393,9 @@ function Save-WindowScreenshot {
     } finally {
         $graphics.Dispose()
         $bitmap.Dispose()
+    }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
@@ -506,12 +544,9 @@ debug: true
 
     Write-AutomationTree -Root $root -Path (Join-Path $OutputDirectory "automation-tree.txt")
 
-    [ScreenshotNativeMethods+RECT]$actualRect = New-Object ScreenshotNativeMethods+RECT
-    if (-not [ScreenshotNativeMethods]::GetWindowRect($windowHandle, [ref]$actualRect)) {
-        throw "Unable to read final Gorilla UI window bounds"
-    }
-    $actualWidth = $actualRect.Right - $actualRect.Left
-    $actualHeight = $actualRect.Bottom - $actualRect.Top
+    $finalWindowSize = Get-WindowSize -Handle $windowHandle
+    $actualWidth = $finalWindowSize.Width
+    $actualHeight = $finalWindowSize.Height
     if ($actualWidth -ne $WindowWidth -or $actualHeight -ne $WindowHeight) {
         throw "Final Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $actualWidth x $actualHeight."
     }

@@ -129,6 +129,83 @@ jobs:
             -EnvironmentName baseline `
             -ExpectedDpi 96
 
+      - name: Capture at 150 percent scaling
+        shell: pwsh
+        run: |
+          Import-Module DisplayConfig -RequiredVersion 6.0.0
+          $scalableIds = @()
+          foreach ($display in @(Get-DisplayInfo)) {
+            try {
+              Get-DisplayScale -DisplayId $display.DisplayId -ErrorAction Stop | Out-Null
+              $scalableIds += [uint]$display.DisplayId
+            } catch {}
+          }
+          if ($scalableIds.Count -ne 1) {
+            throw "Expected exactly one scalable display on the hosted runner; found $($scalableIds -join ',')."
+          }
+          $displayId = $scalableIds[0]
+
+          DisplayConfig\Set-DisplayResolution -DisplayId $displayId -Width 2560 -Height 1440 -AllowChanges
+          Set-DisplayScale -DisplayId $displayId -Scale 150
+          Start-Sleep -Seconds 3
+          Get-DisplayScale -DisplayId $displayId | Format-List * | Out-Host
+
+          ./integration/windows/app-catalog-screenshots/capture-app-catalog.ps1 `
+            -GorillaExePath "$env:GITHUB_WORKSPACE\build\gorilla.exe" `
+            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\scale-150" `
+            -EnvironmentName scale-150 `
+            -ExpectedDpi 144 `
+            -Compact
+
+          Set-DisplayScale -DisplayId $displayId -Scale 100
+          DisplayConfig\Set-DisplayResolution -DisplayId $displayId -Width 1920 -Height 1080 -AllowChanges
+          Start-Sleep -Seconds 3
+
+      - name: Capture dark mode
+        shell: pwsh
+        run: |
+          ./integration/windows/app-catalog-screenshots/set-presentation-environment.ps1 -Mode Dark
+          ./integration/windows/app-catalog-screenshots/capture-app-catalog.ps1 `
+            -GorillaExePath "$env:GITHUB_WORKSPACE\build\gorilla.exe" `
+            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\dark" `
+            -EnvironmentName dark `
+            -ExpectedDpi 96 `
+            -Compact
+          $manifest = Get-Content "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\dark\manifest.json" -Raw | ConvertFrom-Json
+          if ($manifest.appsUseLightTheme -ne 0 -or $manifest.highContrast) {
+            throw "Dark-mode provenance does not match the requested environment."
+          }
+          ./integration/windows/app-catalog-screenshots/set-presentation-environment.ps1 -Mode Light
+
+      - name: Capture Windows high contrast
+        shell: pwsh
+        run: |
+          ./integration/windows/app-catalog-screenshots/set-presentation-environment.ps1 -Mode HighContrast
+          ./integration/windows/app-catalog-screenshots/capture-app-catalog.ps1 `
+            -GorillaExePath "$env:GITHUB_WORKSPACE\build\gorilla.exe" `
+            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\high-contrast" `
+            -EnvironmentName high-contrast `
+            -ExpectedDpi 96 `
+            -Compact
+          $manifest = Get-Content "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\high-contrast\manifest.json" -Raw | ConvertFrom-Json
+          if (-not $manifest.highContrast) {
+            throw "High-contrast provenance does not report high contrast enabled."
+          }
+
+      - name: Restore runner presentation settings
+        if: always()
+        shell: pwsh
+        run: |
+          try { ./integration/windows/app-catalog-screenshots/set-presentation-environment.ps1 -Mode Light } catch {}
+          try {
+            Import-Module DisplayConfig -RequiredVersion 6.0.0 -ErrorAction Stop
+            $display = @(Get-DisplayInfo | Select-Object -First 1)[0]
+            if ($null -ne $display) {
+              Set-DisplayScale -DisplayId $display.DisplayId -Scale 100 -ErrorAction SilentlyContinue
+              DisplayConfig\Set-DisplayResolution -DisplayId $display.DisplayId -Width 1920 -Height 1080 -AllowChanges -ErrorAction SilentlyContinue
+            }
+          } catch {}
+
       - name: Summarize capture
         if: always()
         shell: pwsh

@@ -2,7 +2,10 @@ param(
     [Parameter(Mandatory)][string]$GorillaExePath,
     [string]$OutputDirectory = "$PSScriptRoot\out",
     [int]$WindowWidth = 1280,
-    [int]$WindowHeight = 800
+    [int]$WindowHeight = 800,
+    [string]$EnvironmentName = "baseline",
+    [int]$ExpectedDpi = 0,
+    [switch]$Compact
 )
 
 Set-StrictMode -Version Latest
@@ -39,6 +42,31 @@ public static class ScreenshotNativeMethods
 
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref HIGHCONTRAST pvParam, uint fWinIni);
+
+    public const uint SPI_GETHIGHCONTRAST = 0x0042;
+    public const uint HCF_HIGHCONTRASTON = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct HIGHCONTRAST
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public IntPtr lpszDefaultScheme;
+    }
+
+    public static bool IsHighContrastEnabled()
+    {
+        var hc = new HIGHCONTRAST();
+        hc.cbSize = (uint)Marshal.SizeOf<HIGHCONTRAST>();
+        if (!SystemParametersInfo(SPI_GETHIGHCONTRAST, hc.cbSize, ref hc, 0))
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return (hc.dwFlags & HCF_HIGHCONTRASTON) != 0;
+    }
 
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
@@ -438,6 +466,11 @@ debug: true
     $windowHandle = Wait-ForMainWindow -Process $uiProcess
     Set-CanonicalWindow -Handle $windowHandle
 
+    $actualDpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
+    if ($ExpectedDpi -gt 0 -and $actualDpi -ne $ExpectedDpi) {
+        throw "Expected Gorilla UI window DPI $ExpectedDpi for '$EnvironmentName', actual $actualDpi."
+    }
+
     $root = [System.Windows.Automation.AutomationElement]::FromHandle($windowHandle)
     [void](Wait-ForElementById -Root $root -AutomationId "HomeHeading")
     [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
@@ -446,14 +479,16 @@ debug: true
     Set-SearchText -Root $root -Text ""
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-default.png"
 
-    Set-SearchText -Root $root -Text "media"
-    [void](Wait-ForElementById -Root $root -AutomationId "VLC")
-    Save-WindowScreenshot -Handle $windowHandle -Name "catalog-search.png"
+    if (-not $Compact) {
+        Set-SearchText -Root $root -Text "media"
+        [void](Wait-ForElementById -Root $root -AutomationId "VLC")
+        Save-WindowScreenshot -Handle $windowHandle -Name "catalog-search.png"
 
-    Set-SearchText -Root $root -Text "desktop"
-    [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
-    [void](Wait-ForElementById -Root $root -AutomationId "Audacity")
-    Save-WindowScreenshot -Handle $windowHandle -Name "catalog-mixed-actions.png"
+        Set-SearchText -Root $root -Text "desktop"
+        [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
+        [void](Wait-ForElementById -Root $root -AutomationId "Audacity")
+        Save-WindowScreenshot -Handle $windowHandle -Name "catalog-mixed-actions.png"
+    }
 
     Set-SearchText -Root $root -Text ""
     [void](Open-DetailsWithRetry -Root $root -ItemName "SevenZip")
@@ -481,8 +516,10 @@ debug: true
         actualWindow = [ordered]@{ width = $actualWidth; height = $actualHeight }
         primaryScreen = [ordered]@{ width = $screen.Bounds.Width; height = $screen.Bounds.Height }
         workingArea = [ordered]@{ width = $screen.WorkingArea.Width; height = $screen.WorkingArea.Height }
-        dpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
-        theme = "runner-default-light"
+        dpi = $actualDpi
+        environment = $EnvironmentName
+        appsUseLightTheme = (Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name AppsUseLightTheme -ErrorAction SilentlyContinue)
+        highContrast = [ScreenshotNativeMethods]::IsHighContrastEnabled()
         catalog = "realistic-open-source-fixture"
         fixtureTransport = "localhost-http"
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutputDirectory "manifest.json")

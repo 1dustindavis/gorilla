@@ -487,6 +487,7 @@ debug: true
     $uiCachePath = Join-Path $env:LOCALAPPDATA "Packages\$($installedPackage.PackageFamilyName)\LocalCache\Local\Gorilla\ui\optional-installs-cache.json"
     $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
     $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
+    $env:GORILLA_UI_E2E_FIXTURE_ROOT = $repoFixtureRoot
     $env:GORILLA_UI_E2E_SLOW_MARKER_PATH = $slowMarkerPath
 
     Invoke-TestPhase -Phase "healthy" -Filter "E2EPhase=Healthy|FullyQualifiedName~AppLaunchSmokeTests" -AppUserModelId $appUserModelId

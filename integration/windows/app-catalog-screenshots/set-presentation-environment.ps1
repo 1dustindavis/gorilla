@@ -19,6 +19,9 @@ public static class GorillaPresentationEnvironment
     private const uint HCF_HIGHCONTRASTON = 0x00000001;
     private const uint SPIF_UPDATEINIFILE = 0x0001;
     private const uint SPIF_SENDCHANGE = 0x0002;
+    private const uint WM_SETTINGCHANGE = 0x001A;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+    private static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct HIGHCONTRAST_GET
@@ -45,6 +48,11 @@ public static class GorillaPresentationEnvironment
     private static extern bool SystemParametersInfo(
         uint uiAction, uint uiParam, ref HIGHCONTRAST_SET pvParam, uint fWinIni);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+
     public static bool IsHighContrastEnabled()
     {
         var hc = new HIGHCONTRAST_GET();
@@ -70,6 +78,19 @@ public static class GorillaPresentationEnvironment
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
     }
+
+    public static void BroadcastAppThemeChange()
+    {
+        UIntPtr result;
+        SendMessageTimeout(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            UIntPtr.Zero,
+            "ImmersiveColorSet",
+            SMTO_ABORTIFHUNG,
+            2000,
+            out result);
+    }
 }
 '@
 
@@ -78,15 +99,22 @@ New-Item -Path $themePath -Force | Out-Null
 
 switch ($Mode) {
     "Light" {
-        [GorillaPresentationEnvironment]::SetHighContrast($false)
+        if ([GorillaPresentationEnvironment]::IsHighContrastEnabled()) {
+            [GorillaPresentationEnvironment]::SetHighContrast($false)
+        }
         Set-ItemProperty -Path $themePath -Name AppsUseLightTheme -Type DWord -Value 1
+        [GorillaPresentationEnvironment]::BroadcastAppThemeChange()
     }
     "Dark" {
-        [GorillaPresentationEnvironment]::SetHighContrast($false)
+        if ([GorillaPresentationEnvironment]::IsHighContrastEnabled()) {
+            throw "Cannot establish dark app mode while Windows high contrast is enabled."
+        }
         Set-ItemProperty -Path $themePath -Name AppsUseLightTheme -Type DWord -Value 0
+        [GorillaPresentationEnvironment]::BroadcastAppThemeChange()
     }
     "HighContrast" {
         Set-ItemProperty -Path $themePath -Name AppsUseLightTheme -Type DWord -Value 1
+        [GorillaPresentationEnvironment]::BroadcastAppThemeChange()
         [GorillaPresentationEnvironment]::SetHighContrast($true)
     }
 }
@@ -99,17 +127,17 @@ $highContrast = [GorillaPresentationEnvironment]::IsHighContrastEnabled()
 switch ($Mode) {
     "Light" {
         if ($appsUseLightTheme -ne 1 -or $highContrast) {
-            throw "Failed to establish light presentation environment."
+            throw "Failed to establish light presentation environment. AppsUseLightTheme=$appsUseLightTheme HighContrast=$highContrast"
         }
     }
     "Dark" {
         if ($appsUseLightTheme -ne 0 -or $highContrast) {
-            throw "Failed to establish dark presentation environment."
+            throw "Failed to establish dark presentation environment. AppsUseLightTheme=$appsUseLightTheme HighContrast=$highContrast"
         }
     }
     "HighContrast" {
         if (-not $highContrast) {
-            throw "Failed to establish Windows high-contrast presentation environment."
+            throw "Failed to establish Windows high-contrast presentation environment. AppsUseLightTheme=$appsUseLightTheme HighContrast=$highContrast"
         }
     }
 }

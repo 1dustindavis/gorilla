@@ -466,6 +466,7 @@ debug: true
     $env:GORILLA_UI_CACHE_PATH = $uiCachePath
     $env:GORILLA_UI_E2E_MARKER_PATH = $markerPath
     $env:GORILLA_UI_E2E_CACHE_PATH = $uiCachePath
+    $env:GORILLA_UI_E2E_FIXTURE_ROOT = $repoFixtureRoot
     $env:GORILLA_UI_E2E_SLOW_MARKER_PATH = $slowMarkerPath
 
     & $GorillaExePath -config $configPath -integration-test-service-identity $serviceName -serviceinstall | Out-Host

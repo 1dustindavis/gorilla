@@ -2,6 +2,11 @@ name: App Catalog Screenshots
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/app-catalog-screenshots.yml'
+      - 'integration/windows/app-catalog-screenshots/**'
+      - 'gorilla-ui/src/Gorilla.UI.App/**'
 
 permissions:
   contents: read
@@ -14,7 +19,7 @@ jobs:
   capture:
     name: Capture App Catalog screenshots
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
       - name: Configure Git line endings
@@ -56,6 +61,13 @@ jobs:
           if ($screen.WorkingArea.Width -lt 1280 -or $screen.WorkingArea.Height -lt 800) {
             throw "Runner working area $($screen.WorkingArea.Width)x$($screen.WorkingArea.Height) cannot fit the canonical 1280x800 window."
           }
+
+      - name: Install pinned display-scaling helper
+        shell: pwsh
+        run: |
+          Install-Module -Name DisplayConfig -RequiredVersion 6.0.0 -Scope CurrentUser -Force -AllowClobber
+          Import-Module DisplayConfig -RequiredVersion 6.0.0
+          Get-Command Set-DisplayScale,Get-DisplayScale -Module DisplayConfig | Format-Table -AutoSize | Out-Host
 
       - name: Configure Go cache paths
         shell: pwsh

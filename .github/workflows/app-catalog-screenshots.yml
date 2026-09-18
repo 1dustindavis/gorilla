@@ -120,12 +120,14 @@ jobs:
             throw "Gorilla UI build failed"
           }
 
-      - name: Capture canonical App Catalog screenshots
+      - name: Capture baseline control
         shell: pwsh
         run: |
           ./integration/windows/app-catalog-screenshots/capture-app-catalog.ps1 `
             -GorillaExePath "$env:GITHUB_WORKSPACE\build\gorilla.exe" `
-            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots"
+            -OutputDirectory "$env:GITHUB_WORKSPACE\build\app-catalog-screenshots\baseline" `
+            -EnvironmentName baseline `
+            -ExpectedDpi 96
 
       - name: Summarize capture
         if: always()

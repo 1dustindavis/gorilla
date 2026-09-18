@@ -175,12 +175,10 @@ public sealed class ActivityTests
     public void FailedInstallRelaunchRetryCreatesNewOperationAndSucceeds()
     {
         var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
-        if (!TryResolveMutableSourceFixture(out var installScriptPath, out var catalogPath))
+        if (!TryResolveMutableFixture(out var installScriptPath, out var catalogPath))
         {
-            // The installed-MSIX harness intentionally does not expose its mutable
-            // fixture repository to the standard-user test process. Portable tests
-            // cover the same state machine; this source-boundary test controls the
-            // real fixture so one failed request can be made to succeed on Retry.
+            // This scenario requires the mutable HTTP fixture repository. Harnesses
+            // that do not provide that explicit contract cannot exercise it safely.
             return;
         }
 
@@ -361,25 +359,19 @@ public sealed class ActivityTests
         );
     }
 
-    private static bool TryResolveMutableSourceFixture(out string installScriptPath, out string catalogPath)
+    private static bool TryResolveMutableFixture(out string installScriptPath, out string catalogPath)
     {
         installScriptPath = string.Empty;
         catalogPath = string.Empty;
-        var cachePath = Environment.GetEnvironmentVariable("GORILLA_UI_E2E_CACHE_PATH");
-        if (string.IsNullOrWhiteSpace(cachePath))
+        var fixtureRoot = Environment.GetEnvironmentVariable("GORILLA_UI_E2E_FIXTURE_ROOT");
+        if (string.IsNullOrWhiteSpace(fixtureRoot))
         {
             return false;
         }
 
-        var uiStateDirectory = Directory.GetParent(Path.GetFullPath(cachePath));
-        var root = uiStateDirectory?.Parent?.FullName;
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            return false;
-        }
-
-        installScriptPath = Path.Combine(root, "fixture", "repo", "packages", "scripts", "ui-slow-install.ps1");
-        catalogPath = Path.Combine(root, "fixture", "repo", "catalogs", "integration.yaml");
+        fixtureRoot = Path.GetFullPath(fixtureRoot);
+        installScriptPath = Path.Combine(fixtureRoot, "packages", "scripts", "ui-slow-install.ps1");
+        catalogPath = Path.Combine(fixtureRoot, "catalogs", "integration.yaml");
         return File.Exists(installScriptPath) && File.Exists(catalogPath);
     }
 

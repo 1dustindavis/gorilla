@@ -35,9 +35,9 @@ public sealed class PresentationValidationTests
 
             var primaryAction = details.PrimaryAction;
             primaryAction.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-            primaryAction = WaitForVisibleById(session, "DetailsPrimaryAction");
-            AssertVisible(primaryAction, "Details primary action");
-            primaryAction.AsButton().Invoke();
+            var visiblePrimaryAction = WaitForVisibleById(session, "DetailsPrimaryAction");
+            AssertVisible(visiblePrimaryAction, "Details primary action");
+            visiblePrimaryAction.AsButton().Invoke();
             details.WaitForLatestResult("Installation error: exit status 7", TimeSpan.FromSeconds(60));
 
             var latestResult = ById(session, "DetailsLatestResult");

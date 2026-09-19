@@ -161,6 +161,31 @@ internal sealed class ActivityPageDriver
             timeout
         );
 
+    public AutomationElement WaitForNewOperation(
+        string itemName,
+        string action,
+        IReadOnlySet<string> existingOperationIds,
+        TimeSpan? timeout = null
+    ) => _session.WaitFor(
+        () => ListEntries().FirstOrDefault(item =>
+        {
+            var operationId = OperationId(item);
+            if (string.IsNullOrWhiteSpace(operationId)
+                || existingOperationIds.Contains(operationId)
+                || !SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var actionElement = item.FindFirstDescendant(
+                cf => cf.ByAutomationId($"ActivityAction-{operationId}")
+            );
+            return actionElement is not null
+                && string.Equals(SafeName(actionElement), action, StringComparison.OrdinalIgnoreCase);
+        }),
+        timeout
+    );
+
     public static string OperationId(AutomationElement entry) => SafeHelpText(entry);
 
     public void OpenDetails(string operationId)

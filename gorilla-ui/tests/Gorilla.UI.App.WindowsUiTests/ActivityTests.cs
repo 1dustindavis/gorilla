@@ -284,25 +284,16 @@ public sealed class ActivityTests
 
                 activity.RetryButton(failedOperationId).Invoke();
 
-                string retryOperationId = string.Empty;
-                second.WaitUntil(() =>
-                {
-                    var candidate = activity.OperationIdsForItem("Slow Install Fixture")
-                        .FirstOrDefault(id =>
-                            !string.Equals(id, failedOperationId, StringComparison.Ordinal)
-                            && string.Equals(activity.ActionText(id), "Install", StringComparison.OrdinalIgnoreCase)
-                            && activity.StateText(id).Contains("Installing", StringComparison.OrdinalIgnoreCase));
-                    if (string.IsNullOrWhiteSpace(candidate))
-                    {
-                        return false;
-                    }
-
-                    retryOperationId = candidate;
-                    return true;
-                }, TimeSpan.FromSeconds(30));
+                var retryEntry = activity.WaitForDifferentOperation(
+                    "Slow Install Fixture",
+                    failedOperationId,
+                    TimeSpan.FromSeconds(30)
+                );
+                var retryOperationId = ActivityPageDriver.OperationId(retryEntry);
 
                 Assert.False(string.IsNullOrWhiteSpace(retryOperationId));
                 Assert.NotEqual(failedOperationId, retryOperationId);
+                activity.WaitForOperationState(retryOperationId, "Installing", TimeSpan.FromSeconds(30));
                 Assert.Equal("Install", activity.ActionText(retryOperationId));
 
                 activity.WaitForOperationState(retryOperationId, "Succeeded", TimeSpan.FromSeconds(60));

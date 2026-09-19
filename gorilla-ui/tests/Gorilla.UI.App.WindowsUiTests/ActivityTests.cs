@@ -125,11 +125,23 @@ public sealed class ActivityTests
                 var home = new HomePageDriver(first);
                 EnsureSlowFixtureAbsent(first, home, slowMarkerPath);
 
+                var beforeActivity = ActivityPageDriver.OpenFromCatalog(first);
+                var existingOperationIds = beforeActivity.OperationIdsForItem("Slow Install Fixture");
+                beforeActivity.GoBack();
+
+                home = new HomePageDriver(first);
                 home.PrimaryActionButton(SlowFixtureItemName).Invoke();
-                home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
-                operationId = home.OperationId(SlowFixtureItemName);
+
+                var activity = ActivityPageDriver.OpenFromCatalog(first);
+                var newEntry = activity.WaitForNewOperation(
+                    "Slow Install Fixture",
+                    "Install",
+                    existingOperationIds,
+                    TimeSpan.FromSeconds(30)
+                );
+                operationId = ActivityPageDriver.OperationId(newEntry);
                 Assert.False(string.IsNullOrWhiteSpace(operationId));
-                first.CaptureCheckpoint("activity-before-ui-relaunch");
+                first.CaptureCheckpoint("activity-before-ui-relaunch", includeAutomationTree: true);
             }
             catch (Exception ex)
             {
@@ -282,11 +294,13 @@ public sealed class ActivityTests
                 Assert.Equal(1, activity.CountEntries(failedOperationId));
                 Assert.True(activity.HasRetryButton(failedOperationId));
 
+                var existingOperationIds = activity.OperationIdsForItem("Slow Install Fixture");
                 activity.RetryButton(failedOperationId).Invoke();
 
-                var retryEntry = activity.WaitForDifferentOperation(
+                var retryEntry = activity.WaitForNewOperation(
                     "Slow Install Fixture",
-                    failedOperationId,
+                    "Install",
+                    existingOperationIds,
                     TimeSpan.FromSeconds(30)
                 );
                 var retryOperationId = ActivityPageDriver.OperationId(retryEntry);

@@ -49,6 +49,10 @@ public sealed class PresentationValidationTests
             latestResult = WaitForVisibleById(session, "DetailsLatestResult");
             AssertVisible(latestResult, "Details failure result");
 
+            // UIA can reflect the terminal state before WinUI's compositor has
+            // presented the corresponding frame. Give the rendered tree a brief
+            // chance to catch up so screenshot evidence reflects the settled UI.
+            Thread.Sleep(500);
             session.CaptureCheckpoint("stage7-presentation-details-failure", includeAutomationTree: true);
         });
     }

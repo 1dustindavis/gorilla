@@ -306,6 +306,21 @@ function Wait-ForElementById {
     throw "Timed out waiting for UI element '$AutomationId'"
 }
 
+function Wait-ForElementAbsentById {
+    param(
+        [Parameter(Mandatory)][System.Windows.Automation.AutomationElement]$Root,
+        [Parameter(Mandatory)][string]$AutomationId,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if ($null -eq (Get-ElementById -Root $Root -AutomationId $AutomationId)) { return }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    throw "Timed out waiting for UI element '$AutomationId' to disappear"
+}
+
 function Set-SearchText {
     param(
         [Parameter(Mandatory)][System.Windows.Automation.AutomationElement]$Root,
@@ -431,9 +446,13 @@ if (-not (Test-Path -LiteralPath $appExe)) { throw "Gorilla UI executable not fo
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) { throw "go is required to build the local fixture HTTP server" }
 
 $noopPath = Join-Path $fixtureRoot "packages\scripts\noop.ps1"
+$failurePath = Join-Path $fixtureRoot "packages\scripts\intentional-failure.ps1"
 $catalogPath = Join-Path $fixtureRoot "catalogs\screenshots.yaml"
 $noopHash = (Get-FileHash -LiteralPath $noopPath -Algorithm SHA256).Hash.ToLowerInvariant()
-(Get-Content -LiteralPath $catalogPath -Raw).Replace("__NOOP_HASH__", $noopHash) |
+$failureHash = (Get-FileHash -LiteralPath $failurePath -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-Content -LiteralPath $catalogPath -Raw).
+    Replace("__NOOP_HASH__", $noopHash).
+    Replace("__FAILURE_HASH__", $failureHash) |
     Set-Content -LiteralPath $catalogPath -NoNewline
 
 # Match the localhost fixture-serving pattern used by the Windows release/UI integration harnesses.
@@ -538,7 +557,24 @@ debug: true
     }
 
     Set-SearchText -Root $root -Text ""
-    [void](Open-DetailsWithRetry -Root $root -ItemName "SevenZip")
+    $detailsRoot = Open-DetailsWithRetry -Root $root -ItemName "FailureFixture"
+    $primaryAction = Wait-ForElementById -Root $detailsRoot -AutomationId "DetailsPrimaryAction"
+    try {
+        $scrollPattern = $primaryAction.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
+        ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
+        Start-Sleep -Milliseconds 250
+    } catch {
+    }
+    $invokePattern = $primaryAction.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    ([System.Windows.Automation.InvokePattern]$invokePattern).Invoke()
+
+    $latestResult = Wait-ForElementById -Root $detailsRoot -AutomationId "DetailsLatestResult" -TimeoutSeconds 60
+    Wait-ForElementAbsentById -Root $detailsRoot -AutomationId "DetailsActiveOperation" -TimeoutSeconds 30
+    try {
+        $scrollPattern = $latestResult.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
+        ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
+    } catch {
+    }
     Start-Sleep -Milliseconds 500
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-detail.png"
 

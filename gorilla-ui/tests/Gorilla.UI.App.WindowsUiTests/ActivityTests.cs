@@ -293,9 +293,11 @@ public sealed class ActivityTests
 
                 Assert.False(string.IsNullOrWhiteSpace(retryOperationId));
                 Assert.NotEqual(failedOperationId, retryOperationId);
-                activity.WaitForOperationState(retryOperationId, "Installing", TimeSpan.FromSeconds(30));
                 Assert.Equal("Install", activity.ActionText(retryOperationId));
 
+                // Installing is intentionally transient and can complete before UIA
+                // realizes the new Activity row. The durable contract is a distinct
+                // new Install operation that reaches terminal success.
                 activity.WaitForOperationState(retryOperationId, "Succeeded", TimeSpan.FromSeconds(60));
                 Assert.Equal("Failed", activity.StateText(failedOperationId));
                 Assert.Equal(1, activity.CountEntries(failedOperationId));

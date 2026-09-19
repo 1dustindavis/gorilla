@@ -53,7 +53,7 @@
             <StackPanel Spacing="4">
                 <TextBlock
                     x:Name="CatalogDegradedText"
-                    Foreground="DarkOrange"
+                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
                     TextWrapping="Wrap"
                     controls:LiveRegionAnnouncer.IsEnabled="True"
                     AutomationProperties.AutomationId="CatalogDegradedWarningText"
@@ -89,7 +89,7 @@
             <StackPanel Spacing="4">
                 <TextBlock
                     x:Name="InfrastructureWarningText"
-                    Foreground="DarkOrange"
+                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
                     TextWrapping="Wrap"
                     controls:LiveRegionAnnouncer.IsEnabled="True"
                     AutomationProperties.AutomationId="InfrastructureWarningText"

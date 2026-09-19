@@ -2,7 +2,10 @@ param(
     [Parameter(Mandatory)][string]$GorillaExePath,
     [string]$OutputDirectory = "$PSScriptRoot\out",
     [int]$WindowWidth = 1280,
-    [int]$WindowHeight = 800
+    [int]$WindowHeight = 800,
+    [string]$EnvironmentName = "baseline",
+    [int]$ExpectedDpi = 0,
+    [switch]$Compact
 )
 
 Set-StrictMode -Version Latest
@@ -39,6 +42,54 @@ public static class ScreenshotNativeMethods
 
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+    public static readonly IntPtr DpiAwarenessContextPerMonitorAwareV2 = new IntPtr(-4);
+
+    public static IntPtr EnterPerMonitorAwareV2()
+    {
+        var previous = SetThreadDpiAwarenessContext(DpiAwarenessContextPerMonitorAwareV2);
+        if (previous == IntPtr.Zero)
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return previous;
+    }
+
+    public static void RestoreDpiAwarenessContext(IntPtr previous)
+    {
+        if (SetThreadDpiAwarenessContext(previous) == IntPtr.Zero)
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref HIGHCONTRAST pvParam, uint fWinIni);
+
+    public const uint SPI_GETHIGHCONTRAST = 0x0042;
+    public const uint HCF_HIGHCONTRASTON = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct HIGHCONTRAST
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public IntPtr lpszDefaultScheme;
+    }
+
+    public static bool IsHighContrastEnabled()
+    {
+        var hc = new HIGHCONTRAST();
+        hc.cbSize = (uint)Marshal.SizeOf<HIGHCONTRAST>();
+        if (!SystemParametersInfo(SPI_GETHIGHCONTRAST, hc.cbSize, ref hc, 0))
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return (hc.dwFlags & HCF_HIGHCONTRASTON) != 0;
+    }
 
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
@@ -173,27 +224,43 @@ function Wait-ForMainWindow {
 function Get-WindowSize {
     param([Parameter(Mandatory)][IntPtr]$Handle)
 
-    [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
-    if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
-        throw "Unable to read Gorilla UI window bounds"
-    }
-    return [pscustomobject]@{
-        Width = $rect.Right - $rect.Left
-        Height = $rect.Bottom - $rect.Top
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
+        [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
+        if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
+            throw "Unable to read Gorilla UI window bounds"
+        }
+        return [pscustomobject]@{
+            Width = $rect.Right - $rect.Left
+            Height = $rect.Bottom - $rect.Top
+        }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
 function Set-CanonicalWindow {
     param([Parameter(Mandatory)][IntPtr]$Handle)
 
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
     [ScreenshotNativeMethods]::ShowWindow($Handle, [ScreenshotNativeMethods]::SW_RESTORE) | Out-Null
     $workingArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    if ($WindowWidth -gt $workingArea.Width -or $WindowHeight -gt $workingArea.Height) {
-        throw "Requested $WindowWidth x $WindowHeight window does not fit in runner working area $($workingArea.Width) x $($workingArea.Height)"
+    if ($ExpectedDpi -le 96) {
+        if ($WindowWidth -gt $workingArea.Width -or $WindowHeight -gt $workingArea.Height) {
+            throw "Requested $WindowWidth x $WindowHeight window does not fit in runner working area $($workingArea.Width) x $($workingArea.Height)"
+        }
+        $x = $workingArea.Left + [Math]::Floor(($workingArea.Width - $WindowWidth) / 2)
+        $y = $workingArea.Top + [Math]::Floor(($workingArea.Height - $WindowHeight) / 2)
+    } else {
+        # Screen.WorkingArea is DPI-virtualized in the PowerShell host. For an
+        # explicitly DPI-validated capture, do not reject the canonical physical
+        # window based on those logical dimensions. GetWindowRect below remains
+        # the authoritative 1280x800 size check.
+        Write-Host "DPI-virtualized working area: $($workingArea.Width)x$($workingArea.Height); preserving canonical $WindowWidth x $WindowHeight window."
+        $x = 40
+        $y = 40
     }
-
-    $x = $workingArea.Left + [Math]::Floor(($workingArea.Width - $WindowWidth) / 2)
-    $y = $workingArea.Top + [Math]::Floor(($workingArea.Height - $WindowHeight) / 2)
     $flags = [ScreenshotNativeMethods]::SWP_NOZORDER -bor [ScreenshotNativeMethods]::SWP_NOACTIVATE
     if (-not [ScreenshotNativeMethods]::SetWindowPos($Handle, [IntPtr]::Zero, $x, $y, $WindowWidth, $WindowHeight, $flags)) {
         throw "Unable to size Gorilla UI window"
@@ -204,6 +271,9 @@ function Set-CanonicalWindow {
     $actual = Get-WindowSize -Handle $Handle
     if ($actual.Width -ne $WindowWidth -or $actual.Height -ne $WindowHeight) {
         throw "Canonical Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $($actual.Width) x $($actual.Height)."
+    }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
@@ -234,6 +304,21 @@ function Wait-ForElementById {
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
     throw "Timed out waiting for UI element '$AutomationId'"
+}
+
+function Wait-ForElementAbsentById {
+    param(
+        [Parameter(Mandatory)][System.Windows.Automation.AutomationElement]$Root,
+        [Parameter(Mandatory)][string]$AutomationId,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if ($null -eq (Get-ElementById -Root $Root -AutomationId $AutomationId)) { return }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    throw "Timed out waiting for UI element '$AutomationId' to disappear"
 }
 
 function Set-SearchText {
@@ -298,6 +383,8 @@ function Save-WindowScreenshot {
         [Parameter(Mandatory)][string]$Name
     )
 
+    $previousDpiContext = [ScreenshotNativeMethods]::EnterPerMonitorAwareV2()
+    try {
     [ScreenshotNativeMethods+RECT]$rect = New-Object ScreenshotNativeMethods+RECT
     if (-not [ScreenshotNativeMethods]::GetWindowRect($Handle, [ref]$rect)) {
         throw "Unable to read window bounds for screenshot '$Name'"
@@ -321,6 +408,9 @@ function Save-WindowScreenshot {
     } finally {
         $graphics.Dispose()
         $bitmap.Dispose()
+    }
+    } finally {
+        [ScreenshotNativeMethods]::RestoreDpiAwarenessContext($previousDpiContext)
     }
 }
 
@@ -356,9 +446,13 @@ if (-not (Test-Path -LiteralPath $appExe)) { throw "Gorilla UI executable not fo
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) { throw "go is required to build the local fixture HTTP server" }
 
 $noopPath = Join-Path $fixtureRoot "packages\scripts\noop.ps1"
+$failurePath = Join-Path $fixtureRoot "packages\scripts\intentional-failure.ps1"
 $catalogPath = Join-Path $fixtureRoot "catalogs\screenshots.yaml"
 $noopHash = (Get-FileHash -LiteralPath $noopPath -Algorithm SHA256).Hash.ToLowerInvariant()
-(Get-Content -LiteralPath $catalogPath -Raw).Replace("__NOOP_HASH__", $noopHash) |
+$failureHash = (Get-FileHash -LiteralPath $failurePath -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-Content -LiteralPath $catalogPath -Raw).
+    Replace("__NOOP_HASH__", $noopHash).
+    Replace("__FAILURE_HASH__", $failureHash) |
     Set-Content -LiteralPath $catalogPath -NoNewline
 
 # Match the localhost fixture-serving pattern used by the Windows release/UI integration harnesses.
@@ -438,6 +532,11 @@ debug: true
     $windowHandle = Wait-ForMainWindow -Process $uiProcess
     Set-CanonicalWindow -Handle $windowHandle
 
+    $actualDpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
+    if ($ExpectedDpi -gt 0 -and $actualDpi -ne $ExpectedDpi) {
+        throw "Expected Gorilla UI window DPI $ExpectedDpi for '$EnvironmentName', actual $actualDpi."
+    }
+
     $root = [System.Windows.Automation.AutomationElement]::FromHandle($windowHandle)
     [void](Wait-ForElementById -Root $root -AutomationId "HomeHeading")
     [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
@@ -446,28 +545,44 @@ debug: true
     Set-SearchText -Root $root -Text ""
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-default.png"
 
-    Set-SearchText -Root $root -Text "media"
-    [void](Wait-ForElementById -Root $root -AutomationId "VLC")
-    Save-WindowScreenshot -Handle $windowHandle -Name "catalog-search.png"
+    if (-not $Compact) {
+        Set-SearchText -Root $root -Text "media"
+        [void](Wait-ForElementById -Root $root -AutomationId "VLC")
+        Save-WindowScreenshot -Handle $windowHandle -Name "catalog-search.png"
 
-    Set-SearchText -Root $root -Text "desktop"
-    [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
-    [void](Wait-ForElementById -Root $root -AutomationId "Audacity")
-    Save-WindowScreenshot -Handle $windowHandle -Name "catalog-mixed-actions.png"
+        Set-SearchText -Root $root -Text "desktop"
+        [void](Wait-ForElementById -Root $root -AutomationId "SevenZip")
+        [void](Wait-ForElementById -Root $root -AutomationId "Audacity")
+        Save-WindowScreenshot -Handle $windowHandle -Name "catalog-mixed-actions.png"
+    }
 
     Set-SearchText -Root $root -Text ""
-    [void](Open-DetailsWithRetry -Root $root -ItemName "SevenZip")
+    $detailsRoot = Open-DetailsWithRetry -Root $root -ItemName "FailureFixture"
+    $primaryAction = Wait-ForElementById -Root $detailsRoot -AutomationId "DetailsPrimaryAction"
+    try {
+        $scrollPattern = $primaryAction.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
+        ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
+        Start-Sleep -Milliseconds 250
+    } catch {
+    }
+    $invokePattern = $primaryAction.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    ([System.Windows.Automation.InvokePattern]$invokePattern).Invoke()
+
+    $latestResult = Wait-ForElementById -Root $detailsRoot -AutomationId "DetailsLatestResult" -TimeoutSeconds 60
+    Wait-ForElementAbsentById -Root $detailsRoot -AutomationId "DetailsActiveOperation" -TimeoutSeconds 30
+    try {
+        $scrollPattern = $latestResult.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern)
+        ([System.Windows.Automation.ScrollItemPattern]$scrollPattern).ScrollIntoView()
+    } catch {
+    }
     Start-Sleep -Milliseconds 500
     Save-WindowScreenshot -Handle $windowHandle -Name "catalog-detail.png"
 
     Write-AutomationTree -Root $root -Path (Join-Path $OutputDirectory "automation-tree.txt")
 
-    [ScreenshotNativeMethods+RECT]$actualRect = New-Object ScreenshotNativeMethods+RECT
-    if (-not [ScreenshotNativeMethods]::GetWindowRect($windowHandle, [ref]$actualRect)) {
-        throw "Unable to read final Gorilla UI window bounds"
-    }
-    $actualWidth = $actualRect.Right - $actualRect.Left
-    $actualHeight = $actualRect.Bottom - $actualRect.Top
+    $finalWindowSize = Get-WindowSize -Handle $windowHandle
+    $actualWidth = $finalWindowSize.Width
+    $actualHeight = $finalWindowSize.Height
     if ($actualWidth -ne $WindowWidth -or $actualHeight -ne $WindowHeight) {
         throw "Final Gorilla UI window size mismatch. Requested $WindowWidth x $WindowHeight; actual $actualWidth x $actualHeight."
     }
@@ -481,8 +596,10 @@ debug: true
         actualWindow = [ordered]@{ width = $actualWidth; height = $actualHeight }
         primaryScreen = [ordered]@{ width = $screen.Bounds.Width; height = $screen.Bounds.Height }
         workingArea = [ordered]@{ width = $screen.WorkingArea.Width; height = $screen.WorkingArea.Height }
-        dpi = [ScreenshotNativeMethods]::GetDpiForWindow($windowHandle)
-        theme = "runner-default-light"
+        dpi = $actualDpi
+        environment = $EnvironmentName
+        appsUseLightTheme = (Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name AppsUseLightTheme -ErrorAction SilentlyContinue)
+        highContrast = [ScreenshotNativeMethods]::IsHighContrastEnabled()
         catalog = "realistic-open-source-fixture"
         fixtureTransport = "localhost-http"
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutputDirectory "manifest.json")

@@ -201,3 +201,15 @@ WinMerge:
     location: packages/scripts/noop.ps1
     hash: __NOOP_HASH__
   version: 2.16.50
+
+FailureFixture:
+  display_name: Failure Fixture
+  description: Deliberately failing installer used to validate terminal failure presentation under scaling and Windows theme modes.
+  check:
+    file:
+      - path: C:/ProgramData/gorilla-app-catalog-screenshots/intentional-failure.marker
+  installer:
+    type: ps1
+    location: packages/scripts/intentional-failure.ps1
+    hash: __FAILURE_HASH__
+  version: 1.0.0

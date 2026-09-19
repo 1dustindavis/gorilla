@@ -38,6 +38,7 @@ public sealed class VirtualizedFocusRestorationTests
                 var home = new HomePageDriver(session);
                 var refresh = ById(session, "CatalogRefreshButton")
                     ?? throw new InvalidOperationException("Catalog refresh button was not found.");
+                session.WaitUntil(() => refresh.IsEnabled, TimeSpan.FromSeconds(30));
                 refresh.AsButton().Invoke();
 
                 home.Search($"ZZ Virtualization Fixture {CatalogExpansionCount:00}");

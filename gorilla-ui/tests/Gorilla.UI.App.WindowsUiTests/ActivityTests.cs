@@ -125,11 +125,23 @@ public sealed class ActivityTests
                 var home = new HomePageDriver(first);
                 EnsureSlowFixtureAbsent(first, home, slowMarkerPath);
 
+                var beforeActivity = ActivityPageDriver.OpenFromCatalog(first);
+                var existingOperationIds = beforeActivity.OperationIdsForItem("Slow Install Fixture");
+                beforeActivity.GoBack();
+
+                home = new HomePageDriver(first);
                 home.PrimaryActionButton(SlowFixtureItemName).Invoke();
-                home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
-                operationId = home.OperationId(SlowFixtureItemName);
+
+                var activity = ActivityPageDriver.OpenFromCatalog(first);
+                var newEntry = activity.WaitForNewOperation(
+                    "Slow Install Fixture",
+                    "Install",
+                    existingOperationIds,
+                    TimeSpan.FromSeconds(30)
+                );
+                operationId = ActivityPageDriver.OperationId(newEntry);
                 Assert.False(string.IsNullOrWhiteSpace(operationId));
-                first.CaptureCheckpoint("activity-before-ui-relaunch");
+                first.CaptureCheckpoint("activity-before-ui-relaunch", includeAutomationTree: true);
             }
             catch (Exception ex)
             {
@@ -282,29 +294,24 @@ public sealed class ActivityTests
                 Assert.Equal(1, activity.CountEntries(failedOperationId));
                 Assert.True(activity.HasRetryButton(failedOperationId));
 
+                var existingOperationIds = activity.OperationIdsForItem("Slow Install Fixture");
                 activity.RetryButton(failedOperationId).Invoke();
 
-                string retryOperationId = string.Empty;
-                second.WaitUntil(() =>
-                {
-                    var candidate = activity.OperationIdsForItem("Slow Install Fixture")
-                        .FirstOrDefault(id =>
-                            !string.Equals(id, failedOperationId, StringComparison.Ordinal)
-                            && string.Equals(activity.ActionText(id), "Install", StringComparison.OrdinalIgnoreCase)
-                            && activity.StateText(id).Contains("Installing", StringComparison.OrdinalIgnoreCase));
-                    if (string.IsNullOrWhiteSpace(candidate))
-                    {
-                        return false;
-                    }
-
-                    retryOperationId = candidate;
-                    return true;
-                }, TimeSpan.FromSeconds(30));
+                var retryEntry = activity.WaitForNewOperation(
+                    "Slow Install Fixture",
+                    "Install",
+                    existingOperationIds,
+                    TimeSpan.FromSeconds(30)
+                );
+                var retryOperationId = ActivityPageDriver.OperationId(retryEntry);
 
                 Assert.False(string.IsNullOrWhiteSpace(retryOperationId));
                 Assert.NotEqual(failedOperationId, retryOperationId);
                 Assert.Equal("Install", activity.ActionText(retryOperationId));
 
+                // Installing is intentionally transient and can complete before UIA
+                // realizes the new Activity row. The durable contract is a distinct
+                // new Install operation that reaches terminal success.
                 activity.WaitForOperationState(retryOperationId, "Succeeded", TimeSpan.FromSeconds(60));
                 Assert.Equal("Failed", activity.StateText(failedOperationId));
                 Assert.Equal(1, activity.CountEntries(failedOperationId));

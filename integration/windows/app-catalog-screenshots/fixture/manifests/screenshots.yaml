@@ -12,3 +12,4 @@ optional_installs:
   - OBSStudio
   - VLC
   - WinMerge
+  - FailureFixture

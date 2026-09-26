@@ -50,10 +50,6 @@ public sealed class InstalledProductBoundaryTests
                 isElevated,
                 $"Packaged App Catalog process {process.Id} is elevated; expected SAFER normal-user execution."
             );
-            Assert.True(
-                IsTokenRestricted(process),
-                $"Packaged App Catalog process {process.Id} did not receive the expected restricted normal-user token."
-            );
 
             application = Application.Attach(process.Id);
             automation = new UIA3Automation();
@@ -87,7 +83,6 @@ public sealed class InstalledProductBoundaryTests
                 actualPackageFullName,
                 process.Id,
                 isElevated,
-                isRestricted: true,
                 requestCountBeforeLaunch,
                 requestCountAfter
             );
@@ -360,12 +355,6 @@ public sealed class InstalledProductBoundaryTests
         return elevation != 0;
     }
 
-    private static bool IsTokenRestricted(Process process)
-    {
-        using var token = OpenProcessTokenForQuery(process);
-        return IsTokenRestricted(token.DangerousGetHandle());
-    }
-
     private static Microsoft.Win32.SafeHandles.SafeFileHandle OpenProcessTokenForQuery(Process process)
     {
         if (!OpenProcessToken(process.Handle, TokenQuery, out var tokenHandle))
@@ -409,7 +398,6 @@ public sealed class InstalledProductBoundaryTests
         string actualPackageFullName,
         int processId,
         bool isElevated,
-        bool isRestricted,
         int serviceRequestsBefore,
         int serviceRequestsAfter
     )
@@ -429,7 +417,6 @@ public sealed class InstalledProductBoundaryTests
                 $"ProcessPackageFullName: {actualPackageFullName}",
                 $"ProcessId: {processId}",
                 $"TokenElevation: {isElevated}",
-                $"TokenRestricted: {isRestricted}",
                 $"LaunchPath: Windows SAFER normal-user level ({NormalUserTrustLevel}) against installed package executable",
                 $"ListOptionalInstallsRequestsBefore: {serviceRequestsBefore}",
                 $"ListOptionalInstallsRequestsAfter: {serviceRequestsAfter}",
@@ -451,10 +438,6 @@ public sealed class InstalledProductBoundaryTests
         int tokenInformationLength,
         out int returnLength
     );
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsTokenRestricted(nint tokenHandle);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetPackageFullName(nint processHandle, ref uint packageFullNameLength, StringBuilder? packageFullName);

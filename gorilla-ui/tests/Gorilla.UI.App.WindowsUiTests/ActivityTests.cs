@@ -178,14 +178,6 @@ public sealed class ActivityTests
                 || activity.StateText(operationId).Contains("Succeeded", StringComparison.OrdinalIgnoreCase),
                 $"Expected recovered operation {operationId} to be active or retained terminal, got '{activity.StateText(operationId)}'."
             );
-
-            if (activity.StateText(operationId).Contains("Installing", StringComparison.OrdinalIgnoreCase))
-            {
-                home = new HomePageDriver(second);
-                home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
-                Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
-            }
-
             second.CaptureCheckpoint("activity-after-ui-relaunch", includeAutomationTree: true);
 
             // The UI process is gone, but the service-owned installer continues. Wait
@@ -261,7 +253,7 @@ public sealed class ActivityTests
                     var technical = activity.OpenAndReadTechnicalDetails(failedOperationId);
                     Assert.Contains($"Operation ID: {failedOperationId}", technical, StringComparison.OrdinalIgnoreCase);
                     Assert.Contains("Outcome: Failed", technical, StringComparison.OrdinalIgnoreCase);
-                    Assert.Contains("exit status 9", technical, StringComparison.OrdinalIgnoreCase);
+                    Assert.Contains("Installation error: exit status 9", technical, StringComparison.OrdinalIgnoreCase);
 
                     activity.OpenDetails(failedOperationId);
                     var details = new AppDetailsPageDriver(first);

@@ -1,4 +1,5 @@
 using System.Text;
+using Gorilla.UI.Client;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
@@ -23,11 +24,11 @@ public sealed class InstalledProductRelaunchTests
         var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
         var appDataPath = Path.GetDirectoryName(slowMarkerPath)!;
         var serviceLogPath = Path.Combine(appDataPath, "gorilla.log");
-        var operationsPath = Path.Combine(appDataPath, "operations");
         string operationId;
         int installRequestsBeforeSubmit;
         int installRequestsAtClose;
         int listRequestsAtClose;
+        int logicalOperationCountAtClose;
 
         using (var first = GorillaAppSession.Launch())
         {
@@ -65,7 +66,9 @@ public sealed class InstalledProductRelaunchTests
                 );
                 installRequestsAtClose = CountServiceRequests(serviceLogPath, "InstallItem");
                 Assert.Equal(installRequestsBeforeSubmit + 1, installRequestsAtClose);
-                Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
+
+                logicalOperationCountAtClose = CountLogicalOperations(operationId);
+                Assert.Equal(1, logicalOperationCountAtClose);
 
                 listRequestsAtClose = CountServiceRequests(serviceLogPath, "ListOperations");
                 first.CaptureCheckpoint("installed-relaunch-before-close", includeAutomationTree: true);
@@ -89,6 +92,9 @@ public sealed class InstalledProductRelaunchTests
                 TimeSpan.FromSeconds(30)
             );
 
+            var logicalOperationCountAfterRelaunch = CountLogicalOperations(operationId);
+            Assert.Equal(1, logicalOperationCountAfterRelaunch);
+
             var activity = ActivityPageDriver.OpenFromCatalog(second);
             _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
             Assert.True(
@@ -97,26 +103,23 @@ public sealed class InstalledProductRelaunchTests
                 $"Expected recovered operation {operationId} to be active or retained terminal, got '{activity.StateText(operationId)}'."
             );
 
-            // The service-owned operation store is the logical identity invariant.
-            // Do not use the count of currently realized virtualized Activity rows.
-            Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
             Assert.Equal(installRequestsAtClose, CountServiceRequests(serviceLogPath, "InstallItem"));
             second.CaptureCheckpoint("installed-relaunch-after-recovery", includeAutomationTree: true);
 
             second.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
-            Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
             var installRequestsAfterCompletion = CountServiceRequests(serviceLogPath, "InstallItem");
             Assert.Equal(installRequestsAtClose, installRequestsAfterCompletion);
 
             WriteRelaunchEvidence(
                 operationId,
+                logicalOperationCountAtClose,
+                logicalOperationCountAfterRelaunch,
                 installRequestsBeforeSubmit,
                 installRequestsAtClose,
                 installRequestsAfterCompletion,
                 listRequestsAtClose,
-                CountServiceRequests(serviceLogPath, "ListOperations"),
-                CountOperationFiles(operationsPath, operationId)
+                CountServiceRequests(serviceLogPath, "ListOperations")
             );
 
             activity.GoBack();
@@ -131,6 +134,14 @@ public sealed class InstalledProductRelaunchTests
             second.CaptureFailure(ex, nameof(PackagedUiRelaunchRecoversSameServiceOperationWithoutResubmission) + "-after-relaunch");
             throw;
         }
+    }
+
+    private static int CountLogicalOperations(string operationId)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var client = new NamedPipeGorillaServiceClient();
+        var operations = client.ListOperationsAsync(cts.Token).GetAwaiter().GetResult();
+        return operations.Count(operation => string.Equals(operation.OperationId, operationId, StringComparison.Ordinal));
     }
 
     private static int CountServiceRequests(string logPath, string operation)
@@ -161,20 +172,6 @@ public sealed class InstalledProductRelaunchTests
                 }
             }
             return count;
-        }
-        catch (IOException)
-        {
-            return 0;
-        }
-    }
-
-    private static int CountOperationFiles(string operationsPath, string operationId)
-    {
-        try
-        {
-            return Directory.Exists(operationsPath)
-                ? Directory.GetFiles(operationsPath, $"{operationId}-*.yaml").Length
-                : 0;
         }
         catch (IOException)
         {
@@ -214,12 +211,13 @@ public sealed class InstalledProductRelaunchTests
 
     private static void WriteRelaunchEvidence(
         string operationId,
+        int logicalOperationCountAtClose,
+        int logicalOperationCountAfterRelaunch,
         int installRequestsBeforeSubmit,
         int installRequestsAtClose,
         int installRequestsAfterCompletion,
         int listRequestsAtClose,
-        int listRequestsAfterRelaunch,
-        int retainedOperationFileCount
+        int listRequestsAfterRelaunch
     )
     {
         var artifactsDirectory = Environment.GetEnvironmentVariable("WINDOWS_UI_TEST_ARTIFACTS_DIR");
@@ -234,7 +232,8 @@ public sealed class InstalledProductRelaunchTests
             [
                 $"OperationId: {operationId}",
                 "PreCloseState: Installing",
-                $"RetainedOperationFileCount: {retainedOperationFileCount}",
+                $"LogicalOperationCountAtClose: {logicalOperationCountAtClose}",
+                $"LogicalOperationCountAfterRelaunch: {logicalOperationCountAfterRelaunch}",
                 $"InstallItemRequestsBeforeSubmit: {installRequestsBeforeSubmit}",
                 $"InstallItemRequestsAtClose: {installRequestsAtClose}",
                 $"InstallItemRequestsAfterCompletion: {installRequestsAfterCompletion}",

@@ -373,13 +373,13 @@ public sealed class InstalledProductBoundaryTests
             throw new Win32Exception(result, $"GetPackageFullName size query failed for App Catalog process {process.Id}.");
         }
 
-        var buffer = new StringBuilder(checked((int)length));
+        var buffer = new char[checked((int)length)];
         result = GetPackageFullName(process.Handle, ref length, buffer);
         if (result != 0)
         {
             throw new Win32Exception(result, $"GetPackageFullName failed for App Catalog process {process.Id}.");
         }
-        return buffer.ToString();
+        return new string(buffer).TrimEnd('\0');
     }
 
     private static string RequiredPath(string variableName)
@@ -440,5 +440,5 @@ public sealed class InstalledProductBoundaryTests
     );
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetPackageFullName(nint processHandle, ref uint packageFullNameLength, StringBuilder? packageFullName);
+    private static extern int GetPackageFullName(nint processHandle, ref uint packageFullNameLength, [Out] char[]? packageFullName);
 }

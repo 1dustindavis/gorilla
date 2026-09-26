@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using FlaUI.Core;
@@ -126,7 +127,8 @@ public sealed class InstalledProductBoundaryTests
                 BindingFlags.InvokeMethod,
                 binder: null,
                 target: shell,
-                args: ["explorer.exe", $"shell:AppsFolder\\{appUserModelId}", "", "open", 1]
+                args: ["explorer.exe", $"shell:AppsFolder\\{appUserModelId}", "", "open", 1],
+                culture: CultureInfo.InvariantCulture
             );
         }
         finally
@@ -151,7 +153,7 @@ public sealed class InstalledProductBoundaryTests
         return ids;
     }
 
-    private static Process WaitForNewAppProcess(IReadOnlySet<int> existingProcessIds, TimeSpan timeout)
+    private static Process WaitForNewAppProcess(HashSet<int> existingProcessIds, TimeSpan timeout)
     {
         var stopwatch = Stopwatch.StartNew();
         while (stopwatch.Elapsed < timeout)

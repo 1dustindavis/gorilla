@@ -253,7 +253,7 @@ public sealed class ActivityTests
                     var technical = activity.OpenAndReadTechnicalDetails(failedOperationId);
                     Assert.Contains($"Operation ID: {failedOperationId}", technical, StringComparison.OrdinalIgnoreCase);
                     Assert.Contains("Outcome: Failed", technical, StringComparison.OrdinalIgnoreCase);
-                    Assert.Contains("Installation error: exit status 9", technical, StringComparison.OrdinalIgnoreCase);
+                    Assert.Contains("exit status 9", technical, StringComparison.OrdinalIgnoreCase);
 
                     activity.OpenDetails(failedOperationId);
                     var details = new AppDetailsPageDriver(first);

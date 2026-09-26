@@ -1,3 +1,4 @@
+using System.Text;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
@@ -136,10 +137,30 @@ public sealed class InstalledProductRelaunchTests
     {
         try
         {
-            return File.Exists(logPath)
-                ? File.ReadLines(logPath).Count(line =>
-                    line.Contains($"named pipe request: {operation} ", StringComparison.Ordinal))
-                : 0;
+            if (!File.Exists(logPath))
+            {
+                return 0;
+            }
+
+            // The LocalSystem service keeps gorilla.log open while these assertions
+            // run. Read it with sharing enabled instead of File.ReadLines, whose
+            // default FileShare.Read can conflict with the service writer on Windows.
+            using var stream = new FileStream(
+                logPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete
+            );
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var count = 0;
+            while (reader.ReadLine() is { } line)
+            {
+                if (line.Contains($"named pipe request: {operation} ", StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+            return count;
         }
         catch (IOException)
         {

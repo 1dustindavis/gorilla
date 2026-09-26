@@ -1,8 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
-using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.UIA3;
@@ -14,7 +13,9 @@ public sealed class InstalledProductBoundaryTests
 {
     private const uint TokenQuery = 0x0008;
     private const int TokenElevation = 20;
+    private const int ErrorInsufficientBuffer = 122;
     private const string AppProcessName = "Gorilla.UI.App";
+    private const string NormalUserTrustLevel = "0x20000";
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
@@ -29,6 +30,7 @@ public sealed class InstalledProductBoundaryTests
 
         var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
         var serviceLogPath = Path.Combine(Path.GetDirectoryName(slowMarkerPath)!, "gorilla.log");
+        var (installedExePath, expectedPackageFullName) = ResolveInstalledPackageProcess(appUserModelId);
         var requestCountBeforeLaunch = CountServiceRequests(serviceLogPath, "ListOptionalInstalls");
         var existingProcessIds = GetAppProcessIds();
 
@@ -37,12 +39,20 @@ public sealed class InstalledProductBoundaryTests
         UIA3Automation? automation = null;
         try
         {
-            LaunchPackagedAppThroughUserShell(appUserModelId);
+            LaunchAsNormalUser(installedExePath);
             process = WaitForNewAppProcess(existingProcessIds, TimeSpan.FromSeconds(30));
+
+            var actualPackageFullName = GetProcessPackageFullName(process);
+            Assert.Equal(expectedPackageFullName, actualPackageFullName);
+
             var isElevated = IsProcessElevated(process);
             Assert.False(
                 isElevated,
-                $"Packaged App Catalog process {process.Id} is elevated; expected a normal shell-launched UI to run non-elevated."
+                $"Packaged App Catalog process {process.Id} is elevated; expected SAFER normal-user execution."
+            );
+            Assert.True(
+                IsTokenRestricted(process),
+                $"Packaged App Catalog process {process.Id} did not receive the expected restricted normal-user token."
             );
 
             application = Application.Attach(process.Id);
@@ -64,7 +74,7 @@ public sealed class InstalledProductBoundaryTests
             var requestCountAfter = CountServiceRequests(serviceLogPath, "ListOptionalInstalls");
             Assert.True(
                 requestCountAfter > requestCountBeforeLaunch,
-                "Expected the shell-launched packaged UI to communicate with the installed service."
+                "Expected the non-elevated packaged UI to communicate with the installed service."
             );
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("CatalogLoadFailed")));
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("CatalogNoCachedData")));
@@ -73,8 +83,11 @@ public sealed class InstalledProductBoundaryTests
 
             WriteBoundaryEvidence(
                 appUserModelId,
+                expectedPackageFullName,
+                actualPackageFullName,
                 process.Id,
                 isElevated,
+                isRestricted: true,
                 requestCountBeforeLaunch,
                 requestCountAfter
             );
@@ -114,29 +127,101 @@ public sealed class InstalledProductBoundaryTests
         }
     }
 
-    private static void LaunchPackagedAppThroughUserShell(string appUserModelId)
+    private static (string ExePath, string PackageFullName) ResolveInstalledPackageProcess(string appUserModelId)
     {
-        var shellType = Type.GetTypeFromProgID("Shell.Application")
-            ?? throw new InvalidOperationException("Windows Shell.Application COM activation is unavailable.");
-        var shell = Activator.CreateInstance(shellType)
-            ?? throw new InvalidOperationException("Unable to create Windows Shell.Application.");
+        var application = Application.LaunchStoreApp(appUserModelId);
+        using var process = Process.GetProcessById(application.ProcessId);
         try
         {
-            shellType.InvokeMember(
-                "ShellExecute",
-                BindingFlags.InvokeMethod,
-                binder: null,
-                target: shell,
-                args: ["explorer.exe", $"shell:AppsFolder\\{appUserModelId}", "", "open", 1],
-                culture: CultureInfo.InvariantCulture
-            );
+            var stopwatch = Stopwatch.StartNew();
+            string? executablePath = null;
+            while (stopwatch.Elapsed < TimeSpan.FromSeconds(30))
+            {
+                process.Refresh();
+                if (process.HasExited)
+                {
+                    throw new InvalidOperationException("Packaged App Catalog exited while resolving its installed executable path.");
+                }
+
+                try
+                {
+                    executablePath = process.MainModule?.FileName;
+                }
+                catch (Win32Exception)
+                {
+                    // Process startup can briefly race module enumeration.
+                }
+
+                if (!string.IsNullOrWhiteSpace(executablePath))
+                {
+                    return (executablePath, GetProcessPackageFullName(process));
+                }
+                Thread.Sleep(100);
+            }
+            throw new TimeoutException("Timed out resolving the installed App Catalog executable path.");
         }
         finally
         {
-            if (Marshal.IsComObject(shell))
+            try
             {
-                _ = Marshal.FinalReleaseComObject(shell);
+                if (!application.HasExited)
+                {
+                    application.Close();
+                }
             }
+            catch
+            {
+                // Fall through to hard process cleanup.
+            }
+            try
+            {
+                process.Refresh();
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                    process.WaitForExit(5000);
+                }
+            }
+            catch
+            {
+                // Best-effort discovery-process cleanup.
+            }
+        }
+    }
+
+    private static void LaunchAsNormalUser(string installedExePath)
+    {
+        var runAsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "runas.exe");
+        if (!File.Exists(runAsPath))
+        {
+            throw new FileNotFoundException("Windows runas.exe was not found.", runAsPath);
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = runAsPath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add($"/trustlevel:{NormalUserTrustLevel}");
+        startInfo.ArgumentList.Add($"\"{installedExePath}\"");
+
+        using var launcher = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Unable to start the Windows SAFER normal-user launcher.");
+        if (!launcher.WaitForExit(10000))
+        {
+            launcher.Kill();
+            throw new TimeoutException("Windows SAFER normal-user launcher did not exit within 10 seconds.");
+        }
+        if (launcher.ExitCode != 0)
+        {
+            var stdout = launcher.StandardOutput.ReadToEnd();
+            var stderr = launcher.StandardError.ReadToEnd();
+            throw new InvalidOperationException(
+                $"Windows SAFER normal-user launcher failed with exit code {launcher.ExitCode}. stdout='{stdout}' stderr='{stderr}'"
+            );
         }
     }
 
@@ -168,7 +253,7 @@ public sealed class InstalledProductBoundaryTests
             }
             Thread.Sleep(250);
         }
-        throw new TimeoutException($"Timed out after {timeout.TotalSeconds:n0}s waiting for shell-launched {AppProcessName}.");
+        throw new TimeoutException($"Timed out after {timeout.TotalSeconds:n0}s waiting for normal-user {AppProcessName}.");
     }
 
     private static Window WaitForMainWindow(
@@ -235,10 +320,27 @@ public sealed class InstalledProductBoundaryTests
     {
         try
         {
-            return File.Exists(logPath)
-                ? File.ReadLines(logPath).Count(line =>
-                    line.Contains($"named pipe request: {operation} ", StringComparison.Ordinal))
-                : 0;
+            if (!File.Exists(logPath))
+            {
+                return 0;
+            }
+
+            using var stream = new FileStream(
+                logPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete
+            );
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var count = 0;
+            while (reader.ReadLine() is { } line)
+            {
+                if (line.Contains($"named pipe request: {operation} ", StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+            return count;
         }
         catch (IOException)
         {
@@ -248,25 +350,47 @@ public sealed class InstalledProductBoundaryTests
 
     private static bool IsProcessElevated(Process process)
     {
+        using var token = OpenProcessTokenForQuery(process);
+        var elevation = 0;
+        var elevationSize = Marshal.SizeOf<int>();
+        if (!GetTokenInformation(token.DangerousGetHandle(), TokenElevation, ref elevation, elevationSize, out _))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "GetTokenInformation(TokenElevation) failed for the App Catalog process.");
+        }
+        return elevation != 0;
+    }
+
+    private static bool IsTokenRestricted(Process process)
+    {
+        using var token = OpenProcessTokenForQuery(process);
+        return IsTokenRestricted(token.DangerousGetHandle());
+    }
+
+    private static Microsoft.Win32.SafeHandles.SafeFileHandle OpenProcessTokenForQuery(Process process)
+    {
         if (!OpenProcessToken(process.Handle, TokenQuery, out var tokenHandle))
         {
             throw new Win32Exception(Marshal.GetLastWin32Error(), "OpenProcessToken failed for the App Catalog process.");
         }
+        return new Microsoft.Win32.SafeHandles.SafeFileHandle(tokenHandle, ownsHandle: true);
+    }
 
-        try
+    private static string GetProcessPackageFullName(Process process)
+    {
+        uint length = 0;
+        var result = GetPackageFullName(process.Handle, ref length, null);
+        if (result != ErrorInsufficientBuffer)
         {
-            var elevation = 0;
-            var elevationSize = Marshal.SizeOf<int>();
-            if (!GetTokenInformation(tokenHandle, TokenElevation, ref elevation, elevationSize, out _))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "GetTokenInformation(TokenElevation) failed for the App Catalog process.");
-            }
-            return elevation != 0;
+            throw new Win32Exception(result, $"GetPackageFullName size query failed for App Catalog process {process.Id}.");
         }
-        finally
+
+        var buffer = new StringBuilder(checked((int)length));
+        result = GetPackageFullName(process.Handle, ref length, buffer);
+        if (result != 0)
         {
-            _ = CloseHandle(tokenHandle);
+            throw new Win32Exception(result, $"GetPackageFullName failed for App Catalog process {process.Id}.");
         }
+        return buffer.ToString();
     }
 
     private static string RequiredPath(string variableName)
@@ -281,8 +405,11 @@ public sealed class InstalledProductBoundaryTests
 
     private static void WriteBoundaryEvidence(
         string appUserModelId,
+        string expectedPackageFullName,
+        string actualPackageFullName,
         int processId,
         bool isElevated,
+        bool isRestricted,
         int serviceRequestsBefore,
         int serviceRequestsAfter
     )
@@ -298,12 +425,15 @@ public sealed class InstalledProductBoundaryTests
             Path.Combine(artifactsDirectory, "installed-product-boundary.txt"),
             [
                 $"AppUserModelId: {appUserModelId}",
+                $"ExpectedPackageFullName: {expectedPackageFullName}",
+                $"ProcessPackageFullName: {actualPackageFullName}",
                 $"ProcessId: {processId}",
                 $"TokenElevation: {isElevated}",
-                "LaunchPath: Windows interactive shell (Shell.Application -> explorer.exe -> AppsFolder)",
+                $"TokenRestricted: {isRestricted}",
+                $"LaunchPath: Windows SAFER normal-user level ({NormalUserTrustLevel}) against installed package executable",
                 $"ListOptionalInstallsRequestsBefore: {serviceRequestsBefore}",
                 $"ListOptionalInstallsRequestsAfter: {serviceRequestsAfter}",
-                "ServiceCommunication: packaged UI rendered catalog data and completed an explicit service-backed refresh"
+                "ServiceCommunication: non-elevated packaged UI rendered catalog data and completed an explicit service-backed refresh"
             ]
         );
     }
@@ -322,7 +452,10 @@ public sealed class InstalledProductBoundaryTests
         out int returnLength
     );
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(nint handle);
+    private static extern bool IsTokenRestricted(nint tokenHandle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetPackageFullName(nint processHandle, ref uint packageFullNameLength, StringBuilder? packageFullName);
 }

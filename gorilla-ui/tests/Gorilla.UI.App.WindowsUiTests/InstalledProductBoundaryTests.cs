@@ -26,7 +26,7 @@ public sealed class InstalledProductBoundaryTests
         using var session = GorillaAppSession.Launch();
         try
         {
-            var processId = session.MainWindow.Properties.ProcessId.Value;
+            var processId = session.ProcessId;
             using var process = Process.GetProcessById(processId);
             var isElevated = IsProcessElevated(process);
             Assert.False(

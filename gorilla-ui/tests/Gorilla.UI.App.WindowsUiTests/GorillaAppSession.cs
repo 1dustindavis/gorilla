@@ -31,6 +31,7 @@ internal sealed class GorillaAppSession : IDisposable
     }
 
     public Window MainWindow { get; private set; } = null!;
+    public int ProcessId => _process.Id;
 
     public static GorillaAppSession Launch()
     {

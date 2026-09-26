@@ -15,16 +15,18 @@ public sealed class InstalledProductRelaunchTests
         if (string.IsNullOrWhiteSpace(appUserModelId))
         {
             // This is deliberately an installed-product assertion. The source-built
-            // suite retains its existing relaunch coverage without taking on this
-            // produced-MSIX boundary proof.
+            // suite retains its existing relaunch coverage unchanged.
             return;
         }
 
         var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
-        var clientLogPath = RequiredPath("GORILLA_UI_LOG_PATH");
+        var appDataPath = Path.GetDirectoryName(slowMarkerPath)!;
+        var serviceLogPath = Path.Combine(appDataPath, "gorilla.log");
+        var operationsPath = Path.Combine(appDataPath, "operations");
         string operationId;
-        int installMutationsAtClose;
-        int listResponsesAtClose;
+        int installRequestsBeforeSubmit;
+        int installRequestsAtClose;
+        int listRequestsAtClose;
 
         using (var first = GorillaAppSession.Launch())
         {
@@ -38,6 +40,7 @@ public sealed class InstalledProductRelaunchTests
                 beforeActivity.GoBack();
 
                 home = new HomePageDriver(first);
+                installRequestsBeforeSubmit = CountServiceRequests(serviceLogPath, "InstallItem");
                 home.PrimaryActionButton(SlowFixtureItemName).Invoke();
 
                 var activity = ActivityPageDriver.OpenFromCatalog(first);
@@ -55,9 +58,15 @@ public sealed class InstalledProductRelaunchTests
                     "The slow fixture completed before App Catalog closed, so the run did not exercise UI-independent work."
                 );
 
-                installMutationsAtClose = CountSlowInstallMutations(clientLogPath);
-                Assert.True(installMutationsAtClose > 0);
-                listResponsesAtClose = CountListOperationResponses(clientLogPath);
+                first.WaitUntil(
+                    () => CountServiceRequests(serviceLogPath, "InstallItem") > installRequestsBeforeSubmit,
+                    TimeSpan.FromSeconds(30)
+                );
+                installRequestsAtClose = CountServiceRequests(serviceLogPath, "InstallItem");
+                Assert.Equal(installRequestsBeforeSubmit + 1, installRequestsAtClose);
+                Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
+
+                listRequestsAtClose = CountServiceRequests(serviceLogPath, "ListOperations");
                 first.CaptureCheckpoint("installed-relaunch-before-close", includeAutomationTree: true);
             }
             catch (Exception ex)
@@ -73,15 +82,11 @@ public sealed class InstalledProductRelaunchTests
             var home = new HomePageDriver(second);
             _ = home.WaitForItem(SlowFixtureItemName);
 
-            // Startup recovery asks the service for retained operations. Wait for a
-            // fresh ListOperations response from the relaunched process, then assert
-            // logical identity in that service response rather than counting realized
-            // virtualized Activity rows.
+            // Startup recovery asks the real installed service for retained operations.
             second.WaitUntil(
-                () => CountListOperationResponses(clientLogPath) > listResponsesAtClose,
+                () => CountServiceRequests(serviceLogPath, "ListOperations") > listRequestsAtClose,
                 TimeSpan.FromSeconds(30)
             );
-            Assert.Equal(1, CountOperationInLatestListResponse(clientLogPath, operationId));
 
             var activity = ActivityPageDriver.OpenFromCatalog(second);
             _ = activity.WaitForOperation(operationId, TimeSpan.FromSeconds(30));
@@ -91,18 +96,26 @@ public sealed class InstalledProductRelaunchTests
                 $"Expected recovered operation {operationId} to be active or retained terminal, got '{activity.StateText(operationId)}'."
             );
 
-            Assert.Equal(installMutationsAtClose, CountSlowInstallMutations(clientLogPath));
+            // The service-owned operation store is the logical identity invariant.
+            // Do not use the count of currently realized virtualized Activity rows.
+            Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
+            Assert.Equal(installRequestsAtClose, CountServiceRequests(serviceLogPath, "InstallItem"));
             second.CaptureCheckpoint("installed-relaunch-after-recovery", includeAutomationTree: true);
 
             second.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
             activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
-            Assert.Equal(installMutationsAtClose, CountSlowInstallMutations(clientLogPath));
+            Assert.Equal(1, CountOperationFiles(operationsPath, operationId));
+            var installRequestsAfterCompletion = CountServiceRequests(serviceLogPath, "InstallItem");
+            Assert.Equal(installRequestsAtClose, installRequestsAfterCompletion);
 
             WriteRelaunchEvidence(
                 operationId,
-                installMutationsAtClose,
-                CountSlowInstallMutations(clientLogPath),
-                CountOperationInLatestListResponse(clientLogPath, operationId)
+                installRequestsBeforeSubmit,
+                installRequestsAtClose,
+                installRequestsAfterCompletion,
+                listRequestsAtClose,
+                CountServiceRequests(serviceLogPath, "ListOperations"),
+                CountOperationFiles(operationsPath, operationId)
             );
 
             activity.GoBack();
@@ -119,49 +132,32 @@ public sealed class InstalledProductRelaunchTests
         }
     }
 
-    private static int CountSlowInstallMutations(string logPath)
-        => ReadLogLines(logPath).Count(line =>
-            line.Contains("mutation:request:create operation=InstallItem", StringComparison.Ordinal)
-            && line.Contains($"itemName={SlowFixtureItemName}", StringComparison.Ordinal)
-        );
-
-    private static int CountListOperationResponses(string logPath)
-        => ReadLogLines(logPath).Count(IsListOperationsResponse);
-
-    private static int CountOperationInLatestListResponse(string logPath, string operationId)
-    {
-        var latest = ReadLogLines(logPath).LastOrDefault(IsListOperationsResponse);
-        if (latest is null)
-        {
-            return 0;
-        }
-
-        var needle = $"\"operationId\":\"{operationId}\"";
-        var count = 0;
-        var offset = 0;
-        while ((offset = latest.IndexOf(needle, offset, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            offset += needle.Length;
-        }
-        return count;
-    }
-
-    private static bool IsListOperationsResponse(string line)
-        => line.Contains("response:raw", StringComparison.Ordinal)
-            && line.Contains("\"operation\":\"ListOperations\"", StringComparison.Ordinal);
-
-    private static string[] ReadLogLines(string logPath)
+    private static int CountServiceRequests(string logPath, string operation)
     {
         try
         {
-            return File.Exists(logPath) ? File.ReadAllLines(logPath) : [];
+            return File.Exists(logPath)
+                ? File.ReadLines(logPath).Count(line =>
+                    line.Contains($"named pipe request: {operation} ", StringComparison.Ordinal))
+                : 0;
         }
         catch (IOException)
         {
-            // The UI logger may have the file open while appending. Treat a transient
-            // read-sharing race as no observation yet so WaitUntil can retry it.
-            return [];
+            return 0;
+        }
+    }
+
+    private static int CountOperationFiles(string operationsPath, string operationId)
+    {
+        try
+        {
+            return Directory.Exists(operationsPath)
+                ? Directory.GetFiles(operationsPath, $"{operationId}-*.yaml").Length
+                : 0;
+        }
+        catch (IOException)
+        {
+            return 0;
         }
     }
 
@@ -197,9 +193,12 @@ public sealed class InstalledProductRelaunchTests
 
     private static void WriteRelaunchEvidence(
         string operationId,
-        int installMutationsAtClose,
-        int installMutationsAfterCompletion,
-        int retainedOperationOccurrences
+        int installRequestsBeforeSubmit,
+        int installRequestsAtClose,
+        int installRequestsAfterCompletion,
+        int listRequestsAtClose,
+        int listRequestsAfterRelaunch,
+        int retainedOperationFileCount
     )
     {
         var artifactsDirectory = Environment.GetEnvironmentVariable("WINDOWS_UI_TEST_ARTIFACTS_DIR");
@@ -214,10 +213,13 @@ public sealed class InstalledProductRelaunchTests
             [
                 $"OperationId: {operationId}",
                 "PreCloseState: Installing",
-                $"RecoveredListOperationsOccurrences: {retainedOperationOccurrences}",
-                $"InstallMutationCountAtClose: {installMutationsAtClose}",
-                $"InstallMutationCountAfterCompletion: {installMutationsAfterCompletion}",
-                $"SecondMutationSubmitted: {installMutationsAfterCompletion != installMutationsAtClose}"
+                $"RetainedOperationFileCount: {retainedOperationFileCount}",
+                $"InstallItemRequestsBeforeSubmit: {installRequestsBeforeSubmit}",
+                $"InstallItemRequestsAtClose: {installRequestsAtClose}",
+                $"InstallItemRequestsAfterCompletion: {installRequestsAfterCompletion}",
+                $"ListOperationsRequestsAtClose: {listRequestsAtClose}",
+                $"ListOperationsRequestsAfterRelaunch: {listRequestsAfterRelaunch}",
+                $"SecondMutationSubmitted: {installRequestsAfterCompletion != installRequestsAtClose}"
             ]
         );
     }

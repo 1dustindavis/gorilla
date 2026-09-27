@@ -11,6 +11,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/catalogasset"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
@@ -52,6 +53,11 @@ func resolveCatalogItem(name string, catalogs map[int]map[string]catalog.Item, c
 }
 
 func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, error) {
+	// Repository access is service-owned; configure the shared downloader with
+	// this service request configuration so auth, TLS and file:// behavior match
+	// all other Gorilla repository retrieval.
+	download.SetConfig(cfg)
+
 	manifests, extraCatalogs, err := manifestGet(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("retrieve manifests: %w", err)
@@ -189,7 +195,9 @@ func resolveOptionalIcons(cfg config.Configuration, details []optionalItemDetail
 				}
 				resolved, err := iconResolve(cfg.URL, cfg.CachePath, source)
 				if err != nil {
-					gorillalog.Debug("Unable to resolve App Catalog icon", source, ":", err)
+					// Do not log downloader errors here: they may include an authenticated
+					// repository URL. The source path is enough to identify the asset.
+					gorillalog.Debug("Unable to resolve App Catalog icon:", source)
 					continue
 				}
 				details[index].Contract.IconPath = resolved

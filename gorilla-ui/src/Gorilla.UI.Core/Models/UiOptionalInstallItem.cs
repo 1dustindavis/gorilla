@@ -13,6 +13,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
 {
     private string _displayName = string.Empty;
     private string? _description;
+    private string? _iconPath;
     private string? _targetVersion;
     private Observation _observation = new(ObservedState.Unknown, null, null, string.Empty, RequirementState.Unknown);
     private Policy? _policy;
@@ -51,6 +52,12 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
                 OnPresentationsChanged();
             }
         }
+    }
+
+    public string? IconPath
+    {
+        get => _iconPath;
+        set => SetField(ref _iconPath, value);
     }
 
     public string? TargetVersion

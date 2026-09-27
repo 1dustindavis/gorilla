@@ -617,6 +617,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     {
         item.DisplayName = snapshot.DisplayName;
         item.Description = snapshot.Description;
+        item.IconPath = snapshot.IconPath;
         item.TargetVersion = snapshot.TargetVersion ??
             (string.IsNullOrEmpty(snapshot.Version) ? null : snapshot.Version);
         item.Observation = snapshot.Observation ?? LegacyObservation(snapshot);

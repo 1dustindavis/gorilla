@@ -1,6 +1,6 @@
 # App Catalog
 
-![Gorilla App Catalog](https://github.com/user-attachments/assets/5defc532-6d4e-4961-8c90-3b4648e3c650)
+![Gorilla App Catalog](assets/catalog-default.png)
 
 App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software Gorilla has made available, install it, remove it, and check what happened.
 

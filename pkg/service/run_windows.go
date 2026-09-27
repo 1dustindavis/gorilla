@@ -541,6 +541,7 @@ func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope
 				ItemName:           item.ItemName,
 				DisplayName:        item.DisplayName,
 				Description:        item.Description,
+				IconPath:           item.IconPath,
 				Version:            version,
 				Catalog:            item.Catalog,
 				InstallerType:      detail.InstallerType,

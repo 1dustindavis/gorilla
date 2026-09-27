@@ -17,8 +17,9 @@ jobs:
         with:
           ref: feature/app-catalog-icons-pr-a
       - name: Finalize service and core icon wiring
-        shell: python
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
           p = Path('pkg/service/catalog.go')
@@ -47,15 +48,15 @@ jobs:
               raise SystemExit('core field anchor not found')
           s = s.replace(old, new, 1)
           old = '''    public string? TargetVersion
-    {'''
+          {'''
           new = '''    public string? IconPath
-    {
-        get => _iconPath;
-        set => SetField(ref _iconPath, value);
-    }
+          {
+              get => _iconPath;
+              set => SetField(ref _iconPath, value);
+          }
 
-    public string? TargetVersion
-    {'''
+              public string? TargetVersion
+          {'''
           if old not in s:
               raise SystemExit('core property anchor not found')
           p.write_text(s.replace(old, new, 1))
@@ -67,6 +68,7 @@ jobs:
           if old not in s:
               raise SystemExit('snapshot anchor not found')
           p.write_text(s.replace(old, new, 1))
+          PY
       - name: Commit patch
         shell: bash
         run: |

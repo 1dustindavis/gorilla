@@ -203,3 +203,21 @@ func TestItemDescriptionIsOptional(t *testing.T) {
 		t.Fatalf("description = %q, want empty value for empty metadata", got)
 	}
 }
+
+func TestItemIconIsOptional(t *testing.T) {
+	withIcon := map[string]Item{}
+	if err := yaml.Unmarshal([]byte("Example:\n  display_name: Example App\n  icon: icons/example.png\n"), &withIcon); err != nil {
+		t.Fatal(err)
+	}
+	if got := withIcon["Example"].Icon; got != "icons/example.png" {
+		t.Fatalf("icon = %q, want preserved value", got)
+	}
+
+	withoutIcon := map[string]Item{}
+	if err := yaml.Unmarshal([]byte("Example:\n  display_name: Example App\n"), &withoutIcon); err != nil {
+		t.Fatal(err)
+	}
+	if got := withoutIcon["Example"].Icon; got != "" {
+		t.Fatalf("icon = %q, want empty value for omitted metadata", got)
+	}
+}

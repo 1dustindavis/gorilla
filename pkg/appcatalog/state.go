@@ -113,12 +113,13 @@ type Operation struct {
 
 // Item is the App Catalog list item contract. Nil fields serialize as null
 // intentionally so unknown evidence is distinguishable from a supplied value.
-// TargetVersion is catalog display metadata, not a detection or verification
-// threshold. The selected pkg/status check owns version requirements.
+// TargetVersion and IconPath are presentation metadata, not detection or
+// verification inputs. The selected pkg/status check owns version requirements.
 type Item struct {
 	ItemName        string      `json:"itemName"`
 	DisplayName     string      `json:"displayName"`
 	Description     string      `json:"description,omitempty"`
+	IconPath        string      `json:"iconPath,omitempty"`
 	Catalog         string      `json:"catalog"`
 	TargetVersion   *string     `json:"targetVersion"`
 	Observation     Observation `json:"observation"`

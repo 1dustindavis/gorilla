@@ -19,7 +19,10 @@ import (
 
 const iconCacheDir = "catalog-icons"
 
-var drivePathPattern = regexp.MustCompile(`^[A-Za-z]:[\\/]`)
+var (
+	drivePathPattern = regexp.MustCompile(`^[A-Za-z]:[\\/]`)
+	downloadGet      = download.Get
+)
 
 // ResolveIcon resolves one optional catalog icon into a validated local PNG path.
 // Asset failures are returned to the caller so the service can log and degrade to
@@ -41,7 +44,7 @@ func ResolveIcon(repositoryURL, cachePath, iconPath string) (string, error) {
 	}
 	_ = os.Remove(finalPath)
 
-	body, err := download.Get(assetURL)
+	body, err := downloadGet(assetURL)
 	if err != nil {
 		return "", fmt.Errorf("retrieve icon: %w", err)
 	}

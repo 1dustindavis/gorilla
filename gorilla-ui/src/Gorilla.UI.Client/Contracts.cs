@@ -37,7 +37,8 @@ public sealed record OptionalInstallItem(
     AppCatalog.Observation? Observation = null,
     AppCatalog.Policy? Policy = null,
     AppCatalog.Actions? Actions = null,
-    string? Description = null
+    string? Description = null,
+    string? IconPath = null
 );
 
 public sealed record OperationAccepted(

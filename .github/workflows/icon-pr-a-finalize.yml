@@ -1,0 +1,77 @@
+name: PR A finalize temporary patch
+
+on:
+  push:
+    branches:
+      - feature/app-catalog-icons-pr-a
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/app-catalog-icons-pr-a
+      - name: Finalize service and core icon wiring
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('pkg/service/catalog.go')
+          s = p.read_text()
+          old = '\t"github.com/1dustindavis/gorilla/pkg/config"\n\t"github.com/1dustindavis/gorilla/pkg/gorillalog"'
+          new = '\t"github.com/1dustindavis/gorilla/pkg/config"\n\t"github.com/1dustindavis/gorilla/pkg/download"\n\t"github.com/1dustindavis/gorilla/pkg/gorillalog"'
+          if old not in s:
+              raise SystemExit('service import anchor not found')
+          s = s.replace(old, new, 1)
+          old = 'func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, error) {\n\tmanifests, extraCatalogs, err := manifestGet(cfg)'
+          new = 'func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, error) {\n\t// Repository access is service-owned; configure the shared downloader with\n\t// this service request configuration so auth, TLS and file:// behavior match\n\t// all other Gorilla repository retrieval.\n\tdownload.SetConfig(cfg)\n\n\tmanifests, extraCatalogs, err := manifestGet(cfg)'
+          if old not in s:
+              raise SystemExit('service function anchor not found')
+          s = s.replace(old, new, 1)
+          old = '\t\t\t\tif err != nil {\n\t\t\t\t\tgorillalog.Debug("Unable to resolve App Catalog icon", source, ":", err)\n\t\t\t\t\tcontinue\n\t\t\t\t}'
+          new = '\t\t\t\tif err != nil {\n\t\t\t\t\t// Do not log downloader errors here: they may include an authenticated\n\t\t\t\t\t// repository URL. The source path is enough to identify the asset.\n\t\t\t\t\tgorillalog.Debug("Unable to resolve App Catalog icon:", source)\n\t\t\t\t\tcontinue\n\t\t\t\t}'
+          if old not in s:
+              raise SystemExit('service logging anchor not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('gorilla-ui/src/Gorilla.UI.Core/Models/UiOptionalInstallItem.cs')
+          s = p.read_text()
+          old = '    private string? _description;\n    private string? _targetVersion;'
+          new = '    private string? _description;\n    private string? _iconPath;\n    private string? _targetVersion;'
+          if old not in s:
+              raise SystemExit('core field anchor not found')
+          s = s.replace(old, new, 1)
+          old = '''    public string? TargetVersion
+    {'''
+          new = '''    public string? IconPath
+    {
+        get => _iconPath;
+        set => SetField(ref _iconPath, value);
+    }
+
+    public string? TargetVersion
+    {'''
+          if old not in s:
+              raise SystemExit('core property anchor not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('gorilla-ui/src/Gorilla.UI.Core/ViewModels/HomeViewModel.cs')
+          s = p.read_text()
+          old = '        item.DisplayName = snapshot.DisplayName;\n        item.Description = snapshot.Description;\n        item.TargetVersion = snapshot.TargetVersion ??'
+          new = '        item.DisplayName = snapshot.DisplayName;\n        item.Description = snapshot.Description;\n        item.IconPath = snapshot.IconPath;\n        item.TargetVersion = snapshot.TargetVersion ??'
+          if old not in s:
+              raise SystemExit('snapshot anchor not found')
+          p.write_text(s.replace(old, new, 1))
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add pkg/service/catalog.go gorilla-ui/src/Gorilla.UI.Core/Models/UiOptionalInstallItem.cs gorilla-ui/src/Gorilla.UI.Core/ViewModels/HomeViewModel.cs
+          git commit -m "Finalize App Catalog icon contract wiring"
+          git push

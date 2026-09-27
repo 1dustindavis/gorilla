@@ -1,22 +1,50 @@
 # App Catalog
 
-![Gorilla App Catalog](https://github.com/user-attachments/assets/5defc532-6d4e-4961-8c90-3b4648e3c650)
+![Gorilla App Catalog](assets/catalog-default.png)
 
-App Catalog is Gorilla's pre-release Windows UI for on-demand software actions. It:
+App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software Gorilla has made available, install it, remove it, and check what happened.
 
-- Lists items assigned through `optional_installs`.
-- Installs and removes optional items through the Gorilla service.
-- Streams operation status updates.
-- Loads cached data at startup, then refreshes it from the service.
-- Receives catalog display/version data, installed-state observations, policy,
-  and allowed actions from the privileged service.
+> **Pre-release:** App Catalog is still under development. Its behavior and interface may change before release.
 
-Install the versioned `gorilla-<version>.msix` from [Gorilla releases](https://github.com/1dustindavis/gorilla/releases):
+## What you can do
+
+App Catalog shows software assigned as `optional_installs` in Gorilla. Depending on the app's current state, you may see actions such as:
+
+- **Install** — install the app and have Gorilla keep it installed.
+- **Update** — install an available update.
+- **Keep Installed** — start managing an app that is already installed so Gorilla keeps it installed and updated.
+- **Remove** — stop managing the app and uninstall it once.
+
+Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. If an action is unavailable, App Catalog explains why.
+
+Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
+
+## Activity and Retry
+
+Open **Activity** to see installs and removals that are running or recently finished. You can close and reopen App Catalog without restarting work that is already running in the Gorilla service.
+
+If something fails, App Catalog shows a plain-language explanation. **Technical details** are available when more information is useful for troubleshooting.
+
+Some failed or interrupted actions also offer **Retry**. Retry starts a new attempt using the app's current state and rules; it does not simply repeat the old request.
+
+## Refresh and offline use
+
+App Catalog normally shows saved information quickly when it opens, then refreshes it from the Gorilla service.
+
+Use **Refresh** to ask Gorilla for the latest software and status information. If the service is temporarily unavailable, App Catalog may continue showing saved data with a warning that it could be out of date. New installs, removals, and retries still require the service to be available.
+
+If there is no saved data and Gorilla cannot load fresh data, App Catalog shows that it could not load the catalog rather than pretending the list is empty.
+
+## Installing App Catalog
+
+App Catalog is included in Gorilla's versioned MSIX package. For example:
 
 ```powershell
 Add-AppxPackage -Path .\gorilla-2.30.0.msix -ForceUpdateFromAnyVersion
 ```
 
-The MSIX installs App Catalog and registers the automatic Gorilla service. App Catalog requires a configured manifest containing `optional_installs` items.
+The package installs App Catalog and the Gorilla Windows service. The service does the privileged work such as checking software state and installing or removing apps; App Catalog is the user interface for requesting and viewing that work.
 
-The UI and its protocol remain pre-release and may change.
+App Catalog needs Gorilla configuration with at least one `optional_installs` assignment before software will appear. Gorilla's normal scheduled management continues even when App Catalog is closed.
+
+For contributor and implementation details, see [`gorilla-ui/ARCHITECTURE.md`](../gorilla-ui/ARCHITECTURE.md) and [`gorilla-ui/README.md`](../gorilla-ui/README.md).

@@ -1,199 +1,129 @@
-# Gorilla UI Architecture (v0)
+# Gorilla UI Architecture
 
-This page describes the v1 implementation and earlier design intentions. The [stage 1 App Catalog contract](docs/app-catalog-contract.md) defines the next state/action/result model; it is not yet enabled in the live service.
+This document describes the current App Catalog architecture. Historical implementation sequencing lives in [issue #208](https://github.com/1dustindavis/gorilla/issues/208); the current product contract is [docs/app-catalog-contract.md](docs/app-catalog-contract.md), and recovery details are in [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md).
 
-## Objectives
-- Run Gorilla UI as a standard user process.
-- Communicate with Gorilla service over named pipes.
-- Provide first-release capabilities:
-  - List available `option_installs`
-  - Install item
-  - Remove item
-  - Stream install/remove status
+## Runtime layers
 
-## Layout
-- `gorilla-ui/src/Gorilla.UI.App/` WinUI 3 app: XAML, Windows lifecycle/adapters, cache-path selection, and runtime composition.
-- `gorilla-ui/src/Gorilla.UI.Core/` platform-neutral presentation and workflow behavior: view models, presentation models, startup/cache orchestration, and operation tracking.
-- `gorilla-ui/src/Gorilla.UI.Client/` named-pipe protocol/client boundary: contracts, transport, serialization/validation, and client diagnostics.
-- `gorilla-ui/tests/Gorilla.UI.Core.Tests/` portable presentation/workflow tests.
-- `gorilla-ui/tests/Gorilla.UI.Client.Tests/` portable client contract and protocol tests.
-- `gorilla-ui/tools/PipeHarness/` CLI harness for pipe protocol validation.
-- `gorilla-ui/docs/` protocol examples and notes.
+Runtime dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`. App may also construct the concrete Client implementation at the composition boundary.
 
-### Dependency rules
-- Runtime dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; App may also reference Client directly at its composition boundary to construct the concrete named-pipe client.
-- `Gorilla.UI.Core` targets ordinary `net8.0` and must not reference `Microsoft.UI.Xaml` or a Windows-specific target framework.
-- `Gorilla.UI.Client` must remain focused on protocol/client concerns and must not depend on Core or App.
-- WinUI-independent presentation and workflow behavior belongs in Core so it can be validated without rendering a window.
-- App chooses Windows-specific runtime paths and lifecycle behavior. Platform-neutral implementations such as JSON cache persistence may live in Core when that keeps them portable and deterministic.
+- `gorilla-ui/src/Gorilla.UI.App/` owns WinUI 3 XAML, Windows lifecycle, navigation/adapters, cache-path selection, accessibility/UIA wiring, and runtime composition.
+- `gorilla-ui/src/Gorilla.UI.Core/` owns platform-neutral presentation and workflow behavior: catalog/detail/activity presentation models, startup/cache coordination, action orchestration, operation tracking/recovery, retry eligibility, and user-facing infrastructure/degraded-state presentation.
+- `gorilla-ui/src/Gorilla.UI.Client/` owns the named-pipe client boundary: v1 contracts, transport, serialization/validation, mutation acknowledgement, operation lookup/status streaming, and client diagnostics.
+- `gorilla-ui/tests/Gorilla.UI.Core.Tests/` and `gorilla-ui/tests/Gorilla.UI.Client.Tests/` contain the portable behavioral and protocol coverage. Windows/FlaUI tests cover the thin real-UI boundary.
 
-## Named Pipe Contract
+Core targets ordinary `net8.0` and does not depend on WinUI. Client does not depend on Core or App. Detection, action authorization, policy mutation, and installer execution are not UI responsibilities.
 
-### Transport
-- Pipe name: `gorilla-service`
-- Encoding: UTF-8 JSON
-- Framing: one JSON message per line (newline-delimited JSON)
-- Request/response operations are line-delimited envelopes.
-- `StreamOperationStatus` returns a line-delimited stream of status envelopes until completion/failure/cancel.
-- Service flushes pipe buffers before disconnecting a client connection to reduce dropped terminal envelopes.
+## Privilege and execution boundary
 
-### Envelope
-All messages use this base shape:
+App Catalog normally runs as a standard, non-elevated packaged UI and talks over the `gorilla-service` named pipe to the installed Gorilla Windows service, which runs as `LocalSystem`.
 
-```json
-{
-  "version": "v1",
-  "messageType": "Request|Response|Event|Error",
-  "operation": "ListOptionalInstalls|InstallItem|RemoveItem|StreamOperationStatus",
-  "requestId": "uuid",
-  "operationId": "uuid-or-empty",
-  "timestampUtc": "2026-02-14T18:10:00Z",
-  "payload": {}
-}
-```
+The service is authoritative for optional-software observation, policy/action admission, mutation execution, operation identity, and retained operation lookup. Core renders and orchestrates service-owned truth; it must not reimplement detection or authorize an action from cached UI state.
 
-Notes:
-- `requestId` correlates one request to one response.
-- `operationId` correlates one install/remove operation to status events.
-- `operationId` is generated by service in `InstallItem`/`RemoveItem` response.
+The produced-MSIX validation installs the package, verifies the service is registered/running as `LocalSystem`, exercises packaged UI/service communication, and validates relaunch recovery. GitHub-hosted Windows runners use an elevated interactive session, so an explicit medium-integrity/non-elevated UI-process assertion remains a manual validation in a normal desktop session rather than a hosted-CI claim.
 
-## Operations
+## Named-pipe protocol
+
+The active protocol uses newline-delimited UTF-8 JSON envelopes with `version: "v1"`. Current operations are:
+
 - `ListOptionalInstalls`
-  - Request payload: optional filters/sorting later; empty for v0.
-  - Response payload: list of available items and current state metadata.
-  - Important: return only a JSON-safe subset of item fields. Do not emit full internal item objects because some fields may not be JSON-compatible.
-  - Item identity and details should align with existing Gorilla YAML concepts:
-    - `itemName` (from `item_name`)
-    - `displayName` (from `display_name`)
-    - `version`
-    - `catalog`
-    - `installerType`, `installerPackageId`, `installerLocation` (installer summary fields)
-  - Required item status fields in v0:
-    - `isInstalled` (bool): current installed state.
-    - `status` (string enum): `Installed|NotInstalled|InstallPending|RemovePending|Unknown`.
-    - `statusUpdatedAtUtc` (RFC3339 timestamp): last known status update time.
-    - `lastOperationId` (string, optional): most recent related install/remove operation.
 - `InstallItem`
-  - Request payload: `itemName`.
-  - Response payload: accepted status + `operationId`.
 - `RemoveItem`
-  - Request payload: `itemName`.
-  - Response payload: accepted status + `operationId`.
+- `ListOperations`
 - `StreamOperationStatus`
-  - Request payload: `operationId`.
-  - Response payload: initial ack.
-  - Followed by `Event` messages with status/progress until terminal state.
 
-## Status State Machine (Install/Remove)
+A request/response/event/error envelope carries `requestId` for request correlation and, where applicable, `operationId` for one accepted service operation. Install and Remove requests also carry a caller-generated `mutationId`.
 
-### States
+`mutationId` identifies one logical user mutation across acknowledgement uncertainty. Repeating the same mutation ID for the same item/action resolves to the original operation; it is not a request to run the installer again. Reusing it for a different item/action is rejected.
+
+See `Gorilla.UI.Client/ProtocolConstants.cs`, `ProtocolPayloads.cs`, and the Go service implementation for the executable contract.
+
+## Optional-software model
+
+App Catalog keeps three concepts separate:
+
+1. **Observation** — what current detection established, such as absent, installed, update available, unknown, or detection failed.
+2. **Policy/selection** — administrator requirements plus the user's persistent optional-install selection.
+3. **Operation** — one accepted Install or Remove request and its lifecycle/result.
+
+The Go service uses the shared Gorilla catalog/status implementation to build observations and action decisions. C# does not independently inspect registry/files/packages or compare displayed version strings to infer state.
+
+Install persists the local managed-install selection and requests convergence to the selected item. Selected optional software remains subject to normal future Gorilla management/update convergence.
+
+Remove clears the local managed-install selection and performs a one-time uninstall when required and permitted. It does not create persistent user-managed uninstall policy. If software is later reinstalled outside Gorilla, the historical user Remove is not repeatedly enforced. Administrator-controlled managed-uninstall policy remains separate.
+
+The service owns allowed actions and reason codes. Cached actions are presentation data, not admission authority; every new request is revalidated by the service against current truth.
+
+## Operation lifecycle and results
+
+The active lifecycle states are:
+
 - `Queued`
 - `Validating`
 - `Downloading`
 - `Installing` or `Removing`
-- `Succeeded` (terminal)
-- `Failed` (terminal)
-- `Canceled` (terminal)
+- `Completed`
 
-### Rules
-- Terminal states are immutable.
-- Progress (`progressPercent`) must be monotonic within an operation.
-- `Failed` includes `errorCode` and `errorMessage`.
-- `Canceled` includes `canceledBy` (`user|service|system`).
+`Completed` is the only terminal lifecycle state. Success/failure meaning is carried by the structured terminal `result`, including outcomes such as `Succeeded`, `AlreadySatisfied`, `Failed`, `Unverified`, and `Interrupted` with stable result codes/details. The old model in which `Succeeded`, `Failed`, or `Canceled` were lifecycle states is obsolete.
 
-## UI Screen Map
-- Home (default):
-  - Store-like hero + cards for available items.
-  - Each card shows current state and primary action (`Install` or `Remove`).
-- Item detail panel/page:
-  - Description, version, status, last action result.
-  - Action button and inline operation feedback.
-- Activity view:
-  - Active and recent operations with status timeline.
-  - Text stream for detailed status lines (first release can be simple).
+Every operation carries immutable `operationId`, `itemName`, and action identity. `progressPercent` is nullable and remains indeterminate when Gorilla has no measured progress.
 
-## User Flows
-- Startup load flow (cache-first):
-  1. On app start, load the most recent cached `ListOptionalInstalls` result from local disk.
-  2. Immediately render cached items so first paint is fast and usable offline.
-  3. Immediately request fresh data via `ListOptionalInstalls`.
-  4. Replace/update UI with fresh response and overwrite cache.
-  5. If refresh fails, keep cached results visible and show non-blocking stale-data/service warning.
-- Install flow:
-  1. UI loads items via `ListOptionalInstalls`.
-  2. User selects `Install`.
-  3. UI calls `InstallItem`, receives `operationId`.
-  4. UI opens `StreamOperationStatus` for that `operationId`.
-  5. UI updates item + activity views until terminal status.
-- Remove flow:
-  1. UI loads items via `ListOptionalInstalls`.
-  2. User selects `Remove`.
-  3. UI calls `RemoveItem`, receives `operationId`.
-  4. UI opens `StreamOperationStatus` for that `operationId`.
-  5. UI updates item + activity views until terminal status.
+## Tracking, relaunch, and recovery
 
-## Error Handling
-- Pipe unavailable: show service unavailable banner + retry action.
-- Timeout: show retry option and keep activity record.
-- Protocol mismatch (`version` unsupported): hard error with compatibility message.
-- Unexpected stream end before terminal state: mark operation as `Failed` with `stream_ended`.
-- Cache read failure: log warning and continue with live request.
-- Cache write failure: log warning and continue; do not block UI.
+The service keeps a bounded in-memory operation registry and exposes it through `ListOperations`. Active work is service-owned and independent of App Catalog pages, cards, or process lifetime while the service itself remains running.
 
-## Diagnostics Decision Record
+Core reconstructs Activity and active item state from retained operation snapshots. On transient status-stream loss it attempts bounded reconnection/reconciliation instead of treating a broken pipe as an installer failure.
 
-### Policy Matrix
-| Area | Default | Debug Enablement | Verbose Enablement | Notes |
-| --- | --- | --- | --- | --- |
-| UI client diagnostics (`ClientDiagnostics`) | Disabled | `GORILLA_UI_DEBUG=1` or `GORILLA_DEBUG=1` | N/A | No diagnostics directory/file is created when disabled. |
-| Service named-pipe trace diagnostics (`gorillalog.Debug` in service pipe paths) | Disabled | `debug: true` in config or `--debug` | N/A | High-volume pipe request/response tracing remains debug-only. |
-| Gorilla process baseline logs (`gorillalog.Info/Warn/Error`) | Enabled | Still enabled | `verbose: true` or `--verbose` adds console output | Baseline troubleshooting logs stay enabled in both service mode and CLI mode. |
+Closing and relaunching App Catalog does **not** resubmit unfinished mutations. The relaunched UI asks the service for retained operations and resumes presentation/tracking of the same `operationId`. Installed-product validation asserts relaunch continuity and that no additional `InstallItem` request is submitted.
 
-### Log Paths and Creation Rules
-- UI client (Windows runtime): `%LOCALAPPDATA%\\gorilla\\ui-client.log`.
-- Gorilla process log (service mode and CLI mode): `<app_data_path>/gorilla.log` (defaults to `%ProgramData%\\gorilla\\gorilla.log` when `app_data_path` is not set).
-- Creation rules:
-  - UI diagnostics directory/file are created only when UI diagnostics are enabled.
-  - Service log directory/file are created at service logger initialization except in `checkonly` mode.
-  - No additional per-operation files are created.
+The registry is not persisted across a service restart. After restart, App Catalog refreshes observed state and does not invent a historical terminal result or blindly replay an installer. Persistent Install selection may naturally converge during a later normal managed run; that is desired-state convergence, not mutation replay. One-time Remove is not automatically repeated.
 
-### Retention and Rotation Policy
-- Target policy:
-  - Keep `gorilla.log` and `ui-client.log` bounded to `10 MiB` each.
-  - Rotate by rename (`*.log` -> `*.log.1`) when exceeding cap, keep one backup.
-  - Trigger cleanup at process startup and before first append after crossing cap.
-- Failure behavior:
-  - If rotation/cleanup fails, continue operating and keep logging best-effort.
-  - Diagnostics/logging failures must never fail install/remove/list service operations.
+See [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md) for retention and reconnect details.
 
-### Required Correlation Fields
-- Required fields for cross-process troubleshooting on protocol/operation lifecycle logs:
-  - `requestId`
-  - `operationId`
-  - `operation` (API action name)
-  - `state` (operation state)
-  - `result` (`ok|error|canceled`)
-  - `durationMs` (when measurable)
-- UI and service lifecycle logs should include these fields whenever the value exists for the event.
+## Retry semantics
 
-### Implementation Mapping and Deferred Tasks
-- `pkg/gorillalog/gorillalog.go`
-  - Implemented: bounded file retention/rotation for `gorilla.log` (single backup: `gorilla.log.1`).
-  - Deferred: structured key/value helper API to avoid ad hoc string formatting in call sites.
-- `pkg/service/run_windows.go`
-  - Implemented: request lifecycle diagnostics with explicit `operation`, `requestId`, `operationId`, `result`, and `durationMs`.
-  - Deferred: add explicit `state` transitions beyond terminal lifecycle markers.
-- `gorilla-ui/src/Gorilla.UI.Client/ClientDiagnostics.cs`
-  - Implemented: retention/rotation for `ui-client.log` (single backup: `ui-client.log.1`).
-  - Deferred: normalize all diagnostics lines to one schema; currently enforced for request/stream lifecycle lines.
+Retry is a **new user action**, not replay of a historical request.
 
-### Rationale
-- Keep diagnostics noise low by default while preserving current service operational logging behavior needed for support.
-- Keep high-volume tracing behind explicit debug toggles.
-- Standardize correlation fields so UI and service events can be joined during incident triage.
+For a retained unsuccessful operation, Core resolves the current canonical item and current service-derived action decision. If Retry remains eligible, it dispatches through the ordinary current Install/Remove path, which receives a fresh mutation identity and is re-authorized by the service. The historical operation and its `operationId` remain unchanged in Activity.
 
-## Immediate Build Notes
-- The WinUI App project itself is created/built on Windows; Core, Client, their tests, docs, and protocol harness are portable and validated on macOS as well as Windows.
-- `make ui-lint` and `make ui-test` are the canonical portable UI validation entry points and include both Client and Core layers.
-- `cmd/gorilla` CLI commands that talk to the service should be treated as a first-class debug client and updated in lockstep with this API design.
-- Existing CLI message compatibility is not a requirement for this iteration.
+A service admission rejection is current-action feedback, not a synthetic new operation result. A successful Refresh can make Retry eligible or ineligible as current catalog truth changes.
+
+## Catalog cache, freshness, and degraded state
+
+Startup is cache-first when a usable cache exists, followed by an immediate live refresh. Cached data is explicitly identified as cached/stale presentation and never becomes service authority for a mutation.
+
+- A successful live refresh replaces cached presentation and records live freshness/last-updated information.
+- If live refresh fails and usable cache exists, cached data remains visible with degraded/offline presentation.
+- If no usable cache exists and live loading fails, App Catalog shows explicit load-failed/no-cached-data state.
+- If fresh live data is obtained but cache persistence fails, the fresh live data remains usable; cache-write failure is degradation, not a service-load failure.
+- Loading, authoritative empty assignment, no search results, no cached data, and load failure are distinct states.
+
+Infrastructure/connection uncertainty is presented separately from app-specific operation failure.
+
+## UI surfaces
+
+The current product has three main surfaces:
+
+- **Catalog** — searchable store-style card grid driven by canonical Core presentation, with contextual primary/secondary actions.
+- **Details** — description, available/installed version where known, observation, current action explanation, active operation, latest result, Retry when currently eligible, and optional technical details.
+- **Activity** — active and retained recent operations reconstructed from the service registry, including result/recovery presentation and operation-ID-rooted troubleshooting controls.
+
+Stable accessibility/UI Automation identifiers and keyboard/focus behavior are documented in [docs/accessibility-automation.md](docs/accessibility-automation.md).
+
+## Validation layers
+
+The validation model intentionally keeps most permutations below the rendered UI:
+
+- `make verify` — portable Go plus Client/Core validation, including state/action/result policy, protocol validation, presentation, cache/degraded behavior, Retry, and recovery logic.
+- `make verify-windows` — Windows service/installer/named-pipe integration.
+- `make verify-e2e` — source-built WinUI + FlaUI critical workflows, including keyboard/accessibility/automation boundaries and focused presentation checks.
+- `make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>` — produced standalone binary plus installed MSIX, real `LocalSystem` service, packaged UI/service communication, representative fixture behavior, relaunch/no-replay recovery, and uninstall cleanup.
+
+Stage 7 presentation validation is deliberately focused rather than exhaustive: representative Catalog and Details/failure surfaces were checked at baseline/light, 150% scaling, dark app mode, and one high-contrast configuration. It is not a broad DPI/theme/resize matrix.
+
+Successful and failure-oriented Windows UI paths retain appropriate screenshots, automation trees, TRX results, logs, and process/service metadata for review/diagnosis.
+
+## Diagnostics
+
+UI client diagnostics are opt-in (`GORILLA_UI_DEBUG=1` or `GORILLA_DEBUG=1`). Service named-pipe trace diagnostics are debug-only, while normal Gorilla process logging remains available through `gorilla.log`. Diagnostic failures must not fail App Catalog operations.
+
+Current log locations and retention behavior are documented in [README.md](README.md).

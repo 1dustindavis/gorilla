@@ -27,7 +27,7 @@ See [the complete example catalog](../examples/example_catalog.yaml).
 ## Item keys
 
 - `display_name`: Human-readable item name.
-- `description`: Optional plain-text, concise human-readable description. It is presentation metadata only and does not affect installation or detection behavior.
+- `description`: Optional plain-text, concise human-readable description.
 - `icon`: Optional repository-relative PNG path used by App Catalog.
 - `version`: Desired application version.
 - `dependencies`: Item names that must be processed first.

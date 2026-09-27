@@ -2,7 +2,7 @@
 
 ![Gorilla App Catalog](https://github.com/user-attachments/assets/5defc532-6d4e-4961-8c90-3b4648e3c650)
 
-App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software the Gorilla administrator has made available, install it, remove it, and check what happened.
+App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software Gorilla has made available, install it, remove it, and check what happened.
 
 ## What you can do
 
@@ -13,7 +13,7 @@ App Catalog shows software assigned as `optional_installs` in Gorilla. Depending
 - **Keep Installed** — start managing an app that is already installed so Gorilla keeps it installed and updated.
 - **Remove** — stop managing the app and uninstall it once.
 
-Not every action is always available. Gorilla checks the computer's current state and the Gorilla administrator's software rules before allowing a change. If an action is unavailable, App Catalog explains why.
+Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. If an action is unavailable, App Catalog explains why.
 
 Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
 

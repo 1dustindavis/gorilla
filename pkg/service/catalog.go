@@ -5,18 +5,24 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
+	"github.com/1dustindavis/gorilla/pkg/catalogasset"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
+const maxConcurrentIconResolutions = 4
+
 var (
 	catalogGet    = catalog.Get
 	statusObserve = status.Observe
+	iconResolve   = catalogasset.ResolveIcon
 )
 
 type optionalItemDetails struct {
@@ -24,6 +30,7 @@ type optionalItemDetails struct {
 	InstallerType      string
 	InstallerPackageID string
 	InstallerLocation  string
+	iconSource         string
 }
 
 type resolvedCatalogItem struct {
@@ -157,9 +164,45 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 			Contract: contract, InstallerType: resolved.item.Installer.Type,
 			InstallerPackageID: resolved.item.Installer.PackageID,
 			InstallerLocation:  resolved.item.Installer.Location,
+			iconSource:         resolved.item.Icon,
 		})
 	}
+	resolveOptionalIcons(cfg, details)
 	return details, nil
+}
+
+func resolveOptionalIcons(cfg config.Configuration, details []optionalItemDetails) {
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	workers := maxConcurrentIconResolutions
+	if len(details) < workers {
+		workers = len(details)
+	}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				source := strings.TrimSpace(details[index].iconSource)
+				if source == "" {
+					continue
+				}
+				resolved, err := iconResolve(cfg.URL, cfg.CachePath, source)
+				if err != nil {
+					gorillalog.Debug("Unable to resolve App Catalog icon", source, ":", err)
+					continue
+				}
+				details[index].Contract.IconPath = resolved
+			}
+		}()
+	}
+	for index := range details {
+		if strings.TrimSpace(details[index].iconSource) != "" {
+			jobs <- index
+		}
+	}
+	close(jobs)
+	wg.Wait()
 }
 
 func administratorRequirements(cfg config.Configuration, manifests []manifest.Item, selection manifest.Item) (map[string]int, map[string]int) {

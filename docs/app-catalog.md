@@ -2,64 +2,47 @@
 
 ![Gorilla App Catalog](https://github.com/user-attachments/assets/5defc532-6d4e-4961-8c90-3b4648e3c650)
 
-App Catalog is Gorilla's Windows interface for optional software. It shows software assigned through `optional_installs` and lets users request the actions currently permitted by Gorilla policy and device state.
+App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software their organization has made available, install it, remove it, and check what happened.
 
-## What appears in App Catalog
+## What you can do
 
-App Catalog shows effective optional-software assignments from Gorilla's configured manifests/catalogs. Cards and Details can include the app name, description, available version, detected installed state/version when Gorilla can determine them, and the actions currently available.
+App Catalog shows software assigned as `optional_installs` in Gorilla. Depending on the app's current state, you may see actions such as:
 
-Installed-state information and action availability come from the Gorilla service. App Catalog does not independently inspect the machine or decide whether an action is allowed.
+- **Install** — install the app and have Gorilla keep it installed.
+- **Update** — install an available update.
+- **Keep Installed** — start managing an app that is already installed so Gorilla keeps it installed and updated.
+- **Remove** — stop managing the app and uninstall it once.
 
-## Actions
+Not every action is always available. Gorilla checks the computer's current state and your organization's software rules before allowing a change. If an action is unavailable, App Catalog explains why.
 
-The exact action shown depends on current observation, policy, selection, and whether work is already active.
+Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
 
-- **Install** selects the optional app for ongoing Gorilla management and requests installation/convergence when needed. An already-installed but unselected app can also be adopted into managed installs when policy permits.
-- **Update** may be presented when the current action model exposes an install/convergence action for software with an available update; Gorilla still uses the service's current action decision rather than a client-side version comparison.
-- **Keep Installed** reflects the managed selection for software Gorilla should continue to keep installed/updated; it is not a separate installer replay.
-- **Remove** clears the user's local managed-install selection and performs a one-time uninstall when required and permitted. It does not create a persistent user-managed uninstall rule. If the app is later installed again outside Gorilla, the old user Remove is not repeatedly enforced.
+## Activity and Retry
 
-Administrator-required install/uninstall policy and dependency requirements can make an action unavailable. App Catalog shows the service-provided explanation rather than overriding those rules.
+Open **Activity** to see installs and removals that are running or recently finished. You can close and reopen App Catalog without restarting work that is already running in the Gorilla service.
 
-## Activity and results
+If something fails, App Catalog shows a plain-language explanation. **Technical details** are available when more information is useful for troubleshooting.
 
-**Activity** shows active and recently retained App Catalog operations with the app/action identity and current or final result. Closing and reopening App Catalog does not restart an in-progress service operation; while the Gorilla service remains running, the UI reconstructs Activity from the service's retained operation records.
+Some failed or interrupted actions also offer **Retry**. Retry starts a new attempt using the app's current state and rules; it does not simply repeat the old request.
 
-Operation failures are presented in plain language. When useful for troubleshooting, **Technical details** exposes the underlying result code/message or infrastructure information without making raw protocol/exception text the primary user-facing explanation.
+## Refresh and offline use
 
-## Retry after failure
+App Catalog normally shows saved information quickly when it opens, then refreshes it from the Gorilla service.
 
-When a failed, unverified, or interrupted historical operation is still eligible under the app's **current** state and policy, App Catalog can offer **Retry**.
+Use **Refresh** to ask Gorilla for the latest software and status information. If the service is temporarily unavailable, App Catalog may continue showing saved data with a warning that it could be out of date. New installs, removals, and retries still require the service to be available.
 
-Retry is a new service-authorized action. It does not replay the old operation ID or blindly resubmit the old request. Gorilla rechecks current catalog/device/policy truth before accepting the new action, and the earlier failed operation remains in Activity as history.
+If there is no saved data and Gorilla cannot load fresh data, App Catalog shows that it could not load the catalog rather than pretending the list is empty.
 
-## Refresh, freshness, and cached data
+## Installing App Catalog
 
-App Catalog loads usable cached catalog data quickly at startup when available, then requests fresh data from the Gorilla service.
-
-The UI distinguishes live data from degraded/cached presentation:
-
-- **Refresh** requests current catalog/device/action information from the service.
-- Last-updated/freshness presentation shows when current data was obtained.
-- If live refresh fails but a usable cache exists, cached software can remain visible with a stale/offline/degraded warning.
-- Cached action availability is not authority for a new mutation; the service revalidates every Install/Remove/Retry request.
-- If there is no usable cache and the service cannot load data, App Catalog shows explicit load-failed/no-cached-data state.
-- If fresh service data loads but saving the cache fails, the fresh data remains usable and the cache problem is shown as degradation rather than a false service failure.
-
-Loading, no optional software assigned, no search results, no cached data, and load failure are distinct states.
-
-## Service dependency and installed package behavior
-
-Install the versioned `gorilla-<version>.msix` from Gorilla releases, for example:
+App Catalog is included in Gorilla's versioned MSIX package. For example:
 
 ```powershell
 Add-AppxPackage -Path .\gorilla-2.30.0.msix -ForceUpdateFromAnyVersion
 ```
 
-The MSIX installs App Catalog and registers the Gorilla Windows service. The service runs with the privileges needed to evaluate policy/detection and perform software changes; the App Catalog UI normally runs as the signed-in user and communicates with that service over Gorilla's named pipe.
+The package installs App Catalog and the Gorilla Windows service. The service does the privileged work such as checking software state and installing or removing apps; App Catalog is the user interface for requesting and viewing that work.
 
-If the service is unavailable, App Catalog cannot authorize or start new software mutations. Cached catalog data may still be displayed when available, clearly marked as degraded/stale.
+App Catalog needs Gorilla configuration with at least one `optional_installs` assignment before software will appear. Gorilla's normal scheduled management continues even when App Catalog is closed.
 
-App Catalog requires Gorilla configuration that assigns one or more `optional_installs` entries to display software. Normal Gorilla scheduled management continues independently of whether the App Catalog window is open.
-
-For implementation details and contributor validation, see [`gorilla-ui/ARCHITECTURE.md`](../gorilla-ui/ARCHITECTURE.md) and [`gorilla-ui/README.md`](../gorilla-ui/README.md).
+For contributor and implementation details, see [`gorilla-ui/ARCHITECTURE.md`](../gorilla-ui/ARCHITECTURE.md) and [`gorilla-ui/README.md`](../gorilla-ui/README.md).

@@ -4,6 +4,8 @@
 
 App Catalog is Gorilla's Windows app for optional software. It gives users a simple way to find software Gorilla has made available, install it, remove it, and check what happened.
 
+> **Pre-release:** App Catalog is still under development. Its behavior and interface may change before release.
+
 ## What you can do
 
 App Catalog shows software assigned as `optional_installs` in Gorilla. Depending on the app's current state, you may see actions such as:

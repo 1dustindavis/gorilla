@@ -137,6 +137,15 @@ jobs:
             RELEASE_INTEGRATION_WORK_ROOT="$env:RUNNER_TEMP\gorilla-release-integration" `
             INSTALLED_PRODUCT_WORK_ROOT="$env:RUNNER_TEMP\gorilla-installed-product"
 
+      - name: Upload successful installed-product evidence
+        if: success() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: installed-product-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/gorilla-installed-product/installed-product-evidence
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Stage integration failure diagnostics
         if: failure()
         shell: pwsh

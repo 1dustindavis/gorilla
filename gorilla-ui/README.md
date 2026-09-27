@@ -1,94 +1,74 @@
 # Gorilla UI
 
-See the [App Catalog completion plan](https://github.com/1dustindavis/gorilla/issues/208) and [stage 1 contract](docs/app-catalog-contract.md) for the next state/action/result model and its implementation boundary.
+This folder contains the WinUI App Catalog and its portable Core/Client layers. Current product architecture is documented in [ARCHITECTURE.md](ARCHITECTURE.md); the staged implementation history is recorded in [issue #208](https://github.com/1dustindavis/gorilla/issues/208).
 
-This folder contains all UI app related code for the Gorilla WinUI client.
+## Projects and ownership
+
+- `gorilla-ui/src/Gorilla.UI.App/` — WinUI 3 XAML, navigation/lifecycle, Windows runtime composition, accessibility/UIA wiring.
+- `gorilla-ui/src/Gorilla.UI.Core/` — platform-neutral presentation/workflow behavior, cache/freshness coordination, operation tracking/recovery, Retry presentation.
+- `gorilla-ui/src/Gorilla.UI.Client/` — active v1 named-pipe contracts, transport, serialization/validation, operation lookup/status streaming, diagnostics.
+- `gorilla-ui/tests/Gorilla.UI.Client.Tests/` and `gorilla-ui/tests/Gorilla.UI.Core.Tests/` — portable protocol and presentation/workflow coverage.
+- `gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/` — thin Windows/FlaUI validation for behavior that is uniquely valuable at the rendered UI boundary.
+- `gorilla-ui/tools/PipeHarness/` — protocol/debug harness.
+
+Runtime dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`. Core remains ordinary `net8.0` and WinUI-independent. The Go service owns detection, action authorization, mutation execution, and retained operation truth.
 
 Tooling requirements:
-- macOS development: `dotnet-sdk@8`
-- Windows VM development: Visual Studio 2022 with WinUI/Windows App SDK tooling and .NET 8 SDK
+- portable development: .NET 8 SDK plus the normal Go/repository toolchain;
+- Windows UI/package validation: Windows with PowerShell 7, WinUI/Windows App SDK tooling, and .NET 8.
 
-Current workspace:
-- Solution file: `gorilla-ui/Gorilla.UI.sln`
-- Included projects:
-  - `gorilla-ui/src/Gorilla.UI.Client/Gorilla.UI.Client.csproj`
-  - `gorilla-ui/src/Gorilla.UI.Core/Gorilla.UI.Core.csproj`
-  - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
-  - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
-  - `gorilla-ui/tools/PipeHarness/PipeHarness.csproj`
+## Canonical validation
 
-Architecture boundary:
-- `Gorilla.UI.App` owns XAML, WinUI lifecycle, navigation/adapters, and Windows runtime composition.
-- `Gorilla.UI.Core` owns platform-neutral presentation and workflow behavior such as view models, presentation models, startup/cache coordination, and install/remove operation tracking.
-- `Gorilla.UI.Client` owns the named-pipe protocol/client boundary: contracts, transport, serialization/validation, and client diagnostics.
-- Dependency direction is `Gorilla.UI.App -> Gorilla.UI.Core -> Gorilla.UI.Client`; Core targets ordinary `net8.0` and must not reference `Microsoft.UI.Xaml` or Windows-specific target frameworks.
-- Filesystem cache paths are chosen by App; the JSON cache implementation is platform-neutral and lives in Core so its behavior remains covered by portable tests.
-- The committed App/Core/Client projects are the source of truth; there is no generated shadow template copy of application code.
+Use the repository validation levels rather than ad-hoc test commands:
 
-Validation commands:
-- `make ui-lint` runs `dotnet build -warnaserror` for the portable client/core projects, their test projects, and PipeHarness.
-- `make ui-test` runs both portable .NET test projects:
-  - `gorilla-ui/tests/Gorilla.UI.Client.Tests/Gorilla.UI.Client.Tests.csproj`
-  - `gorilla-ui/tests/Gorilla.UI.Core.Tests/Gorilla.UI.Core.Tests.csproj`
-- `make verify` therefore exercises both protocol/client tests and WinUI-independent presentation/workflow tests. The portable commands can be run on macOS/Linux as well as Windows; CI runs them once on Windows.
-- Windows UI E2E tests (xUnit + FlaUI + UIA3):
-  - Canonical commands: `make ui-e2e` builds the source service/UI and runs the E2E scenario; `make ui-e2e-test` reuses existing source builds.
-  - Harness: `integration/windows/run-ui-e2e.ps1` installs the source-built `gorilla.exe` as a temporary real Windows service, reuses the existing Windows integration fixture preparation, and owns service/server/cache cleanup.
-  - Critical workflows: healthy startup with fixture software, install + terminal refresh, remove + terminal refresh, and service-unavailable startup using cached data.
-  - CI workflow: `.github/workflows/windows-ui-test.yml` on `windows-latest`.
-  - CI runs the E2E scenario once and treats a failure as a workflow failure.
-  - Stage 5 evidence capture remains enabled on success and failure so failed runs retain screenshots, automation trees, TRX results, client/service logs, and process/service metadata for diagnosis.
-  - TRX results and existing failure diagnostics are written under the E2E work root (`build/windows-integration/ui-results` and `ui-artifacts` by default).
-- Optional local autofix: use `dotnet format` against the relevant portable project.
+- `make verify` — portable baseline, including Go and Client/Core tests.
+- `make verify-windows` — Windows service/installer/named-pipe integration.
+- `make verify-e2e` — source-built WinUI/FlaUI critical workflows.
+- `make verify-release GORILLA_RELEASE_EXE=<path> GORILLA_RELEASE_MSIX=<path>` — produced binary/MSIX interoperability, installed `LocalSystem` service, packaged UI/service communication, representative fixtures, relaunch recovery, and uninstall cleanup on a disposable Windows host.
 
-UI automation and accessibility contract:
-- Interactive and diagnostically important WinUI controls that are part of automated tests use explicit `AutomationProperties.AutomationId` values.
-- Automation IDs are stable machine-facing identifiers and are treated as a compatibility surface for tests. Renaming or removing one requires updating and reviewing the affected automation contract.
-- FlaUI selectors should prefer automation properties over visible text, screen position, or layout. Visible text selectors are appropriate when the text itself is the behavior being validated.
-- Each generated optional-install `ListViewItem` uses the protocol-level `ItemName` as its stable automation ID and the human-facing `DisplayName` as its accessible name. Automation should scope to that item container before locating repeated child controls.
-- Repeated controls inside an item template use stable IDs such as `InstallButton` and `RemoveButton`; do not generate their IDs from changing item data.
-- Automation IDs do not replace accessibility metadata. Controls should continue to expose meaningful accessible names, roles, focus/keyboard behavior, and state/value semantics.
-- The current home automation surface includes `HomeHeading`, `ServiceWarning`, `ItemsList`, item containers identified by `ItemName`, `ItemStatus`, `InstallButton`, and `RemoveButton`. Add similarly intentional IDs as new interactive or diagnostically important UI is introduced.
+`make ui-lint` and `make ui-test` remain useful focused portable commands. `make ui-e2e-test` reuses existing source Windows builds when appropriate.
 
-Signed package workflow (Windows VMs):
-- Build VM:
-  - Run from repo root (`gorilla/`).
-  - `pwsh -File gorilla-ui/tools/build-signed-msix.ps1`
-  - Default output directory: `build/` (repo root)
-  - Outputs:
-    - `build/Gorilla.UI.App.signed.msix`
-    - `build/Gorilla.UI.App.cer`
-    - `build/win-build.log`
-- Target VM (Admin PowerShell):
-  - Run from repo root (`gorilla/`) when using default paths.
-  - `pwsh -File gorilla-ui/tools/install-signed-msix.ps1`
-  - Default input/output directory: `build/` (repo root relative to script location)
-  - Handles `already installed` (`0x80073CFB`) by removing the existing package identity and retrying once.
-  - Output:
-    - `build/win-install.log`
+The Windows UI harness retains screenshots, automation trees, TRX output, client/service logs, and process/service metadata where appropriate. Source UI tests and installed-product tests intentionally reuse the same behavioral infrastructure rather than maintaining parallel UI frameworks.
 
-Diagnostics strategy:
-- Quiet-by-default behavior:
-  - UI client diagnostics are off by default and produce no diagnostics directory/file until explicitly enabled.
-  - Service named-pipe trace logs are debug-only (`debug: true` or `--debug`).
-  - Baseline Gorilla process logs remain enabled in `gorilla.log` for troubleshooting (both service mode and CLI mode), with console chatter gated by `verbose: true` or `--verbose`.
-- Enablement:
-  - UI client diagnostics: set `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`) before launching Gorilla.UI.App.
-  - Service trace diagnostics: set `debug: true` in config or launch Gorilla with `--debug`.
-  - Service console verbosity: set `verbose: true` in config or launch Gorilla with `--verbose`.
-- Log locations:
-  - UI client (Windows runtime): `%LOCALAPPDATA%\\gorilla\\ui-client.log`.
-  - Gorilla process log (service mode and CLI mode): `<app_data_path>/gorilla.log` (default `%ProgramData%\\gorilla\\gorilla.log`).
-- Retention/rotation policy (implementation target):
-  - Cap each log at `10 MiB`.
-  - Keep one rotated backup (`*.log.1`).
-  - Run cleanup at startup and before first append past the cap.
-  - If cleanup fails, continue app/service behavior and keep logging best-effort.
-- Required correlation fields for troubleshooting:
-  - `requestId`, `operationId`, `operation`, `state`, `result`, `durationMs`.
-  - Scope note: required for protocol/operation lifecycle logs; not required for every generic line.
+Stage 7 presentation coverage is deliberately focused: representative Catalog and Details/failure surfaces are validated under baseline/light, 150% scaling, dark app mode, and one high-contrast configuration. This is not an exhaustive DPI/theme/resize matrix.
 
-Planned scope for the first release:
-- Display available option installs
-- Allow install/remove actions
-- Show install/remove status updates
+The installed-product harness verifies that the MSIX installs the Gorilla service as `LocalSystem` and that the packaged App Catalog communicates with it. GitHub-hosted Windows runners launch their interactive session elevated, so an explicit non-elevated/medium-integrity App Catalog process assertion is a manual check in a normal Windows desktop session rather than a hosted-CI guarantee.
+
+## Accessibility and UI Automation
+
+The stable keyboard/accessibility/UIA contract is maintained in [docs/accessibility-automation.md](docs/accessibility-automation.md). In particular:
+
+- preserve existing `AutomationProperties.AutomationId` values unless a separately reviewed semantic change requires otherwise;
+- prefer automation identity/control type/state over visible text, coordinates, or template layout;
+- scope repeated child IDs to their logical item/operation container;
+- Catalog item identity is the canonical protocol `ItemName`;
+- Activity/recovery identity is the immutable `OperationId`;
+- keyboard tests use actual keyboard input for keyboard-specific behavior;
+- virtualized collections are located/restored by logical identity rather than realized-row counts.
+
+Current shell IDs include `CatalogFreshnessStatus`, `CatalogRefreshButton`, `CatalogDegradedWarning`, `InfrastructureWarning`, and `NavigationFrame`.
+
+Current Catalog IDs include `HomeHeading`, `ActivityNavigationButton`, `CatalogSearchBox`, `CatalogItems`, `ItemName`-identified containers, and repeated child roles such as `CatalogCard`, `CatalogObservation`, `CatalogOperationStatus`, `PrimaryActionButton`, and `SecondaryActionButton`.
+
+Current Details IDs include `DetailsBackButton`, `AppDetailsRoot`, `DetailsObservation`, `DetailsActiveOperation`, `DetailsLatestResult`, `DetailsPrimaryAction`, and `DetailsSecondaryAction`. Operation-specific failure/Retry/technical-detail controls are rooted in `OperationId`.
+
+Current Activity IDs include `ActivityPageRoot`, `ActivityBackButton`, `ActivityHeading`, `ActivityItems`, and `ActivityOperation-{OperationId}` rows with operation-ID-rooted child controls.
+
+## Diagnostics
+
+UI client diagnostics are disabled by default. Enable them with `GORILLA_UI_DEBUG=1` (or `GORILLA_DEBUG=1`) before launch. Service named-pipe trace logging remains debug-only (`debug: true` or `--debug`), while normal Gorilla process logging remains available through `gorilla.log`.
+
+Log locations:
+- UI client: `%LOCALAPPDATA%\gorilla\ui-client.log`;
+- Gorilla service/CLI: `<app_data_path>/gorilla.log` (normally `%ProgramData%\gorilla\gorilla.log`).
+
+Logs use bounded rotation with one backup; logging/rotation failures are best-effort and must not fail product operations.
+
+## Related documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — current implementation architecture.
+- [docs/app-catalog-contract.md](docs/app-catalog-contract.md) — state/action/result contract.
+- [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md) — mutation and recovery semantics.
+- [docs/accessibility-automation.md](docs/accessibility-automation.md) — keyboard/accessibility/UIA contract.
+- [../docs/app-catalog.md](../docs/app-catalog.md) — user/operator App Catalog documentation.
+- [PLAN.md](PLAN.md) — historical pointer only; not an active roadmap.

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
@@ -47,6 +48,9 @@ public sealed partial class CatalogIcon : UserControl
         get => (double)GetValue(IconSizeProperty);
         set => SetValue(IconSizeProperty, value);
     }
+
+    protected override AutomationPeer OnCreateAutomationPeer()
+        => new CatalogIconAutomationPeer(this);
 
     private static void OnIconPathChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
@@ -122,5 +126,19 @@ public sealed partial class CatalogIcon : UserControl
         CustomImage.Visibility = Visibility.Collapsed;
         FallbackTile.Visibility = Visibility.Visible;
         AutomationProperties.SetItemStatus(this, "Fallback");
+    }
+
+    private sealed class CatalogIconAutomationPeer : FrameworkElementAutomationPeer
+    {
+        public CatalogIconAutomationPeer(CatalogIcon owner)
+            : base(owner)
+        {
+        }
+
+        protected override AutomationControlType GetAutomationControlTypeCore()
+            => AutomationControlType.Image;
+
+        protected override string GetClassNameCore()
+            => nameof(CatalogIcon);
     }
 }

@@ -159,11 +159,11 @@ public sealed class CatalogSurfaceTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary()
+    public void InstalledUnselectedFixtureShowsEnableUpdatesPrimaryAndRemoveSecondary()
     {
         SeedRegistryFixture(InstalledRegistrySubKey, "Gorilla UI Installed Fixture", "1.0.0");
 
-        RunWithDiagnostics(nameof(InstalledUnselectedFixtureShowsKeepInstalledPrimaryAndRemoveSecondary), session =>
+        RunWithDiagnostics(nameof(InstalledUnselectedFixtureShowsEnableUpdatesPrimaryAndRemoveSecondary), session =>
         {
             var home = new HomePageDriver(session);
             home.WaitForItemStatus(InstalledFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
@@ -171,7 +171,7 @@ public sealed class CatalogSurfaceTests
             var primary = home.PrimaryActionButton(InstalledFixtureItemName);
             var secondary = home.SecondaryActionButton(InstalledFixtureItemName);
 
-            Assert.Equal("Keep Installed", primary.Name);
+            Assert.Equal("Enable Updates", primary.Name);
             Assert.True(primary.IsEnabled);
             Assert.Equal("Remove", secondary.Name);
             Assert.True(secondary.IsEnabled);
@@ -190,9 +190,6 @@ public sealed class CatalogSurfaceTests
             var home = new HomePageDriver(session);
             _ = home.WaitForItem(SlowFixtureItemName);
 
-            // Another healthy E2E deliberately leaves this selected and installed
-            // to prove the one-action Remove presentation. Reset through Gorilla
-            // itself so physical state and service-owned selection stay coherent.
             if (string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
             {
                 home.RemoveButton(SlowFixtureItemName).Invoke();

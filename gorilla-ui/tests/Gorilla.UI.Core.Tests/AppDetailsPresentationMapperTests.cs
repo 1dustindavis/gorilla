@@ -25,7 +25,9 @@ public sealed class AppDetailsPresentationMapperTests
     public void Map_UsesIndependentAvailableAndObservedInstalledVersions()
     {
         var item = Item(ObservedState.UpdateAvailable, installedVersion: "1.7", targetVersion: "2.0");
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Update available", details.ObservationText);
         Assert.Equal("2.0", details.AvailableVersion);
         Assert.Equal("1.7", details.InstalledVersion);
@@ -35,7 +37,9 @@ public sealed class AppDetailsPresentationMapperTests
     public void Map_DoesNotInventInstalledVersionFromTargetVersion()
     {
         var item = Item(ObservedState.Installed, installedVersion: null, targetVersion: "2.0");
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("2.0", details.AvailableVersion);
         Assert.Null(details.InstalledVersion);
     }
@@ -46,6 +50,7 @@ public sealed class AppDetailsPresentationMapperTests
         var described = Item(ObservedState.Absent);
         described.Description = "A full description that belongs on the details surface and is not card-clamped.";
         var undescribed = Item(ObservedState.Absent);
+
         Assert.Equal(described.Description, AppDetailsPresentationMapper.Map(described).Description);
         Assert.True(AppDetailsPresentationMapper.Map(described).HasDescription);
         Assert.Null(AppDetailsPresentationMapper.Map(undescribed).Description);
@@ -58,7 +63,9 @@ public sealed class AppDetailsPresentationMapperTests
         var item = Item(ObservedState.Installed);
         item.InstallDecision = new ActionDecision(false, "required_install");
         item.RemoveDecision = new ActionDecision(false, "required_dependency");
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Install unavailable: This app is required to stay installed by managed policy.", details.InstallUnavailableExplanation);
         Assert.Equal("Remove unavailable: Another managed app requires this app as a dependency.", details.RemoveUnavailableExplanation);
         Assert.True(details.HasActionExplanation);
@@ -69,7 +76,9 @@ public sealed class AppDetailsPresentationMapperTests
     {
         var item = Item(ObservedState.Installed);
         item.InstallDecision = new ActionDecision(false, "future_service_reason");
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Install unavailable: future_service_reason", details.InstallUnavailableExplanation);
     }
 
@@ -79,7 +88,9 @@ public sealed class AppDetailsPresentationMapperTests
         var item = Item(ObservedState.UpdateAvailable);
         item.InstallDecision = new ActionDecision(true, string.Empty);
         item.RemoveDecision = new ActionDecision(true, string.Empty);
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Update", details.PrimaryAction?.Label);
         Assert.Equal(CatalogCardActionKind.Install, details.PrimaryAction?.Kind);
         Assert.Equal("Remove", details.SecondaryAction?.Label);
@@ -93,7 +104,9 @@ public sealed class AppDetailsPresentationMapperTests
         item.Policy = new Policy(true, false, false, false, Selection.None);
         item.InstallDecision = new ActionDecision(true, string.Empty);
         item.RemoveDecision = new ActionDecision(true, string.Empty);
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Enable Updates", details.PrimaryAction?.Label);
         Assert.Equal("Remove", details.SecondaryAction?.Label);
     }
@@ -105,7 +118,9 @@ public sealed class AppDetailsPresentationMapperTests
         item.ActiveOperation = new UiOperationPresentation(
             "active", AppCatalog.Action.Install, OperationState.Validating, null,
             null, "Preparing", Now);
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Enabling updates", details.ActiveOperationTitle);
     }
 
@@ -120,7 +135,9 @@ public sealed class AppDetailsPresentationMapperTests
             "old", AppCatalog.Action.Remove, OperationState.Completed, null,
             new Result(Outcome.Failed, "execution_failed", Message: "Previous removal failed"),
             "Completed", Now.AddMinutes(-5));
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal("Update available", details.ObservationText);
         Assert.Equal("Update in progress", details.ActiveOperationTitle);
         Assert.Equal("Downloading", details.ActiveOperationState);
@@ -141,7 +158,9 @@ public sealed class AppDetailsPresentationMapperTests
         item.LatestOperation = new UiOperationPresentation(
             "terminal", AppCatalog.Action.Install, OperationState.Completed, null,
             new Result(outcome, "result_code", Message: "Result detail"), "Completed", Now);
+
         var details = AppDetailsPresentationMapper.Map(item);
+
         Assert.Equal($"Latest result: Install — {label}", details.LatestResultHeading);
         Assert.Equal("Result detail", details.LatestResultDetail);
     }

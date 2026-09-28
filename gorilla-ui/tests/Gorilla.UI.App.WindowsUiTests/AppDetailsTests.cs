@@ -70,7 +70,7 @@ public sealed class AppDetailsTests
 
             var installedDetails = new AppDetailsPageDriver(session);
             installedDetails.WaitForObservation("Installed");
-            Assert.Equal("Keep Installed", installedDetails.PrimaryAction.Name);
+            Assert.Equal("Enable Updates", installedDetails.PrimaryAction.Name);
             Assert.Equal("Remove", installedDetails.SecondaryAction.Name);
             session.CaptureCheckpoint("details-installed-dual-actions");
         });

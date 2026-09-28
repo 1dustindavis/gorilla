@@ -93,7 +93,7 @@ public static class CatalogCardPresentationMapper
 
         if (item.ObservedState == ObservedState.Installed && item.Policy?.Selection == Selection.None)
         {
-            return "Keep Installed";
+            return "Enable Updates";
         }
 
         return "Install";

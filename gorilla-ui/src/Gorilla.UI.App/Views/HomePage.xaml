@@ -12,13 +12,13 @@
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
 
-    <Grid Padding="20" RowDefinitions="Auto,Auto,*">
+    <Grid Padding="20,10,20,20" RowDefinitions="Auto,Auto,*">
         <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="Available Software" FontSize="28" FontWeight="SemiBold" AutomationProperties.AutomationId="HomeHeading" AutomationProperties.HeadingLevel="Level1" />
             <Button Grid.Column="1" Content="Activity" Click="ActivityButton_Click" AutomationProperties.AutomationId="ActivityNavigationButton" AutomationProperties.Name="Activity" />
         </Grid>
 
-        <TextBox x:Name="SearchBox" Grid.Row="1" Margin="0,12,0,0" MaxWidth="520" HorizontalAlignment="Left" PlaceholderText="Search apps" Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="CatalogSearchBox" AutomationProperties.Name="Search apps" />
+        <TextBox x:Name="SearchBox" Grid.Row="1" Margin="0,12,0,0" MinWidth="200" MaxWidth="520" HorizontalAlignment="Left" PlaceholderText="Search apps" Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="CatalogSearchBox" AutomationProperties.Name="Search apps" />
 
         <Grid Grid.Row="2" Margin="0,14,0,0">
             <GridView x:Name="CatalogItems" ItemsSource="{Binding Items}" SelectionMode="None" IsItemClickEnabled="True" ItemClick="CatalogItems_ItemClick" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollMode="Disabled" ContainerContentChanging="CatalogItems_ContainerContentChanging" SizeChanged="CatalogItems_SizeChanged" AutomationProperties.AutomationId="CatalogItems" AutomationProperties.Name="Available software">

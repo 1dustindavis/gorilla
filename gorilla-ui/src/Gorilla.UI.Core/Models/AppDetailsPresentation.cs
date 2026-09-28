@@ -140,7 +140,7 @@ public static class AppDetailsPresentationMapper
         }
         if (item.ObservedState == ObservedState.Installed && item.Policy?.Selection == Selection.None)
         {
-            return "Keep Installed in progress";
+            return "Enabling updates";
         }
         return "Install in progress";
     }

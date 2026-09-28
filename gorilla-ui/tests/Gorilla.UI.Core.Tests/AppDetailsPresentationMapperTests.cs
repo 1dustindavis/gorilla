@@ -98,7 +98,7 @@ public sealed class AppDetailsPresentationMapperTests
     }
 
     [Fact]
-    public void Map_InstalledUnselectedWithBothAuthorizedActionsUsesKeepInstalledThenRemove()
+    public void Map_InstalledUnselectedWithBothAuthorizedActionsUsesEnableUpdatesThenRemove()
     {
         var item = Item(ObservedState.Installed);
         item.Policy = new Policy(true, false, false, false, Selection.None);
@@ -107,8 +107,21 @@ public sealed class AppDetailsPresentationMapperTests
 
         var details = AppDetailsPresentationMapper.Map(item);
 
-        Assert.Equal("Keep Installed", details.PrimaryAction?.Label);
+        Assert.Equal("Enable Updates", details.PrimaryAction?.Label);
         Assert.Equal("Remove", details.SecondaryAction?.Label);
+    }
+
+    [Fact]
+    public void Map_InstalledUnselectedActiveInstallUsesEnablingUpdatesTitle()
+    {
+        var item = Item(ObservedState.Installed);
+        item.ActiveOperation = new UiOperationPresentation(
+            "active", AppCatalog.Action.Install, OperationState.Validating, null,
+            null, "Preparing", Now);
+
+        var details = AppDetailsPresentationMapper.Map(item);
+
+        Assert.Equal("Enabling updates", details.ActiveOperationTitle);
     }
 
     [Fact]

@@ -74,7 +74,7 @@ Common blockers include:
 - required dependency;
 - already-selected/already-absent cases where the requested action has no valid meaning.
 
-The underlying service action remains Install or Remove. Core may present contextual user-facing labels such as **Update** for an install/convergence action when observation is `UpdateAvailable`, or **Keep Installed** when adopting an already-installed unselected app.
+The underlying service action remains Install or Remove. Core may present contextual user-facing labels such as **Update** for an install/convergence action when observation is `UpdateAvailable`, or **Enable Updates** when adopting an already-installed unselected app.
 
 ## Mutation identity and acknowledgement uncertainty
 
@@ -111,7 +111,7 @@ A successful overall managed execution is not by itself proof that the requested
 
 The service owns a bounded in-memory registry of current/recent App Catalog operations and exposes it through `ListOperations`.
 
-Core uses those snapshots to rebuild Activity and active item presentation after navigation, UI relaunch, or status-stream recovery. Activity history preserves the historical operation's own action/result identity; contextual current labels such as Update/Keep Installed are not retroactively substituted into historical operation truth.
+Core uses those snapshots to rebuild Activity and active item presentation after navigation, UI relaunch, or status-stream recovery. Activity history preserves the historical operation's own action/result identity; contextual current labels such as Update/Enable Updates are not retroactively substituted into historical operation truth.
 
 The registry is not persisted across a service restart. A service restart therefore does not manufacture a historical result or replay an old mutation. Persistent desired state may later converge through Gorilla's normal managed run.
 

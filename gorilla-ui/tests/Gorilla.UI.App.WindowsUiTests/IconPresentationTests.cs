@@ -43,30 +43,30 @@ public sealed class IconPresentationTests
                 var customItem = home.WaitForItem(IconItemName);
                 session.FocusForKeyboard(customItem);
                 Assert.True(customItem.Properties.HasKeyboardFocus.ValueOrDefault);
-                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
 
                 var fallbackItem = home.WaitForItem(FallbackItemName);
                 session.FocusForKeyboard(fallbackItem);
                 Assert.True(fallbackItem.Properties.HasKeyboardFocus.ValueOrDefault);
-                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(FallbackItemName), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(FallbackItemName), "CatalogIcon", "Fallback");
                 Assert.Equal("Ps1V1", customItem.Name);
                 Assert.Equal("Ps1Failure", fallbackItem.Name);
                 session.CaptureCheckpoint("catalog-icons-mixed", includeAutomationTree: true);
 
                 home.OpenDetails(IconItemName);
-                Assert.Equal("Custom", WaitForIconState(session, session.MainWindow, "DetailsIcon"));
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Custom");
                 session.CaptureCheckpoint("details-custom-icon", includeAutomationTree: true);
 
                 new AppDetailsPageDriver(session).GoBack();
                 home.OpenDetails(FallbackItemName);
-                Assert.Equal("Fallback", WaitForIconState(session, session.MainWindow, "DetailsIcon"));
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Fallback");
 
                 new AppDetailsPageDriver(session).GoBack();
                 var resolvedIconPath = WaitForCachedIconPath(cachePath, IconItemName);
                 File.Delete(resolvedIconPath);
 
                 home.OpenDetails(IconItemName);
-                Assert.Equal("Fallback", WaitForIconState(session, session.MainWindow, "DetailsIcon"));
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Fallback");
                 session.CaptureCheckpoint("details-missing-icon-fallback", includeAutomationTree: true);
 
                 new AppDetailsPageDriver(session).GoBack();
@@ -74,7 +74,7 @@ public sealed class IconPresentationTests
                 shell.Refresh();
                 shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
 
-                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Fallback");
             });
         }
         finally
@@ -122,28 +122,28 @@ public sealed class IconPresentationTests
                 var first = home.WaitForItem(IconItemName);
                 first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
                 session.FocusForKeyboard(first);
-                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
 
                 Keyboard.Type(VirtualKeyShort.END);
                 session.WaitUntil(
                     () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
                     TimeSpan.FromSeconds(10)
                 );
-                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
 
                 Keyboard.Type(VirtualKeyShort.UP);
                 session.WaitUntil(
                     () => string.Equals(session.FocusedElement().AutomationId, fallbackTarget, StringComparison.Ordinal),
                     TimeSpan.FromSeconds(10)
                 );
-                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon", "Fallback");
 
                 Keyboard.Type(VirtualKeyShort.DOWN);
                 session.WaitUntil(
                     () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
                     TimeSpan.FromSeconds(10)
                 );
-                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon"));
+                WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
                 session.CaptureCheckpoint("catalog-icons-virtualized", includeAutomationTree: true);
             });
         }
@@ -211,12 +211,13 @@ public sealed class IconPresentationTests
         File.WriteAllText(manifestPath, manifest);
     }
 
-    private static string WaitForIconState(
+    private static void WaitForIconState(
         GorillaAppSession session,
         AutomationElement root,
-        string automationId)
+        string automationId,
+        string expectedState)
     {
-        return session.WaitFor(() =>
+        _ = session.WaitFor(() =>
         {
             var icon = FindRawDescendant(root, automationId);
             if (icon is null)
@@ -225,7 +226,7 @@ public sealed class IconPresentationTests
             }
 
             var state = icon.Properties.ItemStatus.ValueOrDefault;
-            return state is "Custom" or "Fallback" ? state : null;
+            return string.Equals(state, expectedState, StringComparison.Ordinal) ? icon : null;
         }, TimeSpan.FromSeconds(15));
     }
 

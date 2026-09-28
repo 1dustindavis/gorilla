@@ -20,5 +20,6 @@
 
   <ItemGroup>
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../../integration/windows/fixtures/catalog-icon-test.png" Link="catalog-icon-test.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

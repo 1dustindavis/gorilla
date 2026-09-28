@@ -42,8 +42,24 @@ internal sealed class CatalogShellDriver
 
     public void Refresh()
     {
-        _session.WaitUntil(() => RefreshButton.IsEnabled);
-        RefreshButton.Invoke();
+        var refreshButton = RefreshButton;
+        if (!refreshButton.IsEnabled)
+        {
+            WaitForRefreshComplete();
+            return;
+        }
+
+        try
+        {
+            refreshButton.Invoke();
+        }
+        catch (ElementNotEnabledException)
+        {
+            // Startup can begin a refresh between the enabled check and Invoke.
+            // In that case the requested refresh is already in flight, so wait for
+            // it rather than starting a redundant second refresh afterward.
+            WaitForRefreshComplete();
+        }
     }
 
     public string OpenAndReadTechnicalDetails()

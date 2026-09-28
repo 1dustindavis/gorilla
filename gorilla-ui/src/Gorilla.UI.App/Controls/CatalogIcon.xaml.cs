@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
@@ -15,6 +16,7 @@ public sealed partial class CatalogIcon : UserControl
         InitializeComponent();
         SizeChanged += (_, _) => ApplySize();
         ApplySize();
+        ShowFallback();
     }
 
     public static readonly DependencyProperty IconPathProperty = DependencyProperty.Register(
@@ -63,9 +65,6 @@ public sealed partial class CatalogIcon : UserControl
         FallbackTile.Height = size;
         FallbackTile.CornerRadius = new CornerRadius(Math.Max(4, size * 0.18));
         FallbackGlyph.FontSize = Math.Max(12, size * 0.49);
-
-        // Preserve the established footprint while avoiding disproportionate upscaling
-        // of tiny artwork. Larger source images can naturally fill the available area.
         CustomImage.MaxWidth = size;
         CustomImage.MaxHeight = size;
     }
@@ -97,6 +96,7 @@ public sealed partial class CatalogIcon : UserControl
             CustomImage.Source = bitmap;
             CustomImage.Visibility = Visibility.Visible;
             FallbackTile.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetItemStatus(this, "Custom");
         }
         catch
         {
@@ -113,5 +113,6 @@ public sealed partial class CatalogIcon : UserControl
         CustomImage.Source = null;
         CustomImage.Visibility = Visibility.Collapsed;
         FallbackTile.Visibility = Visibility.Visible;
+        AutomationProperties.SetItemStatus(this, "Fallback");
     }
 }

@@ -190,6 +190,9 @@ public sealed class CatalogSurfaceTests
             var home = new HomePageDriver(session);
             _ = home.WaitForItem(SlowFixtureItemName);
 
+            // Another healthy E2E deliberately leaves this selected and installed
+            // to prove the one-action Remove presentation. Reset through Gorilla
+            // itself so physical state and service-owned selection stay coherent.
             if (string.Equals(home.ItemStatus(SlowFixtureItemName), "Installed", StringComparison.OrdinalIgnoreCase))
             {
                 home.RemoveButton(SlowFixtureItemName).Invoke();

@@ -151,18 +151,20 @@ public sealed class IconPresentationTests
                 }, TimeSpan.FromSeconds(10));
                 WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
 
-                Keyboard.Type(VirtualKeyShort.UP);
-                session.WaitUntil(
-                    () => string.Equals(session.FocusedElement().AutomationId, fallbackTarget, StringComparison.Ordinal),
-                    TimeSpan.FromSeconds(10)
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount - 1:00}");
+                var fallbackItem = session.WaitFor(
+                    () => home.HasItem(fallbackTarget) ? home.WaitForItem(fallbackTarget) : null,
+                    TimeSpan.FromSeconds(30)
                 );
+                session.FocusForKeyboard(fallbackItem);
                 WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon", "Fallback");
 
-                Keyboard.Type(VirtualKeyShort.DOWN);
-                session.WaitUntil(
-                    () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
-                    TimeSpan.FromSeconds(10)
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount:00}");
+                var reboundCustomItem = session.WaitFor(
+                    () => home.HasItem(customTarget) ? home.WaitForItem(customTarget) : null,
+                    TimeSpan.FromSeconds(30)
                 );
+                session.FocusForKeyboard(reboundCustomItem);
                 WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
                 session.CaptureCheckpoint("catalog-icons-virtualized", includeAutomationTree: true);
             });

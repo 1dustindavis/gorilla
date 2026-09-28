@@ -17,12 +17,12 @@ public sealed class KeyboardTraversalTests
         {
             var home = new HomePageDriver(session);
             _ = home.CatalogItems;
-            var refresh = session.WaitFor(() => ById(session, "CatalogRefreshButton"));
-            session.FocusForKeyboard(refresh);
+            var activity = session.WaitFor(() => ById(session, "ActivityNavigationButton"));
+            session.FocusForKeyboard(activity);
 
             Keyboard.Type(VirtualKeyShort.TAB);
-            var activity = WaitForFocused(session, "ActivityNavigationButton");
-            Assert.Equal(ControlType.Button, activity.ControlType);
+            var refresh = WaitForFocused(session, "CatalogRefreshButton");
+            Assert.Equal(ControlType.Button, refresh.ControlType);
 
             Keyboard.Type(VirtualKeyShort.TAB);
             var search = WaitForFocused(session, "CatalogSearchBox");

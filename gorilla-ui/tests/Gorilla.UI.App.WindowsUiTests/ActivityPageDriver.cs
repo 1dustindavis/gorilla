@@ -16,7 +16,8 @@ internal sealed class ActivityPageDriver
         _session = session;
     }
 
-    public AutomationElement Root => _session.WaitFor(() => ById("ActivityHeading"));
+    public AutomationElement Root => _session.WaitFor(() => ById("ActivityPageRoot"));
+    public AutomationElement Heading => _session.WaitFor(() => ById("ActivityHeading"));
     public AutomationElement Items => _session.WaitFor(() => ById("ActivityItems"));
     public AutomationElement EmptyState => _session.WaitFor(() => ById("ActivityEmptyState"));
 
@@ -237,7 +238,7 @@ internal sealed class ActivityPageDriver
     public void GoBack()
     {
         _session.WaitFor(() => ById("ActivityBackButton")?.AsButton()).Invoke();
-        _ = _session.WaitFor(() => ById("HomeHeading"));
+        _ = _session.WaitFor(() => ById("CatalogSearchBox"));
     }
 
     private AutomationElement ScrollOperationIntoView(string operationId)

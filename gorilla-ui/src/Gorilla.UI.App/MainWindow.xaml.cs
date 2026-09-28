@@ -6,11 +6,20 @@ using Gorilla.UI.App.Views;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace Gorilla.UI.App
 {
     public sealed partial class MainWindow : Window
     {
+        private enum ShellHeaderMode
+        {
+            None,
+            Home,
+            Details,
+            Activity,
+        }
+
         private readonly AppCatalogSession _session;
         private readonly HomeViewModel _viewModel;
 
@@ -20,6 +29,7 @@ namespace Gorilla.UI.App
             _session = App.CurrentSession;
             _viewModel = _session.ViewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            RootFrame.Navigated += RootFrame_Navigated;
             Closed += MainWindow_Closed;
             UpdateCatalogFreshnessPresentation();
             UpdateInfrastructureWarningPresentation();
@@ -52,6 +62,75 @@ namespace Gorilla.UI.App
                 {
                 }
             }
+        }
+
+        private void ActivityNavigationButton_Click(object sender, RoutedEventArgs e)
+        {
+            RootFrame.Navigate(typeof(ActivityPage));
+        }
+
+        private void DetailsBackButton_Click(object sender, RoutedEventArgs e)
+        {
+            NavigateBackOrCatalog();
+        }
+
+        private void ActivityBackButton_Click(object sender, RoutedEventArgs e)
+        {
+            NavigateBackOrCatalog();
+        }
+
+        private void CatalogNavigationButton_Click(object sender, RoutedEventArgs e)
+        {
+            NavigationFocusState.RequestCatalogFallback();
+            RootFrame.Navigate(typeof(HomePage));
+        }
+
+        private void NavigateBackOrCatalog()
+        {
+            if (RootFrame.CanGoBack)
+            {
+                RootFrame.GoBack();
+            }
+            else
+            {
+                NavigationFocusState.RequestCatalogFallback();
+                RootFrame.Navigate(typeof(HomePage));
+            }
+        }
+
+        private void RootFrame_Navigated(object sender, NavigationEventArgs e)
+        {
+            var mode = e.SourcePageType == typeof(HomePage)
+                ? ShellHeaderMode.Home
+                : e.SourcePageType == typeof(AppDetailsPage)
+                    ? ShellHeaderMode.Details
+                    : e.SourcePageType == typeof(ActivityPage)
+                        ? ShellHeaderMode.Activity
+                        : ShellHeaderMode.None;
+
+            SetShellHeaderMode(mode);
+
+            if (mode == ShellHeaderMode.Details)
+            {
+                DispatcherQueue.TryEnqueue(() => DetailsBackButton.Focus(FocusState.Programmatic));
+            }
+            else if (mode == ShellHeaderMode.Activity)
+            {
+                DispatcherQueue.TryEnqueue(() => ActivityBackButton.Focus(FocusState.Programmatic));
+            }
+        }
+
+        private void SetShellHeaderMode(ShellHeaderMode mode)
+        {
+            HomeHeaderContext.Visibility = mode == ShellHeaderMode.Home
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            DetailsHeaderContext.Visibility = mode == ShellHeaderMode.Details
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            ActivityHeaderContext.Visibility = mode == ShellHeaderMode.Activity
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -173,6 +252,7 @@ namespace Gorilla.UI.App
         private void MainWindow_Closed(object sender, WindowEventArgs args)
         {
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            RootFrame.Navigated -= RootFrame_Navigated;
             Closed -= MainWindow_Closed;
         }
     }

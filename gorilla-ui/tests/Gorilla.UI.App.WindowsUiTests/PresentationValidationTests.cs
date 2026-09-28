@@ -10,9 +10,9 @@ public sealed class PresentationValidationTests
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
-    public void RepresentativeCatalogAndDetailsSurfacesRemainVisibleAndReachable()
+    public void RepresentativeCatalogActivityAndDetailsSurfacesRemainVisibleAndReachable()
     {
-        RunWithDiagnostics(nameof(RepresentativeCatalogAndDetailsSurfacesRemainVisibleAndReachable), session =>
+        RunWithDiagnostics(nameof(RepresentativeCatalogActivityAndDetailsSurfacesRemainVisibleAndReachable), session =>
         {
             var home = new HomePageDriver(session);
 
@@ -26,12 +26,23 @@ public sealed class PresentationValidationTests
             AssertVisible(home.PrimaryActionButton(FixtureItemName), "Catalog primary action");
             session.CaptureCheckpoint("stage7-presentation-catalog", includeAutomationTree: true);
 
+            var activity = ActivityPageDriver.OpenFromCatalog(session);
+            AssertVisible(activity.Root, "Activity root");
+            AssertVisible(activity.Heading, "Activity heading");
+            AssertVisible(ById(session, "ActivityBackButton"), "Activity back action");
+            AssertVisible(ById(session, "CatalogNavigationButton"), "Catalog navigation");
+            AssertVisible(ById(session, "CatalogRefreshButton"), "Activity refresh action");
+            session.CaptureCheckpoint("stage7-presentation-activity", includeAutomationTree: true);
+            activity.GoBack();
+            _ = home.SearchBox;
+
             home.OpenDetails(FailureFixtureItemName);
             var details = new AppDetailsPageDriver(session);
 
             AssertVisible(details.Root, "Details root");
             AssertVisible(details.BackButton, "Details back action");
             AssertVisible(details.DisplayName, "Details heading");
+            AssertVisible(ById(session, "CatalogRefreshButton"), "Details refresh action");
 
             var primaryAction = details.PrimaryAction;
             primaryAction.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();

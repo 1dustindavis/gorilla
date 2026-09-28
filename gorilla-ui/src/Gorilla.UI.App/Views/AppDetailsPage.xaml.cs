@@ -24,7 +24,6 @@ public sealed partial class AppDetailsPage : Page
         this.InitializeComponent();
         _session = App.CurrentSession;
         _viewModel = _session.ViewModel;
-        Loaded += AppDetailsPage_Loaded;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -45,13 +44,6 @@ public sealed partial class AppDetailsPage : Page
     {
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         base.OnNavigatedFrom(e);
-    }
-
-    private void AppDetailsPage_Loaded(object sender, RoutedEventArgs e)
-    {
-        // Wait until the page is actually in the visual tree. Attempting this from
-        // OnNavigatedTo can run before the Frame has made the destination focusable.
-        DispatcherQueue.TryEnqueue(() => BackButton.Focus(FocusState.Programmatic));
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -75,19 +67,6 @@ public sealed partial class AppDetailsPage : Page
         DataContext = item;
         DetailsContent.Visibility = item is null ? Visibility.Collapsed : Visibility.Visible;
         UnavailableContent.Visibility = item is null ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void BackButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
-        else
-        {
-            NavigationFocusState.RequestCatalogFallback();
-            Frame.Navigate(typeof(HomePage));
-        }
     }
 
     private async void RetryButton_Click(object sender, RoutedEventArgs e)

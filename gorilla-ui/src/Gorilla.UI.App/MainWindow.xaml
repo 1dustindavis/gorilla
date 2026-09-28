@@ -15,7 +15,7 @@
     </Window.SystemBackdrop>
 
     <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <Grid Padding="20,12,20,8" ColumnDefinitions="*,Auto">
+        <Grid Padding="20,6,20,4" ColumnDefinitions="*,Auto">
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock
                     x:Name="CatalogFreshnessStatus"

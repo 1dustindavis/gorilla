@@ -128,7 +128,6 @@ public sealed partial class ActivityPage : Page
         var operationId = NavigationFocusState.ConsumeActivityOperation();
         if (string.IsNullOrWhiteSpace(operationId))
         {
-            BackButton.Focus(FocusState.Programmatic);
             return;
         }
 
@@ -136,7 +135,6 @@ public sealed partial class ActivityPage : Page
             string.Equals(candidate.OperationId, operationId, StringComparison.OrdinalIgnoreCase));
         if (item is null)
         {
-            BackButton.Focus(FocusState.Programmatic);
             return;
         }
 
@@ -154,10 +152,6 @@ public sealed partial class ActivityPage : Page
         if (container is ListViewItem realized)
         {
             realized.Focus(FocusState.Programmatic);
-        }
-        else
-        {
-            BackButton.Focus(FocusState.Programmatic);
         }
     }
 
@@ -232,24 +226,5 @@ public sealed partial class ActivityPage : Page
         NavigationFocusState.RememberActivityOperation(item.OperationId);
         Frame.Navigate(typeof(AppDetailsPage), item.ItemName);
         return true;
-    }
-
-    private void BackButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
-        else
-        {
-            NavigationFocusState.RequestCatalogFallback();
-            Frame.Navigate(typeof(HomePage));
-        }
-    }
-
-    private void CatalogButton_Click(object sender, RoutedEventArgs e)
-    {
-        NavigationFocusState.RequestCatalogFallback();
-        Frame.Navigate(typeof(HomePage));
     }
 }

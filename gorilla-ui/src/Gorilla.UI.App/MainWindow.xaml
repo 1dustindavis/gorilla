@@ -16,9 +16,81 @@
 
     <Grid RowDefinitions="Auto,Auto,Auto,*">
         <Grid Padding="20,6,20,4" ColumnDefinitions="*,Auto">
+            <Grid x:Name="PageHeaderContext" Margin="0,0,12,0" VerticalAlignment="Center">
+                <Grid
+                    x:Name="HomeHeaderContext"
+                    ColumnDefinitions="*,Auto"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        Text="Available Software"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        TextTrimming="CharacterEllipsis"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="HomeHeading"
+                        AutomationProperties.HeadingLevel="Level1" />
+                    <Button
+                        Grid.Column="1"
+                        Margin="12,0,0,0"
+                        Content="Activity"
+                        Click="ActivityNavigationButton_Click"
+                        AutomationProperties.AutomationId="ActivityNavigationButton"
+                        AutomationProperties.Name="Activity" />
+                </Grid>
+
+                <Grid
+                    x:Name="DetailsHeaderContext"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed">
+                    <Button
+                        x:Name="DetailsBackButton"
+                        HorizontalAlignment="Left"
+                        Click="DetailsBackButton_Click"
+                        AutomationProperties.AutomationId="DetailsBackButton"
+                        AutomationProperties.Name="Back">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE72B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                            <TextBlock Text="Back" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Grid
+                    x:Name="ActivityHeaderContext"
+                    ColumnDefinitions="Auto,*,Auto"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed">
+                    <Button
+                        x:Name="ActivityBackButton"
+                        Content="Back"
+                        Click="ActivityBackButton_Click"
+                        AutomationProperties.AutomationId="ActivityBackButton"
+                        AutomationProperties.Name="Back to catalog" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="12,0"
+                        Text="Activity"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        TextTrimming="CharacterEllipsis"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="ActivityHeading"
+                        AutomationProperties.HeadingLevel="Level1" />
+                    <Button
+                        Grid.Column="2"
+                        Content="Catalog"
+                        Click="CatalogNavigationButton_Click"
+                        AutomationProperties.AutomationId="CatalogNavigationButton"
+                        AutomationProperties.Name="Catalog" />
+                </Grid>
+            </Grid>
+
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock
                     x:Name="CatalogFreshnessStatus"
+                    MaxWidth="220"
+                    TextTrimming="CharacterEllipsis"
                     VerticalAlignment="Center"
                     Opacity="0.72"
                     AutomationProperties.AutomationId="CatalogFreshnessStatus" />

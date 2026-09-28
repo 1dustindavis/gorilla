@@ -9,6 +9,7 @@ public sealed class IconPresentationTests
 {
     private const string IconItemName = "Ps1V1";
     private const string FallbackItemName = "Ps1Failure";
+    private const int VirtualizationCount = 30;
 
     [Fact]
     [Trait("E2EPhase", "Healthy")]
@@ -24,7 +25,7 @@ public sealed class IconPresentationTests
 
         Directory.CreateDirectory(iconDirectory);
         File.Copy(sourceIconPath, servedIconPath, overwrite: true);
-        File.WriteAllText(catalogPath, AddIconMetadata(originalCatalog));
+        File.WriteAllText(catalogPath, AddIconMetadata(originalCatalog, IconItemName));
 
         try
         {
@@ -36,15 +37,26 @@ public sealed class IconPresentationTests
                 shell.Refresh();
                 shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
 
+                var customItem = home.WaitForItem(IconItemName);
+                session.FocusForKeyboard(customItem);
+                Assert.True(customItem.Properties.HasKeyboardFocus.ValueOrDefault);
                 Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+
+                var fallbackItem = home.WaitForItem(FallbackItemName);
+                session.FocusForKeyboard(fallbackItem);
+                Assert.True(fallbackItem.Properties.HasKeyboardFocus.ValueOrDefault);
                 Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(FallbackItemName), "CatalogIcon"));
-                Assert.Equal("Ps1V1", home.WaitForItem(IconItemName).Name);
-                Assert.Equal("Ps1Failure", home.WaitForItem(FallbackItemName).Name);
+                Assert.Equal("Ps1V1", customItem.Name);
+                Assert.Equal("Ps1Failure", fallbackItem.Name);
                 session.CaptureCheckpoint("catalog-icons-mixed", includeAutomationTree: true);
 
                 home.OpenDetails(IconItemName);
                 Assert.Equal("Custom", WaitForIconState(session, session.MainWindow, "DetailsIcon"));
                 session.CaptureCheckpoint("details-custom-icon", includeAutomationTree: true);
+
+                new AppDetailsPageDriver(session).GoBack();
+                home.OpenDetails(FallbackItemName);
+                Assert.Equal("Fallback", WaitForIconState(session, session.MainWindow, "DetailsIcon"));
 
                 new AppDetailsPageDriver(session).GoBack();
                 var resolvedIconPath = WaitForCachedIconPath(cachePath, IconItemName);
@@ -69,22 +81,118 @@ public sealed class IconPresentationTests
         }
     }
 
-    private static string AddIconMetadata(string catalog)
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void VirtualizedCardsDoNotLeakCustomIconStateAcrossRecycledContainers()
+    {
+        var fixtureRoot = RequiredPath("GORILLA_UI_E2E_FIXTURE_ROOT");
+        var catalogPath = Path.Combine(fixtureRoot, "catalogs", "integration.yaml");
+        var manifestPath = Path.Combine(fixtureRoot, "manifests", "ui-e2e.yaml");
+        var iconDirectory = Path.Combine(fixtureRoot, "icons");
+        var servedIconPath = Path.Combine(iconDirectory, "catalog-icon-test.png");
+        var sourceIconPath = Path.Combine(AppContext.BaseDirectory, "catalog-icon-test.png");
+        var originalCatalog = File.ReadAllText(catalogPath);
+        var originalManifest = File.ReadAllText(manifestPath);
+        var fallbackTarget = $"ZZIconVirtualization{VirtualizationCount - 1:00}";
+        var customTarget = $"ZZIconVirtualization{VirtualizationCount:00}";
+
+        Directory.CreateDirectory(iconDirectory);
+        File.Copy(sourceIconPath, servedIconPath, overwrite: true);
+
+        try
+        {
+            ExpandCatalogForIconVirtualization(
+                catalogPath,
+                manifestPath,
+                originalCatalog,
+                originalManifest,
+                customTarget
+            );
+
+            RunWithDiagnostics(nameof(VirtualizedCardsDoNotLeakCustomIconStateAcrossRecycledContainers), session =>
+            {
+                var home = new HomePageDriver(session);
+                var shell = new CatalogShellDriver(session);
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+
+                var first = home.WaitForItem(IconItemName);
+                first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+
+                home.EnsureItemVisible(fallbackTarget);
+                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon"));
+
+                home.EnsureItemVisible(customTarget);
+                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon"));
+
+                home.EnsureItemVisible(IconItemName);
+                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+                session.CaptureCheckpoint("catalog-icons-virtualized", includeAutomationTree: true);
+            });
+        }
+        finally
+        {
+            File.WriteAllText(catalogPath, originalCatalog);
+            File.WriteAllText(manifestPath, originalManifest);
+            File.Delete(servedIconPath);
+        }
+    }
+
+    private static string AddIconMetadata(string catalog, string itemName)
     {
         var entry = new Regex(
-            @"(?m)^(Ps1V1:\r?\n\s+display_name:\s*Ps1V1\s*)$",
+            $@"(?m)^{Regex.Escape(itemName)}:\r?$",
             RegexOptions.CultureInvariant
         );
         var updated = entry.Replace(
             catalog,
-            "$1" + Environment.NewLine + "  icon: icons/catalog-icon-test.png",
+            itemName + ":" + Environment.NewLine + "  icon: icons/catalog-icon-test.png",
             count: 1
         );
         if (string.Equals(updated, catalog, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Unable to add icon metadata to Ps1V1 fixture.");
+            throw new InvalidOperationException($"Unable to add icon metadata to {itemName} fixture.");
         }
         return updated;
+    }
+
+    private static void ExpandCatalogForIconVirtualization(
+        string catalogPath,
+        string manifestPath,
+        string originalCatalog,
+        string originalManifest,
+        string customTarget)
+    {
+        var templateMatch = Regex.Match(
+            originalCatalog,
+            @"(?ms)^Ps1V1:\r?\n.*?(?=^[A-Za-z0-9_-]+:\r?$|\z)"
+        );
+        if (!templateMatch.Success)
+        {
+            throw new InvalidOperationException("Unable to locate Ps1V1 catalog template.");
+        }
+
+        var catalog = AddIconMetadata(originalCatalog, IconItemName).TrimEnd();
+        var manifest = originalManifest.TrimEnd();
+        for (var i = 1; i <= VirtualizationCount; i++)
+        {
+            var itemName = $"ZZIconVirtualization{i:00}";
+            var entry = templateMatch.Value
+                .Replace("Ps1V1:", $"{itemName}:", StringComparison.Ordinal)
+                .Replace("display_name: Ps1V1", $"display_name: ZZ Icon Virtualization {i:00}", StringComparison.Ordinal)
+                .TrimEnd();
+            if (string.Equals(itemName, customTarget, StringComparison.Ordinal))
+            {
+                entry = AddIconMetadata(entry, itemName).TrimEnd();
+            }
+
+            catalog += Environment.NewLine + Environment.NewLine + entry;
+            manifest += Environment.NewLine + $"  - {itemName}";
+        }
+
+        File.WriteAllText(catalogPath, catalog);
+        File.WriteAllText(manifestPath, manifest);
     }
 
     private static string WaitForIconState(

@@ -40,7 +40,11 @@ internal sealed class CatalogShellDriver
 
     public bool IsRefreshing => ById("CatalogRefreshProgress") is not null && !RefreshButton.IsEnabled;
 
-    public void Refresh() => RefreshButton.Invoke();
+    public void Refresh()
+    {
+        _session.WaitUntil(() => RefreshButton.IsEnabled);
+        RefreshButton.Invoke();
+    }
 
     public string OpenAndReadTechnicalDetails()
     {

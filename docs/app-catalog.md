@@ -14,7 +14,7 @@ Depending on the app's current state, you may see actions such as:
 
 - **Install** — install the app and have Gorilla keep it installed.
 - **Update** — install an available update.
-- **Keep Installed** — start managing an app that is already installed so Gorilla keeps it installed and updated.
+- **Enable Updates** — start managing an app that is already installed so Gorilla keeps it installed and updated.
 - **Remove** — stop managing the app and uninstall it once.
 
 Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. If an action is unavailable, App Catalog explains why.
@@ -37,7 +37,7 @@ Some failed or interrupted actions also offer **Retry**. Retry starts a new atte
 
 App Catalog normally shows saved information quickly when it opens, then refreshes it from the Gorilla service.
 
-Use **Refresh** to ask Gorilla for the latest software and status information. If the service is temporarily unavailable, App Catalog may continue showing saved data with a warning that it could be out of date. New installs, removals, and retries still require the service to be available.
+Use the refresh button next to the freshness status to ask Gorilla for the latest software and status information. If the service is temporarily unavailable, App Catalog may continue showing saved data with a warning that it could be out of date. New installs, removals, and retries still require the service to be available.
 
 If there is no saved data and Gorilla cannot load fresh data, App Catalog shows that it could not load the catalog rather than pretending the list is empty.
 

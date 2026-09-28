@@ -1,6 +1,7 @@
 SevenZip:
   display_name: 7-Zip
   description: File archiver for creating and extracting common compressed formats with a compact Windows desktop interface.
+  icon: icons/catalog-icon-test.png
   check:
     registry:
       name: Gorilla Screenshot 7-Zip

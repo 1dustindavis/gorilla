@@ -1,0 +1,348 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using FlaUI.Core;
+using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
+using Xunit;
+
+namespace Gorilla.UI.App.WindowsUiTests;
+
+public sealed class IconPresentationTests
+{
+    private const string IconItemName = "Ps1V1";
+    private const string FallbackItemName = "Ps1Failure";
+    private const int VirtualizationCount = 30;
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void CatalogAndDetailsUseCustomIconWithFallbackAndRuntimeFailureRecovery()
+    {
+        var fixtureRoot = RequiredPath("GORILLA_UI_E2E_FIXTURE_ROOT");
+        var cachePath = RequiredPath("GORILLA_UI_E2E_CACHE_PATH");
+        var catalogPath = Path.Combine(fixtureRoot, "catalogs", "integration.yaml");
+        var iconDirectory = Path.Combine(fixtureRoot, "icons");
+        var servedIconPath = Path.Combine(iconDirectory, "catalog-icon-test.png");
+        var sourceIconPath = Path.Combine(AppContext.BaseDirectory, "catalog-icon-test.png");
+        var originalCatalog = File.ReadAllText(catalogPath);
+
+        Directory.CreateDirectory(iconDirectory);
+        File.Copy(sourceIconPath, servedIconPath, overwrite: true);
+        File.WriteAllText(catalogPath, AddIconMetadata(originalCatalog, IconItemName));
+
+        try
+        {
+            RunWithDiagnostics(nameof(CatalogAndDetailsUseCustomIconWithFallbackAndRuntimeFailureRecovery), session =>
+            {
+                var home = new HomePageDriver(session);
+                var shell = new CatalogShellDriver(session);
+
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+
+                var customItem = home.WaitForItem(IconItemName);
+                session.FocusForKeyboard(customItem);
+                Assert.True(customItem.Properties.HasKeyboardFocus.ValueOrDefault);
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
+
+                var fallbackItem = home.WaitForItem(FallbackItemName);
+                session.FocusForKeyboard(fallbackItem);
+                Assert.True(fallbackItem.Properties.HasKeyboardFocus.ValueOrDefault);
+                WaitForIconState(session, home.WaitForCard(FallbackItemName), "CatalogIcon", "Fallback");
+                Assert.Equal("Ps1V1", customItem.Name);
+                Assert.Equal("Ps1Failure", fallbackItem.Name);
+                session.CaptureCheckpoint("catalog-icons-mixed", includeAutomationTree: true);
+
+                home.OpenDetails(IconItemName);
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Custom");
+                session.CaptureCheckpoint("details-custom-icon", includeAutomationTree: true);
+
+                new AppDetailsPageDriver(session).GoBack();
+                home.OpenDetails(FallbackItemName);
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Fallback");
+
+                new AppDetailsPageDriver(session).GoBack();
+                var resolvedIconPath = WaitForCachedIconPath(cachePath, IconItemName);
+                File.Delete(resolvedIconPath);
+
+                home.OpenDetails(IconItemName);
+                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Fallback");
+                session.CaptureCheckpoint("details-missing-icon-fallback", includeAutomationTree: true);
+
+                new AppDetailsPageDriver(session).GoBack();
+                File.WriteAllText(catalogPath, originalCatalog);
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Fallback");
+            });
+        }
+        finally
+        {
+            File.WriteAllText(catalogPath, originalCatalog);
+            File.Delete(servedIconPath);
+        }
+    }
+
+    [Fact]
+    [Trait("E2EPhase", "Healthy")]
+    public void VirtualizedCardsDoNotLeakCustomIconStateAcrossRecycledContainers()
+    {
+        var fixtureRoot = RequiredPath("GORILLA_UI_E2E_FIXTURE_ROOT");
+        var catalogPath = Path.Combine(fixtureRoot, "catalogs", "integration.yaml");
+        var manifestPath = Path.Combine(fixtureRoot, "manifests", "ui-e2e.yaml");
+        var iconDirectory = Path.Combine(fixtureRoot, "icons");
+        var servedIconPath = Path.Combine(iconDirectory, "catalog-icon-test.png");
+        var sourceIconPath = Path.Combine(AppContext.BaseDirectory, "catalog-icon-test.png");
+        var originalCatalog = File.ReadAllText(catalogPath);
+        var originalManifest = File.ReadAllText(manifestPath);
+        var fallbackTarget = $"ZZIconVirtualization{VirtualizationCount - 1:00}";
+        var customTarget = $"ZZIconVirtualization{VirtualizationCount:00}";
+
+        Directory.CreateDirectory(iconDirectory);
+        File.Copy(sourceIconPath, servedIconPath, overwrite: true);
+
+        try
+        {
+            ExpandCatalogForIconVirtualization(
+                catalogPath,
+                manifestPath,
+                originalCatalog,
+                originalManifest,
+                customTarget
+            );
+
+            RunWithDiagnostics(nameof(VirtualizedCardsDoNotLeakCustomIconStateAcrossRecycledContainers), session =>
+            {
+                var home = new HomePageDriver(session);
+                var shell = new CatalogShellDriver(session);
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount:00}");
+                _ = session.WaitFor(
+                    () => home.HasItem(customTarget) ? home.WaitForItem(customTarget) : null,
+                    TimeSpan.FromSeconds(30)
+                );
+                home.Search(string.Empty);
+
+                var first = session.WaitFor(
+                    () => home.HasItem(IconItemName) ? home.WaitForItem(IconItemName) : null,
+                    TimeSpan.FromSeconds(30)
+                );
+                first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+                first = home.WaitForItem(IconItemName);
+
+                session.WaitUntil(
+                    () => home.CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(customTarget)) is null,
+                    TimeSpan.FromSeconds(5)
+                );
+
+                session.FocusForKeyboard(first);
+                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
+
+                Keyboard.Type(VirtualKeyShort.END);
+                _ = session.WaitFor(() =>
+                {
+                    var focused = session.FocusedElement();
+                    return string.Equals(focused.AutomationId, customTarget, StringComparison.Ordinal)
+                        ? focused
+                        : null;
+                }, TimeSpan.FromSeconds(10));
+                WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
+
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount - 1:00}");
+                var fallbackItem = session.WaitFor(
+                    () => home.HasItem(fallbackTarget) ? home.WaitForItem(fallbackTarget) : null,
+                    TimeSpan.FromSeconds(30)
+                );
+                session.FocusForKeyboard(fallbackItem);
+                WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon", "Fallback");
+
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount:00}");
+                var reboundCustomItem = session.WaitFor(
+                    () => home.HasItem(customTarget) ? home.WaitForItem(customTarget) : null,
+                    TimeSpan.FromSeconds(30)
+                );
+                session.FocusForKeyboard(reboundCustomItem);
+                WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
+                session.CaptureCheckpoint("catalog-icons-virtualized", includeAutomationTree: true);
+            });
+        }
+        finally
+        {
+            File.WriteAllText(catalogPath, originalCatalog);
+            File.WriteAllText(manifestPath, originalManifest);
+            File.Delete(servedIconPath);
+        }
+    }
+
+    private static string AddIconMetadata(string catalog, string itemName)
+    {
+        var entry = new Regex(
+            $@"(?m)^{Regex.Escape(itemName)}:\r?$",
+            RegexOptions.CultureInvariant
+        );
+        var updated = entry.Replace(
+            catalog,
+            itemName + ":" + Environment.NewLine + "  icon: icons/catalog-icon-test.png",
+            count: 1
+        );
+        if (string.Equals(updated, catalog, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Unable to add icon metadata to {itemName} fixture.");
+        }
+        return updated;
+    }
+
+    private static void ExpandCatalogForIconVirtualization(
+        string catalogPath,
+        string manifestPath,
+        string originalCatalog,
+        string originalManifest,
+        string customTarget)
+    {
+        var templateMatch = Regex.Match(
+            originalCatalog,
+            @"(?ms)^Ps1V1:\r?\n.*?(?=^[A-Za-z0-9_-]+:\r?$|\z)"
+        );
+        if (!templateMatch.Success)
+        {
+            throw new InvalidOperationException("Unable to locate Ps1V1 catalog template.");
+        }
+
+        var catalog = AddIconMetadata(originalCatalog, IconItemName).TrimEnd();
+        var manifest = originalManifest.TrimEnd();
+        for (var i = 1; i <= VirtualizationCount; i++)
+        {
+            var itemName = $"ZZIconVirtualization{i:00}";
+            var entry = templateMatch.Value
+                .Replace("Ps1V1:", $"{itemName}:", StringComparison.Ordinal)
+                .Replace("display_name: Ps1V1", $"display_name: ZZ Icon Virtualization {i:00}", StringComparison.Ordinal)
+                .TrimEnd();
+            if (string.Equals(itemName, customTarget, StringComparison.Ordinal))
+            {
+                entry = AddIconMetadata(entry, itemName).TrimEnd();
+            }
+
+            catalog += Environment.NewLine + Environment.NewLine + entry;
+            manifest += Environment.NewLine + $"  - {itemName}";
+        }
+
+        File.WriteAllText(catalogPath, catalog);
+        File.WriteAllText(manifestPath, manifest);
+    }
+
+    private static void WaitForIconState(
+        GorillaAppSession session,
+        AutomationElement root,
+        string automationId,
+        string expectedState)
+    {
+        _ = session.WaitFor(() =>
+        {
+            var icon = FindRawDescendant(root, automationId);
+            if (icon is null)
+            {
+                return null;
+            }
+
+            var state = icon.Properties.ItemStatus.ValueOrDefault;
+            return string.Equals(state, expectedState, StringComparison.Ordinal) ? icon : null;
+        }, TimeSpan.FromSeconds(15));
+    }
+
+    private static AutomationElement? FindRawDescendant(AutomationElement root, string automationId)
+    {
+        var walker = root.Automation.TreeWalkerFactory.GetRawViewWalker();
+        return FindRawDescendant(walker, root, automationId);
+    }
+
+    private static AutomationElement? FindRawDescendant(
+        ITreeWalker walker,
+        AutomationElement root,
+        string automationId)
+    {
+        var child = walker.GetFirstChild(root);
+        while (child is not null)
+        {
+            var matches = false;
+            try
+            {
+                matches = string.Equals(child.AutomationId, automationId, StringComparison.Ordinal);
+            }
+            catch
+            {
+                // Raw view includes internal WinUI nodes that do not expose AutomationId.
+                // They can still contain descendants that do, so keep walking.
+            }
+
+            if (matches)
+            {
+                return child;
+            }
+
+            var descendant = FindRawDescendant(walker, child, automationId);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+
+            child = walker.GetNextSibling(child);
+        }
+
+        return null;
+    }
+
+    private static string WaitForCachedIconPath(string cachePath, string itemName)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (File.Exists(cachePath))
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(cachePath));
+                foreach (var item in document.RootElement.GetProperty("items").EnumerateArray())
+                {
+                    if (!string.Equals(item.GetProperty("itemName").GetString(), itemName, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (item.TryGetProperty("iconPath", out var iconPath)
+                        && !string.IsNullOrWhiteSpace(iconPath.GetString()))
+                    {
+                        return iconPath.GetString()!;
+                    }
+                }
+            }
+            Thread.Sleep(100);
+        }
+
+        throw new TimeoutException($"Timed out waiting for cached IconPath for '{itemName}'.");
+    }
+
+    private static string RequiredPath(string variableName)
+    {
+        var value = Environment.GetEnvironmentVariable(variableName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{variableName} must be set by the E2E harness.");
+        }
+        return value;
+    }
+
+    private static void RunWithDiagnostics(string testName, Action<GorillaAppSession> test)
+    {
+        using var session = GorillaAppSession.Launch();
+        try
+        {
+            test(session);
+        }
+        catch (Exception ex)
+        {
+            session.CaptureFailure(ex, testName);
+            throw;
+        }
+    }
+}

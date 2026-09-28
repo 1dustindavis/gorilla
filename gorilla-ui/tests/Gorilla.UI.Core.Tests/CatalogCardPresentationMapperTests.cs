@@ -46,7 +46,7 @@ public sealed class CatalogCardPresentationMapperTests
     }
 
     [Fact]
-    public void InstalledUnselected_WithBothAllowed_PresentsKeepInstalledThenRemove()
+    public void InstalledUnselected_WithBothAllowed_PresentsEnableUpdatesThenRemove()
     {
         var item = Item(ObservedState.Installed, installAllowed: true, removeAllowed: true);
         item.Policy = new Policy(
@@ -59,7 +59,7 @@ public sealed class CatalogCardPresentationMapperTests
 
         var presentation = CatalogCardPresentationMapper.Map(item);
 
-        Assert.Equal("Keep Installed", presentation.PrimaryAction?.Label);
+        Assert.Equal("Enable Updates", presentation.PrimaryAction?.Label);
         Assert.Equal(CatalogCardActionKind.Install, presentation.PrimaryAction?.Kind);
         Assert.Equal("Remove", presentation.SecondaryAction?.Label);
     }

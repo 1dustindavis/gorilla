@@ -8,7 +8,9 @@ App Catalog is Gorilla's Windows app for optional software. It gives users a sim
 
 ## What you can do
 
-App Catalog shows software assigned as `optional_installs` in Gorilla. Depending on the app's current state, you may see actions such as:
+App Catalog shows software assigned as `optional_installs` in Gorilla. Repositories can provide custom application icons for catalog items; items without a usable icon use Gorilla's generic application symbol.
+
+Depending on the app's current state, you may see actions such as:
 
 - **Install** — install the app and have Gorilla keep it installed.
 - **Update** — install an available update.

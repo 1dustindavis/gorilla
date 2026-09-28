@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
+using FlaUI.Core.WindowsAPI;
 using Xunit;
 
 namespace Gorilla.UI.App.WindowsUiTests;
@@ -118,16 +120,29 @@ public sealed class IconPresentationTests
 
                 var first = home.WaitForItem(IconItemName);
                 first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+                session.FocusForKeyboard(first);
                 Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
 
-                home.EnsureItemVisible(fallbackTarget);
-                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon"));
-
-                home.EnsureItemVisible(customTarget);
+                Keyboard.Type(VirtualKeyShort.END);
+                session.WaitUntil(
+                    () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
+                    TimeSpan.FromSeconds(10)
+                );
                 Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon"));
 
-                home.EnsureItemVisible(IconItemName);
-                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon"));
+                Keyboard.Type(VirtualKeyShort.UP);
+                session.WaitUntil(
+                    () => string.Equals(session.FocusedElement().AutomationId, fallbackTarget, StringComparison.Ordinal),
+                    TimeSpan.FromSeconds(10)
+                );
+                Assert.Equal("Fallback", WaitForIconState(session, home.WaitForCard(fallbackTarget), "CatalogIcon"));
+
+                Keyboard.Type(VirtualKeyShort.DOWN);
+                session.WaitUntil(
+                    () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
+                    TimeSpan.FromSeconds(10)
+                );
+                Assert.Equal("Custom", WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon"));
                 session.CaptureCheckpoint("catalog-icons-virtualized", includeAutomationTree: true);
             });
         }

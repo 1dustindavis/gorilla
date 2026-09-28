@@ -18,7 +18,7 @@
             <Grid Padding="24,18,24,32">
                 <StackPanel x:Name="DetailsContent" MaxWidth="760" HorizontalAlignment="Left" Spacing="18">
                     <Grid ColumnDefinitions="Auto,*">
-                        <Border Width="58" Height="58" CornerRadius="10" Background="{ThemeResource AccentFillColorSecondaryBrush}"><FontIcon Glyph="&#xE71D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                        <controls:CatalogIcon IconPath="{Binding IconPath}" IconSize="58" AutomationProperties.AutomationId="DetailsIcon" />
                         <TextBlock Grid.Column="1" Margin="14,0,0,0" Text="{Binding DisplayName}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="DetailsDisplayName" AutomationProperties.HeadingLevel="Level1" />
                     </Grid>
                     <TextBlock Text="{Binding DetailsPresentation.Description}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsDescription" />

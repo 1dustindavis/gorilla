@@ -119,16 +119,36 @@ public sealed class IconPresentationTests
                 shell.Refresh();
                 shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
 
-                var first = home.WaitForItem(IconItemName);
+                home.Search($"ZZ Icon Virtualization {VirtualizationCount:00}");
+                _ = session.WaitFor(
+                    () => home.HasItem(customTarget) ? home.WaitForItem(customTarget) : null,
+                    TimeSpan.FromSeconds(30)
+                );
+                home.Search(string.Empty);
+
+                var first = session.WaitFor(
+                    () => home.HasItem(IconItemName) ? home.WaitForItem(IconItemName) : null,
+                    TimeSpan.FromSeconds(30)
+                );
                 first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+                first = home.WaitForItem(IconItemName);
+
+                session.WaitUntil(
+                    () => home.CatalogItems.FindFirstDescendant(cf => cf.ByAutomationId(customTarget)) is null,
+                    TimeSpan.FromSeconds(5)
+                );
+
                 session.FocusForKeyboard(first);
                 WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
 
                 Keyboard.Type(VirtualKeyShort.END);
-                session.WaitUntil(
-                    () => string.Equals(session.FocusedElement().AutomationId, customTarget, StringComparison.Ordinal),
-                    TimeSpan.FromSeconds(10)
-                );
+                _ = session.WaitFor(() =>
+                {
+                    var focused = session.FocusedElement();
+                    return string.Equals(focused.AutomationId, customTarget, StringComparison.Ordinal)
+                        ? focused
+                        : null;
+                }, TimeSpan.FromSeconds(10));
                 WaitForIconState(session, home.WaitForCard(customTarget), "CatalogIcon", "Custom");
 
                 Keyboard.Type(VirtualKeyShort.UP);

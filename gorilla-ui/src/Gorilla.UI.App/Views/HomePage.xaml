@@ -39,9 +39,7 @@
                         <Border Padding="14" Height="204" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" AutomationProperties.AutomationId="CatalogCard" AutomationProperties.Name="{Binding DisplayName}">
                             <Grid RowDefinitions="Auto,Auto,38,*,Auto">
                                 <Grid ColumnDefinitions="Auto,*">
-                                    <Border Width="38" Height="38" CornerRadius="7" Background="{ThemeResource AccentFillColorSecondaryBrush}">
-                                        <FontIcon Glyph="&#xE71D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
+                                    <controls:CatalogIcon IconPath="{Binding IconPath}" IconSize="38" AutomationProperties.AutomationId="CatalogIcon" />
                                     <TextBlock Grid.Column="1" Margin="10,0,0,0" Text="{Binding DisplayName}" FontSize="17" FontWeight="SemiBold" TextWrapping="WrapWholeWords" TextTrimming="CharacterEllipsis" MaxLines="2" VerticalAlignment="Center" AutomationProperties.AutomationId="CatalogDisplayName" />
                                 </Grid>
                                 <StackPanel Grid.Row="1" Margin="0,9,0,0" Spacing="1">

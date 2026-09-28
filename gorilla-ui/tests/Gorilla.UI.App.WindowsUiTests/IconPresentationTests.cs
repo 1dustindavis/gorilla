@@ -243,7 +243,18 @@ public sealed class IconPresentationTests
         var child = walker.GetFirstChild(root);
         while (child is not null)
         {
-            if (string.Equals(child.AutomationId, automationId, StringComparison.Ordinal))
+            var matches = false;
+            try
+            {
+                matches = string.Equals(child.AutomationId, automationId, StringComparison.Ordinal);
+            }
+            catch
+            {
+                // Raw view includes internal WinUI nodes that do not expose AutomationId.
+                // They can still contain descendants that do, so keep walking.
+            }
+
+            if (matches)
             {
                 return child;
             }

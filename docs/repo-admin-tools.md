@@ -18,6 +18,7 @@ Each YAML file under `packages-info/` should contain `catalog` and normal catalo
 item_name: GoogleChrome
 catalog: base
 display_name: Google Chrome
+icon: icons/google-chrome.png
 installer:
   type: nupkg
   location: packages/google-chrome/GoogleChrome.nupkg

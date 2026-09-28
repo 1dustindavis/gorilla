@@ -45,6 +45,7 @@ type optionalInstallResponseItem struct {
 	ItemName           string                 `json:"itemName"`
 	DisplayName        string                 `json:"displayName"`
 	Description        string                 `json:"description,omitempty"`
+	IconPath           string                 `json:"iconPath,omitempty"`
 	Version            string                 `json:"version"`
 	Catalog            string                 `json:"catalog"`
 	InstallerType      string                 `json:"installerType"`

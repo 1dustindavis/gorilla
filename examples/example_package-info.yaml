@@ -2,6 +2,7 @@
 item_name: GoogleChrome
 display_name: Google Chrome
 description: A short plain-text description of the application.
+icon: icons/google-chrome.png
 check:
   registry:
     name: Google Chrome

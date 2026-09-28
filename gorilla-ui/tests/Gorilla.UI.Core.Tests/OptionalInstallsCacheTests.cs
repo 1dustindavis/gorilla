@@ -25,6 +25,7 @@ public class OptionalInstallsCacheTests
             Assert.Single(loaded.Items);
             Assert.Equal("GoogleChrome", loaded.Items[0].ItemName);
             Assert.Equal("A browser.", loaded.Items[0].Description);
+            Assert.Equal(@"C:\ProgramData\Gorilla\cache\catalog-icons\GoogleChrome.png", loaded.Items[0].IconPath);
         }
         finally
         {
@@ -52,7 +53,7 @@ public class OptionalInstallsCacheTests
     }
 
     [Fact]
-    public async Task JsonFileStore_LoadsCacheCreatedBeforeDescription()
+    public async Task JsonFileStore_LoadsCacheCreatedBeforeDescriptionAndIconPath()
     {
         var tempDir = MakeTempDirectory();
         try
@@ -65,7 +66,9 @@ public class OptionalInstallsCacheTests
             var loaded = await new JsonFileOptionalInstallsCacheStore(cachePath).LoadAsync(CancellationToken.None);
 
             Assert.NotNull(loaded);
-            Assert.Null(Assert.Single(loaded!.Items).Description);
+            var item = Assert.Single(loaded!.Items);
+            Assert.Null(item.Description);
+            Assert.Null(item.IconPath);
         }
         finally
         {
@@ -95,6 +98,7 @@ public class OptionalInstallsCacheTests
         Assert.NotNull(cached);
         Assert.Equal(refreshed.RefreshedAtUtc, cached!.CachedAtUtc);
         Assert.Equal(refreshed.Items, cached.Items);
+        Assert.Equal(refreshed.Items[0].IconPath, cached.Items[0].IconPath);
     }
 
     private static string MakeTempDirectory()
@@ -119,7 +123,8 @@ public class OptionalInstallsCacheTests
             Status: installed ? OptionalInstallStatus.Installed : OptionalInstallStatus.NotInstalled,
             StatusUpdatedAtUtc: now,
             LastOperationId: null,
-            Description: "A browser."
+            Description: "A browser.",
+            IconPath: $@"C:\ProgramData\Gorilla\cache\catalog-icons\{itemName}.png"
         );
     }
 

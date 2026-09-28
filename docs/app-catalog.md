@@ -8,7 +8,7 @@ App Catalog is Gorilla's Windows app for optional software. It gives users a sim
 
 ## What you can do
 
-App Catalog shows software assigned as `optional_installs` in Gorilla. Repositories can provide custom application icons for catalog items; items without a usable icon use Gorilla's generic application symbol.
+App Catalog shows software assigned as `optional_installs` in Gorilla.
 
 Depending on the app's current state, you may see actions such as:
 
@@ -20,6 +20,10 @@ Depending on the app's current state, you may see actions such as:
 Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. If an action is unavailable, App Catalog explains why.
 
 Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
+
+## App icons
+
+Repositories can provide an optional icon for each catalog item. A square 128×128 PNG is recommended. If no usable icon is available, App Catalog uses Gorilla's generic application symbol.
 
 ## Activity and Retry
 

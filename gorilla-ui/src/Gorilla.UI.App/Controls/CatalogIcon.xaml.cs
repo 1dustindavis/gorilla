@@ -65,8 +65,6 @@ public sealed partial class CatalogIcon : UserControl
         FallbackTile.Height = size;
         FallbackTile.CornerRadius = new CornerRadius(Math.Max(4, size * 0.18));
         FallbackGlyph.FontSize = Math.Max(12, size * 0.49);
-        CustomImage.MaxWidth = size;
-        CustomImage.MaxHeight = size;
     }
 
     private async Task LoadIconAsync(string? path)
@@ -93,6 +91,11 @@ public sealed partial class CatalogIcon : UserControl
                 return;
             }
 
+            var pixelWidth = Math.Max(1d, bitmap.PixelWidth);
+            var pixelHeight = Math.Max(1d, bitmap.PixelHeight);
+            var scale = Math.Min(1d, Math.Min(IconSize / pixelWidth, IconSize / pixelHeight));
+            CustomImage.Width = pixelWidth * scale;
+            CustomImage.Height = pixelHeight * scale;
             CustomImage.Source = bitmap;
             CustomImage.Visibility = Visibility.Visible;
             FallbackTile.Visibility = Visibility.Collapsed;
@@ -111,6 +114,8 @@ public sealed partial class CatalogIcon : UserControl
     private void ShowFallback()
     {
         CustomImage.Source = null;
+        CustomImage.Width = double.NaN;
+        CustomImage.Height = double.NaN;
         CustomImage.Visibility = Visibility.Collapsed;
         FallbackTile.Visibility = Visibility.Visible;
         AutomationProperties.SetItemStatus(this, "Fallback");

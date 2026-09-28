@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
@@ -217,7 +218,7 @@ public sealed class IconPresentationTests
     {
         return session.WaitFor(() =>
         {
-            var icon = root.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            var icon = FindRawDescendant(root, automationId);
             if (icon is null)
             {
                 return null;
@@ -226,6 +227,37 @@ public sealed class IconPresentationTests
             var state = icon.Properties.ItemStatus.ValueOrDefault;
             return state is "Custom" or "Fallback" ? state : null;
         }, TimeSpan.FromSeconds(15));
+    }
+
+    private static AutomationElement? FindRawDescendant(AutomationElement root, string automationId)
+    {
+        var walker = root.Automation.TreeWalkerFactory.GetRawViewWalker();
+        return FindRawDescendant(walker, root, automationId);
+    }
+
+    private static AutomationElement? FindRawDescendant(
+        ITreeWalker walker,
+        AutomationElement root,
+        string automationId)
+    {
+        var child = walker.GetFirstChild(root);
+        while (child is not null)
+        {
+            if (string.Equals(child.AutomationId, automationId, StringComparison.Ordinal))
+            {
+                return child;
+            }
+
+            var descendant = FindRawDescendant(walker, child, automationId);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+
+            child = walker.GetNextSibling(child);
+        }
+
+        return null;
     }
 
     private static string WaitForCachedIconPath(string cachePath, string itemName)

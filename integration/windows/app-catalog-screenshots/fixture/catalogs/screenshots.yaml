@@ -1,7 +1,7 @@
 SevenZip:
   display_name: 7-Zip
   description: File archiver for creating and extracting common compressed formats with a compact Windows desktop interface.
-  icon: icons/catalog-icon-test.png
+  icon: icons/7-zip.png
   check:
     registry:
       name: Gorilla Screenshot 7-Zip
@@ -19,6 +19,7 @@ SevenZip:
 Audacity:
   display_name: Audacity
   description: Multitrack audio editor and recorder for common desktop editing, cleanup, and export workflows.
+  icon: icons/audacity.png
   check:
     registry:
       name: Gorilla Screenshot Audacity
@@ -36,6 +37,7 @@ Audacity:
 FileZilla:
   display_name: FileZilla
   description: Graphical file-transfer client with support for FTP, FTPS, and SFTP connections.
+  icon: icons/filezilla.png
   check:
     registry:
       name: Gorilla Screenshot FileZilla
@@ -53,6 +55,7 @@ FileZilla:
 Firefox:
   display_name: Firefox
   description: Web browser with private browsing, extension support, developer tools, and cross-device synchronization.
+  icon: icons/firefox.png
   check:
     registry:
       name: Gorilla Screenshot Firefox
@@ -70,6 +73,7 @@ Firefox:
 GIMP:
   display_name: GIMP
   description: Image editor for photo retouching, composition, drawing, and graphics workflows.
+  icon: icons/gimp.png
   check:
     registry:
       name: Gorilla Screenshot GIMP
@@ -87,6 +91,7 @@ GIMP:
 Git:
   display_name: Git
   description: Distributed version-control tools for source repositories, branches, commits, and collaborative development.
+  icon: icons/git.png
   check:
     registry:
       name: Gorilla Screenshot Git
@@ -104,6 +109,7 @@ Git:
 Inkscape:
   display_name: Inkscape
   description: Vector graphics editor for illustrations, diagrams, icons, and scalable artwork.
+  icon: icons/inkscape.png
   check:
     registry:
       name: Gorilla Screenshot Inkscape
@@ -121,6 +127,7 @@ Inkscape:
 KeePass:
   display_name: KeePass
   description: Local password manager for organizing credentials in an encrypted database.
+  icon: icons/keepass.png
   check:
     registry:
       name: Gorilla Screenshot KeePass
@@ -138,6 +145,7 @@ KeePass:
 NotepadPlusPlus:
   display_name: Notepad++
   description: Lightweight text and source-code editor with syntax highlighting, search tools, and plugin support.
+  icon: icons/notepad-plus-plus.png
   check:
     registry:
       name: Gorilla Screenshot Notepad++
@@ -155,6 +163,7 @@ NotepadPlusPlus:
 OBSStudio:
   display_name: OBS Studio
   description: Video recording and live-streaming application with scene composition and configurable media sources.
+  icon: icons/obs-studio.png
   check:
     registry:
       name: Gorilla Screenshot OBS Studio
@@ -172,6 +181,7 @@ OBSStudio:
 VLC:
   display_name: VLC media player
   description: Media player for common audio and video formats, local files, discs, and network streams.
+  icon: icons/vlc.png
   check:
     registry:
       name: Gorilla Screenshot VLC
@@ -189,6 +199,7 @@ VLC:
 WinMerge:
   display_name: WinMerge
   description: Visual comparison and merging tool for files and folders on Windows.
+  icon: icons/winmerge.png
   check:
     registry:
       name: Gorilla Screenshot WinMerge

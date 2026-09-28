@@ -15,30 +15,37 @@
     </Window.SystemBackdrop>
 
     <Grid RowDefinitions="Auto,Auto,Auto,*">
-        <Grid Padding="20,12,20,8" ColumnDefinitions="*,Auto,Auto">
-            <TextBlock
-                x:Name="CatalogFreshnessStatus"
-                VerticalAlignment="Center"
-                Opacity="0.72"
-                AutomationProperties.AutomationId="CatalogFreshnessStatus" />
-            <ProgressRing
-                x:Name="CatalogRefreshProgress"
-                Grid.Column="1"
-                Width="18"
-                Height="18"
-                Margin="10,0,8,0"
-                VerticalAlignment="Center"
-                IsActive="False"
-                Visibility="Collapsed"
-                AutomationProperties.AutomationId="CatalogRefreshProgress"
-                AutomationProperties.Name="Refreshing App Catalog" />
-            <Button
-                x:Name="RefreshButton"
-                Grid.Column="2"
-                Content="Refresh"
-                Click="RefreshButton_Click"
-                AutomationProperties.AutomationId="CatalogRefreshButton"
-                AutomationProperties.Name="Refresh App Catalog" />
+        <Grid Padding="20,12,20,8" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock
+                    x:Name="CatalogFreshnessStatus"
+                    VerticalAlignment="Center"
+                    Opacity="0.72"
+                    AutomationProperties.AutomationId="CatalogFreshnessStatus" />
+                <ProgressRing
+                    x:Name="CatalogRefreshProgress"
+                    Width="18"
+                    Height="18"
+                    VerticalAlignment="Center"
+                    IsActive="False"
+                    Visibility="Collapsed"
+                    AutomationProperties.AutomationId="CatalogRefreshProgress"
+                    AutomationProperties.Name="Refreshing App Catalog" />
+                <Button
+                    x:Name="RefreshButton"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Click="RefreshButton_Click"
+                    ToolTipService.ToolTip="Refresh"
+                    AutomationProperties.AutomationId="CatalogRefreshButton"
+                    AutomationProperties.Name="Refresh App Catalog">
+                    <FontIcon
+                        Glyph="&#xE72C;"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="14" />
+                </Button>
+            </StackPanel>
         </Grid>
 
         <Border

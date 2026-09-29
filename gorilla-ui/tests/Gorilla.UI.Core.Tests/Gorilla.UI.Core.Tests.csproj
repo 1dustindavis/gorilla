@@ -18,5 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Gorilla.UI.Core/Gorilla.UI.Core.csproj" />
+    <Compile Include="../../src/Gorilla.UI.App/Services/CatalogFreshnessPresentation.cs" Link="AppServices/CatalogFreshnessPresentation.cs" />
   </ItemGroup>
 </Project>

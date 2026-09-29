@@ -6,6 +6,7 @@ using Gorilla.UI.App.Views;
 using Gorilla.UI.Core.Models;
 using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Gorilla.UI.App
@@ -30,6 +31,7 @@ namespace Gorilla.UI.App
             _viewModel = _session.ViewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             RootFrame.Navigated += RootFrame_Navigated;
+            Activated += MainWindow_Activated;
             Closed += MainWindow_Closed;
             UpdateCatalogFreshnessPresentation();
             UpdateInfrastructureWarningPresentation();
@@ -145,18 +147,32 @@ namespace Gorilla.UI.App
             }
         }
 
+        private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
+        {
+            if (args.WindowActivationState != WindowActivationState.Deactivated)
+            {
+                UpdateCatalogFreshnessPresentation();
+            }
+        }
+
         private void UpdateCatalogFreshnessPresentation()
         {
             var state = _viewModel.CatalogState;
+            var now = DateTimeOffset.Now;
+            var culture = CultureInfo.CurrentCulture;
+
             RefreshButton.IsEnabled = !state.IsRefreshing;
             CatalogRefreshProgress.IsActive = state.IsRefreshing;
             CatalogRefreshProgress.Visibility = state.IsRefreshing
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            CatalogFreshnessStatus.Text = BuildFreshnessText(state);
+            CatalogFreshnessStatus.Text = CatalogFreshnessPresentation.BuildStatusText(state, now, culture);
+            ToolTipService.SetToolTip(
+                CatalogFreshnessStatus,
+                CatalogFreshnessPresentation.BuildToolTip(state, culture));
 
-            var warning = BuildDegradedWarning(state);
+            var warning = CatalogFreshnessPresentation.BuildDegradedWarning(state, now, culture);
             CatalogDegradedText.Text = warning;
             CatalogDegradedBanner.Visibility = string.IsNullOrWhiteSpace(warning)
                 ? Visibility.Collapsed
@@ -183,76 +199,11 @@ namespace Gorilla.UI.App
                 : Visibility.Collapsed;
         }
 
-        private static string BuildFreshnessText(CatalogDataState state)
-        {
-            string text;
-            if (state.IsInitialLoading && !state.HasUsableData)
-            {
-                text = "Loading App Catalog…";
-            }
-            else if (state.IsCached)
-            {
-                text = state.CachedAtUtc is DateTimeOffset cachedAt
-                    ? $"Showing saved data from {FormatLocalTime(cachedAt)}"
-                    : "Showing saved data";
-            }
-            else if (state.IsLive && state.LastSuccessfulRefreshUtc is DateTimeOffset refreshedAt)
-            {
-                text = $"Updated {FormatLocalTime(refreshedAt)}";
-            }
-            else if (state.HasLoadFailure)
-            {
-                text = "App Catalog unavailable";
-            }
-            else
-            {
-                text = "App Catalog";
-            }
-
-            if (state.IsRefreshing && state.HasUsableData)
-            {
-                text += " · Refreshing…";
-            }
-
-            return text;
-        }
-
-        private static string BuildDegradedWarning(CatalogDataState state)
-        {
-            if (state.HasRefreshFailure && state.IsCached)
-            {
-                return "Showing saved data. Gorilla couldn't refresh the catalog.";
-            }
-
-            if (state.HasRefreshFailure && state.IsLive)
-            {
-                return state.LastSuccessfulRefreshUtc is DateTimeOffset refreshedAt
-                    ? $"Couldn't refresh. Showing data from {FormatLocalTime(refreshedAt)}."
-                    : "Couldn't refresh. Showing previously loaded data.";
-            }
-
-            if (state.HasCacheWriteFailure)
-            {
-                return "Gorilla couldn't save the latest catalog for fallback use.";
-            }
-
-            if (state.HasLoadFailure)
-            {
-                return state.HasNoUsableCache
-                    ? "Gorilla couldn't load the App Catalog, and no saved catalog is available."
-                    : "Gorilla couldn't load the App Catalog.";
-            }
-
-            return string.Empty;
-        }
-
-        private static string FormatLocalTime(DateTimeOffset timestamp)
-            => timestamp.ToLocalTime().ToString("t", CultureInfo.CurrentCulture);
-
         private void MainWindow_Closed(object sender, WindowEventArgs args)
         {
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
             RootFrame.Navigated -= RootFrame_Navigated;
+            Activated -= MainWindow_Activated;
             Closed -= MainWindow_Closed;
         }
     }

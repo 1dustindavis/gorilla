@@ -31,7 +31,7 @@
                 </GridView.ItemContainerStyle>
                 <GridView.ItemTemplate>
                     <DataTemplate>
-                        <Border Padding="14" Height="204" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" AutomationProperties.AutomationId="CatalogCard" AutomationProperties.Name="{Binding DisplayName}">
+                        <Border Padding="14" Height="192" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" AutomationProperties.AutomationId="CatalogCard" AutomationProperties.Name="{Binding DisplayName}">
                             <Grid RowDefinitions="*,Auto">
                                 <Grid ColumnDefinitions="64,*">
                                     <controls:CatalogIcon IconPath="{Binding IconPath}" IconSize="64" VerticalAlignment="Top" HorizontalAlignment="Left" AutomationProperties.AutomationId="CatalogIcon" />

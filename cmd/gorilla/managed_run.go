@@ -62,10 +62,6 @@ func prepareManagedEnvironment(cfg config.Configuration, requireAdmin bool) erro
 }
 
 func prepareManagedExecution(cfg config.Configuration) (managedExecutionContext, error) {
-	if err := prepareManagedEnvironment(cfg, true); err != nil {
-		return managedExecutionContext{}, err
-	}
-
 	download.SetConfig(cfg)
 
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
@@ -118,6 +114,10 @@ func managedRun(cfg config.Configuration) error {
 		return nil
 	}
 
+	if err := prepareManagedEnvironment(cfg, true); err != nil {
+		return err
+	}
+
 	if !cfg.CheckOnly {
 		report.Start()
 		defer report.End()
@@ -161,6 +161,10 @@ func managedRun(cfg config.Configuration) error {
 func managedItemRun(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
 	if requestedAction != "InstallItem" && requestedAction != "RemoveItem" {
 		return installer.Result{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
+	}
+
+	if err := prepareManagedEnvironment(cfg, true); err != nil {
+		return installer.Result{}, err
 	}
 
 	if !cfg.CheckOnly {

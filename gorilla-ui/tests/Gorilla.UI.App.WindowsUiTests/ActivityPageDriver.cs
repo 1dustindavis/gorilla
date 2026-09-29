@@ -33,8 +33,9 @@ internal sealed class ActivityPageDriver
     }
 
     public AutomationElement WaitForOperation(string operationId, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => Items.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")),
+        => FindEntryAcrossVirtualizedList(
+            item => string.Equals(OperationId(item), operationId, StringComparison.Ordinal),
+            $"Activity operation '{operationId}'",
             timeout
         );
 
@@ -108,17 +109,19 @@ internal sealed class ActivityPageDriver
     }
 
     public int CountEntries(string operationId)
-        => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
+        => SnapshotOperationIdentities()
+            .Count(entry => string.Equals(entry.OperationId, operationId, StringComparison.Ordinal));
 
     public AutomationElement WaitForEntryContaining(string text, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase)),
+        => FindEntryAcrossVirtualizedList(
+            item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase),
+            $"Activity entry containing '{text}'",
             timeout
         );
 
     public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
+        => FindEntryAcrossVirtualizedList(
+            item =>
             {
                 if (!EntryContainsDetail(item, detail))
                 {
@@ -128,14 +131,15 @@ internal sealed class ActivityPageDriver
                 var operationId = OperationId(item);
                 return !string.IsNullOrWhiteSpace(operationId)
                     && item.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
-            }),
+            },
+            $"Activity entry with detail '{detail}'",
             timeout
         );
 
     public IReadOnlySet<string> OperationIdsForItem(string itemName)
-        => ListEntries()
-            .Where(item => SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase))
-            .Select(OperationId)
+        => SnapshotOperationIdentities()
+            .Where(entry => entry.Name.Contains(itemName, StringComparison.OrdinalIgnoreCase))
+            .Select(entry => entry.OperationId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
 
@@ -143,22 +147,24 @@ internal sealed class ActivityPageDriver
         string detail,
         IReadOnlySet<string> existingOperationIds,
         TimeSpan? timeout = null
-    ) => _session.WaitFor(
-        () => ListEntries().FirstOrDefault(item =>
+    ) => FindEntryAcrossVirtualizedList(
+        item =>
         {
             var operationId = OperationId(item);
             return !string.IsNullOrWhiteSpace(operationId)
                 && !existingOperationIds.Contains(operationId)
                 && EntryContainsDetail(item, detail);
-        }),
+        },
+        $"new Activity entry with detail '{detail}'",
         timeout
     );
 
     public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
+        => FindEntryAcrossVirtualizedList(
+            item =>
                 !string.Equals(SafeHelpText(item), previousOperationId, StringComparison.Ordinal)
-                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)),
+                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase),
+            $"Activity operation for '{itemName}' different from '{previousOperationId}'",
             timeout
         );
 
@@ -167,8 +173,8 @@ internal sealed class ActivityPageDriver
         string action,
         IReadOnlySet<string> existingOperationIds,
         TimeSpan? timeout = null
-    ) => _session.WaitFor(
-        () => ListEntries().FirstOrDefault(item =>
+    ) => FindEntryAcrossVirtualizedList(
+        item =>
         {
             var operationId = OperationId(item);
             if (string.IsNullOrWhiteSpace(operationId)
@@ -183,7 +189,8 @@ internal sealed class ActivityPageDriver
             );
             return actionElement is not null
                 && string.Equals(SafeName(actionElement), action, StringComparison.OrdinalIgnoreCase);
-        }),
+        },
+        $"new {action} Activity operation for '{itemName}'",
         timeout
     );
 
@@ -257,8 +264,186 @@ internal sealed class ActivityPageDriver
         return WaitForOperation(operationId);
     }
 
+    private AutomationElement FindEntryAcrossVirtualizedList(
+        Func<AutomationElement, bool> predicate,
+        string description,
+        TimeSpan? timeout = null
+    )
+    {
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+        var stopwatch = Stopwatch.StartNew();
+        Exception? lastError = null;
+
+        while (stopwatch.Elapsed < effectiveTimeout)
+        {
+            var items = Items;
+            try
+            {
+                var current = ListEntries(items).FirstOrDefault(predicate);
+                if (current is not null)
+                {
+                    return current;
+                }
+
+                var scroll = items.Patterns.Scroll.PatternOrDefault;
+                if (scroll is null)
+                {
+                    Thread.Sleep(100);
+                    continue;
+                }
+
+                scroll.SetScrollPercent(scroll.HorizontalScrollPercent, 0);
+                Thread.Sleep(50);
+
+                while (stopwatch.Elapsed < effectiveTimeout)
+                {
+                    current = ListEntries(items).FirstOrDefault(predicate);
+                    if (current is not null)
+                    {
+                        return current;
+                    }
+
+                    var before = scroll.VerticalScrollPercent;
+                    if (before < 0 || before >= 100)
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+                    }
+                    catch (ArgumentException)
+                    {
+                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
+                    }
+
+                    Thread.Sleep(50);
+                    var after = scroll.VerticalScrollPercent;
+                    if (after >= 100)
+                    {
+                        current = ListEntries(items).FirstOrDefault(predicate);
+                        if (current is not null)
+                        {
+                            return current;
+                        }
+                        break;
+                    }
+
+                    if (Math.Abs(after - before) < 0.001)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (PropertyNotSupportedException ex)
+            {
+                lastError = ex;
+            }
+            catch (InvalidOperationException ex)
+            {
+                lastError = ex;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        throw new TimeoutException(
+            $"Timed out after {effectiveTimeout.TotalSeconds:n0}s finding {description} across the virtualized Activity list.",
+            lastError
+        );
+    }
+
+    private IReadOnlyList<(string OperationId, string Name)> SnapshotOperationIdentities()
+    {
+        var items = Items;
+        var identities = new Dictionary<string, string>(StringComparer.Ordinal);
+        var scroll = items.Patterns.Scroll.PatternOrDefault;
+
+        if (scroll is null)
+        {
+            CollectVisibleOperationIdentities(items, identities);
+            return identities.Select(pair => (pair.Key, pair.Value)).ToArray();
+        }
+
+        var originalHorizontal = scroll.HorizontalScrollPercent;
+        var originalVertical = scroll.VerticalScrollPercent;
+        try
+        {
+            scroll.SetScrollPercent(originalHorizontal, 0);
+            Thread.Sleep(50);
+
+            while (true)
+            {
+                CollectVisibleOperationIdentities(items, identities);
+
+                var before = scroll.VerticalScrollPercent;
+                if (before < 0 || before >= 100)
+                {
+                    break;
+                }
+
+                try
+                {
+                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+                }
+                catch (ArgumentException)
+                {
+                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
+                }
+
+                Thread.Sleep(50);
+                var after = scroll.VerticalScrollPercent;
+                if (after >= 100)
+                {
+                    CollectVisibleOperationIdentities(items, identities);
+                    break;
+                }
+
+                if (Math.Abs(after - before) < 0.001)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                scroll.SetScrollPercent(originalHorizontal, originalVertical);
+                Thread.Sleep(50);
+            }
+            catch (InvalidOperationException)
+            {
+                // The list can become temporarily non-scrollable while a live operation
+                // changes its layout. Identity collection is still valid; callers will
+                // reacquire the row they need before interacting with it.
+            }
+        }
+
+        return identities.Select(pair => (pair.Key, pair.Value)).ToArray();
+    }
+
+    private static void CollectVisibleOperationIdentities(
+        AutomationElement items,
+        IDictionary<string, string> identities
+    )
+    {
+        foreach (var item in ListEntries(items))
+        {
+            var operationId = OperationId(item);
+            if (!string.IsNullOrWhiteSpace(operationId))
+            {
+                identities[operationId] = SafeName(item);
+            }
+        }
+    }
+
     private AutomationElement[] ListEntries()
-        => Items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
+        => ListEntries(Items);
+
+    private static AutomationElement[] ListEntries(AutomationElement items)
+        => items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
 
     private static bool EntryContainsDetail(AutomationElement item, string detail)
         => item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))

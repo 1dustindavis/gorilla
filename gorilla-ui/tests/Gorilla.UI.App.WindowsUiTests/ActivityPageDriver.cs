@@ -33,8 +33,9 @@ internal sealed class ActivityPageDriver
     }
 
     public AutomationElement WaitForOperation(string operationId, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => Items.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")),
+        => FindEntryAcrossVirtualizedList(
+            item => string.Equals(OperationId(item), operationId, StringComparison.Ordinal),
+            $"Activity operation '{operationId}'",
             timeout
         );
 
@@ -107,18 +108,22 @@ internal sealed class ActivityPageDriver
         ).Text;
     }
 
+    // This is intentionally a realized-container count. Callers first locate the
+    // logical operation, which brings that row into the realized UIA window, then
+    // use this assertion to guard against duplicate peers for the same OperationId.
     public int CountEntries(string operationId)
         => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
 
     public AutomationElement WaitForEntryContaining(string text, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase)),
+        => FindEntryAcrossVirtualizedList(
+            item => SafeName(item).Contains(text, StringComparison.OrdinalIgnoreCase),
+            $"Activity entry containing '{text}'",
             timeout
         );
 
     public AutomationElement WaitForEntryWithDetail(string detail, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
+        => FindEntryAcrossVirtualizedList(
+            item =>
             {
                 if (!EntryContainsDetail(item, detail))
                 {
@@ -128,7 +133,8 @@ internal sealed class ActivityPageDriver
                 var operationId = OperationId(item);
                 return !string.IsNullOrWhiteSpace(operationId)
                     && item.FindFirstDescendant(cf => cf.ByAutomationId($"ActivityRetry-{operationId}")) is not null;
-            }),
+            },
+            $"Activity entry with detail '{detail}'",
             timeout
         );
 
@@ -143,22 +149,24 @@ internal sealed class ActivityPageDriver
         string detail,
         IReadOnlySet<string> existingOperationIds,
         TimeSpan? timeout = null
-    ) => _session.WaitFor(
-        () => ListEntries().FirstOrDefault(item =>
+    ) => FindEntryAcrossVirtualizedList(
+        item =>
         {
             var operationId = OperationId(item);
             return !string.IsNullOrWhiteSpace(operationId)
                 && !existingOperationIds.Contains(operationId)
                 && EntryContainsDetail(item, detail);
-        }),
+        },
+        $"new Activity entry with detail '{detail}'",
         timeout
     );
 
     public AutomationElement WaitForDifferentOperation(string itemName, string previousOperationId, TimeSpan? timeout = null)
-        => _session.WaitFor(
-            () => ListEntries().FirstOrDefault(item =>
+        => FindEntryAcrossVirtualizedList(
+            item =>
                 !string.Equals(SafeHelpText(item), previousOperationId, StringComparison.Ordinal)
-                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase)),
+                && SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase),
+            $"Activity operation for '{itemName}' different from '{previousOperationId}'",
             timeout
         );
 
@@ -167,8 +175,8 @@ internal sealed class ActivityPageDriver
         string action,
         IReadOnlySet<string> existingOperationIds,
         TimeSpan? timeout = null
-    ) => _session.WaitFor(
-        () => ListEntries().FirstOrDefault(item =>
+    ) => FindEntryAcrossVirtualizedList(
+        item =>
         {
             var operationId = OperationId(item);
             if (string.IsNullOrWhiteSpace(operationId)
@@ -183,7 +191,8 @@ internal sealed class ActivityPageDriver
             );
             return actionElement is not null
                 && string.Equals(SafeName(actionElement), action, StringComparison.OrdinalIgnoreCase);
-        }),
+        },
+        $"new {action} Activity operation for '{itemName}'",
         timeout
     );
 
@@ -241,6 +250,18 @@ internal sealed class ActivityPageDriver
         _ = _session.WaitFor(() => ById("CatalogSearchBox"));
     }
 
+    public void ScrollToEnd()
+    {
+        var scroll = Items.Patterns.Scroll.PatternOrDefault;
+        if (scroll is null || !scroll.VerticallyScrollable)
+        {
+            return;
+        }
+
+        scroll.SetScrollPercent(scroll.HorizontalScrollPercent, 100);
+        Thread.Sleep(100);
+    }
+
     private AutomationElement ScrollOperationIntoView(string operationId)
     {
         var entry = WaitForOperation(operationId);
@@ -257,8 +278,113 @@ internal sealed class ActivityPageDriver
         return WaitForOperation(operationId);
     }
 
+    private AutomationElement FindEntryAcrossVirtualizedList(
+        Func<AutomationElement, bool> predicate,
+        string description,
+        TimeSpan? timeout = null
+    )
+    {
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+        var stopwatch = Stopwatch.StartNew();
+        Exception? lastError = null;
+
+        while (stopwatch.Elapsed < effectiveTimeout)
+        {
+            var items = Items;
+            try
+            {
+                var current = ListEntries(items).FirstOrDefault(predicate);
+                if (current is not null)
+                {
+                    return current;
+                }
+
+                var scroll = items.Patterns.Scroll.PatternOrDefault;
+                if (scroll is null || !scroll.VerticallyScrollable)
+                {
+                    Thread.Sleep(100);
+                    continue;
+                }
+
+                // UI Automation only exposes realized ListView containers. Search
+                // deterministically from the start of the logical list, advancing the
+                // viewport until WinUI realizes the target OperationId. This avoids the
+                // circular old behavior of requiring a row to be realized before it
+                // could be scrolled into view.
+                scroll.SetScrollPercent(scroll.HorizontalScrollPercent, 0);
+                Thread.Sleep(50);
+
+                while (stopwatch.Elapsed < effectiveTimeout)
+                {
+                    current = ListEntries(items).FirstOrDefault(predicate);
+                    if (current is not null)
+                    {
+                        return current;
+                    }
+
+                    var before = scroll.VerticalScrollPercent;
+                    if (before < 0 || before >= 100)
+                    {
+                        break;
+                    }
+
+                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
+                    Thread.Sleep(50);
+
+                    var after = scroll.VerticalScrollPercent;
+                    if (after >= 100)
+                    {
+                        current = ListEntries(items).FirstOrDefault(predicate);
+                        if (current is not null)
+                        {
+                            return current;
+                        }
+                        break;
+                    }
+
+                    if (Math.Abs(after - before) < 0.001)
+                    {
+                        // Some WinUI ListView providers report the same percentage for
+                        // one large increment near a virtualization boundary. A small
+                        // increment gives the provider one more chance to realize the
+                        // next container without converting a UIA timing issue into an
+                        // arbitrary longer timeout.
+                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
+                        Thread.Sleep(50);
+                        if (Math.Abs(scroll.VerticalScrollPercent - before) < 0.001)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (PropertyNotSupportedException ex)
+            {
+                lastError = ex;
+            }
+            catch (ElementNotAvailableException ex)
+            {
+                lastError = ex;
+            }
+            catch (InvalidOperationException ex)
+            {
+                lastError = ex;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        throw new TimeoutException(
+            $"Timed out after {effectiveTimeout.TotalSeconds:n0}s finding {description} across the virtualized Activity list.",
+            lastError
+        );
+    }
+
     private AutomationElement[] ListEntries()
-        => Items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
+        => ListEntries(Items);
+
+    private static AutomationElement[] ListEntries(AutomationElement items)
+        => items.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem));
 
     private static bool EntryContainsDetail(AutomationElement item, string detail)
         => item.FindAllDescendants(cf => cf.ByControlType(ControlType.Text))

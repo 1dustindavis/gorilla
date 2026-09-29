@@ -28,7 +28,7 @@ See [the complete example catalog](../examples/example_catalog.yaml).
 
 - `display_name`: Human-readable item name.
 - `description`: Optional plain-text, concise human-readable description.
-- `icon`: Optional repository-relative PNG path used by App Catalog.
+- `icon`: Optional repository-relative PNG path used by App Catalog. Square 256×256 artwork is recommended. Other PNG dimensions are supported and are scaled proportionally without cropping.
 - `version`: Desired application version.
 - `dependencies`: Item names that must be processed first.
 - `check`: One status-check definition.

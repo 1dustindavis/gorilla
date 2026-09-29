@@ -57,6 +57,12 @@ Remove clears the user's local Install selection and performs the required one-t
 
 Administrator-authored required install/uninstall policy remains independent and takes precedence. Required dependencies can also block removal.
 
+## Targeted mutation execution
+
+Once the service accepts an App Catalog mutation, immediate execution is intentionally narrower than a normal managed run. `InstallItem` executes the requested item and its required install dependency closure. `RemoveItem` executes only the requested uninstall and does not automatically remove dependencies. Neither action processes unrelated managed installs, uninstalls, or updates.
+
+This targeted work-set selection does not change desired-state semantics. Install still persists the optional Install selection, Remove still clears it and uses the existing one-time removal lifecycle, administrator policy remains authoritative, and post-operation verification remains service-owned. Normal `gorilla.exe` execution, service startup convergence, scheduled/periodic convergence, and explicit service Run operations continue to converge the full effective managed state.
+
 ## Service-owned action decisions
 
 The service owns action eligibility. `ListOptionalInstalls` returns `actions.install` and `actions.remove` decisions containing `allowed` plus a stable reason when denied. Core presents these decisions; it does not reproduce the policy engine.

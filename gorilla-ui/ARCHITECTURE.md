@@ -19,6 +19,8 @@ App Catalog normally runs as a standard, non-elevated packaged UI and talks over
 
 The service is authoritative for optional-software observation, policy/action admission, mutation execution, operation identity, and retained operation lookup. Core renders and orchestrates service-owned truth; it must not reimplement detection or authorize an action from cached UI state.
 
+Accepted App Catalog mutations use a targeted managed-execution path behind the existing service boundary. `InstallItem` executes the requested item plus its required install dependency closure; `RemoveItem` executes only the requested uninstall. These operations do not process unrelated managed installs, uninstalls, or updates. Normal CLI execution, service startup convergence, scheduled/periodic convergence, and explicit service Run operations continue to use the full managed convergence path. Both execution modes share Gorilla's manifest/catalog loading, installer/process primitives, status evidence, logging/reporting, cache handling, and service serialization.
+
 The produced-MSIX validation installs the package, verifies the service is registered/running as `LocalSystem`, exercises packaged UI/service communication, and validates relaunch recovery. GitHub-hosted Windows runners use an elevated interactive session, so an explicit medium-integrity/non-elevated UI-process assertion remains a manual validation in a normal desktop session rather than a hosted-CI claim.
 
 ## Named-pipe protocol

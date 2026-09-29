@@ -19,145 +19,191 @@ import (
 )
 
 var (
-	adminCheckFunc        = adminCheck
-	mkdirAllFunc          = os.MkdirAll
-	buildCatalogsFunc     = admin.BuildCatalogs
-	importItemFunc        = admin.ImportItem
-	managedResultWarnFunc = gorillalog.Warn
+	adminCheckFunc               = adminCheck
+	mkdirAllFunc                 = os.MkdirAll
+	buildCatalogsFunc            = admin.BuildCatalogs
+	importItemFunc               = admin.ImportItem
+	managedResultWarnFunc        = gorillalog.Warn
+	manifestGetFunc              = manifest.Get
+	catalogGetFunc               = catalog.Get
+	processManifestsFunc         = process.Manifests
+	processInstallResultsFunc    = process.InstallResults
+	processUninstallResultsFunc  = process.UninstallResults
+	processUpdateResultsFunc     = process.UpdateResults
+	processCleanUpFunc           = process.CleanUp
+	statusResetRegistryCacheFunc = status.ResetRegistryCache
 )
 
-func managedRun(cfg config.Configuration) error {
-	_, err := managedRunItemResult(cfg, "", "")
-	return err
+type managedExecutionContext struct {
+	cfg       config.Configuration
+	catalogs  map[int]map[string]catalog.Item
+	manifests []manifest.Item
 }
 
-// managedRunItemResult runs the normal managed convergence lifecycle while
-// retaining structured execution evidence for one App Catalog request. Managed
-// convergence uses the same result-aware process APIs for CLI, scheduled, and
-// service-triggered runs.
-func managedRunItemResult(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
+func prepareManagedEnvironment(cfg config.Configuration, requireAdmin bool) error {
+	if requireAdmin && !cfg.CheckOnly {
+		isAdmin, err := adminCheckFunc()
+		if err != nil {
+			return fmt.Errorf("unable to check if running as admin: %w", err)
+		}
+		if !isAdmin {
+			return errors.New("gorilla requires admnisistrative access. Please run as an administrator")
+		}
+	}
+
+	if err := mkdirAllFunc(filepath.Clean(cfg.CachePath), 0755); err != nil {
+		return fmt.Errorf("unable to create cache directory: %w", err)
+	}
+
+	if err := gorillalog.NewLog(cfg); err != nil {
+		return fmt.Errorf("unable to initialize logger: %w", err)
+	}
+	return nil
+}
+
+func prepareManagedExecution(cfg config.Configuration) (managedExecutionContext, error) {
+	download.SetConfig(cfg)
+
+	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
+	manifests, newCatalogs, err := manifestGetFunc(cfg)
+	if err != nil {
+		return managedExecutionContext{}, fmt.Errorf("unable to retrieve manifest: %w", err)
+	}
+
+	if newCatalogs != nil {
+		cfg.Catalogs = append(cfg.Catalogs, newCatalogs...)
+	}
+
+	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
+	catalogs, err := catalogGetFunc(cfg)
+	if err != nil {
+		return managedExecutionContext{}, fmt.Errorf("unable to retrieve catalog: %w", err)
+	}
+
+	// Each managed execution gets fresh registry evidence while still sharing a
+	// single enumeration across all checks performed during that execution.
+	statusResetRegistryCacheFunc()
+
+	return managedExecutionContext{
+		cfg:       cfg,
+		catalogs:  catalogs,
+		manifests: manifests,
+	}, nil
+}
+
+func managedRun(cfg config.Configuration) error {
 	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
-
-	// If not check-only and not build/import, we need to run adminCheck().
-	if !cfg.CheckOnly && !buildMode {
-		admin, err := adminCheckFunc()
-		if err != nil {
-			return installer.Result{}, fmt.Errorf("unable to check if running as admin: %w", err)
+	if buildMode {
+		if err := prepareManagedEnvironment(cfg, false); err != nil {
+			return err
 		}
-		if !admin {
-			return installer.Result{}, errors.New("gorilla requires admnisistrative access. Please run as an administrator")
+
+		if cfg.BuildArg {
+			gorillalog.Info("Building catalogs...")
+			if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
+				return fmt.Errorf("error building catalogs: %w", err)
+			}
+			return nil
 		}
-	}
 
-	// If needed, create the cache directory.
-	if err := mkdirAllFunc(filepath.Clean(cfg.CachePath), 0755); err != nil {
-		return installer.Result{}, fmt.Errorf("unable to create cache directory: %w", err)
-	}
-
-	// Create a new logger object
-	if err := gorillalog.NewLog(cfg); err != nil {
-		return installer.Result{}, fmt.Errorf("unable to initialize logger: %w", err)
-	}
-
-	if cfg.BuildArg {
-		gorillalog.Info("Building catalogs...")
-		if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
-			return installer.Result{}, fmt.Errorf("error building catalogs: %w", err)
-		}
-		return installer.Result{}, nil
-	}
-
-	if cfg.ImportArg != "" {
 		gorillalog.Info("Importing item...")
 		if err := importItemFunc(cfg.RepoPath, cfg.ImportArg); err != nil {
-			return installer.Result{}, fmt.Errorf("error importing item: %w", err)
+			return fmt.Errorf("error importing item: %w", err)
 		}
-		return installer.Result{}, nil
+		return nil
 	}
 
-	// Start creating GorillaReport
+	if err := prepareManagedEnvironment(cfg, true); err != nil {
+		return err
+	}
+
 	if !cfg.CheckOnly {
 		report.Start()
 		defer report.End()
 	}
 
-	// Set the configuration that `download` will use
-	download.SetConfig(cfg)
-
-	// Get the manifests
-	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
-	manifests, newCatalogs, err := manifest.Get(cfg)
+	ctx, err := prepareManagedExecution(cfg)
 	if err != nil {
-		return installer.Result{}, fmt.Errorf("unable to retrieve manifest: %w", err)
+		return err
 	}
 
-	// If we have newCatalogs, add them to the configuration
-	if newCatalogs != nil {
-		cfg.Catalogs = append(cfg.Catalogs, newCatalogs...)
-	}
-
-	// Get the catalogs
-	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
-	catalogs, err := catalog.Get(cfg)
-	if err != nil {
-		return installer.Result{}, fmt.Errorf("unable to retrieve catalog: %w", err)
-	}
-
-	// Process the manifests into install type groups
-	// Each managed run gets fresh registry evidence while still sharing a single
-	// enumeration across all checks performed during this run.
-	status.ResetRegistryCache()
 	gorillalog.Info("Processing manifest...")
-	installs, uninstalls, updates := process.Manifests(manifests, catalogs)
+	installs, uninstalls, updates := processManifestsFunc(ctx.manifests, ctx.catalogs)
 
-	var requested installer.Result
-
-	// Install the full recursive dependency closure once per run. Required
-	// dependencies execute before dependents; a dependent is not executed when a
-	// dependency is missing, cyclic, or fails.
 	gorillalog.Info("Processing managed installs...")
-	installResults := process.InstallResults(installs, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	installResults := processInstallResultsFunc(installs, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
 	logManagedResultFailures("install", installResults)
-	if requestedAction == "InstallItem" {
-		if result, ok := findManagedItemResult(installResults, requestedItem); ok {
-			requested = result
-		}
-	}
 
 	gorillalog.Info("Processing managed uninstalls...")
-	uninstallResults := process.UninstallResults(uninstalls, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	uninstallResults := processUninstallResultsFunc(uninstalls, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
 	logManagedResultFailures("uninstall", uninstallResults)
-	if requestedAction == "RemoveItem" {
-		if result, ok := findManagedItemResult(uninstallResults, requestedItem); ok {
-			requested = result
-		}
-	}
 
-	// An InstallItem request may be classified as an update by manifest
-	// processing, so a matching update result supersedes an earlier install
-	// result when present.
 	gorillalog.Info("Processing managed updates...")
-	updateResults := process.UpdateResults(updates, catalogs, cfg.URLPackages, cfg.CachePath, cfg.CheckOnly)
+	updateResults := processUpdateResultsFunc(updates, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
 	logManagedResultFailures("update", updateResults)
-	if requestedAction == "InstallItem" {
-		if result, ok := findManagedItemResult(updateResults, requestedItem); ok {
-			requested = result
-		}
-	}
 
-	// Save GorillaReport to disk
 	gorillalog.Info("Saving GorillaReport.json...")
-	if cfg.CheckOnly {
+	if ctx.cfg.CheckOnly {
 		report.Print()
 	}
 
-	// Run CleanUp to delete old cached items and empty directories
 	gorillalog.Info("Cleaning up the cache...")
-	process.CleanUp(cfg.CachePath)
+	processCleanUpFunc(ctx.cfg.CachePath)
 
 	gorillalog.Info("Done!")
-	return requested, nil
+	return nil
+}
+
+// managedItemRun executes one accepted App Catalog mutation. Its work set is
+// limited to the requested item and work causally required by that item, such as
+// install dependencies. It must never perform unrelated managed convergence.
+func managedItemRun(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
+	if requestedAction != "InstallItem" && requestedAction != "RemoveItem" {
+		return installer.Result{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
+	}
+
+	if err := prepareManagedEnvironment(cfg, true); err != nil {
+		return installer.Result{}, err
+	}
+
+	if !cfg.CheckOnly {
+		report.Start()
+		defer report.End()
+	}
+
+	ctx, err := prepareManagedExecution(cfg)
+	if err != nil {
+		return installer.Result{}, err
+	}
+
+	defer func() {
+		gorillalog.Info("Cleaning up the cache...")
+		processCleanUpFunc(ctx.cfg.CachePath)
+		gorillalog.Info("Done!")
+	}()
+
+	switch requestedAction {
+	case "InstallItem":
+		gorillalog.Info("Processing targeted managed install:", requestedItem)
+		results := processInstallResultsFunc([]string{requestedItem}, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+		logManagedResultFailures("install", results)
+		if result, ok := findManagedItemResult(results, requestedItem); ok {
+			return result, nil
+		}
+		return installer.Result{}, fmt.Errorf("targeted InstallItem returned no result for %q", requestedItem)
+
+	case "RemoveItem":
+		gorillalog.Info("Processing targeted managed uninstall:", requestedItem)
+		results := processUninstallResultsFunc([]string{requestedItem}, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+		logManagedResultFailures("uninstall", results)
+		if result, ok := findManagedItemResult(results, requestedItem); ok {
+			return result, nil
+		}
+		return installer.Result{}, fmt.Errorf("targeted RemoveItem returned no result for %q", requestedItem)
+	}
+
+	return installer.Result{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
 }
 
 // logManagedResultFailures makes result-aware failures observable in ordinary

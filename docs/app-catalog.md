@@ -21,6 +21,12 @@ Not every action is always available. Gorilla checks the computer's current stat
 
 Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
 
+## How actions run
+
+Installing an app installs that app and any dependencies it needs. Removing an app removes only that app.
+
+App Catalog actions do not run unrelated installs, removals, or updates. Regular Gorilla runs still manage the full set of software assigned to the computer.
+
 ## App icons
 
 Repositories can provide an optional icon for each catalog item. A square 128×128 PNG is recommended. If no usable icon is available, App Catalog uses Gorilla's generic application symbol.

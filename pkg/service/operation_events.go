@@ -6,9 +6,11 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/installer"
 )
 
-// ManagedItemRunFunc executes the ordinary managed-run lifecycle while retaining
-// execution evidence for one accepted App Catalog item. It does not imply
-// item-only execution; production currently supplies a full-run implementation.
+// ManagedItemRunFunc executes one accepted App Catalog action. It may execute
+// work causally required by that action, such as install dependencies, but must
+// not perform unrelated managed convergence. It returns structured execution
+// evidence for the requested item; service-owned postcondition verification
+// remains authoritative for the terminal App Catalog result.
 type ManagedItemRunFunc func(config.Configuration, string, string) (installer.Result, error)
 
 func appCatalogAction(action string) appcatalog.Action {

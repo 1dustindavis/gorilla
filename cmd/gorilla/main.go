@@ -11,7 +11,8 @@ import (
 
 var (
 	managedRunFunc         = managedRun
-	runServiceFunc         = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedRunItemResult) }
+	managedItemRunFunc     = managedItemRun
+	runServiceFunc         = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
 	sendServiceCommandFunc = service.SendCommand
 	runServiceActionFunc   = service.RunAction
 	serviceStatusFunc      = service.ServiceStatus

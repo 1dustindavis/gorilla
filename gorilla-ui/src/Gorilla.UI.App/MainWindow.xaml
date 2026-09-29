@@ -58,7 +58,7 @@
 
                 <Grid
                     x:Name="ActivityHeaderContext"
-                    ColumnDefinitions="Auto,*,Auto"
+                    ColumnDefinitions="Auto,*"
                     VerticalAlignment="Center"
                     Visibility="Collapsed">
                     <Button
@@ -77,12 +77,6 @@
                         VerticalAlignment="Center"
                         AutomationProperties.AutomationId="ActivityHeading"
                         AutomationProperties.HeadingLevel="Level1" />
-                    <Button
-                        Grid.Column="2"
-                        Content="Catalog"
-                        Click="CatalogNavigationButton_Click"
-                        AutomationProperties.AutomationId="CatalogNavigationButton"
-                        AutomationProperties.Name="Catalog" />
                 </Grid>
             </Grid>
 

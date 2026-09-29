@@ -108,9 +108,11 @@ internal sealed class ActivityPageDriver
         ).Text;
     }
 
+    // This is intentionally a realized-container count. Callers first locate the
+    // logical operation, which brings that row into the realized UIA window, then
+    // use this assertion to guard against duplicate peers for the same OperationId.
     public int CountEntries(string operationId)
-        => SnapshotOperationIdentities()
-            .Count(entry => string.Equals(entry.OperationId, operationId, StringComparison.Ordinal));
+        => Items.FindAllDescendants(cf => cf.ByAutomationId($"ActivityOperation-{operationId}")).Length;
 
     public AutomationElement WaitForEntryContaining(string text, TimeSpan? timeout = null)
         => FindEntryAcrossVirtualizedList(
@@ -137,9 +139,9 @@ internal sealed class ActivityPageDriver
         );
 
     public IReadOnlySet<string> OperationIdsForItem(string itemName)
-        => SnapshotOperationIdentities()
-            .Where(entry => entry.Name.Contains(itemName, StringComparison.OrdinalIgnoreCase))
-            .Select(entry => entry.OperationId)
+        => ListEntries()
+            .Where(item => SafeName(item).Contains(itemName, StringComparison.OrdinalIgnoreCase))
+            .Select(OperationId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
 
@@ -248,6 +250,18 @@ internal sealed class ActivityPageDriver
         _ = _session.WaitFor(() => ById("CatalogSearchBox"));
     }
 
+    public void ScrollToEnd()
+    {
+        var scroll = Items.Patterns.Scroll.PatternOrDefault;
+        if (scroll is null || !scroll.VerticallyScrollable)
+        {
+            return;
+        }
+
+        scroll.SetScrollPercent(scroll.HorizontalScrollPercent, 100);
+        Thread.Sleep(100);
+    }
+
     private AutomationElement ScrollOperationIntoView(string operationId)
     {
         var entry = WaitForOperation(operationId);
@@ -286,12 +300,17 @@ internal sealed class ActivityPageDriver
                 }
 
                 var scroll = items.Patterns.Scroll.PatternOrDefault;
-                if (scroll is null)
+                if (scroll is null || !scroll.VerticallyScrollable)
                 {
                     Thread.Sleep(100);
                     continue;
                 }
 
+                // UI Automation only exposes realized ListView containers. Search
+                // deterministically from the start of the logical list, advancing the
+                // viewport until WinUI realizes the target OperationId. This avoids the
+                // circular old behavior of requiring a row to be realized before it
+                // could be scrolled into view.
                 scroll.SetScrollPercent(scroll.HorizontalScrollPercent, 0);
                 Thread.Sleep(50);
 
@@ -309,16 +328,9 @@ internal sealed class ActivityPageDriver
                         break;
                     }
 
-                    try
-                    {
-                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
-                    }
-                    catch (ArgumentException)
-                    {
-                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
-                    }
-
+                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
                     Thread.Sleep(50);
+
                     var after = scroll.VerticalScrollPercent;
                     if (after >= 100)
                     {
@@ -332,11 +344,25 @@ internal sealed class ActivityPageDriver
 
                     if (Math.Abs(after - before) < 0.001)
                     {
-                        break;
+                        // Some WinUI ListView providers report the same percentage for
+                        // one large increment near a virtualization boundary. A small
+                        // increment gives the provider one more chance to realize the
+                        // next container without converting a UIA timing issue into an
+                        // arbitrary longer timeout.
+                        scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
+                        Thread.Sleep(50);
+                        if (Math.Abs(scroll.VerticalScrollPercent - before) < 0.001)
+                        {
+                            break;
+                        }
                     }
                 }
             }
             catch (PropertyNotSupportedException ex)
+            {
+                lastError = ex;
+            }
+            catch (ElementNotAvailableException ex)
             {
                 lastError = ex;
             }
@@ -352,91 +378,6 @@ internal sealed class ActivityPageDriver
             $"Timed out after {effectiveTimeout.TotalSeconds:n0}s finding {description} across the virtualized Activity list.",
             lastError
         );
-    }
-
-    private IReadOnlyList<(string OperationId, string Name)> SnapshotOperationIdentities()
-    {
-        var items = Items;
-        var identities = new Dictionary<string, string>(StringComparer.Ordinal);
-        var scroll = items.Patterns.Scroll.PatternOrDefault;
-
-        if (scroll is null)
-        {
-            CollectVisibleOperationIdentities(items, identities);
-            return identities.Select(pair => (pair.Key, pair.Value)).ToArray();
-        }
-
-        var originalHorizontal = scroll.HorizontalScrollPercent;
-        var originalVertical = scroll.VerticalScrollPercent;
-        try
-        {
-            scroll.SetScrollPercent(originalHorizontal, 0);
-            Thread.Sleep(50);
-
-            while (true)
-            {
-                CollectVisibleOperationIdentities(items, identities);
-
-                var before = scroll.VerticalScrollPercent;
-                if (before < 0 || before >= 100)
-                {
-                    break;
-                }
-
-                try
-                {
-                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.LargeIncrement);
-                }
-                catch (ArgumentException)
-                {
-                    scroll.Scroll(ScrollAmount.NoAmount, ScrollAmount.SmallIncrement);
-                }
-
-                Thread.Sleep(50);
-                var after = scroll.VerticalScrollPercent;
-                if (after >= 100)
-                {
-                    CollectVisibleOperationIdentities(items, identities);
-                    break;
-                }
-
-                if (Math.Abs(after - before) < 0.001)
-                {
-                    break;
-                }
-            }
-        }
-        finally
-        {
-            try
-            {
-                scroll.SetScrollPercent(originalHorizontal, originalVertical);
-                Thread.Sleep(50);
-            }
-            catch (InvalidOperationException)
-            {
-                // The list can become temporarily non-scrollable while a live operation
-                // changes its layout. Identity collection is still valid; callers will
-                // reacquire the row they need before interacting with it.
-            }
-        }
-
-        return identities.Select(pair => (pair.Key, pair.Value)).ToArray();
-    }
-
-    private static void CollectVisibleOperationIdentities(
-        AutomationElement items,
-        IDictionary<string, string> identities
-    )
-    {
-        foreach (var item in ListEntries(items))
-        {
-            var operationId = OperationId(item);
-            if (!string.IsNullOrWhiteSpace(operationId))
-            {
-                identities[operationId] = SafeName(item);
-            }
-        }
     }
 
     private AutomationElement[] ListEntries()

@@ -318,6 +318,10 @@ public sealed class ActivityTests
                 Assert.Equal(1, activity.CountEntries(retryOperationId));
                 second.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
 
+                // Force the Activity viewport away from the newest retry row before
+                // navigating. The driver must be able to locate the immutable
+                // OperationId again even when WinUI has recycled that ListViewItem.
+                activity.ScrollToEnd();
                 activity.OpenDetails(retryOperationId);
                 var details = new AppDetailsPageDriver(second);
                 details.WaitForObservation("Installed", TimeSpan.FromSeconds(30));

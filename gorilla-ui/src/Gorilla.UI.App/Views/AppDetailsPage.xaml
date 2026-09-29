@@ -15,7 +15,7 @@
             <StackPanel x:Name="DetailsContent" MaxWidth="760" HorizontalAlignment="Left" Spacing="18">
                 <Grid ColumnDefinitions="Auto,*">
                     <controls:CatalogIcon IconPath="{Binding IconPath}" IconSize="128" AutomationProperties.AutomationId="DetailsIcon" />
-                    <StackPanel Grid.Column="1" Margin="18,0,0,0" Spacing="7">
+                    <StackPanel Grid.Column="1" Margin="32,0,0,0" Spacing="7">
                         <TextBlock Text="{Binding DisplayName}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.AutomationId="DetailsDisplayName" AutomationProperties.HeadingLevel="Level1" />
                         <TextBlock Text="{Binding DetailsPresentation.ObservationText}" FontSize="16" AutomationProperties.AutomationId="DetailsObservation" AutomationProperties.Name="{Binding DetailsPresentation.ObservationText}" />
                         <StackPanel Spacing="7">
@@ -28,7 +28,7 @@
                         </StackPanel>
                     </StackPanel>
                 </Grid>
-                <TextBlock Text="{Binding DetailsPresentation.Description}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsDescription" />
+                <TextBlock Margin="0,8,0,0" Text="{Binding DetailsPresentation.Description}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsDescription" />
                 <Border Padding="14" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="{Binding DetailsPresentation.HasActiveOperation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsActiveOperation" AutomationProperties.Name="{Binding DetailsPresentation.ActiveOperationTitle}" AutomationProperties.HelpText="{Binding ActiveOperation.OperationId}">
                     <StackPanel Spacing="7">
                         <TextBlock Text="{Binding DetailsPresentation.ActiveOperationTitle}" FontSize="17" FontWeight="SemiBold" />

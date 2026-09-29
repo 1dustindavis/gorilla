@@ -8,7 +8,7 @@ This document defines the stable Stage 7 accessibility and UI Automation surface
 
 - Catalog context is shell-hosted as `HomeHeading` plus `ActivityNavigationButton`.
 - Details context is shell-hosted as `DetailsBackButton`; the app display name stays inside `AppDetailsPage` and remains the semantic level-1 page heading.
-- Activity context is shell-hosted as `ActivityBackButton`, `ActivityHeading`, and `CatalogNavigationButton`.
+- Activity context is shell-hosted as `ActivityBackButton` and `ActivityHeading`.
 - `CatalogFreshnessStatus`, `CatalogRefreshProgress`, and `CatalogRefreshButton` remain persistent shell controls on every surface.
 - Shell-hosted AutomationIds remain stable even though those controls are outside the page `Frame` subtree.
 - `MainWindow` owns predictable destination focus for shell-owned Back controls. Pages still own restoration into virtualized page content by logical identity.
@@ -66,7 +66,7 @@ Existing IDs are compatibility surface and are preserved unless a separately rev
 - `NavigationFrame`
 - Catalog context: `HomeHeading`, `ActivityNavigationButton`
 - Details context: `DetailsBackButton`
-- Activity context: `ActivityBackButton`, `ActivityHeading`, `CatalogNavigationButton`
+- Activity context: `ActivityBackButton`, `ActivityHeading`
 
 Inactive page-context groups are collapsed and therefore are not active/focusable UI Automation peers.
 

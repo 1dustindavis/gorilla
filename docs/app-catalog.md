@@ -21,11 +21,11 @@ Not every action is always available. Gorilla checks the computer's current stat
 
 Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
 
-## Execution scope
+## How actions run
 
-An accepted App Catalog Install or Remove action executes only the requested item and work causally required to complete that action. Install includes the requested item's required install dependencies. Remove uninstalls only the requested item and does not automatically remove dependencies.
+Installing an app installs that app and any dependencies it needs. Removing an app removes only that app.
 
-App Catalog actions do not trigger unrelated managed installs, uninstalls, or updates. Normal `gorilla.exe` execution, service startup convergence, scheduled/periodic convergence, and explicit service Run operations continue to converge the full effective Gorilla-managed state.
+App Catalog actions do not run unrelated installs, removals, or updates. Regular Gorilla runs still manage the full set of software assigned to the computer.
 
 ## App icons
 

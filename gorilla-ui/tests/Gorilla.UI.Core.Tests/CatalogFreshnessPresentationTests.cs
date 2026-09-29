@@ -1,6 +1,7 @@
 using System.Globalization;
 using Gorilla.UI.App.Services;
 using Gorilla.UI.Core.Models;
+using Xunit;
 
 namespace Gorilla.UI.Core.Tests;
 

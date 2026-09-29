@@ -110,11 +110,11 @@ func TestManagedItemRunInstallReturnsRootDependencyFailure(t *testing.T) {
 		return []process.ItemResult{
 			{
 				ItemName: "RuntimeX",
-				Result: installer.Result{ItemName: "RuntimeX", Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "invalid_dependency"},
+				Result:   installer.Result{ItemName: "RuntimeX", Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "invalid_dependency"},
 			},
 			{
 				ItemName: "AppB",
-				Result: installer.Result{ItemName: "AppB", Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_failed"},
+				Result:   installer.Result{ItemName: "AppB", Action: "install", Outcome: installer.OutcomeFailed, ErrorCode: "dependency_failed"},
 			},
 		}
 	}
@@ -145,7 +145,7 @@ func TestManagedItemRunRemoveUsesRequestedItemOnly(t *testing.T) {
 		gotUninstalls = append([]string(nil), uninstalls...)
 		return []process.ItemResult{{
 			ItemName: "AppB",
-			Result: installer.Result{ItemName: "AppB", Action: "uninstall", Outcome: installer.OutcomeSucceeded},
+			Result:   installer.Result{ItemName: "AppB", Action: "uninstall", Outcome: installer.OutcomeSucceeded},
 		}}
 	}
 

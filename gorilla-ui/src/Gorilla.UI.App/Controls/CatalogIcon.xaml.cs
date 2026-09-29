@@ -98,11 +98,8 @@ public sealed partial class CatalogIcon : UserControl
                 return;
             }
 
-            var pixelWidth = Math.Max(1d, bitmap.PixelWidth);
-            var pixelHeight = Math.Max(1d, bitmap.PixelHeight);
-            var scale = Math.Min(1d, Math.Min(IconSize / pixelWidth, IconSize / pixelHeight));
-            CustomImage.Width = pixelWidth * scale;
-            CustomImage.Height = pixelHeight * scale;
+            CustomImage.Width = IconSize;
+            CustomImage.Height = IconSize;
             CustomImage.Source = bitmap;
             CustomImage.Visibility = Visibility.Visible;
             FallbackTile.Visibility = Visibility.Collapsed;

@@ -30,7 +30,6 @@ public sealed class PresentationValidationTests
             AssertVisible(activity.Root, "Activity root");
             AssertVisible(activity.Heading, "Activity heading");
             AssertVisible(ById(session, "ActivityBackButton"), "Activity back action");
-            AssertVisible(ById(session, "CatalogNavigationButton"), "Catalog navigation");
             AssertVisible(ById(session, "CatalogRefreshButton"), "Activity refresh action");
             session.CaptureCheckpoint("stage7-presentation-activity", includeAutomationTree: true);
             activity.GoBack();

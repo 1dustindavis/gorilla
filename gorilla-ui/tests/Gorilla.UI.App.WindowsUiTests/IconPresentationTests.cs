@@ -43,7 +43,10 @@ public sealed class IconPresentationTests
                 var customItem = home.WaitForItem(IconItemName);
                 session.FocusForKeyboard(customItem);
                 Assert.True(customItem.Properties.HasKeyboardFocus.ValueOrDefault);
-                WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
+                var catalogIcon = WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
+                var catalogIconBounds = catalogIcon.BoundingRectangle;
+                AssertSquareIconBounds(catalogIconBounds.Width, catalogIconBounds.Height);
+                Assert.True(catalogIconBounds.Width >= 50, $"Expected a materially larger Catalog icon, got {catalogIconBounds.Width:0.##}x{catalogIconBounds.Height:0.##}.");
 
                 var fallbackItem = home.WaitForItem(FallbackItemName);
                 session.FocusForKeyboard(fallbackItem);
@@ -54,7 +57,11 @@ public sealed class IconPresentationTests
                 session.CaptureCheckpoint("catalog-icons-mixed", includeAutomationTree: true);
 
                 home.OpenDetails(IconItemName);
-                WaitForIconState(session, session.MainWindow, "DetailsIcon", "Custom");
+                var detailsIcon = WaitForIconState(session, session.MainWindow, "DetailsIcon", "Custom");
+                var detailsIconBounds = detailsIcon.BoundingRectangle;
+                AssertSquareIconBounds(detailsIconBounds.Width, detailsIconBounds.Height);
+                Assert.InRange(detailsIconBounds.Width / catalogIconBounds.Width, 1.7, 2.3);
+                Assert.InRange(detailsIconBounds.Height / catalogIconBounds.Height, 1.7, 2.3);
                 session.CaptureCheckpoint("details-custom-icon", includeAutomationTree: true);
 
                 new AppDetailsPageDriver(session).GoBack();
@@ -233,13 +240,13 @@ public sealed class IconPresentationTests
         File.WriteAllText(manifestPath, manifest);
     }
 
-    private static void WaitForIconState(
+    private static AutomationElement WaitForIconState(
         GorillaAppSession session,
         AutomationElement root,
         string automationId,
         string expectedState)
     {
-        _ = session.WaitFor(() =>
+        return session.WaitFor(() =>
         {
             var icon = FindRawDescendant(root, automationId);
             if (icon is null)
@@ -250,6 +257,12 @@ public sealed class IconPresentationTests
             var state = icon.Properties.ItemStatus.ValueOrDefault;
             return string.Equals(state, expectedState, StringComparison.Ordinal) ? icon : null;
         }, TimeSpan.FromSeconds(15));
+    }
+
+    private static void AssertSquareIconBounds(double width, double height)
+    {
+        Assert.True(width > 0 && height > 0, $"Expected non-zero icon bounds, got {width:0.##}x{height:0.##}.");
+        Assert.InRange(width / height, 0.9, 1.1);
     }
 
     private static AutomationElement? FindRawDescendant(AutomationElement root, string automationId)

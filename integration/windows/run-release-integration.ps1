@@ -150,6 +150,7 @@ $exeMarker = Join-Path $markerRoot "exe.txt"
 $msiMarker = Join-Path $markerRoot "msi.txt"
 $nupkgMarker = Join-Path $markerRoot "nupkg.txt"
 $ps1Marker = Join-Path $markerRoot "ps1.txt"
+$startupMarker = Join-Path $markerRoot "targeted-startup.txt"
 $targetedMarker = Join-Path $markerRoot "targeted-requested.txt"
 $unrelatedMarker = Join-Path $markerRoot "targeted-unrelated.txt"
 $msixPackageName = "GorillaIntegrationTest$FixtureNamespace"
@@ -237,6 +238,28 @@ try {
     $catalogPath = Join-Path $repoRoot "catalogs/integration.yaml"
     @"
 
+StartupSentinel:
+  display_name: StartupSentinel
+  check:
+    file:
+      - path: '$startupMarker'
+  installer:
+    type: exe
+    location: packages/exe/marker-installer.exe
+    hash: $exeInstallerHash
+    arguments:
+      - -action=install
+      - -marker=$startupMarker
+      - -version=startup
+  uninstaller:
+    type: exe
+    location: packages/exe/marker-uninstaller.exe
+    hash: $exeUninstallerHash
+    arguments:
+      - -action=uninstall
+      - -marker=$startupMarker
+  version: 1.0.0
+
 TargetedOptional:
   display_name: TargetedOptional
   check:
@@ -285,6 +308,8 @@ UnrelatedManaged:
     $targetedManifestPath = Join-Path $repoRoot "manifests/integration-targeted-service.yaml"
     @'
 name: integration-targeted-service
+managed_installs:
+  - StartupSentinel
 optional_installs:
   - TargetedOptional
 '@ | Set-Content -LiteralPath $targetedManifestPath -NoNewline
@@ -299,6 +324,12 @@ optional_installs:
     if ($LASTEXITCODE -ne 0) {
         throw "failed to start targeted integration service"
     }
+
+    # The sentinel is executed by startup's ordinary full managed run. Waiting
+    # for it ensures the later manifest change cannot accidentally be consumed
+    # by startup convergence, while still exercising the same real service.
+    Wait-ForFile -Path $startupMarker -TimeoutSeconds 30
+    Assert-Content -Path $startupMarker -Expected "startup"
 
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     $serviceReady = $false
@@ -317,13 +348,14 @@ optional_installs:
     Assert-Missing -Path $targetedMarker
     Assert-Missing -Path $unrelatedMarker
 
-    # Add unrelated managed work only after startup convergence has finished. A
-    # targeted InstallItem must load this effective context for catalog/policy
-    # resolution without executing UnrelatedManaged. The pre-change full-run
-    # callback would execute it here, making this a real service regression test.
+    # Add unrelated managed work only after startup convergence has loaded and
+    # executed its sentinel. A targeted InstallItem must load this effective
+    # context for catalog/policy resolution without executing UnrelatedManaged.
+    # The pre-change full-run callback would execute it here.
     @'
 name: integration-targeted-service
 managed_installs:
+  - StartupSentinel
   - UnrelatedManaged
 optional_installs:
   - TargetedOptional

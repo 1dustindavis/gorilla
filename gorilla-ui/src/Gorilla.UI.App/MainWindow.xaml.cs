@@ -81,12 +81,6 @@ namespace Gorilla.UI.App
             NavigateBackOrCatalog();
         }
 
-        private void CatalogNavigationButton_Click(object sender, RoutedEventArgs e)
-        {
-            NavigationFocusState.RequestCatalogFallback();
-            RootFrame.Navigate(typeof(HomePage));
-        }
-
         private void NavigateBackOrCatalog()
         {
             if (RootFrame.CanGoBack)

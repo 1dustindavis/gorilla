@@ -19,7 +19,6 @@ public sealed class ShellHeaderTests
             AssertAbsent(session, "DetailsBackButton");
             AssertAbsent(session, "ActivityBackButton");
             AssertAbsent(session, "ActivityHeading");
-            AssertAbsent(session, "CatalogNavigationButton");
             AssertRefresh(session);
 
             var home = new HomePageDriver(session);
@@ -30,7 +29,6 @@ public sealed class ShellHeaderTests
             AssertAbsent(session, "ActivityNavigationButton");
             AssertAbsent(session, "ActivityBackButton");
             AssertAbsent(session, "ActivityHeading");
-            AssertAbsent(session, "CatalogNavigationButton");
             AssertRefresh(session);
 
             session.WaitFor(() => ById(session, "DetailsBackButton")?.AsButton()).Invoke();
@@ -40,29 +38,10 @@ public sealed class ShellHeaderTests
             _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
             AssertPresent(session, "ActivityBackButton");
             AssertPresent(session, "ActivityHeading");
-            AssertPresent(session, "CatalogNavigationButton");
             AssertAbsent(session, "HomeHeading");
             AssertAbsent(session, "ActivityNavigationButton");
             AssertAbsent(session, "DetailsBackButton");
             AssertRefresh(session);
-        });
-    }
-
-    [Fact]
-    [Trait("E2EPhase", "Healthy")]
-    public void ActivityCatalogNavigationGoesDirectlyToCatalog()
-    {
-        RunWithDiagnostics(nameof(ActivityCatalogNavigationGoesDirectlyToCatalog), session =>
-        {
-            _ = session.WaitFor(() => ById(session, "CatalogSearchBox"));
-            session.WaitFor(() => ById(session, "ActivityNavigationButton")?.AsButton()).Invoke();
-            _ = session.WaitFor(() => ById(session, "ActivityPageRoot"));
-
-            session.WaitFor(() => ById(session, "CatalogNavigationButton")?.AsButton()).Invoke();
-            var search = session.WaitFor(() => ById(session, "CatalogSearchBox"));
-            session.WaitUntil(() => search.Properties.HasKeyboardFocus.ValueOrDefault);
-            AssertPresent(session, "HomeHeading");
-            AssertAbsent(session, "ActivityHeading");
         });
     }
 

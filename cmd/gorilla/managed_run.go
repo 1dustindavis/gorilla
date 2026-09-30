@@ -87,6 +87,7 @@ func prepareManagedExecution(cfg config.Configuration) (managed.PreparedContext,
 }
 
 func managedRun(cfg config.Configuration) (managed.RunResult, error) {
+	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
 	if buildMode {
 		if err := prepareManagedEnvironment(cfg, false); err != nil {
@@ -138,6 +139,9 @@ func managedRun(cfg config.Configuration) (managed.RunResult, error) {
 	return managed.RunResult{Prepared: ctx}, nil
 }
 
+// managedItemRun executes one accepted App Catalog mutation. Its work set is
+// limited to the requested item and work causally required by that item, such as
+// install dependencies. It must never perform unrelated managed convergence.
 func managedItemRun(cfg config.Configuration, requestedItem, requestedAction string) (managed.ItemRunResult, error) {
 	if requestedAction != "InstallItem" && requestedAction != "RemoveItem" {
 		return managed.ItemRunResult{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
@@ -180,6 +184,11 @@ func managedItemRun(cfg config.Configuration, requestedItem, requestedAction str
 	return managed.ItemRunResult{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
 }
 
+// logManagedResultFailures makes result-aware failures observable in ordinary
+// CLI and scheduled convergence, not only to App Catalog callers retaining one
+// requested result. This is especially important for synthetic process failures
+// such as dependency_failed, dependency_cycle, and invalid_catalog_item that do
+// not necessarily reach the installer/report path.
 func logManagedResultFailures(phase string, results []process.ItemResult) {
 	for _, itemResult := range results {
 		result := itemResult.Result

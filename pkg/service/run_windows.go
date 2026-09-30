@@ -18,7 +18,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
-	"github.com/1dustindavis/gorilla/pkg/managed"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 )

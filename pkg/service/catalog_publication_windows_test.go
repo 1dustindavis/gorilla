@@ -27,7 +27,7 @@ func TestPersistentManagedRunPublishesFromReturnedPreparedContext(t *testing.T) 
 	prepared := managedrun.PreparedContext{
 		Config:    cfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
-		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
+		Catalogs:  map[int]map[string]catalog.Item{1: {"Example": {
 			DisplayName: "Example",
 			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
 		}}},
@@ -117,7 +117,7 @@ func TestTargetedInstallUsesExecutionPreparedWithoutPostExecutionRepositoryFetch
 	prepared := managedrun.PreparedContext{
 		Config:    cfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
-		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
+		Catalogs:  map[int]map[string]catalog.Item{1: {"Example": {
 			DisplayName: "Example",
 			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
 		}}},
@@ -150,7 +150,7 @@ func TestTargetedInstallUsesExecutionPreparedWithoutPostExecutionRepositoryFetch
 			executed = true
 			return managedrun.ItemRunResult{
 				ExecutionPrepared: prepared,
-				Execution: installer.Result{ItemName: itemName, Action: action, Outcome: installer.OutcomeSucceeded},
+				Execution:         installer.Result{ItemName: itemName, Action: action, Outcome: installer.OutcomeSucceeded},
 			}, nil
 		},
 	)

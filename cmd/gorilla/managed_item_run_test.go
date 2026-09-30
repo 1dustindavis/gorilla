@@ -225,7 +225,7 @@ func TestManagedRunReturnsExactPreparedExecutionState(t *testing.T) {
 	cfg.Catalogs = []string{"configured"}
 
 	manifests := []manifest.Item{{Name: "manifest-a"}}
-	catalogs := map[int]map[string]catalog.Item{0: {"AppB": {Name: "AppB"}}}
+	catalogs := map[int]map[string]catalog.Item{0: {"AppB": {DisplayName: "App B"}}}
 	manifestGetFunc = func(config.Configuration) ([]manifest.Item, []string, error) {
 		return manifests, []string{"manifest-catalog"}, nil
 	}
@@ -237,13 +237,17 @@ func TestManagedRunReturnsExactPreparedExecutionState(t *testing.T) {
 	}
 
 	var executionManifests []manifest.Item
-	var executionCatalogs map[int]map[string]catalog.Item
+	var manifestCatalogs map[int]map[string]catalog.Item
+	var installCatalogs map[int]map[string]catalog.Item
 	processManifestsFunc = func(gotManifests []manifest.Item, gotCatalogs map[int]map[string]catalog.Item) ([]string, []string, []string) {
 		executionManifests = gotManifests
-		executionCatalogs = gotCatalogs
-		return nil, nil, nil
+		manifestCatalogs = gotCatalogs
+		return []string{"AppB"}, nil, nil
 	}
-	processInstallResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
+	processInstallResultsFunc = func(_ []string, gotCatalogs map[int]map[string]catalog.Item, _, _ string, _ bool) []process.ItemResult {
+		installCatalogs = gotCatalogs
+		return nil
+	}
 	processUninstallResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
 	processUpdateResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
 
@@ -257,8 +261,11 @@ func TestManagedRunReturnsExactPreparedExecutionState(t *testing.T) {
 	if !reflect.DeepEqual(result.Prepared.Manifests, manifests) || !reflect.DeepEqual(executionManifests, result.Prepared.Manifests) {
 		t.Fatalf("returned manifests differ from execution input")
 	}
-	if !reflect.DeepEqual(result.Prepared.Catalogs, catalogs) || !reflect.DeepEqual(executionCatalogs, result.Prepared.Catalogs) {
-		t.Fatalf("returned catalogs differ from execution input")
+	if !reflect.DeepEqual(result.Prepared.Catalogs, catalogs) || !reflect.DeepEqual(manifestCatalogs, result.Prepared.Catalogs) {
+		t.Fatalf("returned catalogs differ from manifest processing input")
+	}
+	if !reflect.DeepEqual(installCatalogs, result.Prepared.Catalogs) {
+		t.Fatalf("returned catalogs differ from install processing input")
 	}
 }
 

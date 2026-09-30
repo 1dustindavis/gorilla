@@ -13,6 +13,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	"github.com/1dustindavis/gorilla/pkg/managedrun"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 	"github.com/1dustindavis/gorilla/pkg/status"
@@ -34,6 +35,11 @@ type optionalItemDetails struct {
 	iconSource         string
 }
 
+type optionalCatalogProjectionInput struct {
+	Prepared          managedrun.PreparedContext
+	CatalogDetailCode string
+}
+
 type resolvedCatalogItem struct {
 	item    catalog.Item
 	catalog string
@@ -53,6 +59,14 @@ func resolveCatalogItem(name string, catalogs map[int]map[string]catalog.Item, c
 }
 
 func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, error) {
+	input, err := prepareOptionalCatalogProjection(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return getOptionalItemDetailsFromPrepared(input)
+}
+
+func prepareOptionalCatalogProjection(cfg config.Configuration) (optionalCatalogProjectionInput, error) {
 	// Repository access is service-owned; configure the shared downloader with
 	// this service request configuration so auth, TLS and file:// behavior match
 	// all other Gorilla repository retrieval.
@@ -60,7 +74,7 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 
 	manifests, extraCatalogs, err := manifestGet(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("retrieve manifests: %w", err)
+		return optionalCatalogProjectionInput{}, fmt.Errorf("retrieve manifests: %w", err)
 	}
 	for _, name := range extraCatalogs {
 		if !slices.Contains(cfg.Catalogs, name) {
@@ -76,10 +90,38 @@ func getOptionalItemDetails(cfg config.Configuration) ([]optionalItemDetails, er
 		catalogs = map[int]map[string]catalog.Item{}
 		catalogDetailCode = "catalog_load_failed"
 	}
+	return optionalCatalogProjectionInput{
+		Prepared: managedrun.PreparedContext{
+			Config:    cfg,
+			Manifests: manifests,
+			Catalogs:  catalogs,
+		},
+		CatalogDetailCode: catalogDetailCode,
+	}, nil
+}
+
+func getOptionalItemDetailsFromManagedContext(prepared managedrun.PreparedContext) ([]optionalItemDetails, error) {
+	return getOptionalItemDetailsFromPrepared(optionalCatalogProjectionInput{
+		Prepared:          prepared,
+		CatalogDetailCode: "catalog_item_missing_or_invalid",
+	})
+}
+
+func getOptionalItemDetailsFromPrepared(input optionalCatalogProjectionInput) ([]optionalItemDetails, error) {
+	cfg := input.Prepared.Config
+	manifests := input.Prepared.Manifests
+	catalogs := input.Prepared.Catalogs
+	catalogDetailCode := input.CatalogDetailCode
+	if catalogDetailCode == "" {
+		catalogDetailCode = "catalog_item_missing_or_invalid"
+	}
+
 	selection, err := loadServiceLocalManifest(cfg)
 	if err != nil {
 		return nil, err
 	}
+	// Managed execution resets this cache before mutation. Projection must reset
+	// it again because installers/uninstallers may have changed registry state.
 	status.ResetRegistryCache()
 
 	optional := map[string]bool{}

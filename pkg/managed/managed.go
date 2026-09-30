@@ -16,8 +16,11 @@ type PreparedContext struct {
 	Catalogs  map[int]map[string]catalog.Item
 }
 
-// RunResult is returned by a full managed convergence. Build/import modes do
-// not prepare repository execution state and therefore return the zero value.
+// RunResult is returned by a full managed convergence. Prepared reflects the
+// exact context for that invocation; callers must not infer that it represents
+// persistent configuration if the supplied run configuration itself was
+// operation-scoped or transient. Build/import modes do not prepare repository
+// execution state and therefore return the zero value.
 type RunResult struct {
 	Prepared PreparedContext
 }

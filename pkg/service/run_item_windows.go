@@ -35,9 +35,12 @@ func (sr *serviceRunner) executeManagedItemOperation(ctx context.Context, action
 		if err != nil {
 			return operationResultPayload{}, err
 		}
-		execution = result
+		// ExecutionPrepared is intentionally unused in PR A. It describes the
+		// targeted execution context and may contain operation-scoped transient
+		// state, so it is not persistent App Catalog authority.
+		execution = result.Execution
 	} else {
-		if err := sr.managedRun(runCfg); err != nil {
+		if _, err := sr.managedRun(runCfg); err != nil {
 			return operationResultPayload{}, err
 		}
 	}

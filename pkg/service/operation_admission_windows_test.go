@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 )
 
 func TestMutationAdmissionReusesSameMutation(t *testing.T) {
 	stubOptionalSlack(t)
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
-	sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	cmd := Command{
 		Action:     actionInstallItem,
 		Items:      []string{"Slack"},
@@ -57,7 +58,7 @@ func TestMutationAdmissionReusesSameMutation(t *testing.T) {
 
 func TestMutationAdmissionRejectsConcurrentMutationForSameItem(t *testing.T) {
 	stubOptionalSlack(t)
-	sr := newServiceRunner(config.Configuration{AppDataPath: t.TempDir()}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{AppDataPath: t.TempDir()}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 
 	_, err := sr.executeCommandSafe(Command{
 		Action: actionInstallItem, Items: []string{"Slack"}, MutationID: "mutation-1",
@@ -76,7 +77,7 @@ func TestMutationAdmissionRejectsConcurrentMutationForSameItem(t *testing.T) {
 
 func TestMutationAdmissionRejectsMutationIDReuseForDifferentIdentity(t *testing.T) {
 	stubOptionalSlack(t)
-	sr := newServiceRunner(config.Configuration{AppDataPath: t.TempDir()}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{AppDataPath: t.TempDir()}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 
 	_, err := sr.executeCommandSafe(Command{
 		Action: actionInstallItem, Items: []string{"Slack"}, MutationID: "mutation-1",

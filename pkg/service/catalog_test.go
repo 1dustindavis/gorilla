@@ -12,6 +12,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/status"
 	"go.yaml.in/yaml/v4"
@@ -128,7 +129,9 @@ func TestOptionalScriptRequirementAllowsActionsWithoutClaimingPresence(t *testin
 func TestInstallRejectsNonOptionalBeforeMutation(t *testing.T) {
 	stubOptionalCatalog(t, []manifest.Item{{OptionalInstalls: []string{"Allowed"}}}, map[int]map[string]catalog.Item{}, map[string]status.Observation{})
 	cfg := config.Configuration{AppDataPath: t.TempDir(), Catalogs: []string{"primary"}}
-	_, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"Other"}}, func(config.Configuration) error { return nil })
+	_, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"Other"}}, func(config.Configuration) (managed.RunResult, error) {
+		return managed.RunResult{}, nil
+	})
 	var denied actionDeniedError
 	if !errors.As(err, &denied) || denied.reason != "not_optional" {
 		t.Fatalf("got %v", err)
@@ -218,16 +221,16 @@ func TestScheduledRunRemovesSelectionOverriddenByAdministratorUninstall(t *testi
 	}
 
 	managedRunCalled := false
-	_, err := executeCommand(cfg, Command{Action: actionRun}, func(config.Configuration) error {
+	_, err := executeCommand(cfg, Command{Action: actionRun}, func(config.Configuration) (managed.RunResult, error) {
 		managedRunCalled = true
 		got, loadErr := loadServiceLocalManifest(cfg)
 		if loadErr != nil {
-			return loadErr
+			return managed.RunResult{}, loadErr
 		}
 		if !slices.Equal(got.Installs, []string{"Keep"}) {
-			return fmt.Errorf("managed run saw unreconciled selections: %v", got.Installs)
+			return managed.RunResult{}, fmt.Errorf("managed run saw unreconciled selections: %v", got.Installs)
 		}
-		return nil
+		return managed.RunResult{}, nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +331,9 @@ func TestInstallRejectsUnsatisfiableDependencyBeforePersistingSelection(t *testi
 		}},
 	)
 
-	_, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"Parent"}}, func(config.Configuration) error { return nil })
+	_, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"Parent"}}, func(config.Configuration) (managed.RunResult, error) {
+		return managed.RunResult{}, nil
+	})
 	var denied actionDeniedError
 	if !errors.As(err, &denied) || denied.reason != "install_unavailable" {
 		t.Fatalf("got %v", err)
@@ -386,7 +391,9 @@ func TestExecuteRemoveReturnsOneTimeRunConfiguration(t *testing.T) {
 		}}},
 		map[string]status.Observation{"Example": {State: status.Installed, CheckedAtUTC: time.Now().UTC()}},
 	)
-	resp, err := executeCommand(cfg, Command{Action: actionRemoveItem, Items: []string{"Example"}}, func(config.Configuration) error { return nil })
+	resp, err := executeCommand(cfg, Command{Action: actionRemoveItem, Items: []string{"Example"}}, func(config.Configuration) (managed.RunResult, error) {
+		return managed.RunResult{}, nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

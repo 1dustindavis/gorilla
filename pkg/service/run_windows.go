@@ -18,6 +18,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 )
@@ -34,8 +35,8 @@ type queuedResult struct {
 
 type serviceRunner struct {
 	cfg                config.Configuration
-	managedRun         func(config.Configuration) error
-	managedItemRun     ManagedItemRunFunc
+	managedRun         managed.RunFunc
+	managedItemRun     managed.ItemRunFunc
 	queue              chan queuedCommand
 	handlerSem         chan struct{}
 	wg                 sync.WaitGroup
@@ -69,7 +70,7 @@ type trackedOperation struct {
 	completedAt time.Time
 }
 
-func newServiceRunner(cfg config.Configuration, managedRun func(config.Configuration) error, managedItemRuns ...ManagedItemRunFunc) *serviceRunner {
+func newServiceRunner(cfg config.Configuration, managedRun managed.RunFunc, managedItemRuns ...managed.ItemRunFunc) *serviceRunner {
 	runner := &serviceRunner{
 		cfg:                cfg,
 		managedRun:         managedRun,
@@ -830,8 +831,8 @@ func (sr *serviceRunner) closeActiveConnections() {
 
 type gorillaWindowsService struct {
 	cfg            config.Configuration
-	managedRun     func(config.Configuration) error
-	managedItemRun ManagedItemRunFunc
+	managedRun     managed.RunFunc
+	managedItemRun managed.ItemRunFunc
 }
 
 func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
@@ -871,8 +872,8 @@ func (g *gorillaWindowsService) Execute(_ []string, requests <-chan svc.ChangeRe
 	return false, 0
 }
 
-func Run(cfg config.Configuration, managedRun func(config.Configuration) error, managedItemRuns ...ManagedItemRunFunc) error {
-	var managedItemRun ManagedItemRunFunc
+func Run(cfg config.Configuration, managedRun managed.RunFunc, managedItemRuns ...managed.ItemRunFunc) error {
+	var managedItemRun managed.ItemRunFunc
 	if len(managedItemRuns) > 0 {
 		managedItemRun = managedItemRuns[0]
 	}

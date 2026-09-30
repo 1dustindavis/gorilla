@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 )
 
 func TestSnapshotTrackedOperationsReturnsLatestRetainedState(t *testing.T) {
-	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	sr.registerTrackedOperation("op-1", "Slack", actionInstallItem)
 	sr.appendOperationEvent("op-1", operationStatusEventPayload{
 		State:    "Installing",
@@ -34,13 +35,13 @@ func TestSnapshotTrackedOperationsReturnsLatestRetainedState(t *testing.T) {
 }
 
 func TestNewServiceRunnerDoesNotRecoverPreviousProcessOperations(t *testing.T) {
-	first := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	first := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	first.registerTrackedOperation("op-1", "Slack", actionInstallItem)
 	if len(first.snapshotTrackedOperations()) != 1 {
 		t.Fatal("expected first process to retain its operation")
 	}
 
-	restarted := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	restarted := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	if got := restarted.snapshotTrackedOperations(); len(got) != 0 {
 		t.Fatalf("expected restarted service to begin with empty operation registry, got %+v", got)
 	}

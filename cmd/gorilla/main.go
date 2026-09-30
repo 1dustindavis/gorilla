@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/managedrun"
 	"github.com/1dustindavis/gorilla/pkg/service"
 )
 
 var (
-	managedRunFunc         = managedRun
-	managedItemRunFunc     = managedItemRun
-	runServiceFunc         = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
-	sendServiceCommandFunc = service.SendCommand
-	runServiceActionFunc   = service.RunAction
-	serviceStatusFunc      = service.ServiceStatus
+	managedRunFunc         managedrun.RunFunc     = managedRun
+	managedItemRunFunc     managedrun.ItemRunFunc = managedItemRun
+	runServiceFunc                                = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
+	sendServiceCommandFunc                        = service.SendCommand
+	runServiceActionFunc                          = service.RunAction
+	serviceStatusFunc                             = service.ServiceStatus
 )
 
 func main() {
@@ -112,5 +113,6 @@ func route(cfg config.Configuration) error {
 		return runServiceFunc(cfg)
 	}
 
-	return managedRunFunc(cfg)
+	_, err := managedRunFunc(cfg)
+	return err
 }

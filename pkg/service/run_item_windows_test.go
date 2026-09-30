@@ -11,6 +11,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/installer"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
@@ -36,10 +37,17 @@ func TestScheduleRunAfterMutationCarriesVerifiedRequestedItemResult(t *testing.T
 	var gotItem, gotAction string
 	sr := newServiceRunner(
 		cfg,
-		func(config.Configuration) error { return nil },
-		func(_ config.Configuration, itemName, action string) (installer.Result, error) {
+		func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil },
+		func(_ config.Configuration, itemName, action string) (managed.ItemRunResult, error) {
 			gotItem, gotAction = itemName, action
-			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded}, nil
+			return managed.ItemRunResult{
+				ExecutionPrepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				Execution: installer.Result{
+					ItemName: itemName,
+					Action:   "install",
+					Outcome:  installer.OutcomeSucceeded,
+				},
+			}, nil
 		},
 	)
 	operationID := "verified-op"
@@ -92,13 +100,16 @@ func TestExecuteManagedItemOperationSerializesVerificationWithExecution(t *testi
 	var sr *serviceRunner
 	sr = newServiceRunner(
 		cfg,
-		func(config.Configuration) error { return nil },
-		func(_ config.Configuration, itemName, _ string) (installer.Result, error) {
+		func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil },
+		func(_ config.Configuration, itemName, _ string) (managed.ItemRunResult, error) {
 			if sr.execMutex.TryLock() {
 				sr.execMutex.Unlock()
 				t.Fatal("managed execution occurred outside execMutex")
 			}
-			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded}, nil
+			return managed.ItemRunResult{
+				ExecutionPrepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				Execution:         installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded},
+			}, nil
 		},
 	)
 
@@ -121,6 +132,78 @@ func TestExecuteManagedItemOperationSerializesVerificationWithExecution(t *testi
 	}
 }
 
+func TestExecuteManagedItemRemoveUsesTransientExecutionContextButPersistentVerification(t *testing.T) {
+	cfg := config.Configuration{AppDataPath: t.TempDir()}
+	stubOptionalCatalog(t,
+		[]manifest.Item{{OptionalInstalls: []string{"Example"}}},
+		map[int]map[string]catalog.Item{1: {"Example": {
+			DisplayName: "Example",
+			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
+			Uninstaller: catalog.InstallerItem{Type: "msi", Location: "example.msi"},
+		}}},
+		map[string]status.Observation{"Example": {
+			State:        status.Absent,
+			ActionNeeded: true,
+			CheckedAtUTC: time.Now().UTC(),
+		}},
+	)
+	if err := addServiceManagedInstalls(cfg, []string{"Example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	runCfg, cleanupPath, err := prepareOneTimeRemoval(cfg, "Example", "transient-remove", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanupPath == "" || len(runCfg.LocalManifests) != len(cfg.LocalManifests)+1 {
+		t.Fatalf("expected one-time removal manifest in execution config: %+v", runCfg.LocalManifests)
+	}
+	transientManifest := runCfg.LocalManifests[len(runCfg.LocalManifests)-1]
+
+	baseManifestGet := manifestGet
+	manifestGet = func(got config.Configuration) ([]manifest.Item, []string, error) {
+		for _, path := range got.LocalManifests {
+			if path == transientManifest {
+				t.Fatalf("postcondition verification used transient removal manifest %q", transientManifest)
+			}
+		}
+		return baseManifestGet(got)
+	}
+
+	var executionCfg config.Configuration
+	sr := newServiceRunner(
+		cfg,
+		func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil },
+		func(got config.Configuration, itemName, action string) (managed.ItemRunResult, error) {
+			executionCfg = got
+			return managed.ItemRunResult{
+				ExecutionPrepared: managed.PreparedContext{Config: got},
+				Execution: installer.Result{
+					ItemName: itemName,
+					Action:   "uninstall",
+					Outcome:  installer.OutcomeSucceeded,
+				},
+			}, nil
+		},
+	)
+
+	result, err := sr.executeManagedItemOperation(
+		context.Background(),
+		actionRemoveItem,
+		"Example",
+		CommandResponse{RunConfig: &runCfg, CleanupPath: cleanupPath},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(executionCfg.LocalManifests) == 0 || executionCfg.LocalManifests[len(executionCfg.LocalManifests)-1] != transientManifest {
+		t.Fatalf("targeted remove did not receive transient execution config: %+v", executionCfg.LocalManifests)
+	}
+	if result.Outcome != appcatalog.Succeeded {
+		t.Fatalf("unexpected verified remove result: %+v", result)
+	}
+}
+
 func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
 	stubOptionalCatalog(t,
@@ -140,9 +223,9 @@ func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
 	}
 
 	called := false
-	sr := newServiceRunner(cfg, func(config.Configuration) error {
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) {
 		called = true
-		return nil
+		return managed.RunResult{Prepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}}}, nil
 	})
 	result, err := sr.executeManagedItemOperation(context.Background(), actionInstallItem, "Example", CommandResponse{})
 	if err != nil {

@@ -1,17 +1,6 @@
 package service
 
-import (
-	"github.com/1dustindavis/gorilla/pkg/appcatalog"
-	"github.com/1dustindavis/gorilla/pkg/config"
-	"github.com/1dustindavis/gorilla/pkg/installer"
-)
-
-// ManagedItemRunFunc executes one accepted App Catalog action. It may execute
-// work causally required by that action, such as install dependencies, but must
-// not perform unrelated managed convergence. It returns structured execution
-// evidence for the requested item; service-owned postcondition verification
-// remains authoritative for the terminal App Catalog result.
-type ManagedItemRunFunc func(config.Configuration, string, string) (installer.Result, error)
+import "github.com/1dustindavis/gorilla/pkg/appcatalog"
 
 func appCatalogAction(action string) appcatalog.Action {
 	switch action {

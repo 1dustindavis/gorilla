@@ -15,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	managed "github.com/1dustindavis/gorilla/pkg/managedrun"

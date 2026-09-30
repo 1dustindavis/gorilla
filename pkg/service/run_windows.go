@@ -96,6 +96,13 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 	if err := gorillalog.NewLog(sr.cfg); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
 	}
+	started := false
+	defer func() {
+		if !started {
+			gorillalog.Close()
+		}
+	}()
+
 	if err := clearLegacyServiceUninstalls(sr.cfg); err != nil {
 		return fmt.Errorf(
 			"could not remove persistent uninstall requests created by an older App Catalog version from %q; the service will not start because retaining them could repeatedly uninstall software: %w",
@@ -158,6 +165,7 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 		}
 	}()
 
+	started = true
 	return nil
 }
 

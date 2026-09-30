@@ -12,6 +12,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/download"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	"github.com/1dustindavis/gorilla/pkg/installer"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 	"github.com/1dustindavis/gorilla/pkg/report"
@@ -34,12 +35,6 @@ var (
 	statusResetRegistryCacheFunc = status.ResetRegistryCache
 )
 
-type managedExecutionContext struct {
-	cfg       config.Configuration
-	catalogs  map[int]map[string]catalog.Item
-	manifests []manifest.Item
-}
-
 func prepareManagedEnvironment(cfg config.Configuration, requireAdmin bool) error {
 	if requireAdmin && !cfg.CheckOnly {
 		isAdmin, err := adminCheckFunc()
@@ -61,13 +56,13 @@ func prepareManagedEnvironment(cfg config.Configuration, requireAdmin bool) erro
 	return nil
 }
 
-func prepareManagedExecution(cfg config.Configuration) (managedExecutionContext, error) {
+func prepareManagedExecution(cfg config.Configuration) (managed.PreparedContext, error) {
 	download.SetConfig(cfg)
 
 	gorillalog.Info("Retrieving manifest:", cfg.Manifest)
 	manifests, newCatalogs, err := manifestGetFunc(cfg)
 	if err != nil {
-		return managedExecutionContext{}, fmt.Errorf("unable to retrieve manifest: %w", err)
+		return managed.PreparedContext{}, fmt.Errorf("unable to retrieve manifest: %w", err)
 	}
 
 	if newCatalogs != nil {
@@ -77,45 +72,45 @@ func prepareManagedExecution(cfg config.Configuration) (managedExecutionContext,
 	gorillalog.Info("Retrieving catalog:", cfg.Catalogs)
 	catalogs, err := catalogGetFunc(cfg)
 	if err != nil {
-		return managedExecutionContext{}, fmt.Errorf("unable to retrieve catalog: %w", err)
+		return managed.PreparedContext{}, fmt.Errorf("unable to retrieve catalog: %w", err)
 	}
 
 	// Each managed execution gets fresh registry evidence while still sharing a
 	// single enumeration across all checks performed during that execution.
 	statusResetRegistryCacheFunc()
 
-	return managedExecutionContext{
-		cfg:       cfg,
-		catalogs:  catalogs,
-		manifests: manifests,
+	return managed.PreparedContext{
+		Config:    cfg,
+		Catalogs:  catalogs,
+		Manifests: manifests,
 	}, nil
 }
 
-func managedRun(cfg config.Configuration) error {
+func managedRun(cfg config.Configuration) (managed.RunResult, error) {
 	// Build/import modes operate on repo metadata and do not require admin.
 	buildMode := cfg.BuildArg || cfg.ImportArg != ""
 	if buildMode {
 		if err := prepareManagedEnvironment(cfg, false); err != nil {
-			return err
+			return managed.RunResult{}, err
 		}
 
 		if cfg.BuildArg {
 			gorillalog.Info("Building catalogs...")
 			if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
-				return fmt.Errorf("error building catalogs: %w", err)
+				return managed.RunResult{}, fmt.Errorf("error building catalogs: %w", err)
 			}
-			return nil
+			return managed.RunResult{}, nil
 		}
 
 		gorillalog.Info("Importing item...")
 		if err := importItemFunc(cfg.RepoPath, cfg.ImportArg); err != nil {
-			return fmt.Errorf("error importing item: %w", err)
+			return managed.RunResult{}, fmt.Errorf("error importing item: %w", err)
 		}
-		return nil
+		return managed.RunResult{}, nil
 	}
 
 	if err := prepareManagedEnvironment(cfg, true); err != nil {
-		return err
+		return managed.RunResult{}, err
 	}
 
 	if !cfg.CheckOnly {
@@ -125,46 +120,46 @@ func managedRun(cfg config.Configuration) error {
 
 	ctx, err := prepareManagedExecution(cfg)
 	if err != nil {
-		return err
+		return managed.RunResult{}, err
 	}
 
 	gorillalog.Info("Processing manifest...")
-	installs, uninstalls, updates := processManifestsFunc(ctx.manifests, ctx.catalogs)
+	installs, uninstalls, updates := processManifestsFunc(ctx.Manifests, ctx.Catalogs)
 
 	gorillalog.Info("Processing managed installs...")
-	installResults := processInstallResultsFunc(installs, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+	installResults := processInstallResultsFunc(installs, ctx.Catalogs, ctx.Config.URLPackages, ctx.Config.CachePath, ctx.Config.CheckOnly)
 	logManagedResultFailures("install", installResults)
 
 	gorillalog.Info("Processing managed uninstalls...")
-	uninstallResults := processUninstallResultsFunc(uninstalls, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+	uninstallResults := processUninstallResultsFunc(uninstalls, ctx.Catalogs, ctx.Config.URLPackages, ctx.Config.CachePath, ctx.Config.CheckOnly)
 	logManagedResultFailures("uninstall", uninstallResults)
 
 	gorillalog.Info("Processing managed updates...")
-	updateResults := processUpdateResultsFunc(updates, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+	updateResults := processUpdateResultsFunc(updates, ctx.Catalogs, ctx.Config.URLPackages, ctx.Config.CachePath, ctx.Config.CheckOnly)
 	logManagedResultFailures("update", updateResults)
 
 	gorillalog.Info("Saving GorillaReport.json...")
-	if ctx.cfg.CheckOnly {
+	if ctx.Config.CheckOnly {
 		report.Print()
 	}
 
 	gorillalog.Info("Cleaning up the cache...")
-	processCleanUpFunc(ctx.cfg.CachePath)
+	processCleanUpFunc(ctx.Config.CachePath)
 
 	gorillalog.Info("Done!")
-	return nil
+	return managed.RunResult{Prepared: ctx}, nil
 }
 
 // managedItemRun executes one accepted App Catalog mutation. Its work set is
 // limited to the requested item and work causally required by that item, such as
 // install dependencies. It must never perform unrelated managed convergence.
-func managedItemRun(cfg config.Configuration, requestedItem, requestedAction string) (installer.Result, error) {
+func managedItemRun(cfg config.Configuration, requestedItem, requestedAction string) (managed.ItemRunResult, error) {
 	if requestedAction != "InstallItem" && requestedAction != "RemoveItem" {
-		return installer.Result{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
+		return managed.ItemRunResult{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
 	}
 
 	if err := prepareManagedEnvironment(cfg, true); err != nil {
-		return installer.Result{}, err
+		return managed.ItemRunResult{}, err
 	}
 
 	if !cfg.CheckOnly {
@@ -174,36 +169,36 @@ func managedItemRun(cfg config.Configuration, requestedItem, requestedAction str
 
 	ctx, err := prepareManagedExecution(cfg)
 	if err != nil {
-		return installer.Result{}, err
+		return managed.ItemRunResult{}, err
 	}
 
 	defer func() {
 		gorillalog.Info("Cleaning up the cache...")
-		processCleanUpFunc(ctx.cfg.CachePath)
+		processCleanUpFunc(ctx.Config.CachePath)
 		gorillalog.Info("Done!")
 	}()
 
 	switch requestedAction {
 	case "InstallItem":
 		gorillalog.Info("Processing targeted managed install:", requestedItem)
-		results := processInstallResultsFunc([]string{requestedItem}, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+		results := processInstallResultsFunc([]string{requestedItem}, ctx.Catalogs, ctx.Config.URLPackages, ctx.Config.CachePath, ctx.Config.CheckOnly)
 		logManagedResultFailures("install", results)
 		if result, ok := findManagedItemResult(results, requestedItem); ok {
-			return result, nil
+			return managed.ItemRunResult{Prepared: ctx, Execution: result}, nil
 		}
-		return installer.Result{}, fmt.Errorf("targeted InstallItem returned no result for %q", requestedItem)
+		return managed.ItemRunResult{}, fmt.Errorf("targeted InstallItem returned no result for %q", requestedItem)
 
 	case "RemoveItem":
 		gorillalog.Info("Processing targeted managed uninstall:", requestedItem)
-		results := processUninstallResultsFunc([]string{requestedItem}, ctx.catalogs, ctx.cfg.URLPackages, ctx.cfg.CachePath, ctx.cfg.CheckOnly)
+		results := processUninstallResultsFunc([]string{requestedItem}, ctx.Catalogs, ctx.Config.URLPackages, ctx.Config.CachePath, ctx.Config.CheckOnly)
 		logManagedResultFailures("uninstall", results)
 		if result, ok := findManagedItemResult(results, requestedItem); ok {
-			return result, nil
+			return managed.ItemRunResult{Prepared: ctx, Execution: result}, nil
 		}
-		return installer.Result{}, fmt.Errorf("targeted RemoveItem returned no result for %q", requestedItem)
+		return managed.ItemRunResult{}, fmt.Errorf("targeted RemoveItem returned no result for %q", requestedItem)
 	}
 
-	return installer.Result{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
+	return managed.ItemRunResult{}, fmt.Errorf("unsupported targeted managed item action %q", requestedAction)
 }
 
 // logManagedResultFailures makes result-aware failures observable in ordinary

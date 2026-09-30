@@ -85,12 +85,12 @@ func TestPersistentManagedRunPublishesFromReturnedPreparedContext(t *testing.T) 
 
 func TestManagedRunProjectionFailureRetainsPriorSnapshotAndSuccess(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
-	badAppData := filepath.Join(t.TempDir(), "file")
-	if err := os.WriteFile(badAppData, []byte("x"), 0600); err != nil {
+	projectionCfg := config.Configuration{AppDataPath: t.TempDir()}
+	if err := os.WriteFile(filepath.Join(projectionCfg.AppDataPath, "service-manifest.yaml"), []byte("not: [valid"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	prepared := managedrun.PreparedContext{
-		Config:    config.Configuration{AppDataPath: badAppData},
+		Config:    projectionCfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
 	}
 	sr := newServiceRunner(cfg, func(config.Configuration) (managedrun.RunResult, error) {

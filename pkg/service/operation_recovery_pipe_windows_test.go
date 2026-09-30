@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"github.com/1dustindavis/gorilla/pkg/managed"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 )
 
 func TestNamedPipeDuplicateMutationReturnsOriginalOperation(t *testing.T) {

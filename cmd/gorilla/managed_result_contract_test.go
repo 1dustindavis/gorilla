@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/managed"
+	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 )
 
@@ -23,7 +25,21 @@ func TestManagedRunImportSuccessReturnsZeroPreparedState(t *testing.T) {
 		CachePath:   t.TempDir(),
 		AppDataPath: t.TempDir(),
 	}
-	mkdirAllFunc = func(string, /* mode */ interface{}) error { return nil }
+	mkdirAllFunc = func(string, os.FileMode) error { return nil }
+	importItemFunc = func(repoPath, itemPath string) error {
+		if repoPath != cfg.RepoPath || itemPath != cfg.ImportArg {
+			t.Fatalf("import args = %q, %q", repoPath, itemPath)
+		}
+		return nil
+	}
+
+	result, err := managedRun(cfg)
+	if err != nil {
+		t.Fatalf("managedRun(import) returned error: %v", err)
+	}
+	if !reflect.DeepEqual(result, managed.RunResult{}) {
+		t.Fatalf("import mode result = %#v, want zero value", result)
+	}
 }
 
 func TestManagedRunPreparationFailuresReturnZeroResult(t *testing.T) {

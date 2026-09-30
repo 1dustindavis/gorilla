@@ -16,6 +16,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/status"
 	"golang.org/x/sys/windows"
@@ -58,7 +59,7 @@ func TestServiceStartExplainsLegacyUninstallMigrationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := newServiceRunner(cfg, func(config.Configuration) error { return nil }).start(context.Background())
+	err := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil }).start(context.Background())
 	if err == nil {
 		t.Fatal("expected invalid legacy service manifest to stop startup")
 	}
@@ -87,7 +88,7 @@ func TestNamedPipeStreamStatusReliability(t *testing.T) {
 		ServiceName:     "gorilla-test",
 	}
 
-	sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if err := sr.start(ctx); err != nil {
@@ -116,7 +117,7 @@ func TestStreamOperationStatusUnknownOperationIDReturnsError(t *testing.T) {
 		ServiceName:     "gorilla-test",
 	}
 
-	sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if err := sr.start(ctx); err != nil {
@@ -170,7 +171,9 @@ func TestStreamOperationStatusFailedLifecycle(t *testing.T) {
 		ServiceName:     "gorilla-test",
 	}
 
-	sr := newServiceRunner(cfg, func(config.Configuration) error { return errors.New("forced managed run failure") })
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) {
+		return managed.RunResult{}, errors.New("forced managed run failure")
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if err := sr.start(ctx); err != nil {
@@ -204,7 +207,7 @@ func stubOptionalSlack(t *testing.T) {
 }
 
 func TestScheduleRunAfterMutationEmitsInterruptedResult(t *testing.T) {
-	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	operationID := "op-canceled"
 	sr.registerTrackedOperation(operationID)
 
@@ -441,7 +444,7 @@ func bestEffortUnblockPipeListener(cfg config.Configuration) {
 }
 
 func TestTrackedOperationPruningDropsOldCompletedEntries(t *testing.T) {
-	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	now := time.Now()
 
 	sr.operationsMu.Lock()

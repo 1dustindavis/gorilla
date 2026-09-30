@@ -19,10 +19,10 @@ const (
 )
 
 type catalogRefreshState struct {
-	Status          catalogRefreshStatus
-	RequestedAtUTC  time.Time
-	CompletedAtUTC  time.Time
-	LastError       string
+	Status         catalogRefreshStatus
+	RequestedAtUTC time.Time
+	CompletedAtUTC time.Time
+	LastError      string
 }
 
 func (sr *serviceRunner) requestCatalogRefresh() {

@@ -190,7 +190,7 @@ func TestExecuteManagedItemRemoveUsesTransientExecutionContextButPersistentVerif
 			executionCfg = got
 			return managed.ItemRunResult{
 				ExecutionPrepared: managed.PreparedContext{
-					Config:     got,
+					Config:    got,
 					Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}, Uninstalls: []string{"Example"}}},
 				},
 				Execution: installer.Result{

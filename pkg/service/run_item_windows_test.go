@@ -11,6 +11,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/installer"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
@@ -36,10 +37,17 @@ func TestScheduleRunAfterMutationCarriesVerifiedRequestedItemResult(t *testing.T
 	var gotItem, gotAction string
 	sr := newServiceRunner(
 		cfg,
-		func(config.Configuration) error { return nil },
-		func(_ config.Configuration, itemName, action string) (installer.Result, error) {
+		func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil },
+		func(_ config.Configuration, itemName, action string) (managed.ItemRunResult, error) {
 			gotItem, gotAction = itemName, action
-			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded}, nil
+			return managed.ItemRunResult{
+				Prepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				Execution: installer.Result{
+					ItemName: itemName,
+					Action:   "install",
+					Outcome:  installer.OutcomeSucceeded,
+				},
+			}, nil
 		},
 	)
 	operationID := "verified-op"
@@ -92,13 +100,16 @@ func TestExecuteManagedItemOperationSerializesVerificationWithExecution(t *testi
 	var sr *serviceRunner
 	sr = newServiceRunner(
 		cfg,
-		func(config.Configuration) error { return nil },
-		func(_ config.Configuration, itemName, _ string) (installer.Result, error) {
+		func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil },
+		func(_ config.Configuration, itemName, _ string) (managed.ItemRunResult, error) {
 			if sr.execMutex.TryLock() {
 				sr.execMutex.Unlock()
 				t.Fatal("managed execution occurred outside execMutex")
 			}
-			return installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded}, nil
+			return managed.ItemRunResult{
+				Prepared:  managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				Execution: installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded},
+			}, nil
 		},
 	)
 
@@ -140,9 +151,9 @@ func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
 	}
 
 	called := false
-	sr := newServiceRunner(cfg, func(config.Configuration) error {
+	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) {
 		called = true
-		return nil
+		return managed.RunResult{Prepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}}}, nil
 	})
 	result, err := sr.executeManagedItemOperation(context.Background(), actionInstallItem, "Example", CommandResponse{})
 	if err != nil {

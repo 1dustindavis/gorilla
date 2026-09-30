@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	managedRunFunc     managed.RunFunc     = managedRun
-	managedItemRunFunc managed.ItemRunFunc = managedItemRun
-	runServiceFunc                         = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
-	sendServiceCommandFunc                 = service.SendCommand
-	runServiceActionFunc                   = service.RunAction
-	serviceStatusFunc                      = service.ServiceStatus
+	managedRunFunc         managed.RunFunc     = managedRun
+	managedItemRunFunc     managed.ItemRunFunc = managedItemRun
+	runServiceFunc                             = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
+	sendServiceCommandFunc                     = service.SendCommand
+	runServiceActionFunc                       = service.RunAction
+	serviceStatusFunc                          = service.ServiceStatus
 )
 
 func main() {

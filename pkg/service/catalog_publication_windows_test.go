@@ -27,14 +27,16 @@ func TestPersistentManagedRunPublishesFromReturnedPreparedContext(t *testing.T) 
 	prepared := managedrun.PreparedContext{
 		Config:    cfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
-		Catalogs:  map[int]map[string]catalog.Item{1: {"Example": {
+		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
 			DisplayName: "Example",
 			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
 		}}},
 	}
 
 	originalManifestGet, originalCatalogGet, originalObserve := manifestGet, catalogGet, statusObserve
-	t.Cleanup(func() { manifestGet, catalogGet, statusObserve = originalManifestGet, originalCatalogGet, originalObserve })
+	t.Cleanup(func() {
+		manifestGet, catalogGet, statusObserve = originalManifestGet, originalCatalogGet, originalObserve
+	})
 	manifestGet = func(config.Configuration) ([]manifest.Item, []string, error) {
 		t.Fatal("full-run snapshot re-fetched manifests")
 		return nil, nil, nil
@@ -117,14 +119,16 @@ func TestTargetedInstallUsesExecutionPreparedWithoutPostExecutionRepositoryFetch
 	prepared := managedrun.PreparedContext{
 		Config:    cfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
-		Catalogs:  map[int]map[string]catalog.Item{1: {"Example": {
+		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
 			DisplayName: "Example",
 			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
 		}}},
 	}
 
 	originalManifestGet, originalCatalogGet, originalObserve := manifestGet, catalogGet, statusObserve
-	t.Cleanup(func() { manifestGet, catalogGet, statusObserve = originalManifestGet, originalCatalogGet, originalObserve })
+	t.Cleanup(func() {
+		manifestGet, catalogGet, statusObserve = originalManifestGet, originalCatalogGet, originalObserve
+	})
 	executed := false
 	manifestGet = func(config.Configuration) ([]manifest.Item, []string, error) {
 		if executed {

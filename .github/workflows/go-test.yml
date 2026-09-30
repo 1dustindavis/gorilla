@@ -6,7 +6,6 @@ on:
     paths:
       - cmd/**
       - pkg/**
-      - utils/**
       - integration/**
       - Makefile
       - go.mod

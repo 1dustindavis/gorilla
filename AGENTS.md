@@ -104,8 +104,6 @@ Other useful make targets:
 
 - `make build`
 - `make clean`
-- `make bootstrap`
-- `make bootstrap-run`
 - `make msi` (legacy Windows + WiX package build; not an official release artifact)
 
 Run `make help` for the current command summary.
@@ -114,7 +112,7 @@ Run `make help` for the current command summary.
 
 - Use idiomatic Go and keep code gofmt-clean.
 - Prefer small, explicit functions over broad refactors.
-- Preserve existing package boundaries (`cmd/`, `pkg/`, `integration/`, `utils/`, `wix/`).
+- Preserve existing package boundaries (`cmd/`, `pkg/`, `integration/`, `wix/`).
 - Keep Gorilla UI code and related docs under `gorilla-ui/` unless there is a clear reason to place files elsewhere.
 - Do not add new dependencies unless necessary, and explicitly call out/review any dependency additions in the PR.
 
@@ -128,7 +126,6 @@ Run `make help` for the current command summary.
 - Keep diagnostics pragmatic: prefer debug-level logging or explicit debug toggles over always-on high-volume tracing.
 - Manual/integration helpers live under:
   - `integration/windows/`
-  - `utils/manual-test/`
 - Keep CI-specific setup in workflow YAML only when necessary; the actual build/test/integration behavior should be invoked through repo-owned validation commands or scripts.
 - Installed-product validation deliberately refuses to run when an existing Gorilla MSIX, Gorilla service, or `%ProgramData%\gorilla\config.yaml` is present. Use a disposable Windows runner/VM rather than risking a real installation.
 - Reuse `prepare-release-integration.ps1` fixture semantics and the existing FlaUI critical workflows for installed-product tests so source and release validation do not drift.

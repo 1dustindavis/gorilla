@@ -1,6 +1,6 @@
 all: build
 
-.PHONY: build bootstrap bootstrap-run manual-test-server clean help \
+.PHONY: build clean help \
 	go-format go-vet go-staticcheck go-test lint test \
 	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
 	coverage coverage-go coverage-ui \
@@ -23,10 +23,6 @@ APP_NAME = gorilla
 STATICCHECK_VERSION ?= v0.7.0
 GREMLINS_VERSION ?= v0.6.0
 MUTATION_GO_PACKAGES := ./pkg/manifest ./pkg/catalog ./pkg/process ./pkg/admin
-MANUAL_TEST_DIR = build/manual-test
-MANUAL_TEST_SERVER_ROOT = ${MANUAL_TEST_DIR}/server-root
-MANUAL_TEST_VM_DIR = ${MANUAL_TEST_DIR}/vm
-MANUAL_TEST_BASE_URL ?=
 WINDOWS_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/windows-integration
 UI_E2E_WORK_ROOT ?= $(WINDOWS_INTEGRATION_WORK_ROOT)
 RELEASE_INTEGRATION_WORK_ROOT ?= $(CURDIR)/build/release-integration
@@ -73,9 +69,6 @@ define HELP_TEXT
 
 	make build          - Build the code
 	make msi            - Build legacy Windows MSI (not an official release artifact)
-	make bootstrap      - Build manual-test assets/server and generate VM scripts
-	make bootstrap-run  - Build manual-test assets/server and run local test server
-
 	make verify         - Run all portable validation expected before pushing
 	make verify-windows - Add Windows build and source integration validation
 	make verify-e2e     - Add source-built service/app integration and critical FlaUI workflows
@@ -145,45 +138,6 @@ else
 	@echo "msi target requires Windows and WiX"
 	@exit 1
 endif
-
-manual-test-server: .pre-build
-	cd utils/manual-test/server && go build -o ../../../build/manual-test-server .
-
-bootstrap: build manual-test-server
-	mkdir -p ${MANUAL_TEST_SERVER_ROOT}/manifests
-	mkdir -p ${MANUAL_TEST_SERVER_ROOT}/catalogs
-	mkdir -p ${MANUAL_TEST_SERVER_ROOT}/packages
-	mkdir -p ${MANUAL_TEST_VM_DIR}
-	cp build/${APP_NAME}.exe ${MANUAL_TEST_SERVER_ROOT}/gorilla.exe
-	cp examples/example_manifest.yaml ${MANUAL_TEST_SERVER_ROOT}/manifests/example_manifest.yaml
-	cp examples/example_catalog.yaml ${MANUAL_TEST_SERVER_ROOT}/catalogs/example_catalog.yaml
-	cp utils/manual-test/bootstrap-vm.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm.ps1
-	cp utils/manual-test/bootstrap-vm-full.ps1 ${MANUAL_TEST_VM_DIR}/bootstrap-vm-full.ps1
-	cp utils/manual-test/templates/run-gorilla-check.bat ${MANUAL_TEST_VM_DIR}/run-gorilla-check.bat
-	cp utils/manual-test/run-release-integration.bat ${MANUAL_TEST_VM_DIR}/run-release-integration.bat
-	@BASE_URL="${MANUAL_TEST_BASE_URL}"; \
-	if [ -z "$$BASE_URL" ]; then \
-	  if [ "$(CURRENT_PLATFORM)" = "darwin" ]; then \
-	    IFACE=$$(route -n get default 2>/dev/null | awk '/interface:/{print $$2}' | head -n1); \
-	    IP_ADDR=$$(ipconfig getifaddr "$$IFACE" 2>/dev/null || true); \
-	  elif [ "$(CURRENT_PLATFORM)" = "linux" ]; then \
-	    IP_ADDR=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
-	  else \
-	    IP_ADDR=""; \
-	  fi; \
-	  if [ -z "$$IP_ADDR" ]; then IP_ADDR="localhost"; fi; \
-	  BASE_URL="http://$$IP_ADDR:8080/"; \
-	fi; \
-	sed 's#@DEFAULT_BASE_URL@#'"$$BASE_URL"'#g' utils/manual-test/templates/bootstrap-vm.bat > ${MANUAL_TEST_VM_DIR}/bootstrap-vm.bat; \
-	sed 's#@DEFAULT_BASE_URL@#'"$$BASE_URL"'#g' utils/manual-test/templates/bootstrap-vm-full.bat > ${MANUAL_TEST_VM_DIR}/bootstrap-vm-full.bat; \
-	echo "$$BASE_URL" > ${MANUAL_TEST_VM_DIR}/base-url.txt; \
-	echo "Using manual-test base URL: $$BASE_URL"
-	@echo "Prepared manual-test assets in ${MANUAL_TEST_SERVER_ROOT}"
-	@echo "Run: ./build/manual-test-server -root ${MANUAL_TEST_SERVER_ROOT} -addr :8080"
-	@echo "Generated VM scripts in ${MANUAL_TEST_VM_DIR}"
-
-bootstrap-run: bootstrap
-	./build/manual-test-server -root ${MANUAL_TEST_SERVER_ROOT} -addr :8080
 
 # Portable validation leaf targets. Keep these small so CI and developers can
 # run exactly the layer they need while the verify targets compose the contract.

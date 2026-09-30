@@ -86,12 +86,34 @@ func safeRepositoryIdentity(cfg config.Configuration) string {
 	return ""
 }
 
+func cloneStringPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copyValue := *value
+	return &copyValue
+}
+
+func cloneTimePointer(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copyValue := *value
+	return &copyValue
+}
+
 func cloneCatalogSnapshot(snapshot *optionalCatalogSnapshot) *optionalCatalogSnapshot {
 	if snapshot == nil {
 		return nil
 	}
 	copySnapshot := *snapshot
-	copySnapshot.Items = append([]optionalInstallResponseItem(nil), snapshot.Items...)
+	copySnapshot.Items = make([]optionalInstallResponseItem, len(snapshot.Items))
+	for i, item := range snapshot.Items {
+		copySnapshot.Items[i] = item
+		copySnapshot.Items[i].TargetVersion = cloneStringPointer(item.TargetVersion)
+		copySnapshot.Items[i].Observation.InstalledVersion = cloneStringPointer(item.Observation.InstalledVersion)
+		copySnapshot.Items[i].Observation.CheckedAtUTC = cloneTimePointer(item.Observation.CheckedAtUTC)
+	}
 	return &copySnapshot
 }
 
@@ -189,6 +211,9 @@ func loadCatalogSnapshot(cfg config.Configuration) (*optionalCatalogSnapshot, er
 	}
 	if snapshot.SchemaVersion != optionalCatalogSnapshotSchemaVersion {
 		return nil, fmt.Errorf("unsupported snapshot schema %d", snapshot.SchemaVersion)
+	}
+	if snapshot.GeneratedAtUTC.IsZero() {
+		return nil, errors.New("snapshot generatedAtUtc is missing or zero")
 	}
 	expected, err := catalogSnapshotSourceFingerprint(cfg)
 	if err != nil {

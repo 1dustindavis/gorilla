@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"sync/atomic"
@@ -349,8 +348,9 @@ func TestLegacyListStillWaitsWhileSnapshotListReturns(t *testing.T) {
 	go func() {
 		queued := <-sr.queue
 		sr.execMutex.Lock()
+		resp := CommandResponse{Status: "ok"}
 		sr.execMutex.Unlock()
-		queued.result <- queuedResult{resp: CommandResponse{Status: "ok"}}
+		queued.result <- queuedResult{resp: resp}
 		close(workerDone)
 	}()
 
@@ -484,12 +484,5 @@ func TestSnapshotListDoesNotUseResponseTimeAsGenerationTime(t *testing.T) {
 	payload := decodeListOptionalInstallsResponse(t, body)
 	if payload.SnapshotGeneratedAtUTC != "2025-01-02T03:04:05Z" {
 		t.Fatalf("snapshotGeneratedAtUtc = %q, want stored snapshot timestamp", payload.SnapshotGeneratedAtUTC)
-	}
-}
-
-func TestPipeTestHelperProducesReadableFailures(t *testing.T) {
-	// Keep fmt imported by exercising it in a harmless compile-time-focused check.
-	if got := fmt.Sprintf("%s", actionListOptionalInstalls); got == "" {
-		t.Fatal("unexpected empty operation")
 	}
 }

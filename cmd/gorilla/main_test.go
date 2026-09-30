@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -141,7 +142,7 @@ func TestRunBuildMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if result != (managed.RunResult{}) {
+	if !reflect.DeepEqual(result, managed.RunResult{}) {
 		t.Fatalf("build mode result = %#v, want zero value", result)
 	}
 	if adminCalled {
@@ -177,7 +178,7 @@ func TestRunImportModeError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
-	if result != (managed.RunResult{}) {
+	if !reflect.DeepEqual(result, managed.RunResult{}) {
 		t.Fatalf("import failure result = %#v, want zero value", result)
 	}
 	if !strings.Contains(err.Error(), "error importing item: not implemented") {

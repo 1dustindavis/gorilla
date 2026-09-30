@@ -75,6 +75,13 @@ func TestCatalogSnapshotLoadValidation(t *testing.T) {
 		t.Fatal("unsupported schema was accepted")
 	}
 
+	missingGeneratedAt := testSnapshot(t, cfg, "Example")
+	missingGeneratedAt.GeneratedAtUTC = time.Time{}
+	writeSnapshotFixture(t, path, missingGeneratedAt)
+	if _, err := loadCatalogSnapshot(cfg); err == nil {
+		t.Fatal("snapshot with missing generatedAtUtc was accepted")
+	}
+
 	mismatch := testSnapshot(t, cfg, "Example")
 	mismatch.SourceFingerprint = "wrong"
 	writeSnapshotFixture(t, path, mismatch)
@@ -148,18 +155,40 @@ func TestCatalogSnapshotPersistenceFailureKeepsPublishedMemory(t *testing.T) {
 	}
 }
 
-func TestCurrentCatalogSnapshotReturnsDefensiveItemSlice(t *testing.T) {
+func TestCurrentCatalogSnapshotReturnsDefensiveCopy(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
 	sr := newServiceRunner(cfg, nil)
-	sr.catalogSnapshot = testSnapshot(t, cfg, "Example")
+	snapshot := testSnapshot(t, cfg, "Example")
+	targetVersion := "2.0"
+	installedVersion := "1.0"
+	checkedAt := time.Date(2026, 9, 29, 22, 1, 0, 0, time.UTC)
+	snapshot.Items[0].TargetVersion = &targetVersion
+	snapshot.Items[0].Observation.InstalledVersion = &installedVersion
+	snapshot.Items[0].Observation.CheckedAtUTC = &checkedAt
+	sr.catalogSnapshot = snapshot
+
 	copySnapshot, ok := sr.currentCatalogSnapshot()
 	if !ok {
 		t.Fatal("missing snapshot")
 	}
 	copySnapshot.Items[0].ItemName = "Mutated"
+	*copySnapshot.Items[0].TargetVersion = "9.0"
+	*copySnapshot.Items[0].Observation.InstalledVersion = "8.0"
+	mutatedCheckedAt := copySnapshot.Items[0].Observation.CheckedAtUTC.Add(time.Hour)
+	*copySnapshot.Items[0].Observation.CheckedAtUTC = mutatedCheckedAt
+
 	again, _ := sr.currentCatalogSnapshot()
 	if again.Items[0].ItemName != "Example" {
 		t.Fatalf("snapshot item slice was mutable through accessor: %+v", again.Items[0])
+	}
+	if again.Items[0].TargetVersion == nil || *again.Items[0].TargetVersion != "2.0" {
+		t.Fatalf("target version pointer aliased service snapshot: %+v", again.Items[0].TargetVersion)
+	}
+	if again.Items[0].Observation.InstalledVersion == nil || *again.Items[0].Observation.InstalledVersion != "1.0" {
+		t.Fatalf("installed version pointer aliased service snapshot: %+v", again.Items[0].Observation.InstalledVersion)
+	}
+	if again.Items[0].Observation.CheckedAtUTC == nil || !again.Items[0].Observation.CheckedAtUTC.Equal(checkedAt) {
+		t.Fatalf("checked-at pointer aliased service snapshot: %+v", again.Items[0].Observation.CheckedAtUTC)
 	}
 }
 

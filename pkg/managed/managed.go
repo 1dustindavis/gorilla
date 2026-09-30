@@ -23,10 +23,14 @@ type RunResult struct {
 }
 
 // ItemRunResult combines targeted execution evidence with the exact prepared
-// repository state used for that execution.
+// repository state used for that targeted execution.
 type ItemRunResult struct {
-	Prepared  PreparedContext
-	Execution installer.Result
+	// ExecutionPrepared is the exact context used by the targeted execution.
+	// It may contain operation-scoped transient state, such as the temporary
+	// one-time-removal manifest used by RemoveItem, and therefore must not be
+	// treated automatically as persistent post-operation snapshot input.
+	ExecutionPrepared PreparedContext
+	Execution         installer.Result
 }
 
 // RunFunc executes a full managed run and returns the prepared repository state

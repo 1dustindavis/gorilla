@@ -12,6 +12,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"go.yaml.in/yaml/v4"
 )
@@ -136,7 +137,7 @@ func serviceInstallArgs(configPath string, integrationTestServiceIdentity string
 	return args
 }
 
-func executeCommand(cfg config.Configuration, cmd Command, managedRun func(config.Configuration) error) (CommandResponse, error) {
+func executeCommand(cfg config.Configuration, cmd Command, managedRun managed.RunFunc) (CommandResponse, error) {
 	switch cmd.Action {
 	case actionRun:
 		if cmd.RunConfig != nil {
@@ -145,7 +146,8 @@ func executeCommand(cfg config.Configuration, cmd Command, managedRun func(confi
 		if err := reconcileServiceManagedInstalls(cfg); err != nil {
 			return CommandResponse{}, fmt.Errorf("reconcile App Catalog install selections: %w", err)
 		}
-		return CommandResponse{Status: "ok"}, managedRun(cfg)
+		_, err := managedRun(cfg)
+		return CommandResponse{Status: "ok"}, err
 	case actionInstallItem:
 		details, err := getOptionalItemDetails(cfg)
 		if err != nil {

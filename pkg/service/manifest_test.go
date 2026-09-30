@@ -7,6 +7,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
@@ -51,9 +52,9 @@ func TestExecuteCommandRunPassesCfgThrough(t *testing.T) {
 	}
 
 	var gotCfg config.Configuration
-	managedRun := func(in config.Configuration) error {
+	managedRun := func(in config.Configuration) (managed.RunResult, error) {
 		gotCfg = in
-		return nil
+		return managed.RunResult{}, nil
 	}
 
 	resp, err := executeCommand(cfg, Command{Action: actionRun}, managedRun)
@@ -90,9 +91,9 @@ func TestExecuteCommandInstallWritesManifestAndDoesNotRunInline(t *testing.T) {
 	}
 
 	managedRunCalled := false
-	managedRun := func(in config.Configuration) error {
+	managedRun := func(in config.Configuration) (managed.RunResult, error) {
 		managedRunCalled = true
-		return nil
+		return managed.RunResult{}, nil
 	}
 
 	resp, err := executeCommand(cfg, Command{Action: actionInstallItem, Items: []string{"GoogleChrome"}}, managedRun)

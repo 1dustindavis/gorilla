@@ -21,7 +21,7 @@ func preparedInstallContext(cfg config.Configuration) managed.PreparedContext {
 	return managed.PreparedContext{
 		Config:    cfg,
 		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
-		Catalogs:  map[int]map[string]catalog.Item{1: {"Example": {
+		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
 			DisplayName: "Example",
 			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
 		}}},

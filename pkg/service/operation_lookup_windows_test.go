@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"github.com/1dustindavis/gorilla/pkg/managed"
+	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
 )
 
 func TestSnapshotTrackedOperationsReturnsLatestRetainedState(t *testing.T) {

@@ -125,7 +125,9 @@ func (sr *serviceRunner) publishCatalogSnapshot(details []optionalItemDetails, s
 	sr.catalogMu.Lock()
 	sr.catalogSnapshot = candidate
 	sr.catalogMu.Unlock()
-	gorillalog.Debug("catalog snapshot published:", "trigger=", trigger, "itemCount=", len(candidate.Items), "generatedAt=", generatedAt.Format(time.RFC3339), "durationMs=", time.Since(started).Milliseconds())
+	sr.noteCatalogPublication(generatedAt)
+	gorillalog.Debug("catalog projection completed:", "trigger=", trigger, "itemCount=", len(candidate.Items), "generatedAt=", generatedAt.Format(time.RFC3339), "durationMs=", time.Since(started).Milliseconds())
+	gorillalog.Debug("catalog snapshot published:", "trigger=", trigger, "itemCount=", len(candidate.Items), "generatedAt=", generatedAt.Format(time.RFC3339))
 
 	if err := persistCatalogSnapshot(sr.cfg, candidate); err != nil {
 		// Persistence is best effort after publication. The new in-memory snapshot
@@ -152,10 +154,10 @@ func persistCatalogSnapshot(cfg config.Configuration, snapshot *optionalCatalogS
 		return fmt.Errorf("create snapshot candidate: %w", err)
 	}
 	tmpPath := tmp.Name()
-	keepCandidate := false
+	replaced := false
 	defer func() {
 		_ = tmp.Close()
-		if !keepCandidate {
+		if !replaced {
 			_ = os.Remove(tmpPath)
 		}
 	}()
@@ -171,7 +173,7 @@ func persistCatalogSnapshot(cfg config.Configuration, snapshot *optionalCatalogS
 	if err := replaceSnapshotFile(tmpPath, path); err != nil {
 		return fmt.Errorf("replace snapshot: %w", err)
 	}
-	keepCandidate = true
+	replaced = true
 	return nil
 }
 
@@ -196,8 +198,6 @@ func loadCatalogSnapshot(cfg config.Configuration) (*optionalCatalogSnapshot, er
 		return nil, errors.New("snapshot source fingerprint mismatch")
 	}
 	if snapshot.Items == nil {
-		// Preserve the distinction between an authoritative empty catalog and a
-		// missing field in malformed/legacy cache data.
 		snapshot.Items = []optionalInstallResponseItem{}
 	}
 	return &snapshot, nil

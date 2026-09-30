@@ -9,7 +9,7 @@ import (
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
-	"github.com/1dustindavis/gorilla/pkg/managed"
+	"github.com/1dustindavis/gorilla/pkg/managedrun"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 )
@@ -37,7 +37,7 @@ func TestManagedRunImportSuccessReturnsZeroPreparedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("managedRun(import) returned error: %v", err)
 	}
-	if !reflect.DeepEqual(result, managed.RunResult{}) {
+	if !reflect.DeepEqual(result, managedrun.RunResult{}) {
 		t.Fatalf("import mode result = %#v, want zero value", result)
 	}
 }
@@ -78,7 +78,7 @@ func TestManagedRunPreparationFailuresReturnZeroResult(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %v, want containing %q", err, tt.want)
 			}
-			if !reflect.DeepEqual(result, managed.RunResult{}) {
+			if !reflect.DeepEqual(result, managedrun.RunResult{}) {
 				t.Fatalf("failure result = %#v, want zero value", result)
 			}
 		})
@@ -96,7 +96,7 @@ func TestManagedItemRunMissingRequestedResultReturnsZeroResult(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `targeted InstallItem returned no result for "AppB"`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(result, managed.ItemRunResult{}) {
+	if !reflect.DeepEqual(result, managedrun.ItemRunResult{}) {
 		t.Fatalf("failure result = %#v, want zero value", result)
 	}
 }

@@ -15,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/1dustindavis/gorilla/pkg/appcatalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 	managed "github.com/1dustindavis/gorilla/pkg/managedrun"
@@ -42,6 +41,11 @@ type serviceRunner struct {
 	wg                 sync.WaitGroup
 	execMutex          sync.Mutex
 	admissionMu        sync.Mutex
+	catalogMu          sync.RWMutex
+	catalogSnapshot    *optionalCatalogSnapshot
+	catalogRefreshMu   sync.Mutex
+	catalogRefresh     catalogRefreshState
+	catalogSignal      chan struct{}
 	pipeListenerMu     sync.Mutex
 	pipeListenerHandle windows.Handle
 	activeConnMu       sync.Mutex
@@ -76,6 +80,8 @@ func newServiceRunner(cfg config.Configuration, managedRun managed.RunFunc, mana
 		managedRun:         managedRun,
 		queue:              make(chan queuedCommand),
 		handlerSem:         make(chan struct{}, maxConcurrentPipeHandlers),
+		catalogSignal:      make(chan struct{}, 1),
+		catalogRefresh:     catalogRefreshState{Status: catalogRefreshIdle},
 		activeConns:        make(map[windows.Handle]struct{}),
 		operations:         make(map[string]*trackedOperation),
 		mutationOperations: make(map[string]string),
@@ -87,6 +93,16 @@ func newServiceRunner(cfg config.Configuration, managedRun managed.RunFunc, mana
 }
 
 func (sr *serviceRunner) start(ctx context.Context) error {
+	if err := gorillalog.NewLog(sr.cfg); err != nil {
+		return fmt.Errorf("initialize logger: %w", err)
+	}
+	started := false
+	defer func() {
+		if !started {
+			gorillalog.Close()
+		}
+	}()
+
 	if err := clearLegacyServiceUninstalls(sr.cfg); err != nil {
 		return fmt.Errorf(
 			"could not remove persistent uninstall requests created by an older App Catalog version from %q; the service will not start because retaining them could repeatedly uninstall software: %w",
@@ -94,14 +110,18 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 			err,
 		)
 	}
-	if err := gorillalog.NewLog(sr.cfg); err != nil {
-		return fmt.Errorf("initialize logger: %w", err)
-	}
+	sr.loadPersistedCatalogSnapshot()
 
 	interval, err := time.ParseDuration(sr.cfg.ServiceInterval)
 	if err != nil || interval <= 0 {
 		return fmt.Errorf("invalid service interval %q: %w", sr.cfg.ServiceInterval, err)
 	}
+
+	sr.wg.Add(1)
+	go func() {
+		defer sr.wg.Done()
+		sr.catalogRefreshWorker(ctx)
+	}()
 
 	sr.wg.Add(1)
 	go func() {
@@ -145,6 +165,7 @@ func (sr *serviceRunner) start(ctx context.Context) error {
 		}
 	}()
 
+	started = true
 	return nil
 }
 
@@ -510,55 +531,8 @@ func commandFromRequestEnvelope(req serviceEnvelope[json.RawMessage]) (Command, 
 func (sr *serviceRunner) writeSuccessEnvelope(file *os.File, req serviceEnvelope[json.RawMessage], cmd Command, resp CommandResponse) error {
 	switch cmd.Action {
 	case actionListOptionalInstalls:
-		items := make([]optionalInstallResponseItem, 0, len(resp.OptionalItems))
-		for _, detail := range resp.OptionalItems {
-			item := detail.Contract
-			version := ""
-			if item.TargetVersion != nil {
-				version = *item.TargetVersion
-			}
-			updated := ""
-			if item.Observation.CheckedAtUTC != nil {
-				updated = item.Observation.CheckedAtUTC.Format(time.RFC3339)
-			}
-			if updated == "" {
-				updated = nowRFC3339UTC()
-			}
-			installed := item.Observation.State == appcatalog.Installed || item.Observation.State == appcatalog.UpdateAvailable
-			legacyStatus := "Unknown"
-			switch item.Observation.State {
-			case appcatalog.Absent:
-				legacyStatus = "NotInstalled"
-			case appcatalog.Installed:
-				legacyStatus = "Installed"
-			case appcatalog.UpdateAvailable:
-				legacyStatus = "UpdateAvailable"
-			}
-			packageID := detail.InstallerPackageID
-			if packageID == "" {
-				packageID = item.ItemName
-			}
-			items = append(items, optionalInstallResponseItem{
-				ItemName:           item.ItemName,
-				DisplayName:        item.DisplayName,
-				Description:        item.Description,
-				IconPath:           item.IconPath,
-				Version:            version,
-				Catalog:            item.Catalog,
-				InstallerType:      detail.InstallerType,
-				InstallerPackageID: packageID,
-				InstallerLocation:  detail.InstallerLocation,
-				IsManaged:          item.Policy.Selection == appcatalog.KeepInstalled,
-				IsInstalled:        installed,
-				Status:             legacyStatus,
-				StatusUpdatedAtUTC: updated,
-				TargetVersion:      item.TargetVersion,
-				Observation:        item.Observation,
-				Policy:             item.Policy,
-				Actions:            item.Actions,
-			})
-		}
-
+		generatedAt := time.Now().UTC()
+		items := optionalInstallResponseItems(resp.OptionalItems, generatedAt)
 		if err := json.NewEncoder(file).Encode(serviceEnvelope[listOptionalInstallsResponse]{
 			Version:      pipeProtocolVersion,
 			MessageType:  messageTypeResponse,

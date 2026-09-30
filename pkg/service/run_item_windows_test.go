@@ -16,6 +16,18 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/status"
 )
 
+func preparedInstallContext(cfg config.Configuration) managed.PreparedContext {
+	cfg.Catalogs = []string{"primary"}
+	return managed.PreparedContext{
+		Config:    cfg,
+		Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}}},
+		Catalogs: map[int]map[string]catalog.Item{1: {"Example": {
+			DisplayName: "Example",
+			Installer:   catalog.InstallerItem{Type: "msi", Location: "example.msi"},
+		}}},
+	}
+}
+
 func TestScheduleRunAfterMutationCarriesVerifiedRequestedItemResult(t *testing.T) {
 	cfg := config.Configuration{AppDataPath: t.TempDir()}
 	stubOptionalCatalog(t,
@@ -41,7 +53,7 @@ func TestScheduleRunAfterMutationCarriesVerifiedRequestedItemResult(t *testing.T
 		func(_ config.Configuration, itemName, action string) (managed.ItemRunResult, error) {
 			gotItem, gotAction = itemName, action
 			return managed.ItemRunResult{
-				ExecutionPrepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				ExecutionPrepared: preparedInstallContext(cfg),
 				Execution: installer.Result{
 					ItemName: itemName,
 					Action:   "install",
@@ -107,7 +119,7 @@ func TestExecuteManagedItemOperationSerializesVerificationWithExecution(t *testi
 				t.Fatal("managed execution occurred outside execMutex")
 			}
 			return managed.ItemRunResult{
-				ExecutionPrepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}},
+				ExecutionPrepared: preparedInstallContext(cfg),
 				Execution:         installer.Result{ItemName: itemName, Action: "install", Outcome: installer.OutcomeSucceeded},
 			}, nil
 		},
@@ -177,7 +189,10 @@ func TestExecuteManagedItemRemoveUsesTransientExecutionContextButPersistentVerif
 		func(got config.Configuration, itemName, action string) (managed.ItemRunResult, error) {
 			executionCfg = got
 			return managed.ItemRunResult{
-				ExecutionPrepared: managed.PreparedContext{Config: got},
+				ExecutionPrepared: managed.PreparedContext{
+					Config:    got,
+					Manifests: []manifest.Item{{OptionalInstalls: []string{"Example"}, Uninstalls: []string{"Example"}}},
+				},
 				Execution: installer.Result{
 					ItemName: itemName,
 					Action:   "uninstall",
@@ -202,6 +217,13 @@ func TestExecuteManagedItemRemoveUsesTransientExecutionContextButPersistentVerif
 	if result.Outcome != appcatalog.Succeeded {
 		t.Fatalf("unexpected verified remove result: %+v", result)
 	}
+	snapshot, ok := sr.currentCatalogSnapshot()
+	if !ok || len(snapshot.Items) != 1 {
+		t.Fatalf("expected persistent snapshot after remove, got %#v", snapshot)
+	}
+	if snapshot.Items[0].Policy.RequiredUninstall {
+		t.Fatalf("transient removal policy leaked into snapshot: %+v", snapshot.Items[0].Policy)
+	}
 }
 
 func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
@@ -225,7 +247,7 @@ func TestExecuteManagedItemOperationFallsBackToManagedRun(t *testing.T) {
 	called := false
 	sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) {
 		called = true
-		return managed.RunResult{Prepared: managed.PreparedContext{Config: config.Configuration{Catalogs: []string{"ignored-in-pr-a"}}}}, nil
+		return managed.RunResult{Prepared: preparedInstallContext(cfg)}, nil
 	})
 	result, err := sr.executeManagedItemOperation(context.Background(), actionInstallItem, "Example", CommandResponse{})
 	if err != nil {

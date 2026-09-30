@@ -4,7 +4,10 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+
+	"github.com/1dustindavis/gorilla/pkg/gorillalog"
 )
 
 // executeCommandWithAdmission is the service-side authority for App Catalog
@@ -12,6 +15,9 @@ import (
 // the persistent selection mutation, and operation registration so another UI
 // instance cannot observe a half-admitted mutation.
 func (sr *serviceRunner) executeCommandWithAdmission(cmd Command) (CommandResponse, error) {
+	if cmd.Action == actionRun {
+		return sr.executeManagedRunCommand(cmd)
+	}
 	if cmd.Action != actionInstallItem && cmd.Action != actionRemoveItem {
 		return executeCommand(sr.cfg, cmd, sr.managedRun)
 	}
@@ -54,6 +60,38 @@ func (sr *serviceRunner) executeCommandWithAdmission(cmd Command) (CommandRespon
 	sr.operationsMu.Unlock()
 
 	return resp, nil
+}
+
+func (sr *serviceRunner) executeManagedRunCommand(cmd Command) (CommandResponse, error) {
+	runCfg := sr.cfg
+	persistent := cmd.RunConfig == nil
+	if cmd.RunConfig != nil {
+		runCfg = *cmd.RunConfig
+	}
+	if err := reconcileServiceManagedInstalls(runCfg); err != nil {
+		return CommandResponse{}, fmt.Errorf("reconcile App Catalog install selections: %w", err)
+	}
+	result, err := sr.managedRun(runCfg)
+	if err != nil {
+		return CommandResponse{Status: "ok"}, err
+	}
+	if !persistent {
+		// An operation-scoped full run may include transient policy. Targeted
+		// execution performs the persistent post-operation projection instead.
+		return CommandResponse{Status: "ok"}, nil
+	}
+
+	details, projectionErr := getOptionalItemDetailsFromManagedContext(result.Prepared)
+	if projectionErr != nil {
+		gorillalog.Warn("catalog projection failed:", "trigger=", catalogSnapshotManagedRun, "error=", projectionErr)
+		return CommandResponse{Status: "ok"}, nil
+	}
+	if publishErr := sr.publishCatalogSnapshot(details, sr.cfg, catalogSnapshotManagedRun); publishErr != nil {
+		// publishCatalogSnapshot swaps the complete in-memory candidate before
+		// persistence, so an on-disk failure must not fail managed convergence.
+		gorillalog.Warn("catalog snapshot persistence failed after managed run:", publishErr)
+	}
+	return CommandResponse{Status: "ok"}, nil
 }
 
 type admittedOperation struct {

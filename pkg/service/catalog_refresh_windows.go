@@ -35,6 +35,7 @@ func (sr *serviceRunner) requestCatalogRefresh() {
 	}
 	sr.catalogRefresh.Status = catalogRefreshQueued
 	sr.catalogRefresh.RequestedAtUTC = now
+	sr.catalogRefresh.CompletedAtUTC = time.Time{}
 	sr.catalogRefresh.LastError = ""
 	sr.catalogRefreshMu.Unlock()
 

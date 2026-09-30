@@ -9,6 +9,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/installer"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/manifest"
 	"github.com/1dustindavis/gorilla/pkg/process"
 )
@@ -94,8 +95,11 @@ func TestManagedItemRunInstallUsesRequestedRootOnly(t *testing.T) {
 	if want := []string{"AppB"}; !reflect.DeepEqual(gotInstalls, want) {
 		t.Fatalf("install work set = %v, want %v", gotInstalls, want)
 	}
-	if result.Outcome != installer.OutcomeSucceeded {
-		t.Fatalf("unexpected result: %#v", result)
+	if result.Execution.Outcome != installer.OutcomeSucceeded {
+		t.Fatalf("unexpected result: %#v", result.Execution)
+	}
+	if want := []string{"manifest-catalog"}; !reflect.DeepEqual(result.Prepared.Config.Catalogs, want) {
+		t.Fatalf("prepared catalogs = %v, want %v", result.Prepared.Config.Catalogs, want)
 	}
 }
 
@@ -123,8 +127,8 @@ func TestManagedItemRunInstallReturnsRootDependencyFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("managedItemRun returned error: %v", err)
 	}
-	if result.ErrorCode != "dependency_failed" || result.Outcome != installer.OutcomeFailed {
-		t.Fatalf("unexpected root dependency result: %#v", result)
+	if result.Execution.ErrorCode != "dependency_failed" || result.Execution.Outcome != installer.OutcomeFailed {
+		t.Fatalf("unexpected root dependency result: %#v", result.Execution)
 	}
 }
 
@@ -156,8 +160,8 @@ func TestManagedItemRunRemoveUsesRequestedItemOnly(t *testing.T) {
 	if want := []string{"AppB"}; !reflect.DeepEqual(gotUninstalls, want) {
 		t.Fatalf("uninstall work set = %v, want %v", gotUninstalls, want)
 	}
-	if result.Action != "uninstall" {
-		t.Fatalf("unexpected result: %#v", result)
+	if result.Execution.Action != "uninstall" {
+		t.Fatalf("unexpected result: %#v", result.Execution)
 	}
 }
 
@@ -170,9 +174,12 @@ func TestManagedItemRunRejectsUnsupportedActionBeforeExecution(t *testing.T) {
 		return nil, nil, nil
 	}
 
-	_, err := managedItemRun(cfg, "AppB", "UpdateItem")
+	result, err := managedItemRun(cfg, "AppB", "UpdateItem")
 	if err == nil || !strings.Contains(err.Error(), "unsupported targeted managed item action") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(result, managed.ItemRunResult{}) {
+		t.Fatalf("failure result = %#v, want zero value", result)
 	}
 }
 
@@ -198,7 +205,7 @@ func TestManagedRunRemainsFullConvergence(t *testing.T) {
 		return nil
 	}
 
-	if err := managedRun(cfg); err != nil {
+	if _, err := managedRun(cfg); err != nil {
 		t.Fatalf("managedRun returned error: %v", err)
 	}
 	if !reflect.DeepEqual(installs, []string{"AppA", "AppB"}) {
@@ -209,6 +216,49 @@ func TestManagedRunRemainsFullConvergence(t *testing.T) {
 	}
 	if !reflect.DeepEqual(updates, []string{"AppD"}) {
 		t.Fatalf("full-run updates = %v", updates)
+	}
+}
+
+func TestManagedRunReturnsExactPreparedExecutionState(t *testing.T) {
+	withManagedExecutionHooks(t)
+	cfg := targetedTestConfig(t)
+	cfg.Catalogs = []string{"configured"}
+
+	manifests := []manifest.Item{{Name: "manifest-a"}}
+	catalogs := map[int]map[string]catalog.Item{0: {"AppB": {Name: "AppB"}}}
+	manifestGetFunc = func(config.Configuration) ([]manifest.Item, []string, error) {
+		return manifests, []string{"manifest-catalog"}, nil
+	}
+	catalogGetFunc = func(got config.Configuration) (map[int]map[string]catalog.Item, error) {
+		if want := []string{"configured", "manifest-catalog"}; !reflect.DeepEqual(got.Catalogs, want) {
+			t.Fatalf("catalog retrieval config = %v, want %v", got.Catalogs, want)
+		}
+		return catalogs, nil
+	}
+
+	var executionManifests []manifest.Item
+	var executionCatalogs map[int]map[string]catalog.Item
+	processManifestsFunc = func(gotManifests []manifest.Item, gotCatalogs map[int]map[string]catalog.Item) ([]string, []string, []string) {
+		executionManifests = gotManifests
+		executionCatalogs = gotCatalogs
+		return nil, nil, nil
+	}
+	processInstallResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
+	processUninstallResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
+	processUpdateResultsFunc = func([]string, map[int]map[string]catalog.Item, string, string, bool) []process.ItemResult { return nil }
+
+	result, err := managedRun(cfg)
+	if err != nil {
+		t.Fatalf("managedRun returned error: %v", err)
+	}
+	if want := []string{"configured", "manifest-catalog"}; !reflect.DeepEqual(result.Prepared.Config.Catalogs, want) {
+		t.Fatalf("prepared catalogs = %v, want %v", result.Prepared.Config.Catalogs, want)
+	}
+	if !reflect.DeepEqual(result.Prepared.Manifests, manifests) || !reflect.DeepEqual(executionManifests, result.Prepared.Manifests) {
+		t.Fatalf("returned manifests differ from execution input")
+	}
+	if !reflect.DeepEqual(result.Prepared.Catalogs, catalogs) || !reflect.DeepEqual(executionCatalogs, result.Prepared.Catalogs) {
+		t.Fatalf("returned catalogs differ from execution input")
 	}
 }
 
@@ -227,11 +277,15 @@ func TestPrepareManagedExecutionIncludesManifestCatalogs(t *testing.T) {
 		return []process.ItemResult{{ItemName: "AppB", Result: installer.Result{Outcome: installer.OutcomeSucceeded}}}
 	}
 
-	if _, err := managedItemRun(cfg, "AppB", "InstallItem"); err != nil {
+	result, err := managedItemRun(cfg, "AppB", "InstallItem")
+	if err != nil {
 		t.Fatalf("managedItemRun returned error: %v", err)
 	}
 	if want := []string{"configured", "manifest-catalog"}; !reflect.DeepEqual(gotCatalogs, want) {
 		t.Fatalf("effective catalogs = %v, want %v", gotCatalogs, want)
+	}
+	if !reflect.DeepEqual(result.Prepared.Config.Catalogs, gotCatalogs) {
+		t.Fatalf("returned prepared config catalogs = %v, retrieval used %v", result.Prepared.Config.Catalogs, gotCatalogs)
 	}
 }
 
@@ -243,8 +297,11 @@ func TestManagedItemRunPropagatesPreparationFailure(t *testing.T) {
 		return nil, nil, errors.New("manifest boom")
 	}
 
-	_, err := managedItemRun(cfg, "AppB", "InstallItem")
+	result, err := managedItemRun(cfg, "AppB", "InstallItem")
 	if err == nil || !strings.Contains(err.Error(), "unable to retrieve manifest: manifest boom") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(result, managed.ItemRunResult{}) {
+		t.Fatalf("failure result = %#v, want zero value", result)
 	}
 }

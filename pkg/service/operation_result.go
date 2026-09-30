@@ -20,11 +20,6 @@ type operationResultPayload struct {
 	Message    string             `json:"message,omitempty"`
 }
 
-func verifyManagedItemResult(cfg config.Configuration, action, itemName string, execution installer.Result) operationResultPayload {
-	details, err := getOptionalItemDetails(cfg)
-	return verifyManagedItemResultFromDetails(cfg, action, itemName, execution, details, err)
-}
-
 func verifyManagedItemResultFromDetails(
 	cfg config.Configuration,
 	action string,

@@ -35,8 +35,9 @@ func (sr *serviceRunner) executeManagedItemOperation(ctx context.Context, action
 		if err != nil {
 			return operationResultPayload{}, err
 		}
-		// Prepared is intentionally unused in PR A. Snapshot publication will
-		// consume the already-prepared repository state in the follow-up work.
+		// ExecutionPrepared is intentionally unused in PR A. It describes the
+		// targeted execution context and may contain operation-scoped transient
+		// state, so it is not persistent App Catalog authority.
 		execution = result.Execution
 	} else {
 		if _, err := sr.managedRun(runCfg); err != nil {

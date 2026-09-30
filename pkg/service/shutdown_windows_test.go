@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/1dustindavis/gorilla/pkg/config"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"golang.org/x/sys/windows"
 )
 
@@ -25,7 +26,7 @@ func TestServiceRunnerStopUnblocksIdleNamedPipeListener(t *testing.T) {
 				ServiceName:     "gorilla-stop-test",
 			}
 
-			sr := newServiceRunner(cfg, func(config.Configuration) error { return nil })
+			sr := newServiceRunner(cfg, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 			ctx, cancel := context.WithCancel(context.Background())
 			if err := sr.start(ctx); err != nil {
 				t.Fatalf("service start failed: %v", err)
@@ -72,7 +73,7 @@ func TestServiceRunnerStopUnblocksIdleNamedPipeListener(t *testing.T) {
 }
 
 func TestTakeListenerPipeTransfersOwnershipOnce(t *testing.T) {
-	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) error { return nil })
+	sr := newServiceRunner(config.Configuration{}, func(config.Configuration) (managed.RunResult, error) { return managed.RunResult{}, nil })
 	handle := windows.Handle(1234)
 	sr.pipeListenerHandle = handle
 

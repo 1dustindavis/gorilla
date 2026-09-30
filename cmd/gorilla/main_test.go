@@ -11,6 +11,7 @@ import (
 	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/gorillalog"
+	"github.com/1dustindavis/gorilla/pkg/managed"
 	"github.com/1dustindavis/gorilla/pkg/report"
 	"github.com/1dustindavis/gorilla/pkg/service"
 )
@@ -21,7 +22,8 @@ func resetMainHooks() {
 	buildCatalogsFunc = admin.BuildCatalogs
 	importItemFunc = admin.ImportItem
 	managedRunFunc = managedRun
-	runServiceFunc = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc) }
+	managedItemRunFunc = managedItemRun
+	runServiceFunc = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
 	sendServiceCommandFunc = service.SendCommand
 	runServiceActionFunc = service.RunAction
 	serviceStatusFunc = service.ServiceStatus
@@ -38,7 +40,7 @@ func TestRunAdminCheckError(t *testing.T) {
 		return nil
 	}
 
-	err := managedRun(cfg)
+	_, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -58,7 +60,7 @@ func TestRunRequiresAdmin(t *testing.T) {
 		return nil
 	}
 
-	err := managedRun(cfg)
+	_, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -79,7 +81,7 @@ func TestRunCheckOnlySkipsAdminCheck(t *testing.T) {
 	}
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := managedRun(cfg)
+	_, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -99,7 +101,7 @@ func TestRunCreateCacheError(t *testing.T) {
 	adminCheckFunc = func() (bool, error) { return true, nil }
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return errors.New("mkdir failed") }
 
-	err := managedRun(cfg)
+	_, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -135,9 +137,12 @@ func TestRunBuildMode(t *testing.T) {
 	}
 	importItemFunc = func(repoPath, itemPath string) error { return nil }
 
-	err := managedRun(cfg)
+	result, err := managedRun(cfg)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
+	}
+	if result != (managed.RunResult{}) {
+		t.Fatalf("build mode result = %#v, want zero value", result)
 	}
 	if adminCalled {
 		t.Fatalf("adminCheckFunc should not be called in build mode")
@@ -168,9 +173,12 @@ func TestRunImportModeError(t *testing.T) {
 		return errors.New("not implemented")
 	}
 
-	err := managedRun(cfg)
+	result, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error")
+	}
+	if result != (managed.RunResult{}) {
+		t.Fatalf("import failure result = %#v, want zero value", result)
 	}
 	if !strings.Contains(err.Error(), "error importing item: not implemented") {
 		t.Fatalf("unexpected error: %v", err)
@@ -202,7 +210,7 @@ func TestManagedRunFinalizesReportOnManifestError(t *testing.T) {
 	adminCheckFunc = func() (bool, error) { return true, nil }
 	mkdirAllFunc = func(path string, mode os.FileMode) error { return nil }
 
-	err := managedRun(cfg)
+	_, err := managedRun(cfg)
 	if err == nil {
 		t.Fatalf("expected error from manifest retrieval")
 	}
@@ -222,9 +230,9 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 	serviceStatusCalled := false
 	runCalled := false
 
-	managedRunFunc = func(cfg config.Configuration) error {
+	managedRunFunc = func(cfg config.Configuration) (managed.RunResult, error) {
 		runCalled = true
-		return nil
+		return managed.RunResult{}, nil
 	}
 	runServiceActionFunc = func(cfg config.Configuration, action string) error {
 		serviceAction = action
@@ -252,67 +260,14 @@ func TestExecuteServiceModesSkipRun(t *testing.T) {
 		wantSvcStatus bool
 		expectRunCall bool
 	}{
-		{
-			name: "service install",
-			cfg: config.Configuration{
-				ServiceInstall: true,
-			},
-			wantAction:    "install",
-			expectRunCall: false,
-		},
-		{
-			name: "service remove",
-			cfg: config.Configuration{
-				ServiceRemove: true,
-			},
-			wantAction:    "remove",
-			expectRunCall: false,
-		},
-		{
-			name: "service start",
-			cfg: config.Configuration{
-				ServiceStart: true,
-			},
-			wantAction:    "start",
-			expectRunCall: false,
-		},
-		{
-			name: "service stop",
-			cfg: config.Configuration{
-				ServiceStop: true,
-			},
-			wantAction:    "stop",
-			expectRunCall: false,
-		},
-		{
-			name: "service status",
-			cfg: config.Configuration{
-				ServiceStatus: true,
-			},
-			wantSvcStatus: true,
-			expectRunCall: false,
-		},
-		{
-			name: "service command",
-			cfg: config.Configuration{
-				ServiceCommand: "ListOptionalInstalls",
-			},
-			wantCommand:   "ListOptionalInstalls",
-			expectRunCall: false,
-		},
-		{
-			name: "service mode",
-			cfg: config.Configuration{
-				ServiceMode: true,
-			},
-			wantSvcMode:   true,
-			expectRunCall: false,
-		},
-		{
-			name:          "normal mode",
-			cfg:           config.Configuration{},
-			expectRunCall: true,
-		},
+		{name: "service install", cfg: config.Configuration{ServiceInstall: true}, wantAction: "install", expectRunCall: false},
+		{name: "service remove", cfg: config.Configuration{ServiceRemove: true}, wantAction: "remove", expectRunCall: false},
+		{name: "service start", cfg: config.Configuration{ServiceStart: true}, wantAction: "start", expectRunCall: false},
+		{name: "service stop", cfg: config.Configuration{ServiceStop: true}, wantAction: "stop", expectRunCall: false},
+		{name: "service status", cfg: config.Configuration{ServiceStatus: true}, wantSvcStatus: true, expectRunCall: false},
+		{name: "service command", cfg: config.Configuration{ServiceCommand: "ListOptionalInstalls"}, wantCommand: "ListOptionalInstalls", expectRunCall: false},
+		{name: "service mode", cfg: config.Configuration{ServiceMode: true}, wantSvcMode: true, expectRunCall: false},
+		{name: "normal mode", cfg: config.Configuration{}, expectRunCall: true},
 	}
 
 	for _, tt := range tests {
@@ -373,9 +328,9 @@ func TestRoutePrecedenceServiceInstallWins(t *testing.T) {
 		serviceStatusCalled = true
 		return "running", nil
 	}
-	managedRunFunc = func(cfg config.Configuration) error {
+	managedRunFunc = func(cfg config.Configuration) (managed.RunResult, error) {
 		runCalled = true
-		return nil
+		return managed.RunResult{}, nil
 	}
 
 	cfg := config.Configuration{
@@ -413,10 +368,7 @@ func TestRouteServiceCommandPrintsItems(t *testing.T) {
 	defer resetMainHooks()
 
 	sendServiceCommandFunc = func(cfg config.Configuration, spec string) (service.CommandResponse, error) {
-		return service.CommandResponse{
-			Status: "ok",
-			Items:  []string{"GoogleChrome", "VSCode"},
-		}, nil
+		return service.CommandResponse{Status: "ok", Items: []string{"GoogleChrome", "VSCode"}}, nil
 	}
 
 	stdout := captureStdout(t, func() {
@@ -458,43 +410,17 @@ func TestRouteServiceActionPrintsSuccess(t *testing.T) {
 	resetMainHooks()
 	defer resetMainHooks()
 
-	runServiceActionFunc = func(cfg config.Configuration, action string) error {
-		return nil
-	}
+	runServiceActionFunc = func(cfg config.Configuration, action string) error { return nil }
 
 	tests := []struct {
 		name       string
 		cfg        config.Configuration
 		wantOutput string
 	}{
-		{
-			name: "service install",
-			cfg: config.Configuration{
-				ServiceInstall: true,
-			},
-			wantOutput: "Service installed successfully",
-		},
-		{
-			name: "service remove",
-			cfg: config.Configuration{
-				ServiceRemove: true,
-			},
-			wantOutput: "Service removed successfully",
-		},
-		{
-			name: "service start",
-			cfg: config.Configuration{
-				ServiceStart: true,
-			},
-			wantOutput: "Service started successfully",
-		},
-		{
-			name: "service stop",
-			cfg: config.Configuration{
-				ServiceStop: true,
-			},
-			wantOutput: "Service stopped successfully",
-		},
+		{name: "service install", cfg: config.Configuration{ServiceInstall: true}, wantOutput: "Service installed successfully"},
+		{name: "service remove", cfg: config.Configuration{ServiceRemove: true}, wantOutput: "Service removed successfully"},
+		{name: "service start", cfg: config.Configuration{ServiceStart: true}, wantOutput: "Service started successfully"},
+		{name: "service stop", cfg: config.Configuration{ServiceStop: true}, wantOutput: "Service stopped successfully"},
 	}
 
 	for _, tt := range tests {
@@ -585,9 +511,7 @@ func captureStdout(t *testing.T, fn func()) string {
 		t.Fatalf("pipe creation failed: %v", err)
 	}
 	os.Stdout = w
-	defer func() {
-		os.Stdout = origStdout
-	}()
+	defer func() { os.Stdout = origStdout }()
 
 	fn()
 

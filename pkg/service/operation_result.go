@@ -22,12 +22,23 @@ type operationResultPayload struct {
 
 func verifyManagedItemResult(cfg config.Configuration, action, itemName string, execution installer.Result) operationResultPayload {
 	details, err := getOptionalItemDetails(cfg)
-	if err != nil {
+	return verifyManagedItemResultFromDetails(cfg, action, itemName, execution, details, err)
+}
+
+func verifyManagedItemResultFromDetails(
+	cfg config.Configuration,
+	action string,
+	itemName string,
+	execution installer.Result,
+	details []optionalItemDetails,
+	detailsErr error,
+) operationResultPayload {
+	if detailsErr != nil {
 		return operationResultPayload{
 			Outcome:    appcatalog.Unverified,
 			Code:       "verification_unavailable",
 			DetailCode: "catalog_refresh_failed",
-			Message:    fmt.Sprintf("Unable to refresh App Catalog state after operation: %v", err),
+			Message:    fmt.Sprintf("Unable to refresh App Catalog state after operation: %v", detailsErr),
 		}
 	}
 	item, found := findOptionalItem(details, itemName)

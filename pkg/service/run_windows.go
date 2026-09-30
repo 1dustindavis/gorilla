@@ -361,6 +361,26 @@ func (sr *serviceRunner) handlePipeCommand(ctx context.Context, file *os.File) {
 		return
 	}
 
+	if req.Operation == actionListOptionalInstalls {
+		payload, err := decodeEnvelopePayload[listOptionalInstallsRequest](req.Payload)
+		if err != nil {
+			result = "error"
+			gorillalog.Warn("failed to decode ListOptionalInstalls payload:", err)
+			writeErrorEnvelope(file, req.RequestID, req.Operation, req.OperationID, "invalid_request", "invalid ListOptionalInstalls payload")
+			return
+		}
+		if payload.Refresh != nil {
+			if err := sr.writeCatalogSnapshotResponse(file, req, payload); err != nil {
+				result = "error"
+				gorillalog.Warn("failed to write catalog snapshot response:", err)
+			} else {
+				result = "ok"
+				gorillalog.Debug("named pipe response sent:", req.Operation, "requestId=", req.RequestID)
+			}
+			return
+		}
+	}
+
 	// Operation lookup is read directly from the in-memory registry so UI
 	// recovery remains available while installer execution holds execMutex.
 	if req.Operation == actionListOperations {

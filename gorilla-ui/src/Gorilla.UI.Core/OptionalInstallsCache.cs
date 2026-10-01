@@ -97,7 +97,7 @@ public sealed class JsonFileOptionalInstallsCacheStore : IOptionalInstallsCacheS
     }
 }
 
-public sealed class OptionalInstallsCacheCoordinator
+public sealed class OptionalInstallsCacheCoordinator : IDisposable
 {
     private static readonly TimeSpan DefaultRefreshPollInterval = TimeSpan.FromMilliseconds(500);
 
@@ -539,6 +539,11 @@ public sealed class OptionalInstallsCacheCoordinator
         }
 
         handler(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+        _snapshotApplicationGate.Dispose();
     }
 
     private enum SnapshotDisposition

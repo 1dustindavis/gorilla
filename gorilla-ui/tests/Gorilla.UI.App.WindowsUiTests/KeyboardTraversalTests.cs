@@ -18,13 +18,21 @@ public sealed class KeyboardTraversalTests
             var home = new HomePageDriver(session);
             _ = home.CatalogItems;
             var activity = session.WaitFor(() => ById(session, "ActivityNavigationButton"));
+            var refresh = session.WaitFor(() => ById(session, "CatalogRefreshButton"));
             session.FocusForKeyboard(activity);
 
             Keyboard.Type(VirtualKeyShort.TAB);
-            var refresh = WaitForFocused(session, "CatalogRefreshButton");
-            Assert.Equal(ControlType.Button, refresh.ControlType);
+            if (refresh.IsEnabled)
+            {
+                var focusedRefresh = WaitForFocused(session, "CatalogRefreshButton");
+                Assert.Equal(ControlType.Button, focusedRefresh.ControlType);
+                Keyboard.Type(VirtualKeyShort.TAB);
+            }
 
-            Keyboard.Type(VirtualKeyShort.TAB);
+            // PR D deliberately keeps the current snapshot interactive while startup
+            // regeneration is queued/running. During that window Refresh is disabled
+            // and therefore skipped by keyboard traversal; once Idle, it remains the
+            // normal stop between Activity and Search.
             var search = WaitForFocused(session, "CatalogSearchBox");
             Assert.Equal(ControlType.Edit, search.ControlType);
 

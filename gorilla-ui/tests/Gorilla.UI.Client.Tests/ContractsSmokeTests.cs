@@ -27,6 +27,7 @@ public class ContractsSmokeTests
     [Fact]
     public void Envelope_RoundTrips_WithProtocolJsonOptions()
     {
+        var generatedAt = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
         var item = new OptionalInstallItem(
             ItemName: "GoogleChrome",
             DisplayName: "Google Chrome",
@@ -38,7 +39,7 @@ public class ContractsSmokeTests
             IsManaged: true,
             IsInstalled: false,
             Status: OptionalInstallStatus.NotInstalled,
-            StatusUpdatedAtUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z"),
+            StatusUpdatedAtUtc: generatedAt,
             LastOperationId: null,
             IconPath: @"C:\ProgramData\Gorilla\cache\catalog-icons\icon.png"
         );
@@ -49,8 +50,13 @@ public class ContractsSmokeTests
             Operation: ProtocolConstants.Operation.ListOptionalInstalls,
             RequestId: "req-1",
             OperationId: string.Empty,
-            TimestampUtc: DateTimeOffset.Parse("2026-02-14T18:10:00Z"),
-            Payload: new ListOptionalInstallsResponse(new[] { item })
+            TimestampUtc: generatedAt,
+            Payload: new ListOptionalInstallsResponse(
+                Items: new[] { item },
+                SnapshotAvailable: true,
+                SnapshotGeneratedAtUtc: generatedAt,
+                RefreshState: "Idle"
+            )
         );
 
         var json = JsonSerializer.Serialize(envelope, ProtocolJson.Options);
@@ -61,6 +67,9 @@ public class ContractsSmokeTests
         Assert.Equal(ProtocolMessageType.Response, copy.MessageType);
         Assert.Equal(ProtocolConstants.Operation.ListOptionalInstalls, copy.Operation);
         Assert.Single(copy.Payload.Items);
+        Assert.True(copy.Payload.SnapshotAvailable);
+        Assert.Equal(generatedAt, copy.Payload.SnapshotGeneratedAtUtc);
+        Assert.Equal("Idle", copy.Payload.RefreshState);
         Assert.Equal(OptionalInstallStatus.NotInstalled, copy.Payload.Items[0].Status);
         Assert.Null(copy.Payload.Items[0].Description);
         Assert.Equal(@"C:\ProgramData\Gorilla\cache\catalog-icons\icon.png", copy.Payload.Items[0].IconPath);
@@ -135,7 +144,7 @@ public class ContractsSmokeTests
             RequestId: "req-2",
             OperationId: string.Empty,
             TimestampUtc: DateTimeOffset.UtcNow,
-            Payload: new ListOptionalInstallsRequest()
+            Payload: new ListOptionalInstallsRequest(Refresh: false)
         );
 
         var ex = Assert.Throws<ProtocolValidationException>(() => ProtocolValidation.ValidateEnvelopeHeader(envelope));

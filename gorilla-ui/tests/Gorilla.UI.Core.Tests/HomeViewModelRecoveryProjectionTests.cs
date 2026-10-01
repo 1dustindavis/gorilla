@@ -49,9 +49,6 @@ public sealed class HomeViewModelRecoveryProjectionTests
         Assert.True(activity.HasRetryAttemptFeedback);
         Assert.Equal("Install was not accepted for VLC.", activity.RetryAttemptFeedback);
 
-        // Attempt feedback is immediate, temporal UX. A later successful Refresh
-        // replaces it with current recovery truth rather than leaving the old rejection
-        // beside a newly recomputed eligibility reason.
         client.Catalog = [];
         await viewModel.RefreshCatalogAsync(CancellationToken.None);
 
@@ -148,9 +145,16 @@ public sealed class HomeViewModelRecoveryProjectionTests
         public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [ProtocolItem()];
         public OperationAccepted InstallAccepted { get; set; } = new("created", true, Now.AddMinutes(1));
         public int InstallCalls { get; private set; }
+        private int _listCalls;
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Catalog);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
+        {
+            var generatedAt = Now.AddMinutes(_listCalls++);
+            return Task.FromResult(SnapshotTestData.Idle(Catalog, generatedAt));
+        }
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([

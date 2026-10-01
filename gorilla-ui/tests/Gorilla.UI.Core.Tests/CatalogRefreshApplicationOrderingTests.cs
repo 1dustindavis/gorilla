@@ -7,16 +7,18 @@ namespace Gorilla.UI.Core.Tests;
 public sealed class CatalogRefreshApplicationOrderingTests
 {
     [Fact]
-    public async Task Refresh_DoesNotPublishLiveOrCompleteUntilSnapshotIsAccepted()
+    public async Task Refresh_DoesNotPublishFreshnessOrPersistUntilSnapshotIsAccepted()
     {
+        var generatedAt = DateTimeOffset.Parse("2026-09-13T16:00:00Z");
         var snapshotReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseApplication = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var applied = false;
+        var store = new RecordingCacheStore();
         var client = new FakeClient
         {
-            Items = [Item("fresh")],
+            Result = SnapshotTestData.Idle([Item("fresh")], generatedAt),
         };
-        var coordinator = new OptionalInstallsCacheCoordinator(client, new NoOpCacheStore());
+        var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
         var refresh = coordinator.RefreshAsync(
             async (items, _) =>
@@ -37,10 +39,8 @@ public sealed class CatalogRefreshApplicationOrderingTests
         Assert.False(coordinator.State.HasUsableData);
         Assert.False(coordinator.State.IsLive);
         Assert.Null(coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.Empty(store.Documents);
 
-        // A refresh requested while reconciliation is still pending must join the
-        // same operation instead of allowing the fetched-but-unapplied snapshot to
-        // race with a newer request/application.
         var joined = coordinator.RefreshAsync(
             (_, _) => throw new InvalidOperationException("joined refresh must not replace the active reconciler"),
             CancellationToken.None
@@ -50,13 +50,17 @@ public sealed class CatalogRefreshApplicationOrderingTests
 
         releaseApplication.TrySetResult(true);
         await refresh.WaitAsync(TimeSpan.FromSeconds(2));
+        await store.Saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(applied);
         Assert.True(coordinator.State.HasUsableData);
         Assert.True(coordinator.State.IsLive);
         Assert.False(coordinator.State.IsRefreshing);
-        Assert.NotNull(coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.Equal(generatedAt, coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.Single(store.Documents);
+        Assert.Equal(generatedAt, store.Documents[0].SourceGeneratedAtUtc);
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([true], client.RefreshArguments);
     }
 
     private static OptionalInstallItem Item(string itemName)
@@ -78,24 +82,36 @@ public sealed class CatalogRefreshApplicationOrderingTests
         );
     }
 
-    private sealed class NoOpCacheStore : IOptionalInstallsCacheStore
+    private sealed class RecordingCacheStore : IOptionalInstallsCacheStore
     {
+        public List<OptionalInstallsCacheDocument> Documents { get; } = [];
+        public TaskCompletionSource Saved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken)
             => Task.FromResult<OptionalInstallsCacheDocument?>(null);
 
         public Task SaveAsync(OptionalInstallsCacheDocument document, CancellationToken cancellationToken)
-            => Task.CompletedTask;
+        {
+            Documents.Add(document);
+            Saved.TrySetResult();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public required IReadOnlyList<OptionalInstallItem> Items { get; init; }
+        public required OptionalInstallsSnapshotResult Result { get; init; }
         public int ListCalls { get; private set; }
+        public List<bool> RefreshArguments { get; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             ListCalls++;
-            return Task.FromResult(Items);
+            RefreshArguments.Add(refresh);
+            return Task.FromResult(Result);
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)

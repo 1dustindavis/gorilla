@@ -37,6 +37,7 @@ public class HomeViewModelRecoveryTests
         Assert.False(item.CanInstall);
         Assert.False(item.CanRemove);
         Assert.Equal("Installing: Installing item via managed run", item.Status);
+        Assert.Equal([true], client.RefreshArguments);
 
         cancellation.Cancel();
     }
@@ -78,6 +79,7 @@ public class HomeViewModelRecoveryTests
             warnings
         );
         Assert.Empty(viewModel.WarningBanner);
+        Assert.Equal([false], client.RefreshArguments);
     }
 
     [Fact]
@@ -108,6 +110,7 @@ public class HomeViewModelRecoveryTests
             viewModel.WarningBanner
         );
         Assert.Equal("op-2", viewModel.InfrastructureWarning.OperationId);
+        Assert.Equal([false], client.RefreshArguments);
     }
 
     [Fact]
@@ -116,11 +119,11 @@ public class HomeViewModelRecoveryTests
         var listAttempt = 0;
         var client = new FakeClient
         {
-            ListAsync = _ => ++listAttempt switch
+            ListAsync = (refresh, _) => ++listAttempt switch
             {
-                1 => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]),
-                2 => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("catalog refresh failed")),
-                _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]),
+                1 => Task.FromResult(SnapshotTestData.Idle([CatalogItem()], Now)),
+                2 => Task.FromException<OptionalInstallsSnapshotResult>(new IOException("catalog refresh failed")),
+                _ => Task.FromResult(SnapshotTestData.Idle([CatalogItem()], Now.AddMinutes(2))),
             },
             StreamAsync = (_, _) => CompletedStream(),
         };
@@ -141,6 +144,7 @@ public class HomeViewModelRecoveryTests
         Assert.Equal(string.Empty, viewModel.WarningBanner);
         Assert.False(viewModel.CatalogState.HasRefreshFailure);
         Assert.True(viewModel.CatalogState.IsLive);
+        Assert.Equal([true, false, true], client.RefreshArguments);
     }
 
     private static UiOptionalInstallItem MakeUiItem() => new()
@@ -231,14 +235,21 @@ public class HomeViewModelRecoveryTests
         public IReadOnlyList<OperationStatusEvent> Operations { get; init; } = [];
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; set; }
             = (_, _) => EmptyStream();
-        public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; }
-            = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([CatalogItem()]);
+        public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; }
+            = (_, _) => Task.FromResult(SnapshotTestData.Idle([CatalogItem()], Now));
 
         public int StreamCalls { get; private set; }
         public int ListOperationsCalls { get; private set; }
+        public List<bool> RefreshArguments { get; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => ListAsync(cancellationToken);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
+        {
+            RefreshArguments.Add(refresh);
+            return ListAsync(refresh, cancellationToken);
+        }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
             => Task.FromResult(new OperationAccepted("op-1", true, Now));

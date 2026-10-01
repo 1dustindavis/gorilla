@@ -16,8 +16,8 @@ internal sealed class AppDetailsPageDriver
     public AutomationElement Root => WaitById("AppDetailsRoot");
     public AutomationElement DisplayName => WaitById("DetailsDisplayName");
     public AutomationElement Observation => WaitById("DetailsObservation");
-    public Button BackButton => WaitById("DetailsBackButton").AsButton();
-    public Button PrimaryAction => WaitById("DetailsPrimaryAction").AsButton();
+    public Button BackButton => WaitNamedButton("DetailsBackButton");
+    public Button PrimaryAction => WaitNamedButton("DetailsPrimaryAction");
 
     public string Name => SafeName(DisplayName);
     public string ObservationText => SafeName(Observation);
@@ -35,7 +35,7 @@ internal sealed class AppDetailsPageDriver
     );
     public string ActionExplanation => OptionalText("DetailsActionExplanation");
 
-    public Button SecondaryAction => WaitById("DetailsSecondaryAction").AsButton();
+    public Button SecondaryAction => WaitNamedButton("DetailsSecondaryAction");
 
     public void GoBack() => BackButton.Invoke();
 
@@ -58,7 +58,7 @@ internal sealed class AppDetailsPageDriver
         );
 
     public Button RetryButton(string operationId)
-        => WaitById($"DetailsRetry-{operationId}").AsButton();
+        => WaitNamedButton($"DetailsRetry-{operationId}");
 
     public bool HasRetryButton(string operationId)
         => FindById($"DetailsRetry-{operationId}") is not null;
@@ -83,6 +83,17 @@ internal sealed class AppDetailsPageDriver
 
     private AutomationElement WaitById(string automationId)
         => _session.WaitFor(() => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)));
+
+    private Button WaitNamedButton(string automationId)
+        => _session.WaitFor(() =>
+        {
+            var element = FindById(automationId);
+            if (element is null || string.IsNullOrWhiteSpace(SafeName(element)))
+            {
+                return null;
+            }
+            return element.AsButton();
+        });
 
     private AutomationElement? FindById(string automationId)
         => _session.MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));

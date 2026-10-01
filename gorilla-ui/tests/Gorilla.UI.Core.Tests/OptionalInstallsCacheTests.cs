@@ -7,21 +7,27 @@ namespace Gorilla.UI.Core.Tests;
 public class OptionalInstallsCacheTests
 {
     [Fact]
-    public async Task JsonFileStore_RoundTripsDocument()
+    public async Task JsonFileStore_RoundTripsBothCacheAndSourceTimestamps()
     {
         var tempDir = MakeTempDirectory();
         try
         {
             var cachePath = Path.Combine(tempDir, "optional-installs.json");
             var store = new JsonFileOptionalInstallsCacheStore(cachePath);
-            var now = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
-            var document = new OptionalInstallsCacheDocument(now, [MakeItem("GoogleChrome", false, now)]);
+            var cachedAt = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
+            var sourceGeneratedAt = cachedAt.AddHours(-2);
+            var document = new OptionalInstallsCacheDocument(
+                cachedAt,
+                sourceGeneratedAt,
+                [MakeItem("GoogleChrome", false, sourceGeneratedAt)]
+            );
 
             await store.SaveAsync(document, CancellationToken.None);
             var loaded = await store.LoadAsync(CancellationToken.None);
 
             Assert.NotNull(loaded);
-            Assert.Equal(now, loaded!.CachedAtUtc);
+            Assert.Equal(cachedAt, loaded!.CachedAtUtc);
+            Assert.Equal(sourceGeneratedAt, loaded.SourceGeneratedAtUtc);
             Assert.Single(loaded.Items);
             Assert.Equal("GoogleChrome", loaded.Items[0].ItemName);
             Assert.Equal("A browser.", loaded.Items[0].Description);
@@ -53,20 +59,42 @@ public class OptionalInstallsCacheTests
     }
 
     [Fact]
-    public async Task JsonFileStore_LoadsCacheCreatedBeforeDescriptionAndIconPath()
+    public async Task JsonFileStore_OldDocumentWithoutSourceGeneratedAt_ReturnsNull()
     {
         var tempDir = MakeTempDirectory();
         try
         {
             var cachePath = Path.Combine(tempDir, "optional-installs.json");
             await File.WriteAllTextAsync(cachePath, """
-            {"cachedAtUtc":"2026-02-14T18:10:00+00:00","items":[{"itemName":"GoogleChrome","displayName":"Google Chrome","version":"1.0.0","catalog":"testcatalog","installerType":"nupkg","installerPackageId":"GoogleChrome","installerLocation":"packages/GoogleChrome/GoogleChrome.nupkg","isManaged":true,"isInstalled":false,"status":"NotInstalled","statusUpdatedAtUtc":"2026-02-14T18:10:00+00:00","lastOperationId":null}]}
+            {"cachedAtUtc":"2026-02-14T18:10:00+00:00","items":[]}
+            """, CancellationToken.None);
+
+            var loaded = await new JsonFileOptionalInstallsCacheStore(cachePath).LoadAsync(CancellationToken.None);
+
+            Assert.Null(loaded);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task JsonFileStore_LoadsNewCacheWithItemsCreatedBeforeDescriptionAndIconPath()
+    {
+        var tempDir = MakeTempDirectory();
+        try
+        {
+            var cachePath = Path.Combine(tempDir, "optional-installs.json");
+            await File.WriteAllTextAsync(cachePath, """
+            {"cachedAtUtc":"2026-02-14T18:10:00+00:00","sourceGeneratedAtUtc":"2026-02-14T17:00:00+00:00","items":[{"itemName":"GoogleChrome","displayName":"Google Chrome","version":"1.0.0","catalog":"testcatalog","installerType":"nupkg","installerPackageId":"GoogleChrome","installerLocation":"packages/GoogleChrome/GoogleChrome.nupkg","isManaged":true,"isInstalled":false,"status":"NotInstalled","statusUpdatedAtUtc":"2026-02-14T18:10:00+00:00","lastOperationId":null}]}
             """, CancellationToken.None);
 
             var loaded = await new JsonFileOptionalInstallsCacheStore(cachePath).LoadAsync(CancellationToken.None);
 
             Assert.NotNull(loaded);
-            var item = Assert.Single(loaded!.Items);
+            Assert.Equal(DateTimeOffset.Parse("2026-02-14T17:00:00Z"), loaded!.SourceGeneratedAtUtc);
+            var item = Assert.Single(loaded.Items);
             Assert.Null(item.Description);
             Assert.Null(item.IconPath);
         }
@@ -77,28 +105,33 @@ public class OptionalInstallsCacheTests
     }
 
     [Fact]
-    public async Task Coordinator_RefreshReturnsFreshDataBeforeSecondaryCachePersistenceCompletes()
+    public async Task Coordinator_PersistsAcceptedSnapshotWithSourceTimestamp()
     {
-        var now = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
+        var sourceGeneratedAt = DateTimeOffset.Parse("2026-02-14T18:10:00Z");
         var store = new InMemoryCacheStore();
-        var client = new FakeClient { ListResult = [MakeItem("VLC", true, now)] };
+        var client = new FakeClient
+        {
+            Result = SnapshotTestData.Idle(
+                [MakeItem("VLC", true, sourceGeneratedAt)],
+                sourceGeneratedAt
+            )
+        };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
         var refreshed = await coordinator.RefreshAsync(CancellationToken.None);
 
         Assert.Single(refreshed.Items);
-        Assert.Equal("VLC", refreshed.Items[0].ItemName);
-        Assert.Null(refreshed.CacheWriteFailure);
+        Assert.Equal(sourceGeneratedAt, refreshed.RefreshedAtUtc);
+        Assert.Equal(sourceGeneratedAt, coordinator.State.LastSuccessfulRefreshUtc);
         Assert.True(coordinator.State.IsLive);
         Assert.False(coordinator.State.IsRefreshing);
 
         await store.Saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        var cached = await coordinator.LoadCachedAsync(CancellationToken.None);
-
-        Assert.NotNull(cached);
-        Assert.Equal(refreshed.RefreshedAtUtc, cached!.CachedAtUtc);
-        Assert.Equal(refreshed.Items, cached.Items);
-        Assert.Equal(refreshed.Items[0].IconPath, cached.Items[0].IconPath);
+        var saved = Assert.NotNull(store.Document);
+        Assert.Equal(sourceGeneratedAt, saved.SourceGeneratedAtUtc);
+        Assert.NotEqual(saved.SourceGeneratedAtUtc, saved.CachedAtUtc);
+        Assert.Equal(refreshed.Items, saved.Items);
+        Assert.Equal(refreshed.Items[0].IconPath, saved.Items[0].IconPath);
     }
 
     private static string MakeTempDirectory()
@@ -130,15 +163,14 @@ public class OptionalInstallsCacheTests
 
     private sealed class InMemoryCacheStore : IOptionalInstallsCacheStore
     {
-        private OptionalInstallsCacheDocument? _document;
-
+        public OptionalInstallsCacheDocument? Document { get; private set; }
         public TaskCompletionSource<bool> Saved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(_document);
+        public Task<OptionalInstallsCacheDocument?> LoadAsync(CancellationToken cancellationToken) => Task.FromResult(Document);
 
         public Task SaveAsync(OptionalInstallsCacheDocument document, CancellationToken cancellationToken)
         {
-            _document = document;
+            Document = document;
             Saved.TrySetResult(true);
             return Task.CompletedTask;
         }
@@ -146,10 +178,12 @@ public class OptionalInstallsCacheTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public IReadOnlyList<OptionalInstallItem> ListResult { get; init; } = [];
+        public OptionalInstallsSnapshotResult Result { get; init; } = SnapshotTestData.Idle();
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(ListResult);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(Result);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

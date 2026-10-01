@@ -16,27 +16,39 @@ public sealed partial class NamedPipeGorillaServiceClient : IGorillaServiceClien
         _options = options ?? NamedPipeClientOptions.Default;
     }
 
-    public async Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+    public async Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+        bool refresh,
+        CancellationToken cancellationToken
+    )
     {
         var requestEnvelope = CreateRequestEnvelope(
             operation: ProtocolConstants.Operation.ListOptionalInstalls,
             operationId: string.Empty,
-            payload: new ListOptionalInstallsRequest()
+            payload: new ListOptionalInstallsRequest(refresh)
         );
-        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId}");
+        ClientDiagnostics.Log($"request:create operation={requestEnvelope.Operation} requestId={requestEnvelope.RequestId} refresh={refresh}");
 
         var responseEnvelope = await SendRequestAsync<ListOptionalInstallsRequest, ListOptionalInstallsResponse>(
             requestEnvelope,
             cancellationToken
         );
 
-        var items = responseEnvelope.Payload.Items ?? [];
-        foreach (var item in items)
+        var payload = responseEnvelope.Payload;
+        var refreshState = ProtocolValidation.ValidateListOptionalInstallsResponse(payload);
+        foreach (var item in payload.Items)
         {
             ProtocolValidation.ValidateOptionalInstallItem(item);
         }
 
-        return items;
+        return new OptionalInstallsSnapshotResult(
+            Items: payload.Items,
+            SnapshotAvailable: payload.SnapshotAvailable,
+            SnapshotGeneratedAtUtc: payload.SnapshotGeneratedAtUtc,
+            RefreshState: refreshState,
+            RefreshRequestedAtUtc: payload.RefreshRequestedAtUtc,
+            RefreshCompletedAtUtc: payload.RefreshCompletedAtUtc,
+            RefreshErrorCode: payload.RefreshErrorCode
+        );
     }
 
     public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)

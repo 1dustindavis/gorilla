@@ -18,8 +18,8 @@ public static class CatalogFreshnessPresentation
         }
         else if (state.IsCached)
         {
-            text = state.CachedAtUtc is DateTimeOffset cachedAt
-                ? $"Showing saved data from {FormatTimestampAge(cachedAt, now, culture)}"
+            text = state.LastSuccessfulRefreshUtc is DateTimeOffset sourceGeneratedAt
+                ? $"Showing saved data from {FormatTimestampAge(sourceGeneratedAt, now, culture)}"
                 : "Showing saved data";
         }
         else if (state.IsLive && state.LastSuccessfulRefreshUtc is DateTimeOffset refreshedAt)
@@ -77,9 +77,9 @@ public static class CatalogFreshnessPresentation
 
     public static string? BuildToolTip(CatalogDataState state, CultureInfo culture)
     {
-        if (state.IsCached && state.CachedAtUtc is DateTimeOffset cachedAt)
+        if (state.IsCached && state.LastSuccessfulRefreshUtc is DateTimeOffset sourceGeneratedAt)
         {
-            return $"Catalog data from {FormatExactLocalTimestamp(cachedAt, culture)}";
+            return $"Catalog data from {FormatExactLocalTimestamp(sourceGeneratedAt, culture)}";
         }
 
         if (state.IsLive && state.LastSuccessfulRefreshUtc is DateTimeOffset refreshedAt)

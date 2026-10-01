@@ -58,6 +58,21 @@ public sealed class SnapshotProtocolTests
     }
 
     [Fact]
+    public void UnavailableSnapshot_OmittedGenerationTime_DeserializesAndValidates()
+    {
+        const string json = "{\"items\":[],\"snapshotAvailable\":false,\"refreshState\":\"Running\"}";
+
+        var payload = JsonSerializer.Deserialize<ListOptionalInstallsResponse>(json, ProtocolJson.Options);
+
+        Assert.NotNull(payload);
+        Assert.Null(payload!.SnapshotGeneratedAtUtc);
+        Assert.Equal(
+            CatalogRefreshState.Running,
+            ProtocolValidation.ValidateListOptionalInstallsResponse(payload)
+        );
+    }
+
+    [Fact]
     public void ValidateListResponse_RejectsUnavailableSnapshotWithItems()
     {
         var payload = new ListOptionalInstallsResponse(

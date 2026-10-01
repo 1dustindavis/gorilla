@@ -282,10 +282,10 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                     throw new CatalogRefreshException();
                 }
 
-                var completedAtUtc = generatedAtUtc;
-                if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out var newerLiveAtUtc))
+                if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out _))
                 {
-                    completedAtUtc = newerLiveAtUtc;
+                    // The terminal response still proves the requested regeneration ended,
+                    // while a concurrent live read has already advanced the displayed truth.
                 }
                 else if (disposition != SnapshotDisposition.Accepted)
                 {
@@ -301,7 +301,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                 });
 
                 return new OptionalInstallsRefreshResult(
-                    RefreshedAtUtc: completedAtUtc,
+                    RefreshedAtUtc: generatedAtUtc,
                     Items: response.Items,
                     CacheWriteFailure: null
                 );
@@ -348,10 +348,10 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                 );
             }
 
-            var readAtUtc = generatedAtUtc;
-            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out var newerLiveAtUtc))
+            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out _))
             {
-                readAtUtc = newerLiveAtUtc;
+                // A newer live snapshot already won the application race. This read is
+                // a successful no-op rather than evidence of regression or failure.
             }
             else if (disposition != SnapshotDisposition.Accepted)
             {
@@ -361,7 +361,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
             }
 
             return new OptionalInstallsRefreshResult(
-                RefreshedAtUtc: readAtUtc,
+                RefreshedAtUtc: generatedAtUtc,
                 Items: response.Items,
                 CacheWriteFailure: null
             );

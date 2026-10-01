@@ -182,7 +182,7 @@ public sealed class CatalogRefreshStateTests
         var result = await refresh.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(["current", "newer"], applied);
-        Assert.Equal(newerAt, result.RefreshedAtUtc);
+        Assert.Equal(T1005, result.RefreshedAtUtc);
         Assert.Equal(newerAt, coordinator.State.LastSuccessfulRefreshUtc);
         Assert.True(coordinator.State.IsLive);
         Assert.False(coordinator.State.IsRefreshing);

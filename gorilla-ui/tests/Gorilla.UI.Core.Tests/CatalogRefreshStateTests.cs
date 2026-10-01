@@ -113,7 +113,7 @@ public sealed class CatalogRefreshStateTests
     }
 
     [Fact]
-    public async Task RefreshAsync_FinalIdleOlderThanDisplayedSnapshot_IsRefreshFailureWithoutRegression()
+    public async Task RefreshAsync_FinalIdleOlderThanDisplayedCachedSnapshot_IsRefreshFailureWithoutRegression()
     {
         var store = new RecordingCacheStore
         {
@@ -138,6 +138,55 @@ public sealed class CatalogRefreshStateTests
         Assert.Equal(T1000, coordinator.State.LastSuccessfulRefreshUtc);
         Assert.Equal(CatalogDataSource.Cached, coordinator.State.DataSource);
         Assert.IsType<CatalogRefreshException>(coordinator.State.RefreshFailure);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_OlderTerminalSnapshotSupersededByConcurrentNewerLiveRead_CompletesSuccessfully()
+    {
+        var terminalCallStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseTerminalResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var newerAt = T1005.AddMinutes(5);
+        var client = new SequenceClient();
+        client.Enqueue(Result("current", T1000, CatalogRefreshState.Running));
+        client.Enqueue(async (_, token) =>
+        {
+            terminalCallStarted.TrySetResult();
+            await releaseTerminalResponse.Task.WaitAsync(token);
+            return Result("terminal", T1005, CatalogRefreshState.Idle);
+        });
+        client.Enqueue(Result("newer", newerAt, CatalogRefreshState.Running));
+        var coordinator = Coordinator(client);
+        var applied = new List<string>();
+
+        var refresh = coordinator.RefreshAsync(
+            (items, _) =>
+            {
+                applied.Add(items.Single().DisplayName);
+                return Task.CompletedTask;
+            },
+            CancellationToken.None
+        );
+
+        await terminalCallStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.ReadLatestAsync(
+            (items, _) =>
+            {
+                applied.Add(items.Single().DisplayName);
+                return Task.CompletedTask;
+            },
+            CancellationToken.None
+        );
+        Assert.Equal(newerAt, coordinator.State.LastSuccessfulRefreshUtc);
+
+        releaseTerminalResponse.TrySetResult();
+        var result = await refresh.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(["current", "newer"], applied);
+        Assert.Equal(newerAt, result.RefreshedAtUtc);
+        Assert.Equal(newerAt, coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.True(coordinator.State.IsLive);
+        Assert.False(coordinator.State.IsRefreshing);
+        Assert.Null(coordinator.State.RefreshFailure);
     }
 
     [Fact]
@@ -264,6 +313,37 @@ public sealed class CatalogRefreshStateTests
     }
 
     [Fact]
+    public async Task ReadLatestAsync_FailureDuringActiveRefresh_DoesNotEndOrFailRefreshLifecycle()
+    {
+        var readFailure = new IOException("transient read failed");
+        var client = new SequenceClient();
+        client.Enqueue(Result("current", T1000, CatalogRefreshState.Running));
+        client.Enqueue((_, _) => Task.FromException<OptionalInstallsSnapshotResult>(readFailure));
+        var coordinator = new OptionalInstallsCacheCoordinator(
+            client,
+            new RecordingCacheStore(),
+            TimeSpan.FromHours(1)
+        );
+        using var cts = new CancellationTokenSource();
+
+        var refresh = coordinator.RefreshAsync((_, _) => Task.CompletedTask, cts.Token);
+        await WaitUntilAsync(() => coordinator.State.IsRefreshing && coordinator.State.LastSuccessfulRefreshUtc == T1000);
+
+        var thrown = await Assert.ThrowsAsync<IOException>(
+            () => coordinator.ReadLatestAsync((_, _) => Task.CompletedTask, CancellationToken.None)
+        );
+
+        Assert.Same(readFailure, thrown);
+        Assert.True(coordinator.State.IsRefreshing);
+        Assert.Null(coordinator.State.RefreshFailure);
+        Assert.Null(coordinator.State.LoadFailure);
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh);
+        Assert.False(coordinator.State.IsRefreshing);
+    }
+
+    [Fact]
     public async Task RefreshAsync_CoalescesConcurrentRegenerationCallers()
     {
         var response = new TaskCompletionSource<OptionalInstallsSnapshotResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -280,6 +360,15 @@ public sealed class CatalogRefreshStateTests
 
         response.SetResult(Result("ready", T1005, CatalogRefreshState.Idle));
         await first;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
     }
 
     private static OptionalInstallsCacheCoordinator Coordinator(

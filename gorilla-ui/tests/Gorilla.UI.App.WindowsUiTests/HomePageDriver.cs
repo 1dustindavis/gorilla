@@ -55,11 +55,25 @@ internal sealed class HomePageDriver
                 // contract the product exposes to users. Child TextBlock UIA peers can
                 // be realized and on-screen while still lacking a FlaUI clickable point.
                 var item = WaitForItem(itemName);
+                var expectedDisplayName = SafeName(item);
+                if (string.IsNullOrWhiteSpace(expectedDisplayName))
+                {
+                    throw new TimeoutException($"Catalog item '{itemName}' has no accessible name yet.");
+                }
+
                 item.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
                 _session.FocusForKeyboard(item, TimeSpan.FromSeconds(5));
                 Keyboard.Type(VirtualKeyShort.SPACE);
 
                 _ = _session.WaitFor(() => ById("AppDetailsRoot"), TimeSpan.FromSeconds(2));
+                _ = _session.WaitFor(() =>
+                {
+                    var detailsName = ById("DetailsDisplayName");
+                    return detailsName is not null &&
+                        string.Equals(SafeName(detailsName), expectedDisplayName, StringComparison.Ordinal)
+                            ? detailsName
+                            : null;
+                }, TimeSpan.FromSeconds(5));
                 return;
             }
             catch (TimeoutException ex)

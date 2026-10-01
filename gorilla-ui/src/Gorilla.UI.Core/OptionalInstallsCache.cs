@@ -250,6 +250,11 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
     {
         await Task.Yield();
 
+        var stateAtRefreshStart = State;
+        var liveSnapshotAtRefreshStart = stateAtRefreshStart.DataSource == CatalogDataSource.Live
+            ? stateAtRefreshStart.LastSuccessfulRefreshUtc
+            : null;
+
         UpdateState(state => state with
         {
             IsRefreshing = true,
@@ -282,10 +287,11 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                     throw new CatalogRefreshException();
                 }
 
-                if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out _))
+                if (disposition == SnapshotDisposition.Older &&
+                    IsSupersededByNewerLiveSnapshot(generatedAtUtc, liveSnapshotAtRefreshStart))
                 {
                     // The terminal response still proves the requested regeneration ended,
-                    // while a concurrent live read has already advanced the displayed truth.
+                    // while live truth has advanced since this refresh began.
                 }
                 else if (disposition != SnapshotDisposition.Accepted)
                 {
@@ -348,7 +354,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                 );
             }
 
-            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out _))
+            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc))
             {
                 // A newer live snapshot already won the application race. This read is
                 // a successful no-op rather than evidence of regression or failure.
@@ -437,20 +443,18 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
 
     private bool IsSupersededByNewerLiveSnapshot(
         DateTimeOffset responseGeneratedAtUtc,
-        out DateTimeOffset newerLiveAtUtc
+        DateTimeOffset? liveSnapshotAtRefreshStart = null
     )
     {
         var state = State;
-        if (state.DataSource == CatalogDataSource.Live &&
-            state.LastSuccessfulRefreshUtc is DateTimeOffset currentGeneratedAtUtc &&
-            currentGeneratedAtUtc > responseGeneratedAtUtc)
+        if (state.DataSource != CatalogDataSource.Live ||
+            state.LastSuccessfulRefreshUtc is not DateTimeOffset currentGeneratedAtUtc ||
+            currentGeneratedAtUtc <= responseGeneratedAtUtc)
         {
-            newerLiveAtUtc = currentGeneratedAtUtc;
-            return true;
+            return false;
         }
 
-        newerLiveAtUtc = default;
-        return false;
+        return liveSnapshotAtRefreshStart is null || currentGeneratedAtUtc > liveSnapshotAtRefreshStart.Value;
     }
 
     private void RecordRefreshFailure(Exception exception)

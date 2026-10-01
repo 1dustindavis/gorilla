@@ -27,7 +27,9 @@ type serviceEnvelope[T any] struct {
 	Payload      T      `json:"payload"`
 }
 
-type listOptionalInstallsRequest struct{}
+type listOptionalInstallsRequest struct {
+	Refresh *bool `json:"refresh,omitempty"`
+}
 
 type installItemRequest struct {
 	ItemName   string `json:"itemName"`
@@ -63,7 +65,13 @@ type optionalInstallResponseItem struct {
 }
 
 type listOptionalInstallsResponse struct {
-	Items []optionalInstallResponseItem `json:"items"`
+	Items                  []optionalInstallResponseItem `json:"items"`
+	SnapshotAvailable      *bool                         `json:"snapshotAvailable,omitempty"`
+	SnapshotGeneratedAtUTC string                        `json:"snapshotGeneratedAtUtc,omitempty"`
+	RefreshState           string                        `json:"refreshState,omitempty"`
+	RefreshRequestedAtUTC  string                        `json:"refreshRequestedAtUtc,omitempty"`
+	RefreshCompletedAtUTC  string                        `json:"refreshCompletedAtUtc,omitempty"`
+	RefreshErrorCode       string                        `json:"refreshErrorCode,omitempty"`
 }
 
 type operationAcceptedResponse struct {

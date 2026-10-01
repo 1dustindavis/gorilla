@@ -277,8 +277,17 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                     continue;
                 }
 
-                if (disposition != SnapshotDisposition.Accepted ||
-                    response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+                if (response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+                {
+                    throw new CatalogRefreshException();
+                }
+
+                var completedAtUtc = generatedAtUtc;
+                if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out var newerLiveAtUtc))
+                {
+                    completedAtUtc = newerLiveAtUtc;
+                }
+                else if (disposition != SnapshotDisposition.Accepted)
                 {
                     throw new CatalogRefreshException();
                 }
@@ -292,7 +301,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
                 });
 
                 return new OptionalInstallsRefreshResult(
-                    RefreshedAtUtc: generatedAtUtc,
+                    RefreshedAtUtc: completedAtUtc,
                     Items: response.Items,
                     CacheWriteFailure: null
                 );
@@ -332,8 +341,19 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
         {
             var response = await _client.ListOptionalInstallsAsync(refresh: false, cancellationToken);
             var disposition = await ApplySnapshotIfEligibleAsync(response, acceptSnapshot, cancellationToken);
-            if (disposition != SnapshotDisposition.Accepted ||
-                response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+            if (response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+            {
+                throw new CatalogRefreshException(
+                    response.RefreshState == CatalogRefreshState.Failed ? response.RefreshErrorCode : null
+                );
+            }
+
+            var readAtUtc = generatedAtUtc;
+            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc, out var newerLiveAtUtc))
+            {
+                readAtUtc = newerLiveAtUtc;
+            }
+            else if (disposition != SnapshotDisposition.Accepted)
             {
                 throw new CatalogRefreshException(
                     response.RefreshState == CatalogRefreshState.Failed ? response.RefreshErrorCode : null
@@ -341,7 +361,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
             }
 
             return new OptionalInstallsRefreshResult(
-                RefreshedAtUtc: generatedAtUtc,
+                RefreshedAtUtc: readAtUtc,
                 Items: response.Items,
                 CacheWriteFailure: null
             );
@@ -352,7 +372,7 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
         }
         catch (Exception ex)
         {
-            RecordRefreshFailure(ex);
+            RecordReadFailure(ex);
             throw;
         }
         finally
@@ -415,31 +435,62 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
         }
     }
 
+    private bool IsSupersededByNewerLiveSnapshot(
+        DateTimeOffset responseGeneratedAtUtc,
+        out DateTimeOffset newerLiveAtUtc
+    )
+    {
+        var state = State;
+        if (state.DataSource == CatalogDataSource.Live &&
+            state.LastSuccessfulRefreshUtc is DateTimeOffset currentGeneratedAtUtc &&
+            currentGeneratedAtUtc > responseGeneratedAtUtc)
+        {
+            newerLiveAtUtc = currentGeneratedAtUtc;
+            return true;
+        }
+
+        newerLiveAtUtc = default;
+        return false;
+    }
+
     private void RecordRefreshFailure(Exception exception)
     {
-        UpdateState(state => state.HasUsableData
-            ? state with
-            {
-                IsInitialLoading = false,
-                IsRefreshing = false,
-                RefreshFailure = exception,
-                LoadFailure = null,
-                CacheWriteFailure = state.CacheWriteFailure,
-            }
-            : new CatalogDataState(
-                HasUsableData: false,
-                DataSource: CatalogDataSource.None,
-                IsInitialLoading: false,
-                IsRefreshing: false,
-                IsSuccessfulEmpty: false,
-                LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
-                CachedAtUtc: null,
-                RefreshFailure: null,
-                LoadFailure: exception,
-                CacheWriteFailure: state.CacheWriteFailure,
-                CacheFallback: state.CacheFallback
-            ));
+        UpdateState(state => FailureState(state, exception, isRefreshing: false));
     }
+
+    private void RecordReadFailure(Exception exception)
+    {
+        UpdateState(state => state.IsRefreshing
+            ? state
+            : FailureState(state, exception, isRefreshing: false));
+    }
+
+    private static CatalogDataState FailureState(
+        CatalogDataState state,
+        Exception exception,
+        bool isRefreshing
+    ) => state.HasUsableData
+        ? state with
+        {
+            IsInitialLoading = false,
+            IsRefreshing = isRefreshing,
+            RefreshFailure = exception,
+            LoadFailure = null,
+            CacheWriteFailure = state.CacheWriteFailure,
+        }
+        : new CatalogDataState(
+            HasUsableData: false,
+            DataSource: CatalogDataSource.None,
+            IsInitialLoading: isRefreshing,
+            IsRefreshing: isRefreshing,
+            IsSuccessfulEmpty: false,
+            LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
+            CachedAtUtc: null,
+            RefreshFailure: null,
+            LoadFailure: exception,
+            CacheWriteFailure: state.CacheWriteFailure,
+            CacheFallback: state.CacheFallback
+        );
 
     private void QueueCachePersistence(OptionalInstallsCacheDocument document)
     {

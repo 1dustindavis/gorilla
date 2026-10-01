@@ -177,8 +177,10 @@ public class OperationTrackerRecoveryTests
 
         public int StreamCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(SnapshotTestData.Idle());
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();

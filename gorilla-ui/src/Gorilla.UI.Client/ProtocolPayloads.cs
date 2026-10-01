@@ -1,9 +1,17 @@
+using System.Text.Json.Serialization;
+
 namespace Gorilla.UI.Client;
 
-public sealed record ListOptionalInstallsRequest();
+public sealed record ListOptionalInstallsRequest(bool Refresh);
 
 public sealed record ListOptionalInstallsResponse(
-    IReadOnlyList<OptionalInstallItem> Items
+    [property: JsonRequired] IReadOnlyList<OptionalInstallItem> Items,
+    [property: JsonRequired] bool SnapshotAvailable,
+    [property: JsonRequired] DateTimeOffset? SnapshotGeneratedAtUtc,
+    [property: JsonRequired] string RefreshState,
+    DateTimeOffset? RefreshRequestedAtUtc = null,
+    DateTimeOffset? RefreshCompletedAtUtc = null,
+    string? RefreshErrorCode = null
 );
 
 public sealed record InstallItemRequest(string ItemName, string MutationId);

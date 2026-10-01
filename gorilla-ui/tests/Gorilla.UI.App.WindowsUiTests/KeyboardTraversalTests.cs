@@ -18,22 +18,29 @@ public sealed class KeyboardTraversalTests
             var home = new HomePageDriver(session);
             _ = home.CatalogItems;
             var activity = session.WaitFor(() => ById(session, "ActivityNavigationButton"));
-            var refresh = session.WaitFor(() => ById(session, "CatalogRefreshButton"));
             session.FocusForKeyboard(activity);
 
             Keyboard.Type(VirtualKeyShort.TAB);
-            if (refresh.IsEnabled)
-            {
-                var focusedRefresh = WaitForFocused(session, "CatalogRefreshButton");
-                Assert.Equal(ControlType.Button, focusedRefresh.ControlType);
-                Keyboard.Type(VirtualKeyShort.TAB);
-            }
+            var firstAfterActivity = WaitForFocusedOneOf(
+                session,
+                "CatalogRefreshButton",
+                "CatalogSearchBox"
+            );
 
             // PR D deliberately keeps the current snapshot interactive while startup
             // regeneration is queued/running. During that window Refresh is disabled
-            // and therefore skipped by keyboard traversal; once Idle, it remains the
-            // normal stop between Activity and Search.
-            var search = WaitForFocused(session, "CatalogSearchBox");
+            // and skipped by keyboard traversal. If regeneration is already Idle,
+            // Refresh remains the normal stop between Activity and Search.
+            if (string.Equals(SafeAutomationId(firstAfterActivity), "CatalogRefreshButton", StringComparison.Ordinal))
+            {
+                Assert.Equal(ControlType.Button, firstAfterActivity.ControlType);
+                Assert.True(firstAfterActivity.IsEnabled);
+                Keyboard.Type(VirtualKeyShort.TAB);
+            }
+
+            var search = string.Equals(SafeAutomationId(firstAfterActivity), "CatalogSearchBox", StringComparison.Ordinal)
+                ? firstAfterActivity
+                : WaitForFocused(session, "CatalogSearchBox");
             Assert.Equal(ControlType.Edit, search.ControlType);
 
             Keyboard.Type(VirtualKeyShort.TAB);
@@ -83,6 +90,16 @@ public sealed class KeyboardTraversalTests
                 ? focused
                 : null;
         }, TimeSpan.FromSeconds(5));
+
+    private static AutomationElement WaitForFocusedOneOf(
+        GorillaAppSession session,
+        params string[] automationIds
+    ) => session.WaitFor(() =>
+    {
+        var focused = session.FocusedElement();
+        var id = SafeAutomationId(focused);
+        return automationIds.Contains(id, StringComparer.Ordinal) ? focused : null;
+    }, TimeSpan.FromSeconds(5));
 
     private static string SafeAutomationId(AutomationElement element)
     {

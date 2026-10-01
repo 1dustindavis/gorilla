@@ -191,6 +191,7 @@ public class HomeViewModelRetryTests
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-op" && item.Result?.Outcome == Outcome.Succeeded);
         Assert.NotEqual("old-op", "new-op");
+        Assert.Equal([true, false], client.RefreshArguments);
     }
 
     [Fact]
@@ -212,6 +213,7 @@ public class HomeViewModelRetryTests
         Assert.Equal(1, client.RemoveCalls);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-remove");
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "new-remove");
+        Assert.Equal([true, false], client.RefreshArguments);
     }
 
     [Fact]
@@ -233,6 +235,7 @@ public class HomeViewModelRetryTests
 
         Assert.Equal(1, client.InstallCalls);
         Assert.True(client.ListOptionalInstallsCalls > listCallsBeforeRetry);
+        Assert.Equal([true, false], client.RefreshArguments);
         Assert.Equal(2, viewModel.ActivityItems.Count);
         Assert.Contains(viewModel.ActivityItems, item => item.OperationId == "old-op" && item.Result?.Outcome == Outcome.Failed);
         var retry = Assert.Single(viewModel.ActivityItems, item => item.OperationId == "retry-op");
@@ -508,11 +511,16 @@ public class HomeViewModelRetryTests
         public int RemoveCalls { get; private set; }
         public int ListOptionalInstallsCalls { get; private set; }
         public string? LastInstallItem { get; private set; }
+        public List<bool> RefreshArguments { get; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             ListOptionalInstallsCalls++;
-            return Task.FromResult(Catalog);
+            RefreshArguments.Add(refresh);
+            return Task.FromResult(SnapshotTestData.Idle(Catalog, Now));
         }
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)

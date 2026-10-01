@@ -151,10 +151,13 @@ public sealed class HomeViewModelDetailsSelectionTests
             _catalogs = catalogs;
         }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             var index = Math.Min(_catalogCall++, _catalogs.Count - 1);
-            return Task.FromResult(_catalogs[index]);
+            return Task.FromResult(SnapshotTestData.Idle(_catalogs[index], Now.AddMinutes(index)));
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)

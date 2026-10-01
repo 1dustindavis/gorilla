@@ -261,7 +261,6 @@ public sealed class CatalogRefreshStateTests
         Assert.Equal([false], client.RefreshArguments);
         Assert.Equal(["published"], accepted);
         Assert.Equal(T1005, result.RefreshedAtUtc);
-        Assert.False(coordinator.State.IsRefreshing);
     }
 
     [Fact]

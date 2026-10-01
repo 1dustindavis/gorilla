@@ -62,6 +62,55 @@ public sealed class HomeViewModelRecoveryProjectionTests
     }
 
     [Fact]
+    public async Task ManualRefresh_RunningSnapshotThenFailure_PreservesAttemptAndRecoveryState()
+    {
+        var client = new FakeClient
+        {
+            InstallAccepted = new OperationAccepted("not-created", false, Now.AddMinutes(1)),
+        };
+        var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync(CancellationToken.None);
+
+        var retry = await viewModel.RetryAsync("retained-failure", CancellationToken.None);
+        Assert.False(retry.Started);
+        var item = Assert.NotNull(viewModel.FindItem("VLC"));
+        var activity = Assert.Single(viewModel.ActivityItems);
+        var attemptFeedback = Assert.IsType<string>(activity.RetryAttemptFeedback);
+        var transientFeedback = Assert.IsType<string>(item.TransientFeedback);
+        var retryBlock = Assert.IsType<string>(item.InstallRetryBlockedReason);
+
+        viewModel.ReportInfrastructureWarning(
+            "App Catalog is temporarily unavailable. Refresh and try again.",
+            "Unexpected catalog-page initialization failure",
+            new IOException("existing recovery warning")
+        );
+        var warning = viewModel.InfrastructureWarning;
+
+        client.Responses.Enqueue(new OptionalInstallsSnapshotResult(
+            Items: [ProtocolItem()],
+            SnapshotAvailable: true,
+            SnapshotGeneratedAtUtc: Now,
+            RefreshState: CatalogRefreshState.Running,
+            RefreshRequestedAtUtc: Now.AddSeconds(1),
+            RefreshCompletedAtUtc: null,
+            RefreshErrorCode: null
+        ));
+        client.Responses.Enqueue(SnapshotTestData.Unavailable(CatalogRefreshState.Failed));
+
+        await Assert.ThrowsAsync<CatalogRefreshException>(
+            () => viewModel.RefreshCatalogAsync(CancellationToken.None)
+        );
+
+        item = Assert.NotNull(viewModel.FindItem("VLC"));
+        activity = Assert.Single(viewModel.ActivityItems);
+        Assert.Equal(attemptFeedback, activity.RetryAttemptFeedback);
+        Assert.Equal(transientFeedback, item.TransientFeedback);
+        Assert.Equal(retryBlock, item.InstallRetryBlockedReason);
+        Assert.Equal(warning, viewModel.InfrastructureWarning);
+        Assert.True(viewModel.CatalogState.HasRefreshFailure);
+    }
+
+    [Fact]
     public async Task RetryAsync_DoesNotUsePresentationFallbackWhenCanonicalItemIsAbsent()
     {
         var client = new FakeClient();
@@ -127,7 +176,7 @@ public sealed class HomeViewModelRecoveryProjectionTests
     private static HomeViewModel CreateViewModel(FakeClient client)
         => new(
             client,
-            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()),
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore(), TimeSpan.Zero),
             new OperationTracker(client)
         );
 
@@ -145,6 +194,7 @@ public sealed class HomeViewModelRecoveryProjectionTests
         public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [ProtocolItem()];
         public OperationAccepted InstallAccepted { get; set; } = new("created", true, Now.AddMinutes(1));
         public int InstallCalls { get; private set; }
+        public Queue<OptionalInstallsSnapshotResult> Responses { get; } = new();
         private int _listCalls;
 
         public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
@@ -152,6 +202,11 @@ public sealed class HomeViewModelRecoveryProjectionTests
             CancellationToken cancellationToken
         )
         {
+            if (Responses.Count > 0)
+            {
+                return Task.FromResult(Responses.Dequeue());
+            }
+
             var generatedAt = Now.AddMinutes(_listCalls++);
             return Task.FromResult(SnapshotTestData.Idle(Catalog, generatedAt));
         }
@@ -181,7 +236,8 @@ public sealed class HomeViewModelRecoveryProjectionTests
 
         public async IAsyncEnumerable<OperationStatusEvent> StreamOperationStatusAsync(
             string operationId,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken
+        )
         {
             await Task.CompletedTask;
             yield break;

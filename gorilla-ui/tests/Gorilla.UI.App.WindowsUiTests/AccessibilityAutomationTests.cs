@@ -88,8 +88,14 @@ public sealed class AccessibilityAutomationTests
 
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
-            var displayName = session.WaitFor(() => ById(session, "DetailsDisplayName"));
-            Assert.Contains("Slow Install Fixture", displayName.Name, StringComparison.OrdinalIgnoreCase);
+            _ = session.WaitFor(() =>
+            {
+                var displayName = ById(session, "DetailsDisplayName");
+                return displayName is not null &&
+                    SafeName(displayName).Contains("Slow Install Fixture", StringComparison.OrdinalIgnoreCase)
+                        ? displayName
+                        : null;
+            });
         });
     }
 

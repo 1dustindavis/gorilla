@@ -460,9 +460,20 @@ public sealed class OptionalInstallsCacheCoordinator : IDisposable
 
     private void RecordReadFailure(Exception exception)
     {
-        UpdateState(state => state.IsRefreshing
-            ? state
-            : FailureState(state, exception, isRefreshing: false));
+        if (IsRefreshTaskActive())
+        {
+            return;
+        }
+
+        UpdateState(state => FailureState(state, exception, isRefreshing: false));
+    }
+
+    private bool IsRefreshTaskActive()
+    {
+        lock (_refreshLock)
+        {
+            return _refreshTask is not null;
+        }
     }
 
     private static CatalogDataState FailureState(

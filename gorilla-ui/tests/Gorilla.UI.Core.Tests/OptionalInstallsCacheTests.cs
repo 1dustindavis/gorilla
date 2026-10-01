@@ -127,8 +127,9 @@ public class OptionalInstallsCacheTests
         Assert.False(coordinator.State.IsRefreshing);
 
         await store.Saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        var saved = Assert.NotNull(store.Document);
-        Assert.Equal(sourceGeneratedAt, saved.SourceGeneratedAtUtc);
+        var saved = store.Document;
+        Assert.NotNull(saved);
+        Assert.Equal(sourceGeneratedAt, saved!.SourceGeneratedAtUtc);
         Assert.NotEqual(saved.SourceGeneratedAtUtc, saved.CachedAtUtc);
         Assert.Equal(refreshed.Items, saved.Items);
         Assert.Equal(refreshed.Items[0].IconPath, saved.Items[0].IconPath);

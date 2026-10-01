@@ -73,10 +73,11 @@ public sealed class HomeViewModelRecoveryProjectionTests
 
         var retry = await viewModel.RetryAsync("retained-failure", CancellationToken.None);
         Assert.False(retry.Started);
-        var item = Assert.NotNull(viewModel.FindItem("VLC"));
+        var item = viewModel.FindItem("VLC");
+        Assert.NotNull(item);
         var activity = Assert.Single(viewModel.ActivityItems);
         var attemptFeedback = Assert.IsType<string>(activity.RetryAttemptFeedback);
-        var transientFeedback = Assert.IsType<string>(item.TransientFeedback);
+        var transientFeedback = Assert.IsType<string>(item!.TransientFeedback);
         var retryBlock = Assert.IsType<string>(item.InstallRetryBlockedReason);
 
         viewModel.ReportInfrastructureWarning(
@@ -101,10 +102,11 @@ public sealed class HomeViewModelRecoveryProjectionTests
             () => viewModel.RefreshCatalogAsync(CancellationToken.None)
         );
 
-        item = Assert.NotNull(viewModel.FindItem("VLC"));
+        item = viewModel.FindItem("VLC");
+        Assert.NotNull(item);
         activity = Assert.Single(viewModel.ActivityItems);
         Assert.Equal(attemptFeedback, activity.RetryAttemptFeedback);
-        Assert.Equal(transientFeedback, item.TransientFeedback);
+        Assert.Equal(transientFeedback, item!.TransientFeedback);
         Assert.Equal(retryBlock, item.InstallRetryBlockedReason);
         Assert.Equal(warning, viewModel.InfrastructureWarning);
         Assert.True(viewModel.CatalogState.HasRefreshFailure);

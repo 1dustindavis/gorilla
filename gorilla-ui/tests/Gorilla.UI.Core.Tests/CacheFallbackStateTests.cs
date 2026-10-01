@@ -6,6 +6,8 @@ namespace Gorilla.UI.Core.Tests;
 
 public sealed class CacheFallbackStateTests
 {
+    private static readonly DateTimeOffset SourceTime = DateTimeOffset.Parse("2026-09-13T18:00:00Z");
+
     [Fact]
     public void InitialState_HasUnknownCacheFallback()
     {
@@ -27,12 +29,12 @@ public sealed class CacheFallbackStateTests
     }
 
     [Fact]
-    public async Task ValidCache_MarksFallbackAvailable()
+    public async Task ValidCache_MarksFallbackAvailableAndUsesSourceTime()
     {
-        var cachedAt = DateTimeOffset.Parse("2026-09-13T18:00:00Z");
+        var cachedAt = SourceTime.AddMinutes(5);
         var store = new TestCacheStore
         {
-            Document = new OptionalInstallsCacheDocument(cachedAt, []),
+            Document = new OptionalInstallsCacheDocument(cachedAt, SourceTime, []),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(new FakeClient(), store);
 
@@ -41,6 +43,9 @@ public sealed class CacheFallbackStateTests
         Assert.NotNull(cached);
         Assert.Equal(CacheFallbackState.Available, coordinator.State.CacheFallback);
         Assert.True(coordinator.State.IsCached);
+        Assert.True(coordinator.State.IsSuccessfulEmpty);
+        Assert.Equal(SourceTime, coordinator.State.LastSuccessfulRefreshUtc);
+        Assert.Equal(cachedAt, coordinator.State.CachedAtUtc);
     }
 
     [Fact]
@@ -63,7 +68,7 @@ public sealed class CacheFallbackStateTests
         var failure = new IOException("service unavailable");
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(failure),
+            ListAsync = (_, _) => Task.FromException<OptionalInstallsSnapshotResult>(failure),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, new TestCacheStore());
 
@@ -82,9 +87,9 @@ public sealed class CacheFallbackStateTests
         var attempt = 0;
         var client = new FakeClient
         {
-            ListAsync = _ => ++attempt == 1
-                ? Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("service unavailable"))
-                : Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("VLC")]),
+            ListAsync = (_, _) => ++attempt == 1
+                ? Task.FromException<OptionalInstallsSnapshotResult>(new IOException("service unavailable"))
+                : Task.FromResult(SnapshotTestData.Idle([Item("VLC")], SourceTime)),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, new TestCacheStore());
 
@@ -100,20 +105,20 @@ public sealed class CacheFallbackStateTests
         Assert.True(coordinator.State.HasUsableData);
         Assert.False(coordinator.State.HasLoadFailure);
         Assert.False(coordinator.State.IsSuccessfulEmpty);
+        Assert.Equal(SourceTime, coordinator.State.LastSuccessfulRefreshUtc);
         await WaitUntilAsync(() => coordinator.State.CacheFallback == CacheFallbackState.Available);
     }
 
     [Fact]
     public async Task ValidCache_LiveFailure_PreservesFallbackAndDoesNotReportNoCache()
     {
-        var cachedAt = DateTimeOffset.Parse("2026-09-13T18:00:00Z");
         var store = new TestCacheStore
         {
-            Document = new OptionalInstallsCacheDocument(cachedAt, []),
+            Document = new OptionalInstallsCacheDocument(SourceTime.AddMinutes(5), SourceTime, []),
         };
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("service unavailable")),
+            ListAsync = (_, _) => Task.FromException<OptionalInstallsSnapshotResult>(new IOException("service unavailable")),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
@@ -132,7 +137,7 @@ public sealed class CacheFallbackStateTests
         var store = new TestCacheStore();
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([], SourceTime)),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
@@ -158,7 +163,7 @@ public sealed class CacheFallbackStateTests
         IsManaged: false,
         IsInstalled: false,
         Status: OptionalInstallStatus.NotInstalled,
-        StatusUpdatedAtUtc: DateTimeOffset.Parse("2026-09-13T18:00:00Z"),
+        StatusUpdatedAtUtc: SourceTime,
         LastOperationId: null
     );
 
@@ -194,11 +199,13 @@ public sealed class CacheFallbackStateTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; } =
-            _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
+        public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; } =
+            (_, _) => Task.FromResult(SnapshotTestData.Idle());
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => ListAsync(cancellationToken);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => ListAsync(refresh, cancellationToken);
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();

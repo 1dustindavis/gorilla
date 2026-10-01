@@ -7,7 +7,7 @@ public sealed record ListOptionalInstallsRequest(bool Refresh);
 public sealed record ListOptionalInstallsResponse(
     [property: JsonRequired] IReadOnlyList<OptionalInstallItem> Items,
     [property: JsonRequired] bool SnapshotAvailable,
-    [property: JsonRequired] DateTimeOffset? SnapshotGeneratedAtUtc,
+    DateTimeOffset? SnapshotGeneratedAtUtc,
     [property: JsonRequired] string RefreshState,
     DateTimeOffset? RefreshRequestedAtUtc = null,
     DateTimeOffset? RefreshCompletedAtUtc = null,

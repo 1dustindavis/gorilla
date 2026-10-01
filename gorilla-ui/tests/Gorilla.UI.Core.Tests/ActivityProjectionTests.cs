@@ -248,10 +248,13 @@ public class ActivityProjectionTests
         public int InstallCalls { get; private set; }
         public int RemoveCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             var index = Math.Min(_catalogCall++, Catalogs.Count - 1);
-            return Task.FromResult(Catalogs[index]);
+            return Task.FromResult(SnapshotTestData.Idle(Catalogs[index], Now.AddMinutes(index)));
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)

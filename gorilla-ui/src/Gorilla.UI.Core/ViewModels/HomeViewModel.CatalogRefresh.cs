@@ -21,38 +21,33 @@ public sealed partial class HomeViewModel
         await _cacheCoordinator.RefreshAsync(
             (items, _) =>
             {
-                // First accept the live snapshot. Only after canonical reconciliation
-                // succeeds is it fresh truth that may supersede attempt-level feedback
-                // and service-admission Retry blocks from the prior snapshot.
+                // Published snapshots are useful immediately, even while a requested
+                // regeneration is still queued or running. Applying them must not run
+                // completion-only recovery side effects.
                 ApplyItems(items);
-
-                lock (_projectionStateLock)
-                {
-                    foreach (var activity in _activityItems.Values)
-                    {
-                        activity.SetRetryAttemptFeedback(null);
-                    }
-                    foreach (var item in _catalogItems.Values)
-                    {
-                        item.ClearRetryBlocks();
-                        item.TransientFeedback = null;
-                    }
-
-                    // ApplyItems rebuilt recovery while the prior attempt guards still
-                    // existed. Recompute once more from the successfully applied snapshot
-                    // after clearing local attempt state.
-                    RebuildActivityProjection();
-                }
-
-                // A live snapshot that was successfully accepted is affirmative evidence
-                // that catalog/page initialization uncertainty has recovered. Do not clear
-                // operation-status or action-start warnings here; this refresh says nothing
-                // about those independent failure domains.
-                ClearCatalogRecoveryInfrastructureWarning();
                 return Task.CompletedTask;
             },
             cancellationToken
         );
+
+        // Only successful terminal completion is affirmative evidence that the manual
+        // refresh superseded prior attempt-level/recovery state.
+        lock (_projectionStateLock)
+        {
+            foreach (var activity in _activityItems.Values)
+            {
+                activity.SetRetryAttemptFeedback(null);
+            }
+            foreach (var item in _catalogItems.Values)
+            {
+                item.ClearRetryBlocks();
+                item.TransientFeedback = null;
+            }
+
+            RebuildActivityProjection();
+        }
+
+        ClearCatalogRecoveryInfrastructureWarning();
     }
 
     private void EnsureCatalogStateSubscription()

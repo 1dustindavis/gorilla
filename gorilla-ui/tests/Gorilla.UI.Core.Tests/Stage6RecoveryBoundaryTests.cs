@@ -303,8 +303,10 @@ public class Stage6RecoveryBoundaryTests
         public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [Historical()];
         public int InstallCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Catalog);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(SnapshotTestData.Idle(Catalog, Now));
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
             => Task.FromResult(Operations);
@@ -329,8 +331,10 @@ public class Stage6RecoveryBoundaryTests
         public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [];
         public int InstallCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Catalog);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(SnapshotTestData.Idle(Catalog, Now));
 
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<OperationStatusEvent>>([Historical()]);

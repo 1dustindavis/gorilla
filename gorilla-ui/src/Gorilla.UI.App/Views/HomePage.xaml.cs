@@ -36,6 +36,11 @@ public sealed partial class HomePage : Page
     {
         StartObservingPageState();
         await RunSafelyAsync(_session.EnsureInitializedAsync);
+        if (!IsLoaded)
+        {
+            return;
+        }
+
         UpdateEmptyStates();
         UpdateCardWidths(CatalogItems.ActualWidth);
         await RestoreNavigationFocusAsync();
@@ -177,6 +182,11 @@ public sealed partial class HomePage : Page
 
     private async Task RestoreNavigationFocusAsync()
     {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
         var requestedItemName = NavigationFocusState.ConsumeCatalogItem();
         var fallbackRequested = NavigationFocusState.ConsumeCatalogFallbackRequest();
         if (string.IsNullOrWhiteSpace(requestedItemName))

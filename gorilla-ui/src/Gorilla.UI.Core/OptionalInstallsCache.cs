@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Gorilla.UI.Client;
 using Gorilla.UI.Core.Models;
 
@@ -6,6 +7,7 @@ namespace Gorilla.UI.Core;
 
 public sealed record OptionalInstallsCacheDocument(
     DateTimeOffset CachedAtUtc,
+    [property: JsonRequired] DateTimeOffset SourceGeneratedAtUtc,
     IReadOnlyList<OptionalInstallItem> Items
 );
 
@@ -14,6 +16,17 @@ public sealed record OptionalInstallsRefreshResult(
     IReadOnlyList<OptionalInstallItem> Items,
     Exception? CacheWriteFailure = null
 );
+
+public sealed class CatalogRefreshException : Exception
+{
+    public CatalogRefreshException(string? errorCode = null)
+        : base("Gorilla couldn't refresh the App Catalog.")
+    {
+        ErrorCode = errorCode;
+    }
+
+    public string? ErrorCode { get; }
+}
 
 public interface IOptionalInstallsCacheStore
 {
@@ -57,7 +70,7 @@ public sealed class JsonFileOptionalInstallsCacheStore : IOptionalInstallsCacheS
             return null;
         }
 
-        if (document is null)
+        if (document is null || document.SourceGeneratedAtUtc == default || document.CachedAtUtc == default)
         {
             return null;
         }
@@ -84,24 +97,35 @@ public sealed class JsonFileOptionalInstallsCacheStore : IOptionalInstallsCacheS
     }
 }
 
-public sealed class OptionalInstallsCacheCoordinator
+public sealed class OptionalInstallsCacheCoordinator : IDisposable
 {
+    private static readonly TimeSpan DefaultRefreshPollInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly IGorillaServiceClient _client;
     private readonly IOptionalInstallsCacheStore _cacheStore;
+    private readonly TimeSpan _refreshPollInterval;
     private readonly object _refreshLock = new();
+    private readonly object _latestReadLock = new();
     private readonly object _cacheWriteLock = new();
     private readonly object _stateLock = new();
     private readonly object _stateNotificationLock = new();
+    private readonly SemaphoreSlim _snapshotApplicationGate = new(1, 1);
     private Task<OptionalInstallsRefreshResult>? _refreshTask;
+    private Task<OptionalInstallsRefreshResult>? _latestReadTask;
     private Task _cacheWriteTail = Task.CompletedTask;
     private CatalogDataState _state = CatalogDataState.InitialLoading;
     private SynchronizationContext? _stateNotificationContext;
     private Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task>? _defaultSnapshotAcceptor;
 
-    public OptionalInstallsCacheCoordinator(IGorillaServiceClient client, IOptionalInstallsCacheStore cacheStore)
+    public OptionalInstallsCacheCoordinator(
+        IGorillaServiceClient client,
+        IOptionalInstallsCacheStore cacheStore,
+        TimeSpan? refreshPollInterval = null
+    )
     {
         _client = client;
         _cacheStore = cacheStore;
+        _refreshPollInterval = refreshPollInterval ?? DefaultRefreshPollInterval;
     }
 
     public CatalogDataState State
@@ -132,16 +156,12 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch
         {
-            // Cache discovery completed, but did not yield a trustworthy fallback.
-            // The startup loader may still continue to live loading.
             UpdateState(state => state with { CacheFallback = CacheFallbackState.Unavailable });
             throw;
         }
 
         if (cached is null)
         {
-            // A cache miss is distinct from the pre-discovery Unknown state. Keep
-            // initial loading active while the live request is still pending.
             UpdateState(state => state with { CacheFallback = CacheFallbackState.Unavailable });
             return null;
         }
@@ -151,8 +171,8 @@ public sealed class OptionalInstallsCacheCoordinator
             DataSource: CatalogDataSource.Cached,
             IsInitialLoading: false,
             IsRefreshing: true,
-            IsSuccessfulEmpty: false,
-            LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
+            IsSuccessfulEmpty: cached.Items.Count == 0,
+            LastSuccessfulRefreshUtc: cached.SourceGeneratedAtUtc,
             CachedAtUtc: cached.CachedAtUtc,
             RefreshFailure: null,
             LoadFailure: null,
@@ -173,8 +193,7 @@ public sealed class OptionalInstallsCacheCoordinator
 
     public Task<OptionalInstallsRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
-        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot =
-            _defaultSnapshotAcceptor ?? ((_, _) => Task.CompletedTask);
+        var acceptSnapshot = _defaultSnapshotAcceptor ?? ((IReadOnlyList<OptionalInstallItem> _, CancellationToken _) => Task.CompletedTask);
         return RefreshAsync(acceptSnapshot, cancellationToken);
     }
 
@@ -198,63 +217,101 @@ public sealed class OptionalInstallsCacheCoordinator
         }
     }
 
+    public Task<OptionalInstallsRefreshResult> ReadLatestAsync(CancellationToken cancellationToken)
+    {
+        var acceptSnapshot = _defaultSnapshotAcceptor ?? ((IReadOnlyList<OptionalInstallItem> _, CancellationToken _) => Task.CompletedTask);
+        return ReadLatestAsync(acceptSnapshot, cancellationToken);
+    }
+
+    public Task<OptionalInstallsRefreshResult> ReadLatestAsync(
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(acceptSnapshot);
+        CaptureStateNotificationContext();
+
+        lock (_latestReadLock)
+        {
+            if (_latestReadTask is not null)
+            {
+                return _latestReadTask;
+            }
+
+            _latestReadTask = ReadLatestCoreAsync(acceptSnapshot, cancellationToken);
+            return _latestReadTask;
+        }
+    }
+
     private async Task<OptionalInstallsRefreshResult> RefreshCoreAsync(
         Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
         CancellationToken cancellationToken
     )
     {
-        // Do not raise StateChanged synchronously while RefreshAsync still owns the
-        // coordination lock and has not yet published _refreshTask. A subscriber may
-        // legitimately observe refresh state and request Refresh again; yielding first
-        // guarantees that request joins the already-published task instead of racing it.
         await Task.Yield();
+
+        var stateAtRefreshStart = State;
+        var liveSnapshotAtRefreshStart = stateAtRefreshStart.DataSource == CatalogDataSource.Live
+            ? stateAtRefreshStart.LastSuccessfulRefreshUtc
+            : null;
 
         UpdateState(state => state with
         {
             IsRefreshing = true,
-            IsInitialLoading = !state.HasUsableData && state.LastSuccessfulRefreshUtc is null,
+            IsInitialLoading = !state.HasUsableData,
             RefreshFailure = null,
             LoadFailure = null,
         });
 
         try
         {
-            var items = await _client.ListOptionalInstallsAsync(cancellationToken);
-            var refreshedAtUtc = DateTimeOffset.UtcNow;
-            var document = new OptionalInstallsCacheDocument(refreshedAtUtc, items);
+            var response = await _client.ListOptionalInstallsAsync(refresh: true, cancellationToken);
+            while (true)
+            {
+                var disposition = await ApplySnapshotIfEligibleAsync(response, acceptSnapshot, cancellationToken);
 
-            // The service response is not user-visible freshness truth until the
-            // canonical model has accepted it. Keep the previous provenance and the
-            // refresh-in-progress state while reconciliation runs so shell freshness,
-            // catalog contents, details, and action availability change atomically
-            // from the user's perspective.
-            await acceptSnapshot(items, cancellationToken);
+                if (response.RefreshState == CatalogRefreshState.Failed)
+                {
+                    throw new CatalogRefreshException(response.RefreshErrorCode);
+                }
 
-            UpdateState(state => new CatalogDataState(
-                HasUsableData: true,
-                DataSource: CatalogDataSource.Live,
-                IsInitialLoading: false,
-                IsRefreshing: false,
-                IsSuccessfulEmpty: items.Count == 0,
-                LastSuccessfulRefreshUtc: refreshedAtUtc,
-                CachedAtUtc: state.CachedAtUtc,
-                RefreshFailure: null,
-                LoadFailure: null,
-                // Cache persistence is an independent degradation axis. A new live
-                // response does not prove fallback durability has recovered.
-                CacheWriteFailure: state.CacheWriteFailure,
-                CacheFallback: state.CacheFallback
-            ));
+                if (response.RefreshState is CatalogRefreshState.Queued or CatalogRefreshState.Running)
+                {
+                    await Task.Delay(_refreshPollInterval, cancellationToken);
+                    response = await _client.ListOptionalInstallsAsync(refresh: false, cancellationToken);
+                    continue;
+                }
 
-            // Persistence is secondary durability work. It begins only after the
-            // snapshot is accepted, but remains independent of refresh completion.
-            QueueCachePersistence(document);
+                if (response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+                {
+                    throw new CatalogRefreshException();
+                }
 
-            return new OptionalInstallsRefreshResult(
-                refreshedAtUtc,
-                items,
-                CacheWriteFailure: null
-            );
+                if (disposition == SnapshotDisposition.Older &&
+                    IsSupersededByNewerLiveSnapshot(generatedAtUtc, liveSnapshotAtRefreshStart))
+                {
+                    // The terminal response still proves the requested regeneration ended,
+                    // while live truth has advanced since this refresh began.
+                }
+                else if (disposition != SnapshotDisposition.Accepted)
+                {
+                    throw new CatalogRefreshException();
+                }
+
+                UpdateState(state => state with
+                {
+                    IsInitialLoading = false,
+                    IsRefreshing = false,
+                    RefreshFailure = null,
+                    LoadFailure = null,
+                });
+
+                return new OptionalInstallsRefreshResult(
+                    RefreshedAtUtc: generatedAtUtc,
+                    Items: response.Items,
+                    CacheWriteFailure: null
+                );
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -267,30 +324,7 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (Exception ex)
         {
-            UpdateState(state => state.HasUsableData
-                ? state with
-                {
-                    IsInitialLoading = false,
-                    IsRefreshing = false,
-                    RefreshFailure = ex,
-                    LoadFailure = null,
-                    // An unrelated service failure must not erase cache degradation.
-                    CacheWriteFailure = state.CacheWriteFailure,
-                }
-                : new CatalogDataState(
-                    HasUsableData: false,
-                    DataSource: CatalogDataSource.None,
-                    IsInitialLoading: false,
-                    IsRefreshing: false,
-                    IsSuccessfulEmpty: false,
-                    LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
-                    CachedAtUtc: null,
-                    RefreshFailure: null,
-                    LoadFailure: ex,
-                    CacheWriteFailure: state.CacheWriteFailure,
-                    CacheFallback: state.CacheFallback
-                ));
-
+            RecordRefreshFailure(ex);
             throw;
         }
         finally
@@ -302,6 +336,177 @@ public sealed class OptionalInstallsCacheCoordinator
         }
     }
 
+    private async Task<OptionalInstallsRefreshResult> ReadLatestCoreAsync(
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        await Task.Yield();
+
+        try
+        {
+            var response = await _client.ListOptionalInstallsAsync(refresh: false, cancellationToken);
+            var disposition = await ApplySnapshotIfEligibleAsync(response, acceptSnapshot, cancellationToken);
+            if (response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+            {
+                throw new CatalogRefreshException(
+                    response.RefreshState == CatalogRefreshState.Failed ? response.RefreshErrorCode : null
+                );
+            }
+
+            if (disposition == SnapshotDisposition.Older && IsSupersededByNewerLiveSnapshot(generatedAtUtc))
+            {
+                // A newer live snapshot already won the application race. This read is
+                // a successful no-op rather than evidence of regression or failure.
+            }
+            else if (disposition != SnapshotDisposition.Accepted)
+            {
+                throw new CatalogRefreshException(
+                    response.RefreshState == CatalogRefreshState.Failed ? response.RefreshErrorCode : null
+                );
+            }
+
+            return new OptionalInstallsRefreshResult(
+                RefreshedAtUtc: generatedAtUtc,
+                Items: response.Items,
+                CacheWriteFailure: null
+            );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            RecordReadFailure(ex);
+            throw;
+        }
+        finally
+        {
+            lock (_latestReadLock)
+            {
+                _latestReadTask = null;
+            }
+        }
+    }
+
+    private async Task<SnapshotDisposition> ApplySnapshotIfEligibleAsync(
+        OptionalInstallsSnapshotResult response,
+        Func<IReadOnlyList<OptionalInstallItem>, CancellationToken, Task> acceptSnapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!response.SnapshotAvailable || response.SnapshotGeneratedAtUtc is not DateTimeOffset generatedAtUtc)
+        {
+            return SnapshotDisposition.Unavailable;
+        }
+
+        await _snapshotApplicationGate.WaitAsync(cancellationToken);
+        try
+        {
+            var current = State.LastSuccessfulRefreshUtc;
+            if (current is DateTimeOffset currentGeneratedAtUtc && generatedAtUtc < currentGeneratedAtUtc)
+            {
+                return SnapshotDisposition.Older;
+            }
+
+            await acceptSnapshot(response.Items, cancellationToken);
+
+            var document = new OptionalInstallsCacheDocument(
+                CachedAtUtc: DateTimeOffset.UtcNow,
+                SourceGeneratedAtUtc: generatedAtUtc,
+                Items: response.Items
+            );
+
+            UpdateState(state => new CatalogDataState(
+                HasUsableData: true,
+                DataSource: CatalogDataSource.Live,
+                IsInitialLoading: false,
+                IsRefreshing: state.IsRefreshing,
+                IsSuccessfulEmpty: response.Items.Count == 0,
+                LastSuccessfulRefreshUtc: generatedAtUtc,
+                CachedAtUtc: state.CachedAtUtc,
+                RefreshFailure: null,
+                LoadFailure: null,
+                CacheWriteFailure: state.CacheWriteFailure,
+                CacheFallback: state.CacheFallback
+            ));
+
+            QueueCachePersistence(document);
+            return SnapshotDisposition.Accepted;
+        }
+        finally
+        {
+            _snapshotApplicationGate.Release();
+        }
+    }
+
+    private bool IsSupersededByNewerLiveSnapshot(
+        DateTimeOffset responseGeneratedAtUtc,
+        DateTimeOffset? liveSnapshotAtRefreshStart = null
+    )
+    {
+        var state = State;
+        if (state.DataSource != CatalogDataSource.Live ||
+            state.LastSuccessfulRefreshUtc is not DateTimeOffset currentGeneratedAtUtc ||
+            currentGeneratedAtUtc <= responseGeneratedAtUtc)
+        {
+            return false;
+        }
+
+        return liveSnapshotAtRefreshStart is null || currentGeneratedAtUtc > liveSnapshotAtRefreshStart.Value;
+    }
+
+    private void RecordRefreshFailure(Exception exception)
+    {
+        UpdateState(state => FailureState(state, exception, isRefreshing: false));
+    }
+
+    private void RecordReadFailure(Exception exception)
+    {
+        if (IsRefreshTaskActive())
+        {
+            return;
+        }
+
+        UpdateState(state => FailureState(state, exception, isRefreshing: false));
+    }
+
+    private bool IsRefreshTaskActive()
+    {
+        lock (_refreshLock)
+        {
+            return _refreshTask is not null;
+        }
+    }
+
+    private static CatalogDataState FailureState(
+        CatalogDataState state,
+        Exception exception,
+        bool isRefreshing
+    ) => state.HasUsableData
+        ? state with
+        {
+            IsInitialLoading = false,
+            IsRefreshing = isRefreshing,
+            RefreshFailure = exception,
+            LoadFailure = null,
+            CacheWriteFailure = state.CacheWriteFailure,
+        }
+        : new CatalogDataState(
+            HasUsableData: false,
+            DataSource: CatalogDataSource.None,
+            IsInitialLoading: isRefreshing,
+            IsRefreshing: isRefreshing,
+            IsSuccessfulEmpty: false,
+            LastSuccessfulRefreshUtc: state.LastSuccessfulRefreshUtc,
+            CachedAtUtc: null,
+            RefreshFailure: null,
+            LoadFailure: exception,
+            CacheWriteFailure: state.CacheWriteFailure,
+            CacheFallback: state.CacheFallback
+        );
+
     private void QueueCachePersistence(OptionalInstallsCacheDocument document)
     {
         lock (_cacheWriteLock)
@@ -312,8 +517,6 @@ public sealed class OptionalInstallsCacheCoordinator
 
     private async Task PersistCacheAfterAsync(Task previousWrite, OptionalInstallsCacheDocument document)
     {
-        // Preserve write ordering, but never let an unexpected failure in an older
-        // best-effort persistence task prevent a newer live snapshot from being saved.
         try
         {
             await previousWrite.ConfigureAwait(false);
@@ -326,16 +529,12 @@ public sealed class OptionalInstallsCacheCoordinator
         {
             await _cacheStore.SaveAsync(document, CancellationToken.None).ConfigureAwait(false);
 
-            // Merge only persistence-owned fields into the current state atomically.
-            // An older save completion must never overwrite newer refresh/provenance
-            // state. Clear degradation only if this save durably persisted the current
-            // live snapshot.
             UpdateState(state =>
             {
                 var cachedAtUtc = state.CachedAtUtc is DateTimeOffset currentCachedAt && currentCachedAt > document.CachedAtUtc
                     ? currentCachedAt
                     : document.CachedAtUtc;
-                var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.CachedAtUtc;
+                var isCurrentLiveSnapshot = state.LastSuccessfulRefreshUtc == document.SourceGeneratedAtUtc;
                 return state with
                 {
                     CachedAtUtc = cachedAtUtc,
@@ -346,10 +545,7 @@ public sealed class OptionalInstallsCacheCoordinator
         }
         catch (Exception ex)
         {
-            // Only a failed attempt to persist the current live snapshot establishes
-            // current cache degradation. Failures from superseded queued saves cannot
-            // overwrite the state of a newer snapshot.
-            UpdateState(state => state.LastSuccessfulRefreshUtc == document.CachedAtUtc
+            UpdateState(state => state.LastSuccessfulRefreshUtc == document.SourceGeneratedAtUtc
                 ? state with { CacheWriteFailure = ex }
                 : state);
         }
@@ -409,5 +605,17 @@ public sealed class OptionalInstallsCacheCoordinator
         }
 
         handler(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+        _snapshotApplicationGate.Dispose();
+    }
+
+    private enum SnapshotDisposition
+    {
+        Accepted,
+        Unavailable,
+        Older,
     }
 }

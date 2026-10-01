@@ -20,7 +20,7 @@ public class HomeViewModelOperationResultTests
     [InlineData(Outcome.Failed, "Failed: Installer exited with code 1", "Failed: Installer exited with code 1")]
     [InlineData(Outcome.Unverified, "Unverified: Unable to confirm installed state", "Unable to verify: Unable to confirm installed state")]
     [InlineData(Outcome.Interrupted, "Interrupted: Service operation was interrupted", "Interrupted: Service operation was interrupted")]
-    public async Task InstallAsync_UsesAuthoritativeOutcomeWithoutGlobalItemWarning(
+    public async Task InstallAsync_UsesAuthoritativeOutcomeAndReadsPublishedSnapshotWithoutRegeneration(
         Outcome outcome,
         string expectedStatus,
         string? expectedTerminalFeedback)
@@ -56,6 +56,7 @@ public class HomeViewModelOperationResultTests
         Assert.Equal(expectedStatus, item.Status);
         Assert.Equal(expectedTerminalFeedback, item.CardPresentation.TerminalFeedbackText);
         Assert.Empty(viewModel.WarningBanner);
+        Assert.Equal([false], client.RefreshArguments);
     }
 
     [Fact]
@@ -126,12 +127,12 @@ public class HomeViewModelOperationResultTests
     {
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([
                 MakeProtocolItem(
                     install: new ActionDecision(false, "Already selected for installation"),
                     remove: new ActionDecision(true, "")
                 )
-            ]),
+            ], Now)),
         };
         var viewModel = CreateViewModel(client);
 
@@ -151,6 +152,7 @@ public class HomeViewModelOperationResultTests
         item.IsBusy = false;
         Assert.False(item.CanInstall);
         Assert.True(item.CanRemove);
+        Assert.Equal([true], client.RefreshArguments);
     }
 
     [Fact]
@@ -162,7 +164,7 @@ public class HomeViewModelOperationResultTests
         ) with { Actions = null };
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([item]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([item], Now)),
         };
         var viewModel = CreateViewModel(client);
 
@@ -173,6 +175,7 @@ public class HomeViewModelOperationResultTests
         Assert.False(uiItem.CanRemove);
         Assert.Equal("Refresh required before installing.", uiItem.InstallUnavailableReason);
         Assert.Equal("Refresh required before removing.", uiItem.RemoveUnavailableReason);
+        Assert.Equal([true], client.RefreshArguments);
     }
 
     private static string OutcomeCode(Outcome outcome) => outcome switch
@@ -242,16 +245,21 @@ public class HomeViewModelOperationResultTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; } = _ =>
-            Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
+        public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; } =
+            (_, _) => Task.FromResult(SnapshotTestData.Idle([], Now));
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; init; } = (_, _) => Stream();
 
         public int ListCalls { get; private set; }
+        public List<bool> RefreshArguments { get; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             ListCalls++;
-            return ListAsync(cancellationToken);
+            RefreshArguments.Add(refresh);
+            return ListAsync(refresh, cancellationToken);
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken) =>

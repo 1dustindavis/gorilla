@@ -6,8 +6,11 @@ namespace Gorilla.UI.Core.Tests;
 
 public sealed class CatalogCacheDegradationLifetimeTests
 {
+    private static readonly DateTimeOffset T1 = DateTimeOffset.Parse("2026-09-13T17:00:00Z");
+    private static readonly DateTimeOffset T2 = T1.AddMinutes(5);
+
     [Fact]
-    public async Task CacheWriteFailure_PersistsAcrossLiveRefreshUntilSuccessfulPersistenceCompletes()
+    public async Task CacheWriteFailure_PersistsAcrossNewerLiveRefreshUntilCurrentPersistenceCompletes()
     {
         var secondSaveStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseSecondSave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -26,12 +29,12 @@ public sealed class CatalogCacheDegradationLifetimeTests
                 await releaseSecondSave.Task;
             },
         };
-        var responses = new Queue<IReadOnlyList<OptionalInstallItem>>();
-        responses.Enqueue([Item("one")]);
-        responses.Enqueue([Item("two")]);
+        var responses = new Queue<OptionalInstallsSnapshotResult>();
+        responses.Enqueue(SnapshotTestData.Idle([Item("one")], T1));
+        responses.Enqueue(SnapshotTestData.Idle([Item("two")], T2));
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult(responses.Dequeue()),
+            ListAsync = (_, _) => Task.FromResult(responses.Dequeue()),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
@@ -44,6 +47,7 @@ public sealed class CatalogCacheDegradationLifetimeTests
         await secondSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(coordinator.State.IsLive);
+        Assert.Equal(T2, coordinator.State.LastSuccessfulRefreshUtc);
         Assert.True(coordinator.State.HasCacheWriteFailure);
         Assert.Same(firstFailure, coordinator.State.CacheWriteFailure);
 
@@ -64,9 +68,9 @@ public sealed class CatalogCacheDegradationLifetimeTests
         };
         var client = new FakeClient
         {
-            ListAsync = _ => ++call == 1
-                ? Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("one")])
-                : Task.FromException<IReadOnlyList<OptionalInstallItem>>(serviceFailure),
+            ListAsync = (_, _) => ++call == 1
+                ? Task.FromResult(SnapshotTestData.Idle([Item("one")], T1))
+                : Task.FromException<OptionalInstallsSnapshotResult>(serviceFailure),
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
 
@@ -83,13 +87,51 @@ public sealed class CatalogCacheDegradationLifetimeTests
     }
 
     [Fact]
+    public async Task SupersededWriteFailure_CannotDegradeNewerPersistedSnapshot()
+    {
+        var firstSaveStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstSave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var saveAttempt = 0;
+        var store = new ControlledCacheStore
+        {
+            SaveAsyncImpl = async (document, _) =>
+            {
+                if (Interlocked.Increment(ref saveAttempt) == 1)
+                {
+                    Assert.Equal(T1, document.SourceGeneratedAtUtc);
+                    firstSaveStarted.TrySetResult(true);
+                    await releaseFirstSave.Task;
+                    throw new IOException("superseded write failed");
+                }
+
+                Assert.Equal(T2, document.SourceGeneratedAtUtc);
+            },
+        };
+        var responses = new Queue<OptionalInstallsSnapshotResult>();
+        responses.Enqueue(SnapshotTestData.Idle([Item("one")], T1));
+        responses.Enqueue(SnapshotTestData.Idle([Item("two")], T2));
+        var client = new FakeClient { ListAsync = (_, _) => Task.FromResult(responses.Dequeue()) };
+        var coordinator = new OptionalInstallsCacheCoordinator(client, store);
+
+        await coordinator.RefreshAsync(CancellationToken.None);
+        await firstSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.RefreshAsync(CancellationToken.None);
+        Assert.Equal(T2, coordinator.State.LastSuccessfulRefreshUtc);
+
+        releaseFirstSave.TrySetResult(true);
+        await WaitUntilAsync(() => saveAttempt >= 2);
+        await WaitUntilAsync(() => !coordinator.State.HasCacheWriteFailure);
+
+        Assert.False(coordinator.State.HasCacheWriteFailure);
+        Assert.Equal(T2, coordinator.State.LastSuccessfulRefreshUtc);
+    }
+
+    [Fact]
     public async Task OlderCacheCompletion_CannotOverwriteNewerRefreshState()
     {
         var firstSaveStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirstSave = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondResponse = new TaskCompletionSource<IReadOnlyList<OptionalInstallItem>>(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
+        var secondResponse = new TaskCompletionSource<OptionalInstallsSnapshotResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var saveAttempt = 0;
         var listAttempt = 0;
         var store = new ControlledCacheStore
@@ -105,8 +147,8 @@ public sealed class CatalogCacheDegradationLifetimeTests
         };
         var client = new FakeClient
         {
-            ListAsync = _ => ++listAttempt == 1
-                ? Task.FromResult<IReadOnlyList<OptionalInstallItem>>([Item("one")])
+            ListAsync = (_, _) => ++listAttempt == 1
+                ? Task.FromResult(SnapshotTestData.Idle([Item("one")], T1))
                 : secondResponse.Task,
         };
         var coordinator = new OptionalInstallsCacheCoordinator(client, store);
@@ -123,11 +165,12 @@ public sealed class CatalogCacheDegradationLifetimeTests
 
         Assert.True(coordinator.State.IsRefreshing);
 
-        secondResponse.TrySetResult([Item("two")]);
+        secondResponse.TrySetResult(SnapshotTestData.Idle([Item("two")], T2));
         await secondRefresh.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(coordinator.State.IsLive);
         Assert.False(coordinator.State.IsRefreshing);
+        Assert.Equal(T2, coordinator.State.LastSuccessfulRefreshUtc);
         Assert.Equal(2, client.ListCalls);
     }
 
@@ -140,24 +183,20 @@ public sealed class CatalogCacheDegradationLifetimeTests
         }
     }
 
-    private static OptionalInstallItem Item(string itemName)
-    {
-        var now = DateTimeOffset.Parse("2026-09-13T17:00:00Z");
-        return new OptionalInstallItem(
-            itemName,
-            itemName,
-            "1.0.0",
-            "testcatalog",
-            "ps1",
-            itemName,
-            $"{itemName}.ps1",
-            true,
-            false,
-            OptionalInstallStatus.NotInstalled,
-            now,
-            null
-        );
-    }
+    private static OptionalInstallItem Item(string itemName) => new(
+        itemName,
+        itemName,
+        "1.0.0",
+        "testcatalog",
+        "ps1",
+        itemName,
+        $"{itemName}.ps1",
+        true,
+        false,
+        OptionalInstallStatus.NotInstalled,
+        T1,
+        null
+    );
 
     private sealed class ControlledCacheStore : IOptionalInstallsCacheStore
     {
@@ -172,13 +211,16 @@ public sealed class CatalogCacheDegradationLifetimeTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public required Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; }
+        public required Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; }
         public int ListCalls { get; private set; }
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             ListCalls++;
-            return ListAsync(cancellationToken);
+            return ListAsync(refresh, cancellationToken);
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)

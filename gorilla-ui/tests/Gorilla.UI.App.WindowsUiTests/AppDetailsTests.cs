@@ -1,3 +1,4 @@
+using FlaUI.Core.AutomationElements;
 using Microsoft.Win32;
 using Xunit;
 
@@ -120,8 +121,14 @@ public sealed class AppDetailsTests
             home.OpenDetails(SlowFixtureItemName);
 
             var details = new AppDetailsPageDriver(session);
-            Assert.Equal("Install", details.PrimaryAction.Name);
-            details.PrimaryAction.Invoke();
+            var primaryAction = session.WaitFor(() =>
+            {
+                var action = details.PrimaryAction;
+                return string.Equals(SafeName(action), "Install", StringComparison.Ordinal)
+                    ? action
+                    : null;
+            });
+            primaryAction.Invoke();
             details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
             var operationId = details.ActiveOperationId;
             Assert.False(string.IsNullOrWhiteSpace(operationId));
@@ -191,6 +198,18 @@ public sealed class AppDetailsTests
         key.SetValue("DisplayName", displayName, RegistryValueKind.String);
         key.SetValue("DisplayVersion", displayVersion, RegistryValueKind.String);
         key.SetValue("UninstallString", "cmd.exe /c exit 0", RegistryValueKind.String);
+    }
+
+    private static string SafeName(AutomationElement element)
+    {
+        try
+        {
+            return element.Name;
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static string RequiredPath(string variableName)

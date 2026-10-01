@@ -99,8 +99,10 @@ public sealed class IconPresentationProjectionTests
     {
         public IReadOnlyList<OptionalInstallItem> Catalog { get; set; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
-            => Task.FromResult(Catalog);
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        ) => Task.FromResult(SnapshotTestData.Idle(Catalog));
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken)
             => throw new NotSupportedException();

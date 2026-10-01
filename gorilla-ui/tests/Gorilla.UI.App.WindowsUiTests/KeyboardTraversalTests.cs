@@ -21,11 +21,26 @@ public sealed class KeyboardTraversalTests
             session.FocusForKeyboard(activity);
 
             Keyboard.Type(VirtualKeyShort.TAB);
-            var refresh = WaitForFocused(session, "CatalogRefreshButton");
-            Assert.Equal(ControlType.Button, refresh.ControlType);
+            var firstAfterActivity = WaitForFocusedOneOf(
+                session,
+                "CatalogRefreshButton",
+                "CatalogSearchBox"
+            );
 
-            Keyboard.Type(VirtualKeyShort.TAB);
-            var search = WaitForFocused(session, "CatalogSearchBox");
+            // PR D deliberately keeps the current snapshot interactive while startup
+            // regeneration is queued/running. During that window Refresh is disabled
+            // and skipped by keyboard traversal. If regeneration is already Idle,
+            // Refresh remains the normal stop between Activity and Search.
+            if (string.Equals(SafeAutomationId(firstAfterActivity), "CatalogRefreshButton", StringComparison.Ordinal))
+            {
+                Assert.Equal(ControlType.Button, firstAfterActivity.ControlType);
+                Assert.True(firstAfterActivity.IsEnabled);
+                Keyboard.Type(VirtualKeyShort.TAB);
+            }
+
+            var search = string.Equals(SafeAutomationId(firstAfterActivity), "CatalogSearchBox", StringComparison.Ordinal)
+                ? firstAfterActivity
+                : WaitForFocused(session, "CatalogSearchBox");
             Assert.Equal(ControlType.Edit, search.ControlType);
 
             Keyboard.Type(VirtualKeyShort.TAB);
@@ -75,6 +90,16 @@ public sealed class KeyboardTraversalTests
                 ? focused
                 : null;
         }, TimeSpan.FromSeconds(5));
+
+    private static AutomationElement WaitForFocusedOneOf(
+        GorillaAppSession session,
+        params string[] automationIds
+    ) => session.WaitFor(() =>
+    {
+        var focused = session.FocusedElement();
+        var id = SafeAutomationId(focused);
+        return automationIds.Contains(id, StringComparer.Ordinal) ? focused : null;
+    }, TimeSpan.FromSeconds(5));
 
     private static string SafeAutomationId(AutomationElement element)
     {

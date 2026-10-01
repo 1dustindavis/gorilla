@@ -1,4 +1,5 @@
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Exceptions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using Xunit;
@@ -48,14 +49,21 @@ public sealed class GridKeyboardSemanticsTests
                 .Select(name => TryFindItem(home, name))
                 .FirstOrDefault(element => element is not null && HasKeyboardFocus(element));
             Assert.NotNull(focused);
-            var expectedName = focused!.Name;
-            var expectedItemName = focused.AutomationId;
+            var expectedName = SafeName(focused!);
+            Assert.False(string.IsNullOrWhiteSpace(expectedName));
+            var expectedItemName = focused!.AutomationId;
             Assert.Contains(expectedItemName, FixtureItemNames);
 
             Keyboard.Type(VirtualKeyShort.ENTER);
             _ = session.WaitFor(() => ById(session, "AppDetailsRoot"));
-            var detailsName = session.WaitFor(() => ById(session, "DetailsDisplayName"));
-            Assert.Equal(expectedName, detailsName.Name);
+            var detailsName = session.WaitFor(() =>
+            {
+                var element = ById(session, "DetailsDisplayName");
+                return element is not null && string.Equals(SafeName(element), expectedName, StringComparison.Ordinal)
+                    ? element
+                    : null;
+            });
+            Assert.Equal(expectedName, SafeName(detailsName));
         });
     }
 
@@ -80,6 +88,18 @@ public sealed class GridKeyboardSemanticsTests
         catch
         {
             return false;
+        }
+    }
+
+    private static string SafeName(AutomationElement element)
+    {
+        try
+        {
+            return element.Name;
+        }
+        catch (PropertyNotSupportedException)
+        {
+            return string.Empty;
         }
     }
 

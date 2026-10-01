@@ -60,7 +60,7 @@ public class HomeViewModelTests
                 new OperationStatusEvent("op-1", OperationState.Completed, null, "Installed", Now, "VLC", AppCatalog.Action.Install,
                     new Result(Outcome.Succeeded, "completed", Message: "Installed"))
             ),
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", true)]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([MakeProtocolItem("VLC", true)], Now)),
         };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
@@ -72,6 +72,7 @@ public class HomeViewModelTests
         Assert.False(item.IsBusy);
         Assert.Equal("old warning", viewModel.WarningBanner);
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([false], client.RefreshArguments);
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.Equal("VLC", refreshedItem.ItemName);
         Assert.True(refreshedItem.IsInstalled);
@@ -91,7 +92,7 @@ public class HomeViewModelTests
                 new OperationStatusEvent("op-2", OperationState.Completed, null, "Removed", Now, "VLC", AppCatalog.Action.Remove,
                     new Result(Outcome.Succeeded, "completed", Message: "Removed"))
             ),
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", false)]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([MakeProtocolItem("VLC", false)], Now)),
         };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC", installed: true);
@@ -101,6 +102,7 @@ public class HomeViewModelTests
 
         Assert.False(item.IsBusy);
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([false], client.RefreshArguments);
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.Equal("VLC", refreshedItem.ItemName);
         Assert.False(refreshedItem.IsInstalled);
@@ -119,7 +121,7 @@ public class HomeViewModelTests
                 new OperationStatusEvent("op-1", OperationState.Completed, null, "Install failed", Now, "VLC", AppCatalog.Action.Install,
                     new Result(Outcome.Failed, "execution_failed", "installer_failed", "exit code 1"))
             ),
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("VLC", false)]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([MakeProtocolItem("VLC", false)], Now)),
         };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
@@ -128,6 +130,7 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([false], client.RefreshArguments);
         Assert.Empty(viewModel.WarningBanner);
         var refreshedItem = Assert.Single(viewModel.Items);
         Assert.False(refreshedItem.IsInstalled);
@@ -145,7 +148,7 @@ public class HomeViewModelTests
                 new OperationStatusEvent("op-1", OperationState.Completed, null, "Installed", Now, "VLC", AppCatalog.Action.Install,
                     new Result(Outcome.Succeeded, "completed", Message: "Installed"))
             ),
-            ListAsync = _ => Task.FromException<IReadOnlyList<OptionalInstallItem>>(new IOException("refresh unavailable")),
+            ListAsync = (_, _) => Task.FromException<OptionalInstallsSnapshotResult>(new IOException("refresh unavailable")),
         };
         var viewModel = CreateViewModel(client);
         var item = MakeUiItem("VLC");
@@ -153,6 +156,7 @@ public class HomeViewModelTests
         await viewModel.InstallAsync(item, CancellationToken.None);
 
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([false], client.RefreshArguments);
         Assert.Empty(viewModel.WarningBanner);
         Assert.True(viewModel.CatalogState.HasLoadFailure);
         Assert.Contains("refresh unavailable", viewModel.CatalogState.LoadFailure!.Message);
@@ -175,6 +179,7 @@ public class HomeViewModelTests
         Assert.Contains("Operation tracking for VLC is no longer available.", viewModel.WarningBanner);
         Assert.Contains("without assuming the previous operation succeeded or failed", viewModel.WarningBanner);
         Assert.Equal(1, client.ListCalls);
+        Assert.Equal([false], client.RefreshArguments);
         Assert.False(item.IsBusy);
     }
 
@@ -198,7 +203,7 @@ public class HomeViewModelTests
     {
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("GoogleChrome", true)]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([MakeProtocolItem("GoogleChrome", true)], Now)),
         };
         var viewModel = CreateViewModel(client);
 
@@ -209,6 +214,7 @@ public class HomeViewModelTests
         Assert.Equal("GoogleChrome", item.DisplayName);
         Assert.True(item.IsInstalled);
         Assert.Equal("Installed", item.Status);
+        Assert.Equal([true], client.RefreshArguments);
     }
 
     [Fact]
@@ -216,7 +222,7 @@ public class HomeViewModelTests
     {
         var client = new FakeClient
         {
-            ListAsync = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([MakeProtocolItem("GoogleChrome", false)]),
+            ListAsync = (_, _) => Task.FromResult(SnapshotTestData.Idle([MakeProtocolItem("GoogleChrome", false)], Now)),
         };
         var viewModel = CreateViewModel(client);
         await viewModel.InitializeAsync(CancellationToken.None);
@@ -225,6 +231,7 @@ public class HomeViewModelTests
 
         Assert.NotNull(item);
         Assert.Equal("GoogleChrome", item!.ItemName);
+        Assert.Equal([true], client.RefreshArguments);
     }
 
     private static HomeViewModel CreateViewModel(FakeClient client)
@@ -292,17 +299,23 @@ public class HomeViewModelTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public Func<CancellationToken, Task<IReadOnlyList<OptionalInstallItem>>> ListAsync { get; init; } = _ => Task.FromResult<IReadOnlyList<OptionalInstallItem>>([]);
+        public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; }
+            = (_, _) => Task.FromResult(SnapshotTestData.Idle([], Now));
         public Func<string, CancellationToken, Task<OperationAccepted>> InstallAsync { get; init; } = (itemName, _) => Task.FromResult(new OperationAccepted("op-install", true, Now));
         public Func<string, CancellationToken, Task<OperationAccepted>> RemoveAsync { get; init; } = (itemName, _) => Task.FromResult(new OperationAccepted("op-remove", true, Now));
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; init; } = (_, _) => Stream();
 
         public int ListCalls { get; private set; }
+        public List<bool> RefreshArguments { get; } = [];
 
-        public Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken)
+        public Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+            bool refresh,
+            CancellationToken cancellationToken
+        )
         {
             ListCalls++;
-            return ListAsync(cancellationToken);
+            RefreshArguments.Add(refresh);
+            return ListAsync(refresh, cancellationToken);
         }
 
         public Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken) => InstallAsync(itemName, cancellationToken);

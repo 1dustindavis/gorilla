@@ -503,8 +503,14 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     {
         try
         {
-            var refreshed = await _cacheCoordinator.RefreshAsync(cancellationToken);
-            ApplyItems(refreshed.Items);
+            await _cacheCoordinator.ReadLatestAsync(
+                (items, _) =>
+                {
+                    ApplyItems(items);
+                    return Task.CompletedTask;
+                },
+                cancellationToken
+            );
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

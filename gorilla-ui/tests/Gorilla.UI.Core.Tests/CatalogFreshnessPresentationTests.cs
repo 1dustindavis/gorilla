@@ -46,15 +46,28 @@ public sealed class CatalogFreshnessPresentationTests
     }
 
     [Fact]
-    public void BuildStatusText_CachedYesterday_UsesSameRelativeFormatter()
+    public void BuildStatusText_Cached_UsesSourceGenerationInsteadOfCacheWriteTime()
     {
         var now = LocalDateTime(2026, 9, 28, 20, 0);
-        var timestamp = LocalDateTime(2026, 9, 27, 15, 14);
-        var state = CachedState(timestamp);
+        var sourceGeneratedAt = LocalDateTime(2026, 9, 27, 16, 0);
+        var cachedAt = LocalDateTime(2026, 9, 28, 11, 0);
+        var state = CachedState(sourceGeneratedAt, cachedAt);
 
         var text = CatalogFreshnessPresentation.BuildStatusText(state, now, Culture);
 
         Assert.Equal("Showing saved data from yesterday", text);
+    }
+
+    [Fact]
+    public void BuildToolTip_Cached_UsesSourceGenerationInsteadOfCacheWriteTime()
+    {
+        var sourceGeneratedAt = LocalDateTime(2026, 9, 27, 16, 0);
+        var cachedAt = LocalDateTime(2026, 9, 28, 11, 0);
+        var state = CachedState(sourceGeneratedAt, cachedAt);
+
+        var text = CatalogFreshnessPresentation.BuildToolTip(state, Culture);
+
+        Assert.Equal($"Catalog data from {sourceGeneratedAt.ToString("MMM d, yyyy 'at' t", Culture)}", text);
     }
 
     [Fact]
@@ -85,15 +98,15 @@ public sealed class CatalogFreshnessPresentationTests
             LoadFailure: null,
             CacheWriteFailure: null);
 
-    private static CatalogDataState CachedState(DateTimeOffset timestamp)
+    private static CatalogDataState CachedState(DateTimeOffset sourceGeneratedAt, DateTimeOffset cachedAt)
         => new(
             HasUsableData: true,
             DataSource: CatalogDataSource.Cached,
             IsInitialLoading: false,
             IsRefreshing: false,
             IsSuccessfulEmpty: false,
-            LastSuccessfulRefreshUtc: null,
-            CachedAtUtc: timestamp,
+            LastSuccessfulRefreshUtc: sourceGeneratedAt,
+            CachedAtUtc: cachedAt,
             RefreshFailure: null,
             LoadFailure: null,
             CacheWriteFailure: null);

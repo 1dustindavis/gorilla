@@ -44,6 +44,78 @@ public static class ProtocolValidation
         }
     }
 
+    public static CatalogRefreshState ValidateListOptionalInstallsResponse(ListOptionalInstallsResponse payload)
+    {
+        if (payload.Items is null)
+        {
+            throw new ProtocolValidationException("items is required.");
+        }
+
+        var refreshState = payload.RefreshState switch
+        {
+            "Idle" => CatalogRefreshState.Idle,
+            "Queued" => CatalogRefreshState.Queued,
+            "Running" => CatalogRefreshState.Running,
+            "Failed" => CatalogRefreshState.Failed,
+            _ => throw new ProtocolValidationException($"Unsupported refreshState '{payload.RefreshState}'."),
+        };
+
+        if (payload.SnapshotAvailable)
+        {
+            if (payload.SnapshotGeneratedAtUtc is null || payload.SnapshotGeneratedAtUtc == default)
+            {
+                throw new ProtocolValidationException(
+                    "snapshotGeneratedAtUtc is required when snapshotAvailable is true."
+                );
+            }
+        }
+        else
+        {
+            if (payload.SnapshotGeneratedAtUtc is not null)
+            {
+                throw new ProtocolValidationException(
+                    "snapshotGeneratedAtUtc must be null when snapshotAvailable is false."
+                );
+            }
+
+            if (payload.Items.Count != 0)
+            {
+                throw new ProtocolValidationException(
+                    "items must be empty when snapshotAvailable is false."
+                );
+            }
+        }
+
+        if (payload.RefreshRequestedAtUtc is DateTimeOffset requestedAt && requestedAt == default)
+        {
+            throw new ProtocolValidationException("refreshRequestedAtUtc must be a valid timestamp when provided.");
+        }
+
+        if (payload.RefreshCompletedAtUtc is DateTimeOffset completedAt && completedAt == default)
+        {
+            throw new ProtocolValidationException("refreshCompletedAtUtc must be a valid timestamp when provided.");
+        }
+
+        if (refreshState == CatalogRefreshState.Failed)
+        {
+            if (payload.RefreshErrorCode is not null &&
+                !string.Equals(payload.RefreshErrorCode, "refresh_failed", StringComparison.Ordinal))
+            {
+                throw new ProtocolValidationException(
+                    $"Unsupported refreshErrorCode '{payload.RefreshErrorCode}'."
+                );
+            }
+        }
+        else if (payload.RefreshErrorCode is not null)
+        {
+            throw new ProtocolValidationException(
+                "refreshErrorCode is only allowed when refreshState is Failed."
+            );
+        }
+
+        return refreshState;
+    }
+
     public static void ValidateStatusEvent(OperationStatusEventPayload payload)
     {
         if (payload.ProgressPercent is < 0 or > 100)

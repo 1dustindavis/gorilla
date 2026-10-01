@@ -20,6 +20,14 @@ public enum OptionalInstallStatus
     Unknown,
 }
 
+public enum CatalogRefreshState
+{
+    Idle,
+    Queued,
+    Running,
+    Failed,
+}
+
 public sealed record OptionalInstallItem(
     string ItemName,
     string DisplayName,
@@ -41,6 +49,16 @@ public sealed record OptionalInstallItem(
     string? IconPath = null
 );
 
+public sealed record OptionalInstallsSnapshotResult(
+    IReadOnlyList<OptionalInstallItem> Items,
+    bool SnapshotAvailable,
+    DateTimeOffset? SnapshotGeneratedAtUtc,
+    CatalogRefreshState RefreshState,
+    DateTimeOffset? RefreshRequestedAtUtc,
+    DateTimeOffset? RefreshCompletedAtUtc,
+    string? RefreshErrorCode
+);
+
 public sealed record OperationAccepted(
     string OperationId,
     bool Accepted,
@@ -60,7 +78,10 @@ public sealed record OperationStatusEvent(
 
 public interface IGorillaServiceClient
 {
-    Task<IReadOnlyList<OptionalInstallItem>> ListOptionalInstallsAsync(CancellationToken cancellationToken);
+    Task<OptionalInstallsSnapshotResult> ListOptionalInstallsAsync(
+        bool refresh,
+        CancellationToken cancellationToken
+    );
 
     Task<OperationAccepted> InstallItemAsync(string itemName, CancellationToken cancellationToken);
 

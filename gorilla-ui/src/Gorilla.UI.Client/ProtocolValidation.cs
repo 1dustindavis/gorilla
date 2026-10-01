@@ -86,12 +86,12 @@ public static class ProtocolValidation
             }
         }
 
-        if (payload.RefreshRequestedAtUtc == default)
+        if (payload.RefreshRequestedAtUtc is DateTimeOffset requestedAt && requestedAt == default)
         {
             throw new ProtocolValidationException("refreshRequestedAtUtc must be a valid timestamp when provided.");
         }
 
-        if (payload.RefreshCompletedAtUtc == default)
+        if (payload.RefreshCompletedAtUtc is DateTimeOffset completedAt && completedAt == default)
         {
             throw new ProtocolValidationException("refreshCompletedAtUtc must be a valid timestamp when provided.");
         }

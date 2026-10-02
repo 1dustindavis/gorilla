@@ -23,7 +23,7 @@ public sealed class AppDetailsTests
         {
             var home = new HomePageDriver(session);
             home.Search("celestial amber telescope");
-            _ = home.WaitForItem(InstalledFixtureItemName);
+            home.WaitForItemStatus(InstalledFixtureItemName, "Installed", TimeSpan.FromSeconds(30));
             Assert.False(home.HasDescriptionElement(InstalledFixtureItemName));
 
             home.OpenDetails(InstalledFixtureItemName);
@@ -130,6 +130,10 @@ public sealed class AppDetailsTests
             });
             primaryAction.Invoke();
             details.WaitForActiveOperation("Install", TimeSpan.FromSeconds(30));
+            session.WaitUntil(
+                () => !string.IsNullOrWhiteSpace(details.ActiveOperationId),
+                TimeSpan.FromSeconds(30)
+            );
             var operationId = details.ActiveOperationId;
             Assert.False(string.IsNullOrWhiteSpace(operationId));
             session.CaptureCheckpoint("details-active-started-details", includeAutomationTree: true);

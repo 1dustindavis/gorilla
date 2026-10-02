@@ -44,7 +44,7 @@ public sealed class IconPresentationTests
                 session.FocusForKeyboard(customItem);
                 Assert.True(customItem.Properties.HasKeyboardFocus.ValueOrDefault);
                 var catalogIcon = WaitForIconState(session, home.WaitForCard(IconItemName), "CatalogIcon", "Custom");
-                var catalogIconBounds = catalogIcon.BoundingRectangle;
+                var catalogIconBounds = WaitForNonZeroBounds(session, catalogIcon);
                 AssertSquareIconBounds(catalogIconBounds.Width, catalogIconBounds.Height);
                 Assert.True(catalogIconBounds.Width >= 50, $"Expected a materially larger Catalog icon, got {catalogIconBounds.Width:0.##}x{catalogIconBounds.Height:0.##}.");
 
@@ -58,7 +58,7 @@ public sealed class IconPresentationTests
 
                 home.OpenDetails(IconItemName);
                 var detailsIcon = WaitForIconState(session, session.MainWindow, "DetailsIcon", "Custom");
-                var detailsIconBounds = detailsIcon.BoundingRectangle;
+                var detailsIconBounds = WaitForNonZeroBounds(session, detailsIcon);
                 AssertSquareIconBounds(detailsIconBounds.Width, detailsIconBounds.Height);
                 Assert.InRange(detailsIconBounds.Width / catalogIconBounds.Width, 1.7, 2.3);
                 Assert.InRange(detailsIconBounds.Height / catalogIconBounds.Height, 1.7, 2.3);
@@ -257,6 +257,28 @@ public sealed class IconPresentationTests
             var state = icon.Properties.ItemStatus.ValueOrDefault;
             return string.Equals(state, expectedState, StringComparison.Ordinal) ? icon : null;
         }, TimeSpan.FromSeconds(15));
+    }
+
+    private static (double Width, double Height) WaitForNonZeroBounds(
+        GorillaAppSession session,
+        AutomationElement element,
+        TimeSpan? timeout = null
+    )
+    {
+        (double Width, double Height)? bounds = null;
+        session.WaitUntil(() =>
+        {
+            var rectangle = element.BoundingRectangle;
+            if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            {
+                return false;
+            }
+
+            bounds = (rectangle.Width, rectangle.Height);
+            return true;
+        }, timeout ?? TimeSpan.FromSeconds(5));
+
+        return bounds!.Value;
     }
 
     private static void AssertSquareIconBounds(double width, double height)

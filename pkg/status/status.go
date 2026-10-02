@@ -324,6 +324,20 @@ func observe(catalogItem catalog.Item, installType, cachePath string, conservati
 		gorillalog.Info("Checking status via script:", catalogItem.DisplayName)
 		actionNeeded, err := checkScript(catalogItem, cachePath, installType)
 		state := Unknown
+		switch installType {
+		case "install", "update":
+			if actionNeeded {
+				state = Absent
+			} else {
+				state = Installed
+			}
+		case "uninstall":
+			if actionNeeded {
+				state = Installed
+			} else {
+				state = Absent
+			}
+		}
 		detail := "script_requirement_satisfied"
 		if actionNeeded {
 			detail = "script_requirement_not_satisfied"

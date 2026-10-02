@@ -104,7 +104,7 @@ Snapshot generation remains serialized with managed execution and may be slow. S
 
 `snapshotGeneratedAtUtc` is the freshness timestamp for service snapshot data. Response receipt time is not freshness. `snapshotAvailable=false` with `items=[]` means no usable service snapshot exists; `snapshotAvailable=true` with `items=[]` means the authoritative catalog is empty.
 
-Startup is cache-first: Core loads usable UI cache, requests `refresh:true`, immediately consumes an available service snapshot when appropriate, then polls `refresh:false` while regeneration is queued/running. Manual Refresh keeps current data visible, requests `refresh:true`, and polls until `Idle` or `Failed`. Post-operation reconciliation reads `refresh:false` because successful targeted verification has already published the service snapshot.
+Startup is cache-first: Core loads usable UI cache, requests `refresh:true`, immediately consumes an available service snapshot when appropriate, then polls `refresh:false` while regeneration is queued/running. Manual Refresh keeps current data visible, requests `refresh:true`, and polls until `Idle` or `Failed`. Post-operation reconciliation reads `refresh:false` because targeted execution has already performed postcondition verification and, when post-operation projection succeeds, published the resulting service snapshot.
 
 An older persisted service snapshot must not replace a newer trusted UI-cached snapshot merely because the service is online. This affects presentation only; mutation admission always uses current service truth.
 

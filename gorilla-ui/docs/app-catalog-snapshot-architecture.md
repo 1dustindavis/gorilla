@@ -135,8 +135,7 @@ A candidate is built completely before publication. If projection fails, the exi
 Snapshots are published after:
 
 - a successful full managed run;
-- successful targeted install verification;
-- successful targeted remove verification;
+- targeted Install/Remove when post-operation projection succeeds;
 - an explicit background refresh.
 
 Full and targeted managed execution return prepared manifest/catalog state so service-side projection can reuse the state already loaded for execution rather than performing an unrelated second repository retrieval.
@@ -168,7 +167,7 @@ Manual Refresh does not hold a named-pipe request open for the duration of snaps
 
 ### Post-operation reconciliation
 
-Targeted Install/Remove execution performs service-side verification and publishes the verified snapshot before the operation is considered reconciled. The UI then reads with `refresh:false`; it does not immediately trigger an additional full refresh.
+Targeted Install/Remove performs service-side postcondition verification and, when the post-operation catalog projection succeeds, publishes that observed snapshot before returning the terminal operation result. The UI then reads with `refresh:false`; it does not immediately trigger an additional full refresh.
 
 ## Authority boundary
 

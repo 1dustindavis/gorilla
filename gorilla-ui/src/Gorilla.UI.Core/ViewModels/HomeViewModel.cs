@@ -164,12 +164,14 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     public async Task InstallAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
         item.TransientFeedback = null;
+        item.InitiatingAction = AppCatalog.Action.Install;
         item.IsBusy = true;
         try
         {
             var accepted = await _client.InstallItemAsync(item.ItemName, cancellationToken);
             if (!accepted.Accepted)
             {
+                item.InitiatingAction = null;
                 item.TransientFeedback = $"Install was not accepted for {item.DisplayName}.";
                 return;
             }
@@ -186,10 +188,12 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         finally
         {
+            item.InitiatingAction = null;
             item.IsBusy = false;
             var current = FindItem(item.ItemName);
             if (current is not null && _operationTracker.GetActiveForItem(item.ItemName) is null)
             {
+                current.InitiatingAction = null;
                 current.IsBusy = false;
             }
         }
@@ -198,12 +202,14 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     public async Task RemoveAsync(UiOptionalInstallItem item, CancellationToken cancellationToken)
     {
         item.TransientFeedback = null;
+        item.InitiatingAction = AppCatalog.Action.Remove;
         item.IsBusy = true;
         try
         {
             var accepted = await _client.RemoveItemAsync(item.ItemName, cancellationToken);
             if (!accepted.Accepted)
             {
+                item.InitiatingAction = null;
                 item.TransientFeedback = $"Remove was not accepted for {item.DisplayName}.";
                 return;
             }
@@ -220,10 +226,12 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         finally
         {
+            item.InitiatingAction = null;
             item.IsBusy = false;
             var current = FindItem(item.ItemName);
             if (current is not null && _operationTracker.GetActiveForItem(item.ItemName) is null)
             {
+                current.InitiatingAction = null;
                 current.IsBusy = false;
             }
         }
@@ -553,8 +561,10 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
             // OperationTracker owns the structured per-item terminal result. The card
             // presentation consumes LatestOperation directly; shell warnings are reserved
-            // for service/catalog/status infrastructure problems.
-            ReprojectOperation(item);
+            // for service/catalog/status infrastructure problems. Passing the received
+            // action lets projection hand client-owned initiation to real service state
+            // only after a validated operation event actually exists.
+            ReprojectOperation(item, update.Action);
         }
     }
 
@@ -650,13 +660,21 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         );
     }
 
-    private void ReprojectOperation(UiOptionalInstallItem item)
+    private void ReprojectOperation(UiOptionalInstallItem item, AppCatalog.Action? receivedAction = null)
     {
         var active = _operationTracker.GetActiveForItem(item.ItemName);
         var latest = _operationTracker.GetLatestTerminalForItem(item.ItemName);
+
+        // Project real service state first. If this is the first received event for
+        // the initiated action, clearing InitiatingAction afterwards cannot expose an
+        // intermediate idle presentation.
         item.ActiveOperation = active is null ? null : ToPresentation(active);
         item.LatestOperation = latest is null ? null : ToPresentation(latest);
-        item.IsBusy = active is not null;
+        if (receivedAction is not null && item.InitiatingAction == receivedAction)
+        {
+            item.InitiatingAction = null;
+        }
+        item.IsBusy = active is not null || item.InitiatingAction is not null;
     }
 
     private static UiOperationPresentation ToPresentation(OperationStatusEvent operation) => new(
@@ -700,12 +718,12 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 );
 
                 var active = _operationTracker.GetActiveForItem(operation.ItemName);
-                var conflictingActive = active is not null &&
-                    !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal);
+                var conflictingCurrentActivity = item?.InitiatingAction is not null ||
+                    (active is not null && !string.Equals(active.OperationId, operation.OperationId, StringComparison.Ordinal));
                 presentation.ApplyRecovery(OperationRecoveryPresentationMapper.Map(
                     operation,
                     item,
-                    conflictingActive
+                    conflictingCurrentActivity
                 ));
             }
 

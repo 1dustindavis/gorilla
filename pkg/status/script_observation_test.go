@@ -89,8 +89,8 @@ func TestObserveScriptState(t *testing.T) {
 			if got.DetailCode != tt.wantDetail {
 				t.Errorf("DetailCode = %q, want %q", got.DetailCode, tt.wantDetail)
 			}
-			if got.InstalledVersion != "" {
-				t.Errorf("InstalledVersion = %q, want empty", got.InstalledVersion)
+			if got.InstalledVersion != nil {
+				t.Errorf("InstalledVersion = %q, want nil", *got.InstalledVersion)
 			}
 		})
 	}
@@ -120,7 +120,7 @@ func TestObserveScriptExecutionFailure(t *testing.T) {
 	if got.DetailCode != "check_failed" {
 		t.Errorf("DetailCode = %q, want %q", got.DetailCode, "check_failed")
 	}
-	if got.InstalledVersion != "" {
-		t.Errorf("InstalledVersion = %q, want empty", got.InstalledVersion)
+	if got.InstalledVersion != nil {
+		t.Errorf("InstalledVersion = %q, want nil", *got.InstalledVersion)
 	}
 }

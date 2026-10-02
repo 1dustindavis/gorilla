@@ -21,6 +21,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
     private ActionDecision _removeDecision = new(false, "Refresh required before removing.");
     private UiOperationPresentation? _activeOperation;
     private UiOperationPresentation? _latestOperation;
+    private CatalogAction? _initiatingAction;
     private string? _transientFeedback;
     private string? _installRetryBlockedReason;
     private string? _removeRetryBlockedReason;
@@ -173,6 +174,7 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             if (SetField(ref _activeOperation, value))
             {
                 OnPropertyChanged(nameof(Status));
+                OnPropertyChanged(nameof(HasCurrentActivity));
                 OnPresentationsChanged();
             }
         }
@@ -190,6 +192,21 @@ public sealed class UiOptionalInstallItem : INotifyPropertyChanged
             }
         }
     }
+
+    public CatalogAction? InitiatingAction
+    {
+        get => _initiatingAction;
+        set
+        {
+            if (SetField(ref _initiatingAction, value))
+            {
+                OnPropertyChanged(nameof(HasCurrentActivity));
+                OnPresentationsChanged();
+            }
+        }
+    }
+
+    public bool HasCurrentActivity => ActiveOperation is not null || InitiatingAction is not null;
 
     public string? TransientFeedback
     {

@@ -33,6 +33,44 @@ public sealed class CatalogCardPresentationMapperTests
     }
 
     [Fact]
+    public void UnknownSatisfied_PresentsInstalledWithoutChangingObservation()
+    {
+        var item = Item(ObservedState.Unknown, installAllowed: true, removeAllowed: true);
+        item.Observation = item.Observation with { InstallRequirement = RequirementState.Satisfied };
+        item.Policy = new Policy(true, false, false, false, Selection.None);
+
+        var presentation = CatalogCardPresentationMapper.Map(item);
+
+        Assert.Equal(ObservedState.Unknown, item.ObservedState);
+        Assert.Equal("Installed", presentation.ObservationText);
+        Assert.Equal("Enable Updates", presentation.PrimaryAction?.Label);
+        Assert.Equal("Remove", presentation.SecondaryAction?.Label);
+    }
+
+    [Fact]
+    public void UnknownNotSatisfied_PresentsInstallOrUpdateNeeded()
+    {
+        var item = Item(ObservedState.Unknown, installAllowed: true, removeAllowed: false);
+        item.Observation = item.Observation with { InstallRequirement = RequirementState.NotSatisfied };
+
+        var presentation = CatalogCardPresentationMapper.Map(item);
+
+        Assert.Equal(ObservedState.Unknown, item.ObservedState);
+        Assert.Equal("Install or update needed", presentation.ObservationText);
+        Assert.Equal("Install", presentation.PrimaryAction?.Label);
+    }
+
+    [Fact]
+    public void UnknownRequirementUnknown_RemainsStatusUnavailable()
+    {
+        var presentation = CatalogCardPresentationMapper.Map(
+            Item(ObservedState.Unknown, installAllowed: false, removeAllowed: false)
+        );
+
+        Assert.Equal("Status unavailable", presentation.ObservationText);
+    }
+
+    [Fact]
     public void UpdateAvailable_WithBothAllowed_PresentsUpdateThenRemove()
     {
         var item = Item(ObservedState.UpdateAvailable, installAllowed: true, removeAllowed: true);

@@ -1,6 +1,6 @@
 # Gorilla UI Architecture
 
-This document describes the current App Catalog architecture. Historical implementation sequencing lives in [issue #208](https://github.com/1dustindavis/gorilla/issues/208); the current product contract is [docs/app-catalog-contract.md](docs/app-catalog-contract.md), and recovery details are in [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md).
+This document describes the current App Catalog architecture. Historical implementation sequencing lives in [issue #208](https://github.com/1dustindavis/gorilla/issues/208); the current product contract is [docs/app-catalog-contract.md](docs/app-catalog-contract.md), the final snapshot architecture is [docs/app-catalog-snapshot-architecture.md](docs/app-catalog-snapshot-architecture.md), and recovery details are in [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md).
 
 ## Runtime layers
 
@@ -17,7 +17,7 @@ Core targets ordinary `net8.0` and does not depend on WinUI. Client does not dep
 
 App Catalog normally runs as a standard, non-elevated packaged UI and talks over the `gorilla-service` named pipe to the installed Gorilla Windows service, which runs as `LocalSystem`.
 
-The service is authoritative for optional-software observation, policy/action admission, mutation execution, operation identity, and retained operation lookup. Core renders and orchestrates service-owned truth; it must not reimplement detection or authorize an action from cached UI state.
+The service is authoritative for optional-software observation, policy/action admission, mutation execution, operation identity, retained operation lookup, and the service-owned App Catalog snapshot. Core renders and orchestrates service-owned truth; it must not reimplement detection or authorize an action from cached UI state.
 
 Accepted App Catalog mutations use a targeted managed-execution path behind the existing service boundary. `InstallItem` executes the requested item plus its required install dependency closure; `RemoveItem` executes only the requested uninstall. These operations do not process unrelated managed installs, uninstalls, or updates. Normal CLI execution, service startup convergence, scheduled/periodic convergence, and explicit service Run operations continue to use the full managed convergence path. Both execution modes share Gorilla's manifest/catalog loading, installer/process primitives, status evidence, logging/reporting, cache handling, and service serialization.
 
@@ -35,9 +35,11 @@ The active protocol uses newline-delimited UTF-8 JSON envelopes with `version: "
 
 A request/response/event/error envelope carries `requestId` for request correlation and, where applicable, `operationId` for one accepted service operation. Install and Remove requests also carry a caller-generated `mutationId`.
 
+Supported App Catalog clients send an explicit `refresh` value with `ListOptionalInstalls`: `refresh:true` returns the current snapshot immediately and requests/coalesces background regeneration; `refresh:false` returns current snapshot and refresh state without triggering regeneration. Startup and manual Refresh use `true`; polling and post-operation reconciliation use `false`.
+
 `mutationId` identifies one logical user mutation across acknowledgement uncertainty. Repeating the same mutation ID for the same item/action resolves to the original operation; it is not a request to run the installer again. Reusing it for a different item/action is rejected.
 
-See `Gorilla.UI.Client/ProtocolConstants.cs`, `ProtocolPayloads.cs`, and the Go service implementation for the executable contract.
+See `Gorilla.UI.Client/ProtocolConstants.cs`, `ProtocolPayloads.cs`, the Go service implementation, and [docs/app-catalog-snapshot-architecture.md](docs/app-catalog-snapshot-architecture.md) for the executable contract.
 
 ## Optional-software model
 
@@ -89,15 +91,24 @@ For a retained unsuccessful operation, Core resolves the current canonical item 
 
 A service admission rejection is current-action feedback, not a synthetic new operation result. A successful Refresh can make Retry eligible or ineligible as current catalog truth changes.
 
-## Catalog cache, freshness, and degraded state
+## Catalog snapshot, cache, freshness, and degraded state
 
-Startup is cache-first when a usable cache exists, followed by an immediate live refresh. Cached data is explicitly identified as cached/stale presentation and never becomes service authority for a mutation.
+Catalog presentation has two persistence layers with separate failure domains:
 
-- A successful live refresh replaces cached presentation and records live freshness/last-updated information.
-- If live refresh fails and usable cache exists, cached data remains visible with degraded/offline presentation.
-- If no usable cache exists and live loading fails, App Catalog shows explicit load-failed/no-cached-data state.
-- If fresh live data is obtained but cache persistence fails, the fresh live data remains usable; cache-write failure is degradation, not a service-load failure.
-- Loading, authoritative empty assignment, no search results, no cached data, and load failure are distinct states.
+- the **service-owned last-known-good snapshot** lives in memory and at `%ProgramData%\gorilla\app-catalog-snapshot.json`; it keeps service reads fast while managed execution/startup convergence is busy and survives service restart;
+- the **per-user UI fallback cache** lives under LocalAppData / packaged-app storage and keeps the last known presentation available when the service or named pipe is unavailable.
+
+Neither layer is authoritative for Install/Remove admission.
+
+Snapshot generation remains serialized with managed execution and may be slow. Snapshot serving is a cheap fast path that does not wait behind `execMutex`. The service builds a complete candidate and publishes it only on success; generation failure retains the previous snapshot.
+
+`snapshotGeneratedAtUtc` is the freshness timestamp for service snapshot data. Response receipt time is not freshness. `snapshotAvailable=false` with `items=[]` means no usable service snapshot exists; `snapshotAvailable=true` with `items=[]` means the authoritative catalog is empty.
+
+Startup is cache-first: Core loads usable UI cache, requests `refresh:true`, immediately consumes an available service snapshot when appropriate, then polls `refresh:false` while regeneration is queued/running. Manual Refresh keeps current data visible, requests `refresh:true`, and polls until `Idle` or `Failed`. Post-operation reconciliation reads `refresh:false` because successful targeted verification has already published the service snapshot.
+
+An older persisted service snapshot must not replace a newer trusted UI-cached snapshot merely because the service is online. This affects presentation only; mutation admission always uses current service truth.
+
+See [docs/app-catalog-snapshot-architecture.md](docs/app-catalog-snapshot-architecture.md) for full publication, refresh-state, persistence, and UI semantics.
 
 Infrastructure/connection uncertainty is presented separately from app-specific operation failure.
 

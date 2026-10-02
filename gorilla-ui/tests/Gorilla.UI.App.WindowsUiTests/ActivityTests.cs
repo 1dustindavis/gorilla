@@ -53,33 +53,100 @@ public sealed class ActivityTests
         RunWithDiagnostics(nameof(CatalogRefreshPreservesActiveOperationAndActivityIdentity), session =>
         {
             var slowMarkerPath = RequiredPath("GORILLA_UI_E2E_SLOW_MARKER_PATH");
-            var home = new HomePageDriver(session);
-            var shell = new CatalogShellDriver(session);
-            EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
+            if (!TryResolveMutableFixture(out var installScriptPath, out var catalogPath))
+            {
+                // This scenario requires the mutable HTTP fixture repository so the
+                // installer can be gated deterministically while refresh is queued.
+                return;
+            }
 
-            home.PrimaryActionButton(SlowFixtureItemName).Invoke();
-            home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
-            var operationId = home.OperationId(SlowFixtureItemName);
-            Assert.False(string.IsNullOrWhiteSpace(operationId));
+            var originalScript = File.ReadAllText(installScriptPath);
+            var originalCatalog = File.ReadAllText(catalogPath);
+            var originalHash = Sha256(installScriptPath);
+            var gateStartedPath = slowMarkerPath + ".gate-started";
+            var gateReleasePath = slowMarkerPath + ".gate-release";
 
-            shell.Refresh();
-            shell.WaitForRefreshStarted(TimeSpan.FromSeconds(30));
-            Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+            try
+            {
+                var home = new HomePageDriver(session);
+                var shell = new CatalogShellDriver(session);
+                EnsureSlowFixtureAbsent(session, home, slowMarkerPath);
+                File.Delete(gateStartedPath);
+                File.Delete(gateReleasePath);
 
-            var activity = ActivityPageDriver.OpenFromCatalog(session);
-            activity.WaitForOperationState(operationId, "Installing", TimeSpan.FromSeconds(30));
-            Assert.Equal(1, activity.CountEntries(operationId));
-            Assert.Equal("Install", activity.ActionText(operationId));
-            session.CaptureCheckpoint("activity-during-catalog-refresh", includeAutomationTree: true);
+                var started = gateStartedPath.Replace("'", "''", StringComparison.Ordinal);
+                var release = gateReleasePath.Replace("'", "''", StringComparison.Ordinal);
+                var marker = slowMarkerPath.Replace("'", "''", StringComparison.Ordinal);
+                File.WriteAllText(
+                    installScriptPath,
+                    $"$started = '{started}'\r\n" +
+                    $"$release = '{release}'\r\n" +
+                    "New-Item -Path (Split-Path -Path $started -Parent) -ItemType Directory -Force | Out-Null\r\n" +
+                    "Set-Content -LiteralPath $started -Value 'started' -NoNewline\r\n" +
+                    "$deadline = (Get-Date).AddSeconds(45)\r\n" +
+                    "while (-not (Test-Path -LiteralPath $release)) {\r\n" +
+                    "    if ((Get-Date) -ge $deadline) { throw 'Timed out waiting for UI E2E gate release' }\r\n" +
+                    "    Start-Sleep -Milliseconds 100\r\n" +
+                    "}\r\n" +
+                    $"$marker = '{marker}'\r\n" +
+                    "Set-Content -LiteralPath $marker -Value 'installed' -NoNewline\r\n"
+                );
 
-            session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
-            activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
-            Assert.Equal(1, activity.CountEntries(operationId));
+                var gatedHash = Sha256(installScriptPath);
+                Assert.Contains(originalHash, originalCatalog, StringComparison.OrdinalIgnoreCase);
+                File.WriteAllText(
+                    catalogPath,
+                    originalCatalog.Replace(originalHash, gatedHash, StringComparison.OrdinalIgnoreCase)
+                );
 
-            shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
-            Assert.Equal(1, activity.CountEntries(operationId));
-            Assert.Equal("Succeeded", activity.StateText(operationId));
-            session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
+                // Publish the gated fixture before starting the operation. Once the
+                // installer creates gateStartedPath, managed execution is guaranteed
+                // to remain active until this test creates gateReleasePath.
+                shell.Refresh();
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+
+                home.PrimaryActionButton(SlowFixtureItemName).Invoke();
+                session.WaitUntil(() => File.Exists(gateStartedPath), TimeSpan.FromSeconds(30));
+                home.WaitForOperationContaining(SlowFixtureItemName, "Installing", TimeSpan.FromSeconds(30));
+                var operationId = home.OperationId(SlowFixtureItemName);
+                Assert.False(string.IsNullOrWhiteSpace(operationId));
+
+                shell.Refresh();
+                shell.WaitForRefreshStarted(TimeSpan.FromSeconds(30));
+                Assert.False(File.Exists(gateReleasePath));
+                Assert.Equal(operationId, home.OperationId(SlowFixtureItemName));
+
+                var activity = ActivityPageDriver.OpenFromCatalog(session);
+                activity.WaitForOperationState(operationId, "Installing", TimeSpan.FromSeconds(30));
+                Assert.Equal(1, activity.CountEntries(operationId));
+                Assert.Equal("Install", activity.ActionText(operationId));
+                session.CaptureCheckpoint("activity-during-catalog-refresh", includeAutomationTree: true);
+
+                File.WriteAllText(gateReleasePath, "release");
+                session.WaitUntil(() => File.Exists(slowMarkerPath), TimeSpan.FromSeconds(30));
+                activity.WaitForOperationState(operationId, "Succeeded", TimeSpan.FromSeconds(30));
+                Assert.Equal(1, activity.CountEntries(operationId));
+
+                shell.WaitForRefreshComplete(TimeSpan.FromSeconds(30));
+                Assert.Equal(1, activity.CountEntries(operationId));
+                Assert.Equal("Succeeded", activity.StateText(operationId));
+                session.CaptureCheckpoint("activity-after-catalog-refresh", includeAutomationTree: true);
+            }
+            finally
+            {
+                // Always release a possibly blocked installer before restoring the
+                // shared mutable fixture. The gate files are harmless to the normal
+                // slow installer, but remove them after a successful completion.
+                Directory.CreateDirectory(Path.GetDirectoryName(gateReleasePath)!);
+                File.WriteAllText(gateReleasePath, "release");
+                File.WriteAllText(installScriptPath, originalScript);
+                File.WriteAllText(catalogPath, originalCatalog);
+                if (File.Exists(slowMarkerPath))
+                {
+                    File.Delete(gateStartedPath);
+                    File.Delete(gateReleasePath);
+                }
+            }
         });
     }
 

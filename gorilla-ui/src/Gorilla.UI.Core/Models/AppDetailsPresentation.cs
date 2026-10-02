@@ -85,6 +85,7 @@ public static class AppDetailsPresentationMapper
     {
         var card = item.CardPresentation;
         var active = item.ActiveOperation;
+        var initiatingAction = active is null ? item.InitiatingAction : null;
         var latest = item.LatestOperation;
         OperationRecoveryPresentation? recovery = null;
         if (latest is not null && OperationRecoveryPresentationMapper.IsRetryCandidate(latest.Result, latest.State))
@@ -92,21 +93,22 @@ public static class AppDetailsPresentationMapper
             recovery = OperationRecoveryPresentationMapper.Map(
                 latest,
                 item,
-                hasConflictingActiveOperation: active is not null &&
-                    !string.Equals(active.OperationId, latest.OperationId, StringComparison.Ordinal)
+                hasConflictingActiveOperation: item.HasCurrentActivity &&
+                    (active is null || !string.Equals(active.OperationId, latest.OperationId, StringComparison.Ordinal))
             );
         }
 
+        var currentAction = active?.Action ?? initiatingAction;
         return new AppDetailsPresentation(
             Description: EmptyToNull(item.Description),
             ObservationText: ObservationText(item.ObservedState),
             AvailableVersion: EmptyToNull(item.TargetVersion),
             InstalledVersion: EmptyToNull(item.Observation.InstalledVersion),
-            ActiveOperationTitle: active is null ? null : ActiveOperationTitle(item, active.Action),
-            ActiveOperationState: active is null ? null : ActiveOperationState(active.State),
+            ActiveOperationTitle: currentAction is null ? null : ActiveOperationTitle(item, currentAction.Value),
+            ActiveOperationState: active is not null ? ActiveOperationState(active.State) : initiatingAction is not null ? "Preparing" : null,
             ActiveOperationMessage: active is null ? null : EmptyToNull(active.Message),
             ProgressPercent: active?.ProgressPercent,
-            LatestResultHeading: LatestResultHeading(active, latest),
+            LatestResultHeading: LatestResultHeading(item.HasCurrentActivity, latest),
             LatestResultDetail: LatestResultDetail(latest),
             LatestRecovery: recovery,
             LatestOperationId: latest?.OperationId,
@@ -114,7 +116,7 @@ public static class AppDetailsPresentationMapper
             SecondaryAction: card.SecondaryAction,
             InstallUnavailableExplanation: Explanation("Install", item.InstallDecision),
             RemoveUnavailableExplanation: Explanation("Remove", item.RemoveDecision),
-            ActionFeedbackText: active is null ? EmptyToNull(item.TransientFeedback) : null
+            ActionFeedbackText: item.HasCurrentActivity ? null : EmptyToNull(item.TransientFeedback)
         );
     }
 
@@ -156,14 +158,14 @@ public static class AppDetailsPresentationMapper
         _ => "Working",
     };
 
-    private static string? LatestResultHeading(UiOperationPresentation? active, UiOperationPresentation? latest)
+    private static string? LatestResultHeading(bool hasCurrentActivity, UiOperationPresentation? latest)
     {
         if (latest?.Result is not { } result)
         {
             return null;
         }
 
-        var prefix = active is null ? "Latest result" : "Previous result";
+        var prefix = hasCurrentActivity ? "Previous result" : "Latest result";
         return $"{prefix}: {ActionLabel(latest.Action)} — {OutcomeLabel(result.Outcome)}";
     }
 

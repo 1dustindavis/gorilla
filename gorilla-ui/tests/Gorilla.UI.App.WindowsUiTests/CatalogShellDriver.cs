@@ -103,16 +103,8 @@ internal sealed class CatalogShellDriver
 
     public void WaitForRefreshStarted(TimeSpan? timeout = null)
     {
-        // Refresh regeneration can complete in only a few milliseconds. FlaUI may
-        // therefore miss the transient disabled/progress state entirely even though
-        // the refresh request was accepted and completed successfully. Tests that
-        // care about the durable refresh result call WaitForRefreshComplete later;
-        // here, accept either an observed in-progress state or an already-completed
-        // state instead of requiring automation to sample a fleeting transition.
         _session.WaitUntil(
-            () =>
-                (IsRefreshing && FreshnessText.Contains("Refreshing", StringComparison.OrdinalIgnoreCase))
-                || (RefreshButton.IsEnabled && !FreshnessText.Contains("Refreshing", StringComparison.OrdinalIgnoreCase)),
+            () => IsRefreshing && FreshnessText.Contains("Refreshing", StringComparison.OrdinalIgnoreCase),
             timeout
         );
     }

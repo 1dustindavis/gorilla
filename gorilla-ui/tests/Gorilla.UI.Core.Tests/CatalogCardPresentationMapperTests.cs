@@ -48,7 +48,7 @@ public sealed class CatalogCardPresentationMapperTests
     }
 
     [Fact]
-    public void UnknownNotSatisfied_PresentsInstallOrUpdateNeeded()
+    public void UnknownNotSatisfied_PresentsNotInstalledOrUpdateNeeded()
     {
         var item = Item(ObservedState.Unknown, installAllowed: true, removeAllowed: false);
         item.Observation = item.Observation with { InstallRequirement = RequirementState.NotSatisfied };
@@ -56,7 +56,7 @@ public sealed class CatalogCardPresentationMapperTests
         var presentation = CatalogCardPresentationMapper.Map(item);
 
         Assert.Equal(ObservedState.Unknown, item.ObservedState);
-        Assert.Equal("Install or update needed", presentation.ObservationText);
+        Assert.Equal("Not installed or update needed", presentation.ObservationText);
         Assert.Equal("Install", presentation.PrimaryAction?.Label);
     }
 

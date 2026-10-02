@@ -38,7 +38,7 @@ public sealed class AppDetailsPresentationMapperTests
     }
 
     [Fact]
-    public void Map_UnknownNotSatisfiedScript_PresentsInstallOrUpdateNeeded()
+    public void Map_UnknownNotSatisfiedScript_PresentsNotInstalledOrUpdateNeeded()
     {
         var item = Item(ObservedState.Unknown);
         item.Observation = item.Observation with { InstallRequirement = RequirementState.NotSatisfied };
@@ -47,7 +47,7 @@ public sealed class AppDetailsPresentationMapperTests
         var details = AppDetailsPresentationMapper.Map(item);
 
         Assert.Equal(ObservedState.Unknown, item.ObservedState);
-        Assert.Equal("Install or update needed", details.ObservationText);
+        Assert.Equal("Not installed or update needed", details.ObservationText);
         Assert.Equal("Install", details.PrimaryAction?.Label);
     }
 

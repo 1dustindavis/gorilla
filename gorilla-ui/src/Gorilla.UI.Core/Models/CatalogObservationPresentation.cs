@@ -11,7 +11,7 @@ internal static class CatalogObservationPresentation
             return item.Observation.InstallRequirement switch
             {
                 RequirementState.Satisfied => "Installed",
-                RequirementState.NotSatisfied => "Install or update needed",
+                RequirementState.NotSatisfied => "Not installed or update needed",
                 _ => "Status unavailable",
             };
         }

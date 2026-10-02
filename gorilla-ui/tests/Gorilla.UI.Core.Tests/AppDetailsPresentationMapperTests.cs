@@ -22,6 +22,36 @@ public sealed class AppDetailsPresentationMapperTests
     }
 
     [Fact]
+    public void Map_UnknownSatisfiedScript_PresentsInstalledWithoutChangingObservation()
+    {
+        var item = Item(ObservedState.Unknown);
+        item.Observation = item.Observation with { InstallRequirement = RequirementState.Satisfied };
+        item.InstallDecision = new ActionDecision(true, string.Empty);
+        item.RemoveDecision = new ActionDecision(true, string.Empty);
+
+        var details = AppDetailsPresentationMapper.Map(item);
+
+        Assert.Equal(ObservedState.Unknown, item.ObservedState);
+        Assert.Equal("Installed", details.ObservationText);
+        Assert.Equal("Enable Updates", details.PrimaryAction?.Label);
+        Assert.Equal("Remove", details.SecondaryAction?.Label);
+    }
+
+    [Fact]
+    public void Map_UnknownNotSatisfiedScript_PresentsNotInstalledOrUpdateNeeded()
+    {
+        var item = Item(ObservedState.Unknown);
+        item.Observation = item.Observation with { InstallRequirement = RequirementState.NotSatisfied };
+        item.InstallDecision = new ActionDecision(true, string.Empty);
+
+        var details = AppDetailsPresentationMapper.Map(item);
+
+        Assert.Equal(ObservedState.Unknown, item.ObservedState);
+        Assert.Equal("Not installed or update needed", details.ObservationText);
+        Assert.Equal("Install", details.PrimaryAction?.Label);
+    }
+
+    [Fact]
     public void Map_UsesIndependentAvailableAndObservedInstalledVersions()
     {
         var item = Item(ObservedState.UpdateAvailable, installedVersion: "1.7", targetVersion: "2.0");
@@ -115,6 +145,20 @@ public sealed class AppDetailsPresentationMapperTests
     public void Map_InstalledUnselectedActiveInstallUsesEnablingUpdatesTitle()
     {
         var item = Item(ObservedState.Installed);
+        item.ActiveOperation = new UiOperationPresentation(
+            "active", AppCatalog.Action.Install, OperationState.Validating, null,
+            null, "Preparing", Now);
+
+        var details = AppDetailsPresentationMapper.Map(item);
+
+        Assert.Equal("Enabling updates", details.ActiveOperationTitle);
+    }
+
+    [Fact]
+    public void Map_UnknownSatisfiedActiveInstallUsesEnablingUpdatesTitle()
+    {
+        var item = Item(ObservedState.Unknown);
+        item.Observation = item.Observation with { InstallRequirement = RequirementState.Satisfied };
         item.ActiveOperation = new UiOperationPresentation(
             "active", AppCatalog.Action.Install, OperationState.Validating, null,
             null, "Preparing", Now);

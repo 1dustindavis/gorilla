@@ -99,7 +99,7 @@ public static class AppDetailsPresentationMapper
 
         return new AppDetailsPresentation(
             Description: EmptyToNull(item.Description),
-            ObservationText: ObservationText(item.ObservedState),
+            ObservationText: CatalogObservationPresentation.StatusText(item),
             AvailableVersion: EmptyToNull(item.TargetVersion),
             InstalledVersion: EmptyToNull(item.Observation.InstalledVersion),
             ActiveOperationTitle: active is null ? null : ActiveOperationTitle(item, active.Action),
@@ -118,16 +118,6 @@ public static class AppDetailsPresentationMapper
         );
     }
 
-    private static string ObservationText(ObservedState state) => state switch
-    {
-        ObservedState.Absent => "Not installed",
-        ObservedState.Installed => "Installed",
-        ObservedState.UpdateAvailable => "Update available",
-        ObservedState.Unknown => "Status unavailable",
-        ObservedState.DetectionFailed => "Unable to determine status",
-        _ => "Status unavailable",
-    };
-
     private static string ActiveOperationTitle(UiOptionalInstallItem item, CatalogAction action)
     {
         if (action == CatalogAction.Remove)
@@ -138,7 +128,7 @@ public static class AppDetailsPresentationMapper
         {
             return "Update in progress";
         }
-        if (item.ObservedState == ObservedState.Installed && item.Policy?.Selection == Selection.None)
+        if (CatalogObservationPresentation.PresentsAsInstalled(item) && item.Policy?.Selection == Selection.None)
         {
             return "Enabling updates";
         }

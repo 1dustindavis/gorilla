@@ -41,7 +41,7 @@ public static class CatalogCardPresentationMapper
     {
         var (primary, secondary) = MapActions(item);
         return new CatalogCardPresentation(
-            ObservationText: ObservationText(item.ObservedState),
+            ObservationText: CatalogObservationPresentation.StatusText(item),
             VersionText: VersionText(item),
             OperationText: OperationText(item.ActiveOperation),
             TerminalFeedbackText: TerminalFeedbackText(item),
@@ -91,23 +91,13 @@ public static class CatalogCardPresentationMapper
             return "Update";
         }
 
-        if (item.ObservedState == ObservedState.Installed && item.Policy?.Selection == Selection.None)
+        if (CatalogObservationPresentation.PresentsAsInstalled(item) && item.Policy?.Selection == Selection.None)
         {
             return "Enable Updates";
         }
 
         return "Install";
     }
-
-    private static string ObservationText(ObservedState state) => state switch
-    {
-        ObservedState.Absent => "Not installed",
-        ObservedState.Installed => "Installed",
-        ObservedState.UpdateAvailable => "Update available",
-        ObservedState.Unknown => "Status unavailable",
-        ObservedState.DetectionFailed => "Unable to determine status",
-        _ => "Status unavailable",
-    };
 
     private static string? VersionText(UiOptionalInstallItem item)
     {

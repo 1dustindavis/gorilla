@@ -43,7 +43,7 @@ public static class CatalogCardPresentationMapper
         return new CatalogCardPresentation(
             ObservationText: CatalogObservationPresentation.StatusText(item),
             VersionText: VersionText(item),
-            OperationText: OperationText(item.ActiveOperation),
+            OperationText: OperationText(item),
             TerminalFeedbackText: TerminalFeedbackText(item),
             ProgressPercent: item.ActiveOperation?.ProgressPercent,
             PrimaryAction: primary,
@@ -114,29 +114,30 @@ public static class CatalogCardPresentationMapper
         return $"Version {item.TargetVersion}";
     }
 
-    private static string? OperationText(UiOperationPresentation? operation)
+    private static string? OperationText(UiOptionalInstallItem item)
     {
-        if (operation is null)
+        var operation = item.ActiveOperation;
+        if (operation is not null)
         {
-            return null;
+            return operation.State switch
+            {
+                OperationState.Queued or OperationState.Validating => "Preparing…",
+                OperationState.Downloading => "Downloading…",
+                OperationState.Installing => "Installing…",
+                OperationState.Removing => "Removing…",
+                OperationState.Completed => operation.Action == CatalogAction.Remove ? "Removing…" : "Installing…",
+                _ => "Working…",
+            };
         }
 
-        return operation.State switch
-        {
-            OperationState.Queued or OperationState.Validating => "Preparing…",
-            OperationState.Downloading => "Downloading…",
-            OperationState.Installing => "Installing…",
-            OperationState.Removing => "Removing…",
-            OperationState.Completed => operation.Action == CatalogAction.Remove ? "Removing…" : "Installing…",
-            _ => "Working…",
-        };
+        return item.InitiatingAction is not null ? "Preparing…" : null;
     }
 
     private static string? TerminalFeedbackText(UiOptionalInstallItem item)
     {
-        // Active work supersedes both transient admission feedback and retained
-        // terminal feedback from a prior operation.
-        if (item.ActiveOperation is not null)
+        // Current work supersedes both transient admission feedback and retained
+        // terminal feedback from a prior operation, including client-owned initiation.
+        if (item.HasCurrentActivity)
         {
             return null;
         }

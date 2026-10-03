@@ -204,6 +204,11 @@ public sealed class CatalogSurfaceTests
                 home.WaitForItemStatus(SlowFixtureItemName, "Not installed", TimeSpan.FromSeconds(30));
             }
 
+            session.WaitUntil(
+                () => home.PrimaryActionButton(SlowFixtureItemName).IsEnabled,
+                TimeSpan.FromSeconds(30)
+            );
+
             var actionTopBefore = home.PrimaryActionTop(SlowFixtureItemName);
             home.PrimaryActionButton(SlowFixtureItemName).Invoke();
 

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,30 @@ func TestLoadPackageInfoValidation(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %q, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadPackageInfoRejectsCatalogPaths(t *testing.T) {
+	for _, catalogName := range []string{
+		"../manifests/foo",
+		"foo/bar",
+		`foo\bar`,
+		"C:foo",
+		".",
+		"..",
+	} {
+		t.Run(catalogName, func(t *testing.T) {
+			repo := t.TempDir()
+			contents := fmt.Sprintf("item_name: App\ncatalog: '%s'\nversion: 1.0\n", catalogName)
+			writePackageInfo(t, repo, "invalid.yaml", contents)
+			_, err := loadPackageInfo(repo)
+			if err == nil {
+				t.Fatalf("loadPackageInfo() accepted catalog %q", catalogName)
+			}
+			if !strings.Contains(err.Error(), "invalid catalog") {
+				t.Fatalf("error = %q, want invalid catalog", err)
 			}
 		})
 	}

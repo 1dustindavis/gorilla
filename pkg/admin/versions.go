@@ -7,10 +7,10 @@ import (
 )
 
 type versionToken struct {
-	text      string
-	numeric   bool
-	number    *big.Int
-	preRank   int
+	text         string
+	numeric      bool
+	number       *big.Int
+	preRank      int
 	isPrerelease bool
 }
 

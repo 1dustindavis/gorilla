@@ -158,7 +158,8 @@ func TestBuildCatalogsReplacementFailureRestoresExistingCatalogs(t *testing.T) {
 	originalRename := adminRename
 	t.Cleanup(func() { adminRename = originalRename })
 	adminRename = func(oldPath, newPath string) error {
-		if strings.Contains(filepath.Base(oldPath), ".catalogs-build-") && newPath == catalogsPath {
+		base := filepath.Base(oldPath)
+		if strings.HasPrefix(base, ".catalogs-build-") && !strings.HasSuffix(base, "-previous") && newPath == catalogsPath {
 			return errors.New("simulated activation failure")
 		}
 		return originalRename(oldPath, newPath)

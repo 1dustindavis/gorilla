@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	configGetFunc                                 = config.Get
 	managedRunFunc         managedrun.RunFunc     = managedRun
 	managedItemRunFunc     managedrun.ItemRunFunc = managedItemRun
 	runServiceFunc                                = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }
@@ -20,11 +21,17 @@ var (
 )
 
 func main() {
-	cfg := config.Get()
-	if err := route(cfg); err != nil {
+	if err := run(os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func run(args []string) error {
+	if isAdminCommand(args) {
+		return runAdmin(args[2:], os.Stdout)
+	}
+	return route(configGetFunc())
 }
 
 func route(cfg config.Configuration) error {

@@ -33,10 +33,13 @@ Pull requests are welcome. Validate changes with:
 make verify
 ```
 
-## Repo Admin Mode
-Gorilla also supports local repo admin workflows:
-- `-b` / `-build`: compile `packages-info/*.yaml` files into catalog files under `catalogs/`
-- `-i` / `-import`: scaffold package-info data from an installer (currently stubbed as not yet implemented)
+## Repository administration
 
-For these modes, set `repo_path` in config (or run from your repo root so the current working directory is used).
-See `examples/example_package-info.yaml` for a package-info example.
+Gorilla can deterministically build generated catalogs from package-info records:
+
+```text
+gorilla admin build
+gorilla admin build --repo /path/to/gorilla-repo
+```
+
+The repository path defaults to the current working directory. Repository administration does not use normal Gorilla client configuration. See [Repository administration](docs/repo-admin-tools.md) and [`examples/example_package-info.yaml`](examples/example_package-info.yaml).

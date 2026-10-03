@@ -20,10 +20,6 @@ var (
 	configDefault     = filepath.Join(os.Getenv("ProgramData"), "gorilla/config.yaml")
 	debugArg          bool
 	debugDefault      = false
-	buildArg          bool
-	buildDefault      = false
-	importArg         string
-	importDefault     = ""
 	helpArg           bool
 	helpDefault       = false
 	verboseArg        bool
@@ -64,8 +60,6 @@ Usage: gorilla.exe [options]
 Options:
 -c, -config         path to configuration file in yaml format
 -C, -checkonly	    enable check only mode
--b, -build          build catalog files from package-info files
--i, -import         create a package-info file from an installer package
 -v, -verbose        enable verbose output
 -d, -debug          enable debug output
 -a, -about          displays the version number and other build info
@@ -78,6 +72,9 @@ Options:
 -servicestop        stop Gorilla Windows service
 -servicestatus      show Gorilla Windows service status
 -h, -help           display this help message
+
+Repository administration uses the separate command boundary:
+  gorilla admin build [--repo <path>]
 
 `
 
@@ -92,15 +89,12 @@ type Configuration struct {
 	Verbose        bool     `yaml:"verbose,omitempty"`
 	Debug          bool     `yaml:"debug,omitempty"`
 	CheckOnly      bool     `yaml:"checkonly,omitempty"`
-	BuildArg       bool
-	ImportArg      string
-	RepoPath       string `yaml:"repo_path,omitempty"`
-	AuthUser       string `yaml:"auth_user,omitempty"`
-	AuthPass       string `yaml:"auth_pass,omitempty"`
-	TLSAuth        bool   `yaml:"tls_auth,omitempty"`
-	TLSClientCert  string `yaml:"tls_client_cert,omitempty"`
-	TLSClientKey   string `yaml:"tls_client_key,omitempty"`
-	TLSServerCert  string `yaml:"tls_server_cert,omitempty"`
+	AuthUser       string   `yaml:"auth_user,omitempty"`
+	AuthPass       string   `yaml:"auth_pass,omitempty"`
+	TLSAuth        bool     `yaml:"tls_auth,omitempty"`
+	TLSClientCert  string   `yaml:"tls_client_cert,omitempty"`
+	TLSClientKey   string   `yaml:"tls_client_key,omitempty"`
+	TLSServerCert  string   `yaml:"tls_server_cert,omitempty"`
 	CachePath      string
 	ServiceMode    bool `yaml:"service_mode,omitempty"`
 	ServiceCommand string
@@ -134,12 +128,6 @@ func init() {
 	// Debug
 	flag.BoolVar(&debugArg, "debug", debugDefault, "")
 	flag.BoolVar(&debugArg, "d", debugDefault, "")
-	// Build
-	flag.BoolVar(&buildArg, "build", buildDefault, "")
-	flag.BoolVar(&buildArg, "b", buildDefault, "")
-	// Import
-	flag.StringVar(&importArg, "import", importDefault, "")
-	flag.StringVar(&importArg, "i", importDefault, "")
 	// Checkonly
 	flag.BoolVar(&checkOnlyArg, "checkonly", checkOnlyDefault, "")
 	flag.BoolVar(&checkOnlyArg, "C", checkOnlyDefault, "")
@@ -167,7 +155,7 @@ func init() {
 	flag.StringVar(&e2eIdentityArg, "integration-test-service-identity", "", "")
 }
 
-func parseArguments() (string, bool, bool, bool, bool, string) {
+func parseArguments() (string, bool, bool, bool) {
 	// Get the command line args
 	flag.Parse()
 	if helpArg {
@@ -184,7 +172,7 @@ func parseArguments() (string, bool, bool, bool, bool, string) {
 		osExit(0)
 	}
 
-	return configArg, verboseArg, debugArg, checkOnlyArg, buildArg, importArg
+	return configArg, verboseArg, debugArg, checkOnlyArg
 }
 
 // Get retrieves and parses the config file and returns a Configuration struct and any errors
@@ -192,7 +180,7 @@ func Get() Configuration {
 	var cfg Configuration
 
 	// Parse any arguments that may have been passed
-	configPath, verbose, debug, checkonly, build, importValue := parseArguments()
+	configPath, verbose, debug, checkonly := parseArguments()
 
 	// Read the config file
 	configFile, err := os.ReadFile(configPath)
@@ -212,7 +200,7 @@ func Get() Configuration {
 	serviceClientMode := serviceCmdArg != ""
 
 	// Normal run mode requires both manifest and URL.
-	if !cfg.BuildArg && cfg.ImportArg == "" && !serviceControlMode && !serviceClientMode {
+	if !serviceControlMode && !serviceClientMode {
 		if cfg.Manifest == "" {
 			fmt.Println("Invalid configuration - Manifest: ", err)
 			osExit(1)
@@ -250,8 +238,6 @@ func Get() Configuration {
 	if checkonly && !cfg.CheckOnly {
 		cfg.CheckOnly = true
 	}
-	cfg.BuildArg = build
-	cfg.ImportArg = importValue
 	cfg.ConfigPath = configPath
 	cfg.ServiceMode = serviceArg
 	cfg.ServiceCommand = serviceCmdArg
@@ -273,16 +259,6 @@ func Get() Configuration {
 	}
 	if !hasServiceManifest {
 		cfg.LocalManifests = append(cfg.LocalManifests, serviceManifestPath)
-	}
-
-	// If RepoPath wasn't provided, default to current working directory.
-	if cfg.RepoPath == "" {
-		repoPath, wdErr := os.Getwd()
-		if wdErr == nil {
-			cfg.RepoPath = repoPath
-		}
-	} else {
-		cfg.RepoPath = filepath.Clean(cfg.RepoPath)
 	}
 
 	// Add to GorillaReport

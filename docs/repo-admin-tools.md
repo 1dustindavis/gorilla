@@ -1,37 +1,58 @@
 # Repository administration
 
-Gorilla can compile package metadata into catalogs:
+Gorilla repository administration uses a dedicated command boundary and does not load normal client configuration.
 
-```powershell
-gorilla.exe -build -config C:\path\to\config.yaml
+## Build catalogs
+
+From the repository root:
+
+```text
+gorilla admin build
 ```
 
-Use a normal client configuration containing `url` and `manifest`, and set `repo_path` to the local Gorilla content repository root. If `repo_path` is omitted, Gorilla uses the current working directory.
+Or specify the repository explicitly:
 
-```yaml
-repo_path: C:/path/to/gorilla-repo
+```text
+gorilla admin build --repo /srv/gorilla
+gorilla admin build --repo C:\gorilla-repo
 ```
 
-Each YAML file under `packages-info/` should contain `catalog` and normal catalog-item fields:
+If `--repo` is omitted, Gorilla uses the current working directory.
+
+The build recursively reads `.yaml` and `.yml` files under `packages-info/` and regenerates `catalogs/<catalog>.yaml`.
+
+Every package-info record must explicitly contain:
 
 ```yaml
 item_name: GoogleChrome
 catalog: base
-display_name: Google Chrome
-icon: icons/google-chrome.png
-installer:
-  type: nupkg
-  location: packages/google-chrome/GoogleChrome.nupkg
-  hash: <sha256>
-check:
-  registry:
-    name: Google Chrome
-    version: 1.2.3.4
-version: 1.2.3.4
+version: 145.0.7632.76
 ```
+
+`item_name`, `catalog`, and `version` are required. Gorilla does not derive identity from `display_name` or the filename, and a record without a catalog is an error. Catalog names are logical identifiers and may not contain path separators, traversal components, or platform-specific path forms.
+
+Package-info files may retain historical versions of the same item. For each `(catalog, item_name)`, catalog generation compares dotted numeric versions and publishes only the newest version. Selection is independent of filenames and filesystem traversal order.
+
+For example, these records may coexist:
+
+```text
+packages-info/chrome-143.yaml
+packages-info/chrome-144.yaml
+packages-info/chrome-145.yaml
+```
+
+If they all describe the same `catalog` and `item_name`, the generated catalog contains only the numerically newest version while all source package-info files remain in place.
+
+Versions must be concrete dotted numeric values such as `1`, `1.0`, `24.09`, `2.47.1`, or `145.0.7632.76`. Arbitrary labels and textual/prerelease forms such as `latest`, `stable`, `1.2-beta`, `v2.4.1`, or `2026-Q3` are rejected.
+
+Trailing numeric zero segments compare equivalently, so `1`, `1.0`, and `1.0.0` have the same ordering value. Separate package-info records for the same `(catalog, item_name)` may not use distinct version strings that compare equivalently; such ambiguity is rejected rather than resolved by filename ordering.
+
+A duplicate `(catalog, item_name, version)` is invalid. Any malformed, duplicate, equivalent-version, or unsupported package-info record causes the entire build to fail.
+
+Gorilla writes the complete generated catalog set to a temporary sibling directory before replacing `catalogs/`. If activation fails, the previous catalog directory is restored rather than leaving missing or partially generated output.
+
+Normal `catalog.Item` metadata remains supported, including display name, description, icon, dependencies, checks, installer/uninstaller metadata, blocking apps, and pre/post-install scripts.
 
 See [the package-info example](../examples/example_package-info.yaml).
 
-`-build` writes one file per catalog to `<repo_path>/catalogs/<catalog>.yaml`. Item keys are selected from `item_name`, then `display_name` without spaces, then the package-info filename. Entries without `catalog` or any usable item name are skipped.
-
-The `-import <path>` command is reserved but not yet implemented.
+Additional repository-admin commands are planned separately; cleanup is not part of the build command.

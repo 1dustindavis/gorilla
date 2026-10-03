@@ -80,9 +80,6 @@ func safeRepositoryIdentity(cfg config.Configuration) string {
 		}
 		return "invalid-url"
 	}
-	if strings.TrimSpace(cfg.RepoPath) != "" {
-		return filepath.Clean(cfg.RepoPath)
-	}
 	return ""
 }
 

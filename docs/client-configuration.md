@@ -28,8 +28,9 @@ service_interval: 1h
 - `local_manifests`: Optional list of local manifest paths processed after remote manifests.
 - `app_data_path`: Working directory for cache, logs, reports, and the service manifest. Defaults to `%ProgramData%\gorilla`.
 - `service_interval`: Interval between service runs in Go duration format, such as `30m`, `1h`, or `2h`. Defaults to `1h`.
-- `repo_path`: Local repository root used by [repository administration](repo-admin-tools.md). Defaults to the current directory.
 - `auth_user` and `auth_pass`: Optional HTTP Basic Authentication credentials.
 - `tls_auth`: Enables mutual TLS when `true`.
 - `tls_client_cert`, `tls_client_key`, and `tls_server_cert`: PEM paths used for mutual TLS.
 - `verbose`, `debug`, and `checkonly`: Optional runtime behavior flags.
+
+Repository administration does not use client configuration. See [Repository administration](repo-admin-tools.md).

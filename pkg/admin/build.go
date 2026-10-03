@@ -5,9 +5,17 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"go.yaml.in/yaml/v4"
+)
+
+var (
+	adminMkdirTemp = os.MkdirTemp
+	adminRemoveAll = os.RemoveAll
+	adminRename    = os.Rename
+	adminWriteFile = os.WriteFile
 )
 
 // BuildResult summarizes one repository catalog build.
@@ -42,7 +50,18 @@ func BuildCatalogs(repoPath string) (BuildResult, error) {
 		if err != nil {
 			return BuildResult{}, fmt.Errorf("compare versions for %s/%s: %w", record.Catalog, record.ItemName, err)
 		}
-		if cmp > 0 || (cmp == 0 && record.Path > current.Path) {
+		if cmp == 0 {
+			return BuildResult{}, fmt.Errorf(
+				"equivalent package-info versions for %s/%s: %s (%s) conflicts with %s (%s)",
+				record.Catalog,
+				record.ItemName,
+				current.Item.Version,
+				displayPackageInfoPath(repoPath, current.Path),
+				record.Item.Version,
+				displayPackageInfoPath(repoPath, record.Path),
+			)
+		}
+		if cmp > 0 {
 			selected[key] = record
 		}
 	}
@@ -70,21 +89,69 @@ func BuildCatalogs(repoPath string) (BuildResult, error) {
 		outputs[catalogName] = contents
 	}
 
-	catalogsPath := filepath.Join(repoPath, "catalogs")
-	if err := os.RemoveAll(catalogsPath); err != nil {
-		return BuildResult{}, fmt.Errorf("clean catalogs path %s: %w", catalogsPath, err)
-	}
-	if err := os.MkdirAll(catalogsPath, 0755); err != nil {
-		return BuildResult{}, fmt.Errorf("create catalogs path %s: %w", catalogsPath, err)
-	}
-	for _, catalogName := range catalogNames {
-		catalogPath := filepath.Join(catalogsPath, catalogName+".yaml")
-		if err := os.WriteFile(catalogPath, outputs[catalogName], 0644); err != nil {
-			return BuildResult{}, fmt.Errorf("write catalog %s: %w", catalogPath, err)
-		}
+	if err := replaceCatalogs(repoPath, catalogNames, outputs); err != nil {
+		return BuildResult{}, err
 	}
 
 	return BuildResult{Records: len(records), Catalogs: len(catalogNames)}, nil
+}
+
+func replaceCatalogs(repoPath string, catalogNames []string, outputs map[string][]byte) error {
+	catalogsPath := filepath.Join(repoPath, "catalogs")
+	tempPath, err := adminMkdirTemp(repoPath, ".catalogs-build-*")
+	if err != nil {
+		return fmt.Errorf("create temporary catalogs directory: %w", err)
+	}
+	defer adminRemoveAll(tempPath)
+
+	for _, catalogName := range catalogNames {
+		catalogPath, err := catalogOutputPath(tempPath, catalogName)
+		if err != nil {
+			return err
+		}
+		if err := adminWriteFile(catalogPath, outputs[catalogName], 0644); err != nil {
+			return fmt.Errorf("write temporary catalog %s: %w", catalogPath, err)
+		}
+	}
+
+	backupPath := tempPath + "-previous"
+	hadExisting := false
+	if _, err := os.Stat(catalogsPath); err == nil {
+		hadExisting = true
+		if err := adminRename(catalogsPath, backupPath); err != nil {
+			return fmt.Errorf("preserve existing catalogs directory: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect existing catalogs directory: %w", err)
+	}
+
+	if err := adminRename(tempPath, catalogsPath); err != nil {
+		if hadExisting {
+			if restoreErr := adminRename(backupPath, catalogsPath); restoreErr != nil {
+				return fmt.Errorf("activate generated catalogs: %w; restore previous catalogs: %v", err, restoreErr)
+			}
+		}
+		return fmt.Errorf("activate generated catalogs: %w", err)
+	}
+
+	if hadExisting {
+		if err := adminRemoveAll(backupPath); err != nil {
+			return fmt.Errorf("remove previous catalogs backup: %w", err)
+		}
+	}
+	return nil
+}
+
+func catalogOutputPath(catalogsPath, catalogName string) (string, error) {
+	candidate := filepath.Join(catalogsPath, catalogName+".yaml")
+	relative, err := filepath.Rel(catalogsPath, candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolve catalog output path for %q: %w", catalogName, err)
+	}
+	if filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("catalog %q resolves outside catalogs directory", catalogName)
+	}
+	return candidate, nil
 }
 
 func marshalCatalog(items map[string]catalog.Item) ([]byte, error) {

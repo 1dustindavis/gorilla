@@ -80,7 +80,7 @@ func loadPackageInfo(repoPath string) ([]packageInfoRecord, error) {
 		if parsed.Item.Version == "" {
 			return nil, fmt.Errorf("%s: version is required", displayPath)
 		}
-		if _, err := parseNumericVersion(parsed.Item.Version); err != nil {
+		if _, err := parseVersion(parsed.Item.Version); err != nil {
 			return nil, fmt.Errorf("%s: unsupported version %q", displayPath, parsed.Item.Version)
 		}
 

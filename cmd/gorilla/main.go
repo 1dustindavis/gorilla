@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	configGetFunc          = config.Get
+	configGetFunc                                 = config.Get
 	managedRunFunc         managedrun.RunFunc     = managedRun
 	managedItemRunFunc     managedrun.ItemRunFunc = managedItemRun
 	runServiceFunc                                = func(cfg config.Configuration) error { return service.Run(cfg, managedRunFunc, managedItemRunFunc) }

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/1dustindavis/gorilla/pkg/admin"
 	"github.com/1dustindavis/gorilla/pkg/catalog"
 	"github.com/1dustindavis/gorilla/pkg/config"
 	"github.com/1dustindavis/gorilla/pkg/download"
@@ -22,8 +21,6 @@ import (
 var (
 	adminCheckFunc               = adminCheck
 	mkdirAllFunc                 = os.MkdirAll
-	buildCatalogsFunc            = admin.BuildCatalogs
-	importItemFunc               = admin.ImportItem
 	managedResultWarnFunc        = gorillalog.Warn
 	manifestGetFunc              = manifest.Get
 	catalogGetFunc               = catalog.Get
@@ -87,26 +84,6 @@ func prepareManagedExecution(cfg config.Configuration) (managedrun.PreparedConte
 }
 
 func managedRun(cfg config.Configuration) (managedrun.RunResult, error) {
-	// Build/import modes operate on repo metadata and do not require admin.
-	buildMode := cfg.BuildArg || cfg.ImportArg != ""
-	if buildMode {
-		if err := prepareManagedEnvironment(cfg, false); err != nil {
-			return managedrun.RunResult{}, err
-		}
-		if cfg.BuildArg {
-			gorillalog.Info("Building catalogs...")
-			if err := buildCatalogsFunc(cfg.RepoPath); err != nil {
-				return managedrun.RunResult{}, fmt.Errorf("error building catalogs: %w", err)
-			}
-			return managedrun.RunResult{}, nil
-		}
-		gorillalog.Info("Importing item...")
-		if err := importItemFunc(cfg.RepoPath, cfg.ImportArg); err != nil {
-			return managedrun.RunResult{}, fmt.Errorf("error importing item: %w", err)
-		}
-		return managedrun.RunResult{}, nil
-	}
-
 	if err := prepareManagedEnvironment(cfg, true); err != nil {
 		return managedrun.RunResult{}, err
 	}

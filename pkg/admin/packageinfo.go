@@ -77,10 +77,13 @@ func loadPackageInfo(repoPath string) ([]packageInfoRecord, error) {
 		if parsed.Catalog == "" {
 			return nil, fmt.Errorf("%s: catalog is required", displayPath)
 		}
+		if err := validateCatalogName(parsed.Catalog); err != nil {
+			return nil, fmt.Errorf("%s: %w", displayPath, err)
+		}
 		if parsed.Item.Version == "" {
 			return nil, fmt.Errorf("%s: version is required", displayPath)
 		}
-		if _, err := parseVersion(parsed.Item.Version); err != nil {
+		if _, err := parseNumericVersion(parsed.Item.Version); err != nil {
 			return nil, fmt.Errorf("%s: unsupported version %q", displayPath, parsed.Item.Version)
 		}
 
@@ -109,6 +112,13 @@ func loadPackageInfo(repoPath string) ([]packageInfoRecord, error) {
 		})
 	}
 	return records, nil
+}
+
+func validateCatalogName(name string) error {
+	if name == "." || name == ".." || strings.ContainsAny(name, `/\\:`) || filepath.IsAbs(name) || filepath.VolumeName(name) != "" {
+		return fmt.Errorf("invalid catalog %q: catalog must be a logical identifier, not a filesystem path", name)
+	}
+	return nil
 }
 
 func displayPackageInfoPath(repoPath, path string) string {

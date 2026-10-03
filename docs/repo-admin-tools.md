@@ -29,9 +29,9 @@ catalog: base
 version: 145.0.7632.76
 ```
 
-`item_name`, `catalog`, and `version` are required. Gorilla does not derive identity from `display_name` or the filename, and a record without a catalog is an error.
+`item_name`, `catalog`, and `version` are required. Gorilla does not derive identity from `display_name` or the filename, and a record without a catalog is an error. Catalog names are logical identifiers and may not contain path separators, traversal components, or platform-specific path forms.
 
-Package-info files may retain historical versions of the same item. For each `(catalog, item_name)`, catalog generation compares concrete version strings deterministically and publishes only the newest version. Selection is independent of filenames and filesystem traversal order.
+Package-info files may retain historical versions of the same item. For each `(catalog, item_name)`, catalog generation compares dotted numeric versions and publishes only the newest version. Selection is independent of filenames and filesystem traversal order.
 
 For example, these records may coexist:
 
@@ -41,13 +41,15 @@ packages-info/chrome-144.yaml
 packages-info/chrome-145.yaml
 ```
 
-If they all describe the same `catalog` and `item_name`, the generated catalog contains only the newest version while all source package-info files remain in place.
+If they all describe the same `catalog` and `item_name`, the generated catalog contains only the numerically newest version while all source package-info files remain in place.
 
-Version comparison supports numeric and alphabetic runs separated by `.`, `-`, `_`, or `+`, as well as adjacent numeric/text runs and an optional leading `v`. Examples include `1`, `1.0`, `24.09`, `2.47.1`, `145.0.7632.76`, `1.2-beta`, `1.2b2`, `2026-Q3`, and `v2.4.1`. Numeric runs compare numerically, text runs compare case-insensitively, and common prerelease markers (`dev`, `alpha`/`a`, `beta`/`b`, `preview`/`pre`, `rc`) sort below the corresponding final release. Trailing numeric zero runs remain equivalent, so `1`, `1.0`, and `1.0.0` compare equally.
+Versions must be concrete dotted numeric values such as `1`, `1.0`, `24.09`, `2.47.1`, or `145.0.7632.76`. Arbitrary labels and textual/prerelease forms such as `latest`, `stable`, `1.2-beta`, `v2.4.1`, or `2026-Q3` are rejected.
 
-Labels that do not identify a concrete version, such as `latest` or `stable`, are rejected.
+Trailing numeric zero segments compare equivalently, so `1`, `1.0`, and `1.0.0` have the same ordering value. Separate package-info records for the same `(catalog, item_name)` may not use distinct version strings that compare equivalently; such ambiguity is rejected rather than resolved by filename ordering.
 
-A duplicate `(catalog, item_name, version)` is invalid. Any malformed, duplicate, or unsupported package-info record causes the entire build to fail; Gorilla validates the repository before replacing the existing generated `catalogs/` directory.
+A duplicate `(catalog, item_name, version)` is invalid. Any malformed, duplicate, equivalent-version, or unsupported package-info record causes the entire build to fail.
+
+Gorilla writes the complete generated catalog set to a temporary sibling directory before replacing `catalogs/`. If activation fails, the previous catalog directory is restored rather than leaving missing or partially generated output.
 
 Normal `catalog.Item` metadata remains supported, including display name, description, icon, dependencies, checks, installer/uninstaller metadata, blocking apps, and pre/post-install scripts.
 

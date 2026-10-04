@@ -55,4 +55,70 @@ Normal `catalog.Item` metadata remains supported, including display name, descri
 
 See [the package-info example](../examples/example_package-info.yaml).
 
-Additional repository-admin commands are planned separately; cleanup is not part of the build command.
+## Plan repository cleanup
+
+Repository cleanup is currently a dry-run planner. It reports what a future cleanup operation would remove but does not delete, rename, rewrite, rebuild, or otherwise modify repository content.
+
+From the repository root:
+
+```text
+gorilla admin cleanup
+```
+
+Or select a repository and retention count explicitly:
+
+```text
+gorilla admin cleanup --repo /srv/gorilla
+gorilla admin cleanup --repo /srv/gorilla --keep 2
+```
+
+`--repo` defaults to the current working directory. `--keep` defaults to `3` and means the total number of package-info versions retained for each live `(catalog, item_name)`, including the current version. Values less than 1 are rejected.
+
+Cleanup recursively reads every `.yaml` and `.yml` file under `manifests/`. Every repository manifest is treated as a root; cleanup does not use the client-configured manifest or runtime include traversal. A missing `manifests/` directory or any malformed manifest causes planning to fail rather than assuming repository content is abandoned.
+
+The following manifest lists make item names live roots:
+
+- `managed_installs`
+- `optional_installs`
+- `managed_uninstalls`
+- `managed_updates`
+
+Manifest references contain an item name but not a catalog. Cleanup therefore uses a conservative repository-wide rule: a reference to an item name keeps every matching `(catalog, item_name)` identity live. The same rule applies to dependencies.
+
+Dependencies are read only from the newest package-info version of each live identity and expanded transitively until no additional item names become live. Cycles are valid. Historical dependency metadata does not keep obsolete items live.
+
+For each live identity, package-info versions are ordered with the same numeric comparator used by catalog builds:
+
+- the newest version is **current**;
+- older versions still within `--keep` are **retained**;
+- older versions beyond `--keep` are **superseded**.
+
+An identity that is not reachable from any manifest or transitive dependency is an **abandoned item**. Every package-info record for an abandoned item is **abandoned package-info**, regardless of the retention count.
+
+Cleanup also evaluates repository file references from these package-info fields:
+
+- `icon`
+- `check.script`
+- `installer.location`
+- `uninstaller.location`
+- `preinstall_script`
+- `postinstall_script`
+
+Only current and retained package-info records keep referenced files live. Reference tracking is global, so a file shared by multiple versions or items remains live as long as at least one surviving record references it.
+
+Repository asset references must be safe repository-relative paths. Absolute paths, drive-qualified paths, URLs, UNC paths, and paths that escape the repository are rejected during planning. This establishes the path-safety invariant required by a future destructive cleanup command.
+
+Abandoned-file discovery is intentionally limited to regular files under:
+
+```text
+packages/
+icons/
+```
+
+Gorilla does not scan manifests, package-info, generated catalogs, metadata, documentation, `.git/`, or arbitrary repository files for cleanup. Directories are not classified. `.gitkeep` marker files are ignored.
+
+A managed file is **abandoned** when no current or retained package-info record references it. A file referenced only by superseded or abandoned package-info is therefore an abandoned-file candidate.
+
+The planner also reports the inverse repository-health problem: a safe repository-relative file referenced by current or retained package-info that is absent from disk is listed as a **missing referenced file**. Missing files are not cleanup candidates and cleanup does not try to repair them.
+
+The report distinguishes active items, current/retained/superseded versions, abandoned items, abandoned files, and missing referenced files, then ends with an explicit dry-run notice. Running `gorilla admin cleanup` never changes repository files in this phase.

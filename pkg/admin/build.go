@@ -24,11 +24,6 @@ type BuildResult struct {
 	Catalogs int
 }
 
-type catalogItemKey struct {
-	Catalog  string
-	ItemName string
-}
-
 // BuildCatalogs validates all package-info records, selects the newest version
 // of each catalog item, then replaces generated catalogs.
 func BuildCatalogs(repoPath string) (BuildResult, error) {
@@ -36,42 +31,21 @@ func BuildCatalogs(repoPath string) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
-
-	selected := make(map[catalogItemKey]packageInfoRecord)
-	for _, record := range records {
-		key := catalogItemKey{Catalog: record.Catalog, ItemName: record.ItemName}
-		current, ok := selected[key]
-		if !ok {
-			selected[key] = record
-			continue
-		}
-
-		cmp, err := compareVersions(record.Item.Version, current.Item.Version)
-		if err != nil {
-			return BuildResult{}, fmt.Errorf("compare versions for %s/%s: %w", record.Catalog, record.ItemName, err)
-		}
-		if cmp == 0 {
-			return BuildResult{}, fmt.Errorf(
-				"equivalent package-info versions for %s/%s: %s (%s) conflicts with %s (%s)",
-				record.Catalog,
-				record.ItemName,
-				current.Item.Version,
-				displayPackageInfoPath(repoPath, current.Path),
-				record.Item.Version,
-				displayPackageInfoPath(repoPath, record.Path),
-			)
-		}
-		if cmp > 0 {
-			selected[key] = record
-		}
+	groups, err := groupPackageInfo(repoPath, records)
+	if err != nil {
+		return BuildResult{}, err
 	}
 
 	byCatalog := make(map[string]map[string]catalog.Item)
-	for key, record := range selected {
+	for _, key := range sortedPackageInfoKeys(groups) {
+		group := groups[key]
+		if len(group) == 0 {
+			continue
+		}
 		if byCatalog[key.Catalog] == nil {
 			byCatalog[key.Catalog] = make(map[string]catalog.Item)
 		}
-		byCatalog[key.Catalog][key.ItemName] = record.Item
+		byCatalog[key.Catalog][key.ItemName] = group[0].Item
 	}
 
 	catalogNames := make([]string, 0, len(byCatalog))

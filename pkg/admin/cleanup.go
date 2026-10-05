@@ -132,18 +132,18 @@ func PlanCleanup(repoPath string, options CleanupOptions) (CleanupPlan, error) {
 				Disposition: disposition,
 			})
 
-			refs, err := packageInfoAssetReferences(record)
-			if err != nil {
-				return CleanupPlan{}, fmt.Errorf(
-					"validate asset references for %s/%s %s (%s): %w",
-					record.Catalog,
-					record.ItemName,
-					record.Item.Version,
-					packageInfoPath,
-					err,
-				)
-			}
 			if disposition == VersionCurrent || disposition == VersionRetained {
+				refs, err := packageInfoAssetReferences(record)
+				if err != nil {
+					return CleanupPlan{}, fmt.Errorf(
+						"validate asset references for %s/%s %s (%s): %w",
+						record.Catalog,
+						record.ItemName,
+						record.Item.Version,
+						packageInfoPath,
+						err,
+					)
+				}
 				for _, ref := range refs {
 					survivingReferences[ref] = append(survivingReferences[ref], CleanupAssetReference{
 						Catalog:     record.Catalog,

@@ -55,4 +55,17 @@ Normal `catalog.Item` metadata remains supported, including display name, descri
 
 See [the package-info example](../examples/example_package-info.yaml).
 
-Additional repository-admin commands are planned separately; cleanup is not part of the build command.
+## Plan repository cleanup
+
+Preview repository cleanup with:
+
+```text
+gorilla admin cleanup
+gorilla admin cleanup --repo /srv/gorilla --keep 2
+```
+
+If `--repo` is omitted, Gorilla uses the current working directory. `--keep` defaults to `3` versions per active item.
+
+Cleanup reads all manifests in `manifests/`, follows package dependencies, and reports superseded package-info, abandoned items, abandoned files under `packages/` and `icons/`, and missing referenced files.
+
+Cleanup is currently dry-run only. It does not modify repository files.

@@ -35,11 +35,12 @@ make verify
 
 ## Repository administration
 
-Gorilla can deterministically build generated catalogs from package-info records:
+Gorilla includes tools to build catalogs and preview cleanup of superseded or abandoned repository content.
 
 ```text
 gorilla admin build
-gorilla admin build --repo /path/to/gorilla-repo
+gorilla admin cleanup
+gorilla admin cleanup --keep 3
 ```
 
-The repository path defaults to the current working directory. Repository administration does not use normal Gorilla client configuration. See [Repository administration](docs/repo-admin-tools.md) and [`examples/example_package-info.yaml`](examples/example_package-info.yaml).
+The repository path defaults to the current working directory. See [Repository administration](docs/repo-admin-tools.md).

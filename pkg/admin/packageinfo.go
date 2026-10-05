@@ -30,6 +30,11 @@ type packageInfoIdentity struct {
 	Version  string
 }
 
+type packageInfoKey struct {
+	Catalog  string
+	ItemName string
+}
+
 func loadPackageInfo(repoPath string) ([]packageInfoRecord, error) {
 	packagesInfoPath := filepath.Join(repoPath, "packages-info")
 	if _, err := os.Stat(packagesInfoPath); err != nil {
@@ -112,6 +117,63 @@ func loadPackageInfo(repoPath string) ([]packageInfoRecord, error) {
 		})
 	}
 	return records, nil
+}
+
+func groupPackageInfo(repoPath string, records []packageInfoRecord) (map[packageInfoKey][]packageInfoRecord, error) {
+	groups := make(map[packageInfoKey][]packageInfoRecord)
+	for _, record := range records {
+		key := packageInfoKey{Catalog: record.Catalog, ItemName: record.ItemName}
+		groups[key] = append(groups[key], record)
+	}
+
+	for _, key := range sortedPackageInfoKeys(groups) {
+		group := groups[key]
+		var compareErr error
+		sort.SliceStable(group, func(i, j int) bool {
+			cmp, err := compareVersions(group[i].Item.Version, group[j].Item.Version)
+			if err != nil {
+				compareErr = err
+				return false
+			}
+			return cmp > 0
+		})
+		if compareErr != nil {
+			return nil, fmt.Errorf("compare versions for %s/%s: %w", key.Catalog, key.ItemName, compareErr)
+		}
+		for i := 1; i < len(group); i++ {
+			cmp, err := compareVersions(group[i-1].Item.Version, group[i].Item.Version)
+			if err != nil {
+				return nil, fmt.Errorf("compare versions for %s/%s: %w", key.Catalog, key.ItemName, err)
+			}
+			if cmp == 0 {
+				return nil, fmt.Errorf(
+					"equivalent package-info versions for %s/%s: %s (%s) conflicts with %s (%s)",
+					key.Catalog,
+					key.ItemName,
+					group[i-1].Item.Version,
+					displayPackageInfoPath(repoPath, group[i-1].Path),
+					group[i].Item.Version,
+					displayPackageInfoPath(repoPath, group[i].Path),
+				)
+			}
+		}
+		groups[key] = group
+	}
+	return groups, nil
+}
+
+func sortedPackageInfoKeys(groups map[packageInfoKey][]packageInfoRecord) []packageInfoKey {
+	keys := make([]packageInfoKey, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Catalog != keys[j].Catalog {
+			return keys[i].Catalog < keys[j].Catalog
+		}
+		return keys[i].ItemName < keys[j].ItemName
+	})
+	return keys
 }
 
 func validateCatalogName(name string) error {

@@ -14,6 +14,7 @@ import (
 var (
 	adminBuildCatalogsFunc = admin.BuildCatalogs
 	adminPlanCleanupFunc   = admin.PlanCleanup
+	adminApplyCleanupFunc  = admin.ApplyCleanup
 	adminGetwdFunc         = os.Getwd
 )
 
@@ -67,6 +68,7 @@ func runAdminCleanup(args []string, stdout io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repo := flags.String("repo", "", "repository path")
 	keep := flags.Int("keep", admin.DefaultKeepVersions, "package-info versions to retain per live item")
+	apply := flags.Bool("apply", false, "apply the planned cleanup")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("parse admin cleanup arguments: %w", err)
 	}
@@ -86,6 +88,28 @@ func runAdminCleanup(args []string, stdout io.Writer) error {
 		return fmt.Errorf("plan repository cleanup: %w", err)
 	}
 	writeCleanupPlan(stdout, plan)
+	if !*apply {
+		fmt.Fprintln(stdout, "\nDry run only. No files were changed.")
+		return nil
+	}
+
+	fmt.Fprintln(stdout, "\nApplying cleanup...")
+	result, err := adminApplyCleanupFunc(plan)
+	if err != nil {
+		return fmt.Errorf("apply repository cleanup: %w", err)
+	}
+	if result.PackageInfoRemoved == 0 && result.AssetsRemoved == 0 {
+		fmt.Fprintln(stdout, "Nothing to remove.")
+		fmt.Fprintln(stdout, "Repository was not changed.")
+		return nil
+	}
+
+	fmt.Fprintln(stdout, "Removed:")
+	fmt.Fprintf(stdout, "  %d package-info files\n", result.PackageInfoRemoved)
+	fmt.Fprintf(stdout, "  %d abandoned asset files\n", result.AssetsRemoved)
+	fmt.Fprintf(stdout, "  %d empty directories\n", result.DirectoriesRemoved)
+	fmt.Fprintf(stdout, "Generated %d catalogs\n", result.CatalogsGenerated)
+	fmt.Fprintln(stdout, "Repository cleanup complete.")
 	return nil
 }
 
@@ -168,5 +192,4 @@ func writeCleanupPlan(stdout io.Writer, plan admin.CleanupPlan) {
 	fmt.Fprintf(stdout, "  %d abandoned package-info\n", abandonedPackageInfo)
 	fmt.Fprintf(stdout, "  %d abandoned files\n", len(plan.AbandonedFiles))
 	fmt.Fprintf(stdout, "  %d missing referenced files\n", len(plan.MissingAssets))
-	fmt.Fprintln(stdout, "\nDry run only. No files were changed.")
 }

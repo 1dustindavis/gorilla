@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,6 +23,19 @@ var (
 type BuildResult struct {
 	Records  int
 	Catalogs int
+}
+
+type catalogBuildError struct {
+	err       error
+	committed bool
+}
+
+func (e *catalogBuildError) Error() string { return e.err.Error() }
+func (e *catalogBuildError) Unwrap() error { return e.err }
+
+func catalogBuildWasCommitted(err error) bool {
+	var buildErr *catalogBuildError
+	return errors.As(err, &buildErr) && buildErr.committed
 }
 
 // BuildCatalogs validates all package-info records, selects the newest version
@@ -63,11 +77,15 @@ func BuildCatalogs(repoPath string) (BuildResult, error) {
 		outputs[catalogName] = contents
 	}
 
+	result := BuildResult{Records: len(records), Catalogs: len(catalogNames)}
 	if err := replaceCatalogs(repoPath, catalogNames, outputs); err != nil {
+		if catalogBuildWasCommitted(err) {
+			return result, err
+		}
 		return BuildResult{}, err
 	}
 
-	return BuildResult{Records: len(records), Catalogs: len(catalogNames)}, nil
+	return result, nil
 }
 
 func replaceCatalogs(repoPath string, catalogNames []string, outputs map[string][]byte) error {
@@ -110,7 +128,10 @@ func replaceCatalogs(repoPath string, catalogNames []string, outputs map[string]
 
 	if hadExisting {
 		if err := adminRemoveAll(backupPath); err != nil {
-			return fmt.Errorf("remove previous catalogs backup: %w", err)
+			return &catalogBuildError{
+				err:       fmt.Errorf("remove previous catalogs backup: %w", err),
+				committed: true,
+			}
 		}
 	}
 	return nil

@@ -151,21 +151,9 @@ installer:
   location: packages/app/app-5.exe
 icon: icons/app.png
 `)
-	writePackageInfo(t, repo, "app-4.yaml", `
-item_name: App
-catalog: base
-version: 4.0
-check:
-  script: packages/common/check.ps1
-`)
+	writePackageInfo(t, repo, "app-4.yaml", "item_name: App\ncatalog: base\nversion: 4.0\n")
 	writePackageInfo(t, repo, "app-3.yaml", "item_name: App\ncatalog: base\nversion: 3.0\n")
-	writePackageInfo(t, repo, "app-2.yaml", `
-item_name: App
-catalog: base
-version: 2.0
-check:
-  script: packages/common/check.ps1
-`)
+	writePackageInfo(t, repo, "app-2.yaml", "item_name: App\ncatalog: base\nversion: 2.0\n")
 	writePackageInfo(t, repo, "app-1.yaml", `
 item_name: App
 catalog: base
@@ -183,7 +171,6 @@ installer:
 	writePackageInfo(t, repo, "legacy-2.yaml", "item_name: Legacy\ncatalog: base\nversion: 2.0\n")
 
 	writeRepositoryAsset(t, repo, "packages/app/app-5.exe", "current")
-	writeRepositoryAsset(t, repo, "packages/common/check.ps1", "shared")
 	writeRepositoryAsset(t, repo, "packages/app/app-1.exe", "superseded")
 	writeRepositoryAsset(t, repo, "packages/legacy/legacy.exe", "abandoned")
 	writeRepositoryAsset(t, repo, "packages/orphan.bin", "orphan")
@@ -230,9 +217,6 @@ installer:
 		t.Fatalf("AbandonedFiles = %#v, want %#v", plan.AbandonedFiles, wantAbandonedFiles)
 	}
 	for _, path := range plan.AbandonedFiles {
-		if path == "packages/common/check.ps1" {
-			t.Fatalf("shared asset was incorrectly abandoned")
-		}
 		if strings.HasSuffix(path, ".gitkeep") {
 			t.Fatalf("marker file was incorrectly abandoned: %s", path)
 		}
@@ -243,6 +227,36 @@ installer:
 	}
 	if got := plan.MissingAssets[0].ReferencedBy; len(got) != 1 || got[0].ItemName != "App" || got[0].Version != "5.0" {
 		t.Fatalf("missing asset references = %#v", got)
+	}
+}
+
+func TestPlanCleanupIgnoresInlinePowerShellScriptsAsAssets(t *testing.T) {
+	repo := t.TempDir()
+	writeRepositoryManifest(t, repo, "main.yaml", "managed_installs:\n  - App\n")
+	writePackageInfo(t, repo, "app.yaml", `
+item_name: App
+catalog: base
+version: 1.0
+check:
+  script: |
+    $path = "C:\Program Files\Example\example.exe"
+    Test-Path $path
+preinstall_script: |
+  $temp = "C:\Windows\Temp\gorilla"
+  New-Item -ItemType Directory -Force -Path $temp
+postinstall_script: |
+  Write-Host "Installed to C:\Program Files\Example"
+`)
+
+	plan, err := PlanCleanup(repo, CleanupOptions{Keep: 3})
+	if err != nil {
+		t.Fatalf("PlanCleanup() error = %v", err)
+	}
+	if len(plan.MissingAssets) != 0 {
+		t.Fatalf("MissingAssets = %#v, want none", plan.MissingAssets)
+	}
+	if len(plan.AbandonedFiles) != 0 {
+		t.Fatalf("AbandonedFiles = %#v, want none", plan.AbandonedFiles)
 	}
 }
 

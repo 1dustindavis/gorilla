@@ -35,6 +35,8 @@ make verify
 
 ## Repository administration
 
+Gorilla includes tools to build catalogs and preview cleanup of superseded or abandoned repository content.
+
 ```text
 gorilla admin build
 gorilla admin cleanup

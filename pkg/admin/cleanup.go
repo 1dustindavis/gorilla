@@ -216,11 +216,8 @@ func determineLiveItems(groups map[packageInfoKey][]packageInfoRecord, roots []s
 func packageInfoAssetReferences(record packageInfoRecord) ([]string, error) {
 	raw := []string{
 		record.Item.Icon,
-		record.Item.Check.Script,
 		record.Item.Installer.Location,
 		record.Item.Uninstaller.Location,
-		record.Item.PreScript,
-		record.Item.PostScript,
 	}
 	seen := make(map[string]struct{})
 	for _, value := range raw {

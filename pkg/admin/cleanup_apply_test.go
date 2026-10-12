@@ -409,3 +409,58 @@ func TestApplyCleanupCommittedCatalogFinalizationErrorDoesNotRestoreSources(t *t
 		t.Fatalf("cleanup staging remains after committed catalog finalization error: %#v", staging)
 	}
 }
+
+
+func TestApplyCleanupRejectsIdentityChangingCandidatePaths(t *testing.T) {
+	tests := []string{
+		"packages/file.bin ",
+		"packages/dir\\file.bin",
+		"packages//file.bin",
+		"packages/./file.bin",
+	}
+	for _, candidate := range tests {
+		t.Run(candidate, func(t *testing.T) {
+			restoreCleanupApplySeams(t)
+			repo := t.TempDir()
+			called := false
+			cleanupMkdirTemp = func(string, string) (string, error) {
+				called = true
+				return "", errors.New("must not be called")
+			}
+			plan := CleanupPlan{RepoPath: repo, AbandonedFiles: []string{candidate}}
+			if _, err := ApplyCleanup(plan); err == nil {
+				t.Fatalf("ApplyCleanup() accepted identity-changing path %q", candidate)
+			}
+			if called {
+				t.Fatalf("staging created for identity-changing path %q", candidate)
+			}
+		})
+	}
+}
+
+func TestApplyCleanupOnlyRemovesDirectoriesMadeEmptyByCandidates(t *testing.T) {
+	repo := t.TempDir()
+	writeRepositoryManifest(t, repo, "main.yaml", "managed_installs:\n  - App\n")
+	writePackageInfo(t, repo, "app.yaml", "item_name: App\ncatalog: base\nversion: 1.0\n")
+	orphan := writeRepositoryAsset(t, repo, "packages/removed/subdir/orphan.bin", "orphan")
+	unrelatedEmpty := filepath.Join(repo, "packages", "future-release")
+	if err := os.MkdirAll(unrelatedEmpty, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := PlanCleanup(repo, CleanupOptions{Keep: 3})
+	if err != nil {
+		t.Fatalf("PlanCleanup() error = %v", err)
+	}
+	result, err := ApplyCleanup(plan)
+	if err != nil {
+		t.Fatalf("ApplyCleanup() error = %v", err)
+	}
+	if result.AssetsRemoved != 1 {
+		t.Fatalf("AssetsRemoved = %d, want 1", result.AssetsRemoved)
+	}
+	assertPathMissing(t, orphan)
+	assertPathMissing(t, filepath.Join(repo, "packages", "removed", "subdir"))
+	assertPathMissing(t, filepath.Join(repo, "packages", "removed"))
+	assertPathExists(t, unrelatedEmpty)
+}

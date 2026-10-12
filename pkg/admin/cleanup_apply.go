@@ -206,7 +206,7 @@ func normalizeCleanupCandidate(value string, kind cleanupCandidateKind) (string,
 	if value == "" || strings.ContainsRune(value, '\x00') {
 		return "", fmt.Errorf("unsafe cleanup candidate %q", value)
 	}
-	if strings.Contains(value, `\\`) {
+	if strings.Contains(value, "\\") {
 		return "", fmt.Errorf("unsafe cleanup candidate %q: backslashes are not accepted in plan paths", value)
 	}
 	if strings.HasPrefix(value, "/") || strings.Contains(value, ":") || filepath.IsAbs(value) || filepath.VolumeName(value) != "" {

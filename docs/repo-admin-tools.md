@@ -55,7 +55,7 @@ Normal `catalog.Item` metadata remains supported, including display name, descri
 
 See [the package-info example](../examples/example_package-info.yaml).
 
-## Plan repository cleanup
+## Repository cleanup
 
 Preview repository cleanup with:
 
@@ -64,8 +64,21 @@ gorilla admin cleanup
 gorilla admin cleanup --repo /srv/gorilla --keep 2
 ```
 
-If `--repo` is omitted, Gorilla uses the current working directory. `--keep` defaults to `3` versions per active item.
+Apply the displayed cleanup plan explicitly with:
 
-Cleanup reads all manifests in `manifests/`, follows package dependencies, and reports superseded package-info, abandoned items, abandoned files under `packages/` and `icons/`, and missing referenced files.
+```text
+gorilla admin cleanup --apply
+gorilla admin cleanup --repo /srv/gorilla --keep 3 --apply
+```
 
-Cleanup is currently dry-run only. It does not modify repository files.
+If `--repo` is omitted, Gorilla uses the current working directory. `--keep` defaults to `3` total package-info versions per active item, including the current version. Cleanup is a dry run unless `--apply` is provided.
+
+Cleanup reads every manifest under `manifests/` as a reachability root, then follows package dependencies transitively. For each live item Gorilla keeps the newest configured number of package-info versions and classifies older versions as superseded. Items not reachable from any repository manifest or dependency are abandoned regardless of retention count.
+
+Managed repository-file references are derived from surviving package-info fields for `icon`, `installer.location`, and `uninstaller.location`. Inline PowerShell fields such as `check.script`, `preinstall_script`, and `postinstall_script` are script contents, not repository-file paths. Shared managed assets remain if any surviving package-info record still references them. Missing referenced assets are reported as repository-health findings but are not deletion candidates by themselves.
+
+When `--apply` is used Gorilla removes the package-info files already classified as superseded or abandoned, removes exactly the abandoned managed assets from the plan, regenerates catalogs from the surviving package-info, and removes newly empty descendant directories under `packages/`, `icons/`, and `packages-info/`. The managed roots themselves are retained, as are directories containing files such as `.gitkeep`.
+
+Applied cleanup uses a staging transaction inside the repository. Planned files are first moved out of the live managed roots while preserving their repository-relative paths. Catalogs are then regenerated against the surviving package-info. If staging or catalog generation fails before the new catalogs are committed, the staged package-info and assets are restored rather than leaving a partially cleaned repository. Once catalog replacement is committed, cleanup does not restore old package-info into the live repository merely because later temporary-file housekeeping fails.
+
+`--apply` is the only destructive opt-in. Cleanup does not prompt interactively, modify manifests, create Git commits, or perform arbitrary filesystem garbage collection.

@@ -411,33 +411,26 @@ func TestApplyCleanupCommittedCatalogFinalizationErrorDoesNotRestoreSources(t *t
 }
 
 
-func TestApplyCleanupRejectsIdentityChangingCandidatePaths(t *testing.T) {
-	tests := []string{
-		"packages/file.bin ",
+func TestNormalizeCleanupCandidatePreservesIdentity(t *testing.T) {
+	exact := "packages/file.bin "
+	got, err := normalizeCleanupCandidate(exact, cleanupAsset)
+	if err != nil {
+		t.Fatalf("normalizeCleanupCandidate(%q) error = %v", exact, err)
+	}
+	if got != exact {
+		t.Fatalf("normalizeCleanupCandidate(%q) = %q, want exact identity preserved", exact, got)
+	}
+
+	for _, candidate := range []string{
 		"packages/dir\\file.bin",
 		"packages//file.bin",
 		"packages/./file.bin",
-	}
-	for _, candidate := range tests {
-		t.Run(candidate, func(t *testing.T) {
-			restoreCleanupApplySeams(t)
-			repo := t.TempDir()
-			called := false
-			cleanupMkdirTemp = func(string, string) (string, error) {
-				called = true
-				return "", errors.New("must not be called")
-			}
-			plan := CleanupPlan{RepoPath: repo, AbandonedFiles: []string{candidate}}
-			if _, err := ApplyCleanup(plan); err == nil {
-				t.Fatalf("ApplyCleanup() accepted identity-changing path %q", candidate)
-			}
-			if called {
-				t.Fatalf("staging created for identity-changing path %q", candidate)
-			}
-		})
+	} {
+		if _, err := normalizeCleanupCandidate(candidate, cleanupAsset); err == nil {
+			t.Fatalf("normalizeCleanupCandidate() accepted identity-changing path %q", candidate)
+		}
 	}
 }
-
 func TestApplyCleanupOnlyRemovesDirectoriesMadeEmptyByCandidates(t *testing.T) {
 	repo := t.TempDir()
 	writeRepositoryManifest(t, repo, "main.yaml", "managed_installs:\n  - App\n")

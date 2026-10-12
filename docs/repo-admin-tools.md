@@ -82,3 +82,9 @@ When `--apply` is used Gorilla removes the package-info files already classified
 Applied cleanup uses a staging transaction inside the repository. Planned files are first moved out of the live managed roots while preserving their repository-relative paths. Catalogs are then regenerated against the surviving package-info. If staging or catalog generation fails before the new catalogs are committed, the staged package-info and assets are restored rather than leaving a partially cleaned repository. Once catalog replacement is committed, cleanup does not restore old package-info into the live repository merely because later temporary-file housekeeping fails.
 
 `--apply` is the only destructive opt-in. Cleanup does not prompt interactively, modify manifests, create Git commits, or perform arbitrary filesystem garbage collection.
+
+## Admin binaries for macOS and Linux
+
+Gorilla releases include standalone repository-administration binaries for macOS and Linux. Download the appropriate `gorilla-admin-<version>-<os>-<arch>` binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
+
+These binaries support `gorilla admin build` and `gorilla admin cleanup` (including `--apply`). They are intended only for repository administration; Gorilla's managed-install client and service remain Windows-only.

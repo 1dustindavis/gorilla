@@ -33,7 +33,30 @@ env:
   ARTIFACT_SIGNING_SUBJECT: 'CN=Dustin Davis, O=Dustin Davis, L=Walnut Creek, S=ca, C=US'
 
 jobs:
+  admin-platform-validation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Setup Go
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      with:
+        go-version-file: go.mod
+        cache: true
+        cache-dependency-path: go.sum
+    - name: Validate native admin functionality
+      shell: bash
+      run: |
+        mkdir -p build
+        CGO_ENABLED=0 go build -o build/gorilla ./cmd/gorilla
+        bash integration/admin/validate-platform.sh build/gorilla
+
   build:
+    needs: [admin-platform-validation]
     runs-on: windows-latest
 
     steps:
@@ -277,6 +300,84 @@ jobs:
         New-Item -ItemType Directory -Force -Path build | Out-Null
         Copy-Item ./cmd/gorilla/gorilla.exe "./build/$Env:RELEASE_EXE_NAME" -Force
 
+    - name: Cross-build and validate Darwin/Linux admin binaries
+      shell: pwsh
+      run: |
+        $version = $Env:RELEASE_TAG -replace '^v', ''
+        $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $ldflags = @(
+          "-X github.com/1dustindavis/gorilla/pkg/version.appName=gorilla"
+          "-X github.com/1dustindavis/gorilla/pkg/version.version=$Env:RELEASE_TAG"
+          "-X github.com/1dustindavis/gorilla/pkg/version.branch=$Env:CURRENT_BRANCH"
+          "-X github.com/1dustindavis/gorilla/pkg/version.buildDate=$buildDate"
+          "-X github.com/1dustindavis/gorilla/pkg/version.revision=$Env:REVISION"
+          "-X github.com/1dustindavis/gorilla/pkg/version.goVersion=$Env:GO_VERSION"
+        ) -join ' '
+        $targets = @(
+          @{ OS = 'darwin'; Arch = 'amd64' }
+          @{ OS = 'darwin'; Arch = 'arm64' }
+          @{ OS = 'linux'; Arch = 'amd64' }
+          @{ OS = 'linux'; Arch = 'arm64' }
+        )
+        try {
+          $env:CGO_ENABLED = '0'
+          foreach ($target in $targets) {
+            $env:GOOS = $target.OS
+            $env:GOARCH = $target.Arch
+            $name = "gorilla-admin-$version-$($target.OS)-$($target.Arch)"
+            $path = "build/$name"
+            go build -trimpath -ldflags $ldflags -o $path ./cmd/gorilla
+            if ($LASTEXITCODE -ne 0) { throw "Go build failed: $name" }
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing $name" }
+            $details = (go version -m $path) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "Invalid Go executable: $name" }
+            foreach ($expected in @(
+              "GOOS=$($target.OS)",
+              "GOARCH=$($target.Arch)",
+              'CGO_ENABLED=0',
+              'github.com/1dustindavis/gorilla'
+            )) {
+              if (-not $details.Contains($expected)) {
+                throw "$name missing build metadata $expected : $details"
+              }
+            }
+            Write-Host "Validated $name"
+          }
+        } finally {
+          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+          Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
+        }
+
+    - name: Create admin SHA-256 checksums
+      shell: pwsh
+      run: |
+        $version = $Env:RELEASE_TAG -replace '^v', ''
+        $names = @(
+          "gorilla-admin-$version-darwin-amd64",
+          "gorilla-admin-$version-darwin-arm64",
+          "gorilla-admin-$version-linux-amd64",
+          "gorilla-admin-$version-linux-arm64"
+        )
+        $lines = foreach ($name in $names) {
+          $path = "build/$name"
+          if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing $path" }
+          $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name"
+        }
+        $checksumPath = "build/gorilla-admin-$version-checksums.txt"
+        [System.IO.File]::WriteAllLines((Join-Path $PWD $checksumPath), [string[]]$lines)
+
+    - name: Upload admin binaries and checksums workflow artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: gorilla-admin-release
+        path: |
+          ./build/gorilla-admin-*-darwin-*
+          ./build/gorilla-admin-*-linux-*
+          ./build/gorilla-admin-*-checksums.txt
+        if-no-files-found: error
+
     - name: Upload gorilla.exe workflow artifact
       uses: actions/upload-artifact@v6
       with:
@@ -466,7 +567,7 @@ jobs:
         prerelease: true
         makeLatest: false
         bodyFile: release-notes.md
-        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }},./build/gorilla-admin-*-darwin-*,./build/gorilla-admin-*-linux-*,./build/gorilla-admin-*-checksums.txt"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -480,7 +581,7 @@ jobs:
         makeLatest: true
         generateReleaseNotes: true
         generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_STABLE_TAG }}
-        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }}"
+        artifacts: "./build/${{ env.RELEASE_EXE_NAME }},./build/${{ env.RELEASE_MSIX_NAME }},./build/gorilla-admin-*-darwin-*,./build/gorilla-admin-*-linux-*,./build/gorilla-admin-*-checksums.txt"
         commit: ${{ github.sha }}
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}

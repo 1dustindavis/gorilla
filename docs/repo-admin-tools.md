@@ -82,3 +82,36 @@ When `--apply` is used Gorilla removes the package-info files already classified
 Applied cleanup uses a staging transaction inside the repository. Planned files are first moved out of the live managed roots while preserving their repository-relative paths. Catalogs are then regenerated against the surviving package-info. If staging or catalog generation fails before the new catalogs are committed, the staged package-info and assets are restored rather than leaving a partially cleaned repository. Once catalog replacement is committed, cleanup does not restore old package-info into the live repository merely because later temporary-file housekeeping fails.
 
 `--apply` is the only destructive opt-in. Cleanup does not prompt interactively, modify manifests, create Git commits, or perform arbitrary filesystem garbage collection.
+
+## Admin binaries for macOS and Linux
+
+Every normal Gorilla release, including prereleases, includes standalone binaries
+for repository administration. Select the asset matching your platform:
+
+| Platform | Release asset |
+| --- | --- |
+| Intel Mac | `gorilla-admin-<version>-darwin-amd64` |
+| Apple Silicon Mac | `gorilla-admin-<version>-darwin-arm64` |
+| Intel/AMD 64-bit Linux | `gorilla-admin-<version>-linux-amd64` |
+| ARM64 Linux | `gorilla-admin-<version>-linux-arm64` |
+
+Download the matching binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
+For example, on an Apple Silicon Mac (substitute the actual release version):
+
+```sh
+chmod +x gorilla-admin-<version>-darwin-arm64
+mv gorilla-admin-<version>-darwin-arm64 gorilla
+./gorilla admin build --repo /path/to/repo
+./gorilla admin cleanup --repo /path/to/repo
+./gorilla admin cleanup --repo /path/to/repo --apply
+```
+
+The rename is optional; you can invoke the original downloaded filename instead.
+No system-wide installation is required. Each release also provides
+`gorilla-admin-<version>-checksums.txt` with SHA-256 hashes of all four binaries.
+On macOS, browser-downloaded executables may be subject to Gatekeeper/quarantine;
+evaluate any security warning rather than disabling system protections globally.
+
+**Scope:** Darwin/Linux binaries are provided only for Gorilla repository
+administration (`gorilla admin ...`). Gorilla's managed-install/client/service
+runtime remains Windows-focused and is not supported on macOS or Linux.

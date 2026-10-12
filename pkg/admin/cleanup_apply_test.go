@@ -410,7 +410,6 @@ func TestApplyCleanupCommittedCatalogFinalizationErrorDoesNotRestoreSources(t *t
 	}
 }
 
-
 func TestNormalizeCleanupCandidatePreservesIdentity(t *testing.T) {
 	exact := "packages/file.bin "
 	got, err := normalizeCleanupCandidate(exact, cleanupAsset)
@@ -431,6 +430,7 @@ func TestNormalizeCleanupCandidatePreservesIdentity(t *testing.T) {
 		}
 	}
 }
+
 func TestApplyCleanupOnlyRemovesDirectoriesMadeEmptyByCandidates(t *testing.T) {
 	repo := t.TempDir()
 	writeRepositoryManifest(t, repo, "main.yaml", "managed_installs:\n  - App\n")

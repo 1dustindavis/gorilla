@@ -85,33 +85,6 @@ Applied cleanup uses a staging transaction inside the repository. Planned files 
 
 ## Admin binaries for macOS and Linux
 
-Every normal Gorilla release, including prereleases, includes standalone binaries
-for repository administration. Select the asset matching your platform:
+Gorilla releases include standalone repository-administration binaries for macOS (Intel and Apple Silicon) and Linux (amd64 and arm64). Download the appropriate `gorilla-admin-<version>-<os>-<arch>` binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
 
-| Platform | Release asset |
-| --- | --- |
-| Intel Mac | `gorilla-admin-<version>-darwin-amd64` |
-| Apple Silicon Mac | `gorilla-admin-<version>-darwin-arm64` |
-| Intel/AMD 64-bit Linux | `gorilla-admin-<version>-linux-amd64` |
-| ARM64 Linux | `gorilla-admin-<version>-linux-arm64` |
-
-Download the matching binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
-For example, on an Apple Silicon Mac (substitute the actual release version):
-
-```sh
-chmod +x gorilla-admin-<version>-darwin-arm64
-mv gorilla-admin-<version>-darwin-arm64 gorilla
-./gorilla admin build --repo /path/to/repo
-./gorilla admin cleanup --repo /path/to/repo
-./gorilla admin cleanup --repo /path/to/repo --apply
-```
-
-The rename is optional; you can invoke the original downloaded filename instead.
-No system-wide installation is required. Each release also provides
-`gorilla-admin-<version>-checksums.txt` with SHA-256 hashes of all four binaries.
-On macOS, browser-downloaded executables may be subject to Gatekeeper/quarantine;
-evaluate any security warning rather than disabling system protections globally.
-
-**Scope:** Darwin/Linux binaries are provided only for Gorilla repository
-administration (`gorilla admin ...`). Gorilla's managed-install/client/service
-runtime remains Windows-focused and is not supported on macOS or Linux.
+These binaries support `gorilla admin build` and `gorilla admin cleanup` (including `--apply`). They are intended only for repository administration; Gorilla's managed-install client and service remain Windows-only.

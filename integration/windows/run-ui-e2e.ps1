@@ -29,6 +29,7 @@ $servicePipeName = "gorilla-ui-e2e"
 $markerPath = "C:\ProgramData\gorilla-it\ps1.txt"
 $failureMarkerPath = "C:\ProgramData\gorilla-it\ps1-failure.txt"
 $slowMarkerPath = "C:\ProgramData\gorilla-it\ui-slow.txt"
+$markerRoot = Split-Path -Path $slowMarkerPath -Parent
 $updateRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiUpdateFixture"
 $installedRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GorillaUiInstalledFixture"
 $appDataPath = "C:\ProgramData\gorilla-ui-e2e"
@@ -40,6 +41,11 @@ $evidenceRoot = Join-Path $root "ui-evidence"
 
 Remove-Item -LiteralPath $evidenceRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
+
+# The preceding integration layer intentionally removes its marker root after a
+# successful run. Recreate the UI E2E-owned parent so tests can safely clean up
+# individual marker files even when verify-release composes both harnesses.
+New-Item -ItemType Directory -Path $markerRoot -Force | Out-Null
 
 if (-not (Test-Path -LiteralPath $serverExe) -or -not (Test-Path -LiteralPath $catalogPath)) {
     Write-Host "[INFO] Reusing Windows integration fixture preparation for UI E2E"

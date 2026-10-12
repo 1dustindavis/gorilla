@@ -51,10 +51,9 @@ type stagedCleanupCandidate struct {
 // not perform reachability or retention classification; PlanCleanup remains the
 // source of truth for those decisions.
 func ApplyCleanup(plan CleanupPlan) (CleanupResult, error) {
-	if strings.TrimSpace(plan.RepoPath) == "" {
+	if plan.RepoPath == "" {
 		return CleanupResult{}, fmt.Errorf("cleanup plan repository path is required")
 	}
-	plan.RepoPath = filepath.Clean(strings.TrimSpace(plan.RepoPath))
 	candidates, err := validateCleanupPlan(plan)
 	if err != nil {
 		return CleanupResult{}, err
@@ -108,7 +107,7 @@ func ApplyCleanup(plan CleanupPlan) (CleanupResult, error) {
 		return result, fmt.Errorf("cleanup was applied, but staged content could not be removed at %s: %w", stagingPath, err)
 	}
 
-	directoriesRemoved, dirErr := removeEmptyManagedDirectories(plan.RepoPath)
+	directoriesRemoved, dirErr := removeEmptyManagedDirectories(plan.RepoPath, candidates)
 	result.DirectoriesRemoved = directoriesRemoved
 	if buildErr != nil {
 		if dirErr != nil {
@@ -204,41 +203,39 @@ func validateCleanupPlan(plan CleanupPlan) ([]cleanupCandidate, error) {
 }
 
 func normalizeCleanupCandidate(value string, kind cleanupCandidateKind) (string, error) {
-	original := value
-	value = strings.TrimSpace(value)
 	if value == "" || strings.ContainsRune(value, '\x00') {
-		return "", fmt.Errorf("unsafe cleanup candidate %q", original)
+		return "", fmt.Errorf("unsafe cleanup candidate %q", value)
 	}
-	portable := strings.ReplaceAll(value, `\`, "/")
-	if strings.HasPrefix(portable, "/") || strings.Contains(portable, ":") || filepath.IsAbs(value) || filepath.VolumeName(value) != "" {
-		return "", fmt.Errorf("unsafe cleanup candidate %q: must be repository-relative", original)
+	if strings.Contains(value, `\\`) {
+		return "", fmt.Errorf("unsafe cleanup candidate %q: backslashes are not accepted in plan paths", value)
 	}
-	for _, component := range strings.Split(portable, "/") {
+	if strings.HasPrefix(value, "/") || strings.Contains(value, ":") || filepath.IsAbs(value) || filepath.VolumeName(value) != "" {
+		return "", fmt.Errorf("unsafe cleanup candidate %q: must be repository-relative", value)
+	}
+	for _, component := range strings.Split(value, "/") {
 		if component == ".." {
-			return "", fmt.Errorf("unsafe cleanup candidate %q: path traversal is not allowed", original)
+			return "", fmt.Errorf("unsafe cleanup candidate %q: path traversal is not allowed", value)
 		}
 	}
-	cleaned := path.Clean(portable)
-	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || path.IsAbs(cleaned) {
-		return "", fmt.Errorf("unsafe cleanup candidate %q: path traversal is not allowed", original)
+	if cleaned := path.Clean(value); cleaned != value || cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || path.IsAbs(cleaned) {
+		return "", fmt.Errorf("unsafe cleanup candidate %q: path must already be normalized", value)
 	}
 
-	root := strings.SplitN(cleaned, "/", 2)[0]
+	root := strings.SplitN(value, "/", 2)[0]
 	switch kind {
 	case cleanupPackageInfo:
-		if root != "packages-info" || cleaned == "packages-info" {
-			return "", fmt.Errorf("unsafe package-info cleanup candidate %q: must be beneath packages-info/", original)
+		if root != "packages-info" || value == "packages-info" {
+			return "", fmt.Errorf("unsafe package-info cleanup candidate %q: must be beneath packages-info/", value)
 		}
 	case cleanupAsset:
-		if (root != "packages" && root != "icons") || cleaned == root {
-			return "", fmt.Errorf("unsafe asset cleanup candidate %q: must be beneath packages/ or icons/", original)
+		if (root != "packages" && root != "icons") || value == root {
+			return "", fmt.Errorf("unsafe asset cleanup candidate %q: must be beneath packages/ or icons/", value)
 		}
 	default:
-		return "", fmt.Errorf("unknown cleanup candidate kind for %q", original)
+		return "", fmt.Errorf("unknown cleanup candidate kind for %q", value)
 	}
-	return cleaned, nil
+	return value, nil
 }
-
 func validateCleanupCandidateFilesystem(repoPath, relative, fullPath string) error {
 	parts := strings.Split(relative, "/")
 	current := repoPath
@@ -288,44 +285,23 @@ func rollbackCleanup(moved []stagedCleanupCandidate, stagingPath string, origina
 	return fmt.Errorf("%w; rollback failed for staging directory %s: %v", originalErr, stagingPath, errors.Join(rollbackErrs...))
 }
 
-func removeEmptyManagedDirectories(repoPath string) (int, error) {
-	var directories []string
-	for _, rootName := range []string{"packages", "icons", "packages-info"} {
-		root := filepath.Join(repoPath, rootName)
-		info, err := cleanupLstat(root)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return 0, fmt.Errorf("inspect managed root %s: %w", rootName, err)
+func removeEmptyManagedDirectories(repoPath string, candidates []cleanupCandidate) (int, error) {
+	directorySet := make(map[string]struct{})
+	for _, candidate := range candidates {
+		parts := strings.Split(candidate.Relative, "/")
+		if len(parts) < 2 {
+			continue
 		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			return 0, fmt.Errorf("managed root %s is not a real directory", rootName)
-		}
-
-		err = filepath.WalkDir(root, func(dirPath string, entry os.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if dirPath == root {
-				return nil
-			}
-			if entry.Type()&os.ModeSymlink != 0 {
-				if entry.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if entry.IsDir() {
-				directories = append(directories, dirPath)
-			}
-			return nil
-		})
-		if err != nil {
-			return 0, fmt.Errorf("discover managed directories under %s: %w", rootName, err)
+		rootName := parts[0]
+		for relativeDir := path.Dir(candidate.Relative); relativeDir != "." && relativeDir != rootName; relativeDir = path.Dir(relativeDir) {
+			directorySet[filepath.Join(repoPath, filepath.FromSlash(relativeDir))] = struct{}{}
 		}
 	}
 
+	directories := make([]string, 0, len(directorySet))
+	for dirPath := range directorySet {
+		directories = append(directories, dirPath)
+	}
 	sort.Slice(directories, func(i, j int) bool {
 		leftDepth := strings.Count(filepath.Clean(directories[i]), string(os.PathSeparator))
 		rightDepth := strings.Count(filepath.Clean(directories[j]), string(os.PathSeparator))
@@ -337,6 +313,16 @@ func removeEmptyManagedDirectories(repoPath string) (int, error) {
 
 	removed := 0
 	for _, dirPath := range directories {
+		info, err := cleanupLstat(dirPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return removed, fmt.Errorf("inspect managed directory %s: %w", displayRepositoryPath(repoPath, dirPath), err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return removed, fmt.Errorf("managed directory %s is not a real directory", displayRepositoryPath(repoPath, dirPath))
+		}
 		entries, err := cleanupReadDir(dirPath)
 		if err != nil {
 			if os.IsNotExist(err) {

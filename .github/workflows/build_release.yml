@@ -48,12 +48,12 @@ jobs:
         go-version-file: go.mod
         cache: true
         cache-dependency-path: go.sum
-    - name: Build and exercise native admin CLI
+    - name: Validate native admin functionality
       shell: bash
       run: |
         mkdir -p build
         CGO_ENABLED=0 go build -o build/gorilla ./cmd/gorilla
-        bash integration/admin/smoke.sh build/gorilla
+        bash integration/admin/validate-platform.sh build/gorilla
 
   build:
     needs: [admin-platform-validation]

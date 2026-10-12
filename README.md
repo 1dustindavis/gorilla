@@ -43,4 +43,4 @@ gorilla admin cleanup
 gorilla admin cleanup --keep 3
 ```
 
-The repository path defaults to the current working directory. See [Repository administration](docs/repo-admin-tools.md).
+The repository path defaults to the current working directory. Downloadable macOS and Linux admin binaries are available with each release; they support repository administration only, not the Windows client/service runtime. See [Repository administration](docs/repo-admin-tools.md).

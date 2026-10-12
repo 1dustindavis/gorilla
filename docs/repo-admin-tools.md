@@ -85,6 +85,6 @@ Applied cleanup uses a staging transaction inside the repository. Planned files 
 
 ## Admin binaries for macOS and Linux
 
-Gorilla releases include standalone repository-administration binaries for macOS (Intel and Apple Silicon) and Linux (amd64 and arm64). Download the appropriate `gorilla-admin-<version>-<os>-<arch>` binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
+Gorilla releases include standalone repository-administration binaries for macOS and Linux. Download the appropriate `gorilla-admin-<version>-<os>-<arch>` binary from [GitHub Releases](https://github.com/1dustindavis/gorilla/releases).
 
 These binaries support `gorilla admin build` and `gorilla admin cleanup` (including `--apply`). They are intended only for repository administration; Gorilla's managed-install client and service remain Windows-only.

@@ -349,6 +349,18 @@ jobs:
         tenant-id: ${{ env.AZURE_TENANT_ID }}
         subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Ensure PowerShell Gallery is available
+      shell: pwsh
+      run: |
+        # Artifact Signing installs its PowerShell module from PSGallery when its
+        # dependency cache misses. GitHub-hosted Windows images can occasionally
+        # start without PSGallery registered, so make that prerequisite explicit.
+        if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+          Register-PSRepository -Default
+        }
+
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
     - name: Sign Gorilla UI MSIX with Azure Artifact Signing
       uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
       with:

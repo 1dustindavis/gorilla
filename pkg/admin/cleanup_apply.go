@@ -236,6 +236,7 @@ func normalizeCleanupCandidate(value string, kind cleanupCandidateKind) (string,
 	}
 	return value, nil
 }
+
 func validateCleanupCandidateFilesystem(repoPath, relative, fullPath string) error {
 	parts := strings.Split(relative, "/")
 	current := repoPath

@@ -19,11 +19,7 @@ If you just want the latest version, download it from the [releases page](https:
 
 Building from source requires the [Go tools](https://golang.org/doc/install).
 
-#### macOS and Linux
-After cloning this repo, just run `make build`. A new binary will be created in `build/`
-
-#### Windows
-After cloning this repo, just run `go build -i ./cmd/gorilla`. A new binary will be created in the current directory.
+After cloning this repo, just run `make build`. A new Windows amd64 client binary will be created in `build/`.
 
 ## Contributing
 
@@ -35,12 +31,13 @@ make verify
 
 ## Repository administration
 
-Gorilla includes tools to build catalogs and preview cleanup of superseded or abandoned repository content.
+Gorilla includes tools to build catalogs and clean up superseded or abandoned repository content. Cleanup only previews changes unless `--apply` is provided.
 
 ```text
 gorilla admin build
 gorilla admin cleanup
 gorilla admin cleanup --keep 3
+gorilla admin cleanup --apply
 ```
 
 The repository path defaults to the current working directory. Downloadable macOS and Linux admin binaries are available with each release; they support repository administration only, not the Windows client/service runtime. See [Repository administration](docs/repo-admin-tools.md).

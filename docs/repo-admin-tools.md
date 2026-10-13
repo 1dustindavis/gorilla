@@ -1,6 +1,6 @@
 # Repository administration
 
-Gorilla repository administration uses a dedicated command boundary and does not load normal client configuration.
+Use `gorilla admin` commands to manage a Gorilla repository. These commands do not use Gorilla’s client config file.
 
 ## Build catalogs
 

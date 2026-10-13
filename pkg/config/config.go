@@ -75,6 +75,7 @@ Options:
 
 Repository administration uses the separate command boundary:
   gorilla admin build [--repo <path>]
+  gorilla admin cleanup [--repo <path>] [--keep N] [--apply]
 
 `
 

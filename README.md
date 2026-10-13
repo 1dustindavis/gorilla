@@ -31,7 +31,7 @@ make verify
 
 ## Repository administration
 
-Gorilla includes tools to build catalogs and clean up superseded or abandoned repository content. Cleanup is a dry run unless `--apply` is provided.
+Gorilla includes tools to build catalogs and clean up superseded or abandoned repository content. Cleanup only previews changes unless `--apply` is provided.
 
 ```text
 gorilla admin build

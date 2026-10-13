@@ -19,9 +19,7 @@ If you just want the latest version, download it from the [releases page](https:
 
 Building from source requires the [Go tools](https://golang.org/doc/install).
 
-The primary `make build` target produces the Windows amd64 client binary at `build/gorilla.exe`.
-
-Repository administrators on macOS or Linux can download the native admin binaries from the [releases page](https://github.com/1dustindavis/gorilla/releases). See [Repository administration](docs/repo-admin-tools.md).
+After cloning this repo, just run `make build`. A new Windows amd64 client binary will be created in `build/`.
 
 ## Contributing
 

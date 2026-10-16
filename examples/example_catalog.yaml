@@ -14,7 +14,7 @@ GoogleChrome:
 
 ColorPrinter:
   dependencies:
-    - Canon-Drivers
+    - CanonDrivers
   display_name: Color Printer
   installer:
     hash: a8b4ff8bc7d77036644c1ed04713c550550f180e08da786fbca784818b918dac
@@ -71,7 +71,7 @@ ChefClient:
     type: msi
   version: 14.3.37
 
-vlc:
+VLC:
   display_name: VLC
   check:
     file:
@@ -92,7 +92,7 @@ vlc:
     type: exe
   version: 3.0.3
 
-slack:
+Slack:
   display_name: Slack
   check:
     appx:

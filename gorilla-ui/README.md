@@ -71,4 +71,3 @@ Logs use bounded rotation with one backup; logging/rotation failures are best-ef
 - [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md) — mutation and recovery semantics.
 - [docs/accessibility-automation.md](docs/accessibility-automation.md) — keyboard/accessibility/UIA contract.
 - [../docs/app-catalog.md](../docs/app-catalog.md) — user/operator App Catalog documentation.
-- [PLAN.md](PLAN.md) — historical pointer only; not an active roadmap.

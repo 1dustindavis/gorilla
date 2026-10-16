@@ -29,7 +29,7 @@ App Catalog actions do not run unrelated installs, removals, or updates. Regular
 
 ## App icons
 
-Repositories can provide an optional icon for each catalog item. A square 128×128 PNG is recommended. If no usable icon is available, App Catalog uses Gorilla's generic application symbol.
+Repositories can provide an optional icon for each catalog item. A square 256×256 PNG is recommended as source artwork; App Catalog scales it for display. If no usable icon is available, App Catalog uses Gorilla's generic application symbol.
 
 ## Activity and Retry
 

@@ -29,4 +29,4 @@ Build the real WinUI application on Windows with:
 make ui-windows-build
 ```
 
-For broader architecture and validation guidance, see `gorilla-ui/ARCHITECTURE.md` and `gorilla-ui/README.md`.
+For broader architecture and validation guidance, see [the architecture guide](../../ARCHITECTURE.md) and [Gorilla UI documentation](../../README.md).

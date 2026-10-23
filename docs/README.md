@@ -4,9 +4,6 @@ Gorilla manages application installation, updates, and removal on Windows using 
 
 ## Getting started
 
-For a complete first-run example featuring an optional App Catalog item, see the [quick start](quick-start.md).
-
-
 1. Host `manifests/`, `catalogs/`, and `packages/` directories on an HTTPS server:
 
    ```text

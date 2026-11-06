@@ -53,7 +53,7 @@ func Start() {
 }
 
 // End will compile everything and save to disk
-func End() {
+func End(appDataPath string) {
 
 	// Compile everything
 	Items["InstalledItems"] = InstalledItems
@@ -77,7 +77,10 @@ func End() {
 	}
 
 	// Write Items to disk as GorillaReport.json
-	reportPath := filepath.Join(os.Getenv("ProgramData"), "gorilla/GorillaReport.json")
+	if appDataPath == "" {
+		appDataPath = filepath.Join(os.Getenv("ProgramData"), "gorilla")
+	}
+	reportPath := filepath.Join(appDataPath, "GorillaReport.json")
 	writeErr := os.WriteFile(reportPath, reportJSON, 0644)
 	if writeErr != nil {
 		fmt.Println("Unable to write GorillaReport.json to disk:", writeErr)

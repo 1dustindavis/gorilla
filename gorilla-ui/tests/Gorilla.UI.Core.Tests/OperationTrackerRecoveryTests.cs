@@ -109,6 +109,32 @@ public class OperationTrackerRecoveryTests
         Assert.Equal("op-old", byId?.OperationId);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RefreshKnownOperations_DoesNotEraseOrRegressStreamUpdatesDuringLookup(bool missing)
+    {
+        var old = Event(OperationState.Installing, "Copying files");
+        var lookup = new TaskCompletionSource<IReadOnlyList<OperationStatusEvent>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = call => call == 1
+                ? Task.FromResult<IReadOnlyList<OperationStatusEvent>>([old]) : lookup.Task,
+            StreamAsync = (_, _, _) => ReplayedAfterRecoveredSnapshot(),
+        };
+        var tracker = new OperationTracker(client);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+
+        var refresh = tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+        await tracker.TrackAsync("op-1", _ => { }, CancellationToken.None);
+        lookup.SetResult(missing ? [] : [old]);
+        await refresh;
+
+        Assert.Equal(OperationState.Completed, tracker.GetLatestTerminalForItem("VLC")?.State);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+    }
+
     private static async IAsyncEnumerable<OperationStatusEvent> DroppedStream()
     {
         yield return Event(OperationState.Queued, "Operation queued");

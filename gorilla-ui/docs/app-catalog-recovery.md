@@ -26,6 +26,8 @@ Retention is intentionally bounded for completed history while preserving all ac
 
 This registry is not persisted to disk. A service restart therefore ends historical operation tracking and starts with an empty operation registry.
 
+Retained status events keep their original event timestamps. Stream replay uses those timestamps, and each `ListOperations` snapshot includes `timestampUtc` for its latest status. Clients connecting to an older service that omits this field fall back to the response timestamp.
+
 ## Service restart semantics
 
 A service restart must not replay an App Catalog operation merely because it was previously active. After restart, Gorilla resumes its normal managed-state convergence from persistent configuration and fresh detection.
@@ -46,5 +48,7 @@ The client tracks operation state independently of catalog card instances. A sta
 - operation no longer retained: report tracking loss separately from installation failure and refresh current observed state.
 
 Catalog refreshes may replace item/card objects, but active operation state is projected back onto the replacement item.
+
+If both status streaming and the reconciliation lookup fail, a subsequent successful catalog Refresh retries `ListOperations`. A missing operation then clears stale busy state from the card, details, and Activity without inventing a terminal result. A retained active operation resumes tracking without submitting another Install or Remove request. Lookup failures preserve known operation state until fresh evidence is available.
 
 These rules deliberately keep connection/status uncertainty separate from installer failure. A broken status channel does not mean installation failed, and UI cancellation only stops the UI wait; it does not cancel service-side installer work.

@@ -19,25 +19,44 @@ public sealed class OperationTracker
 
     public async Task<IReadOnlyList<OperationStatusEvent>> RefreshKnownOperationsAsync(CancellationToken cancellationToken)
     {
+        var beforeLookup = _latest.ToArray();
         var snapshots = await _client.ListOperationsAsync(cancellationToken);
         var retainedIds = snapshots.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
         var changed = false;
 
         foreach (var operation in snapshots)
         {
-            if (!_latest.TryGetValue(operation.OperationId, out var existing) || existing != operation)
+            while (true)
             {
-                _latest[operation.OperationId] = operation;
-                changed = true;
+                if (!_latest.TryGetValue(operation.OperationId, out var existing))
+                {
+                    if (_latest.TryAdd(operation.OperationId, operation))
+                    {
+                        changed = true;
+                        break;
+                    }
+                    continue;
+                }
+                if (existing == operation || IsOlderThanCurrent(existing, operation))
+                {
+                    break;
+                }
+                if (_latest.TryUpdate(operation.OperationId, operation, existing))
+                {
+                    changed = true;
+                    break;
+                }
             }
         }
 
         // The service operation registry is authoritative. Missing IDs mean the
         // operation aged out or the service restarted; neither is a terminal
         // success/failure result and neither should remain projected as activity.
-        foreach (var operationId in _latest.Keys)
+        foreach (var entry in beforeLookup)
         {
-            if (!retainedIds.Contains(operationId) && _latest.TryRemove(operationId, out _))
+            // Do not erase work started or advanced while the lookup was in flight.
+            if (!retainedIds.Contains(entry.Key) &&
+                ((ICollection<KeyValuePair<string, OperationStatusEvent>>)_latest).Remove(entry))
             {
                 changed = true;
             }

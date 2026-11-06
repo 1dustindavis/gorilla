@@ -26,6 +26,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     private string _searchQuery = string.Empty;
     private string? _selectedItemName;
     private bool _isActivityLoaded;
+    private bool _needsOperationReconciliation;
 
     public HomeViewModel(
         IGorillaServiceClient client,
@@ -328,6 +329,32 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         UiOptionalInstallItem? initiatingItem = null
     )
     {
+        // Initiated and recovered work share ownership of the status stream.
+        if (!_recoveryTracking.TryAdd(operationId, 0))
+        {
+            return;
+        }
+        try
+        {
+            await TrackAndRefreshCoreAsync(itemName, displayName, operationId, expectedAction,
+                streamFailureMessage, initiatingItem, cancellationToken);
+        }
+        finally
+        {
+            _recoveryTracking.TryRemove(operationId, out _);
+        }
+    }
+
+    private async Task TrackAndRefreshCoreAsync(
+        string itemName,
+        string displayName,
+        string operationId,
+        AppCatalog.Action expectedAction,
+        string streamFailureMessage,
+        UiOptionalInstallItem? initiatingItem,
+        CancellationToken cancellationToken
+    )
+    {
         while (true)
         {
             var completedObserved = false;
@@ -395,11 +422,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     private void StartRecoveredTracking(OperationStatusEvent operation, CancellationToken cancellationToken)
     {
-        if (!_recoveryTracking.TryAdd(operation.OperationId, 0))
-        {
-            return;
-        }
-
         _ = TrackRecoveredOperationAsync(operation, cancellationToken);
     }
 
@@ -429,10 +451,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 operation.ItemName,
                 operation.Action.ToString()
             );
-        }
-        finally
-        {
-            _recoveryTracking.TryRemove(operation.OperationId, out _);
         }
     }
 
@@ -491,6 +509,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            _needsOperationReconciliation = true;
             SetInfrastructureWarning(
                 "Gorilla couldn't reconcile the operation after losing status updates.",
                 "Operation tracking-loss reconciliation failed",

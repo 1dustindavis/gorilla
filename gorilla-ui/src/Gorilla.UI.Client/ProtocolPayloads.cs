@@ -27,7 +27,8 @@ public sealed record ListOperationsRequest();
 
 public sealed record OperationSnapshotPayload(
     string OperationId,
-    OperationStatusEventPayload Status
+    OperationStatusEventPayload Status,
+    DateTimeOffset? TimestampUtc = null
 );
 
 public sealed record ListOperationsResponse(

@@ -12,8 +12,9 @@ import (
 const actionListOperations = "ListOperations"
 
 type operationSnapshotPayload struct {
-	OperationID string                      `json:"operationId"`
-	Status      operationStatusEventPayload `json:"status"`
+	OperationID  string                      `json:"operationId"`
+	TimestampUTC string                      `json:"timestampUtc"`
+	Status       operationStatusEventPayload `json:"status"`
 }
 
 type listOperationsResponse struct {
@@ -34,9 +35,11 @@ func (sr *serviceRunner) snapshotTrackedOperations() []operationSnapshotPayload 
 		if len(op.events) == 0 {
 			continue
 		}
+		latest := op.events[len(op.events)-1]
 		out = append(out, operationSnapshotPayload{
-			OperationID: operationID,
-			Status:      op.events[len(op.events)-1],
+			OperationID:  operationID,
+			TimestampUTC: latest.timestamp.UTC().Format(time.RFC3339Nano),
+			Status:       latest.operationStatusEventPayload,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

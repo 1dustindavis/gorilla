@@ -147,6 +147,74 @@ public class HomeViewModelRecoveryTests
         Assert.Equal([true, false, true], client.RefreshArguments);
     }
 
+    [Fact]
+    public async Task ManualRefresh_AfterStreamAndLookupFailure_ClearsVanishedOperationWithoutInventingResult()
+    {
+        var client = new FakeClient();
+        var tracker = new OperationTracker(client);
+        var viewModel = new HomeViewModel(client,
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        var item = Assert.Single(viewModel.Items);
+        client.FailRetainedLookup = true;
+        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
+
+        await viewModel.InstallAsync(item, CancellationToken.None);
+
+        Assert.NotNull(item.ActiveOperation);
+        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        item = Assert.Single(viewModel.Items);
+        Assert.True(item.IsBusy);
+
+        client.FailRetainedLookup = false;
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+
+        item = Assert.Single(viewModel.Items);
+        Assert.False(item.IsBusy);
+        Assert.True(item.CanInstall);
+        Assert.Null(item.ActiveOperation);
+        Assert.Null(item.LatestOperation);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+        Assert.Null(tracker.GetLatestTerminalForItem("VLC"));
+        Assert.Equal(2, client.StreamCalls);
+    }
+
+    [Fact]
+    public async Task ManualRefresh_AfterFailedReconciliation_ResumesRetainedOperationOnce()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var client = new FakeClient();
+        var tracker = new OperationTracker(client);
+        var viewModel = new HomeViewModel(client,
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
+        await viewModel.InitializeAsync(cancellation.Token);
+        client.FailRetainedLookup = true;
+        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
+        await viewModel.InstallAsync(Assert.Single(viewModel.Items), cancellation.Token);
+
+        client.FailRetainedLookup = false;
+        client.Operations = [ActiveOperation()];
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.StreamAsync = (_, token) => ActiveStream(started, token);
+        await viewModel.RefreshCatalogAsync(cancellation.Token);
+        await started.Task.WaitAsync(cancellation.Token);
+        await viewModel.RefreshCatalogAsync(cancellation.Token);
+
+        Assert.True(Assert.Single(viewModel.Items).IsBusy);
+        Assert.Equal(3, client.StreamCalls);
+        Assert.Empty(viewModel.WarningBanner);
+        cancellation.Cancel();
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> ActiveThenDroppedStream()
+    {
+        yield return ActiveOperation();
+        await Task.Yield();
+        throw new IOException("service stopped");
+    }
+
     private static UiOptionalInstallItem MakeUiItem() => new()
     {
         ItemName = "VLC",
@@ -232,7 +300,8 @@ public class HomeViewModelRecoveryTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public IReadOnlyList<OperationStatusEvent> Operations { get; init; } = [];
+        public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [];
+        public bool FailRetainedLookup { get; set; }
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; set; }
             = (_, _) => EmptyStream();
         public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; }
@@ -260,6 +329,10 @@ public class HomeViewModelRecoveryTests
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
         {
             ListOperationsCalls++;
+            if (FailRetainedLookup)
+            {
+                throw new IOException("service unavailable");
+            }
             return Task.FromResult(Operations);
         }
 

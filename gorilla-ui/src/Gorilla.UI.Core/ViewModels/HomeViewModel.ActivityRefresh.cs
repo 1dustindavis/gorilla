@@ -4,18 +4,30 @@ namespace Gorilla.UI.Core.ViewModels;
 
 public sealed partial class HomeViewModel
 {
-    public async Task RetryActivityLoadAsync(CancellationToken cancellationToken)
+    public Task RetryActivityLoadAsync(CancellationToken cancellationToken)
+        => RefreshRetainedOperationsAsync(_needsOperationReconciliation, cancellationToken);
+
+    private async Task RefreshRetainedOperationsAsync(bool force, CancellationToken cancellationToken)
     {
-        if (IsActivityLoaded)
+        if (IsActivityLoaded && !force)
         {
             return;
         }
 
         try
         {
+            var warning = InfrastructureWarning;
             var operations = await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
             IsActivityLoaded = true;
-            RebuildActivityProjection();
+            _needsOperationReconciliation = false;
+            lock (_projectionStateLock)
+            {
+                foreach (var item in _catalogItems.Values)
+                {
+                    ReprojectOperation(item);
+                }
+                RebuildActivityProjection();
+            }
 
             foreach (var operation in operations)
             {
@@ -27,6 +39,24 @@ public sealed partial class HomeViewModel
             }
 
             ClearRetainedOperationLookupInfrastructureWarning();
+            if (InfrastructureWarning == warning &&
+                warning.Context == "Operation tracking-loss reconciliation failed")
+            {
+                if (operations.Any(operation => operation.OperationId == warning.OperationId))
+                {
+                    ClearInfrastructureWarning();
+                }
+                else
+                {
+                    SetInfrastructureWarning(
+                        "Operation tracking is no longer available. Gorilla refreshed current installation state without assuming the previous operation succeeded or failed.",
+                        "Operation disappeared during tracking-loss reconciliation",
+                        operationId: warning.OperationId,
+                        itemName: warning.ItemName,
+                        expectedAction: warning.ExpectedAction
+                    );
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

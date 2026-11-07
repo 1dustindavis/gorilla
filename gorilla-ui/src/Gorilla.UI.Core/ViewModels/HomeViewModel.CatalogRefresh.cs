@@ -49,12 +49,6 @@ public sealed partial class HomeViewModel
 
         ClearCatalogRecoveryInfrastructureWarning();
 
-        // A failed status lookup can outlive the outage. Catalog truth alone
-        // cannot clear the old operation that still disables the app's actions.
-        if (_needsOperationReconciliation || !IsActivityLoaded)
-        {
-            await RefreshRetainedOperationsAsync(true, cancellationToken);
-        }
     }
 
     private void EnsureCatalogStateSubscription()

@@ -182,6 +182,37 @@ public class HomeViewModelRecoveryTests
     }
 
     [Fact]
+    public async Task ManualRefresh_RepeatedLookupFailureThenMissingOperation_RetainsLossExplanation()
+    {
+        var client = new FakeClient();
+        var tracker = new OperationTracker(client);
+        var viewModel = new HomeViewModel(client,
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        client.FailRetainedLookup = true;
+        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
+
+        await viewModel.InstallAsync(Assert.Single(viewModel.Items), CancellationToken.None);
+        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
+        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
+
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
+        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
+        Assert.True(Assert.Single(viewModel.Items).IsBusy);
+
+        client.FailRetainedLookup = false;
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+
+        Assert.Equal("Operation disappeared during tracking-loss reconciliation",
+            viewModel.InfrastructureWarning.Context);
+        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
+        Assert.Contains("no longer available", viewModel.WarningBanner);
+        Assert.False(Assert.Single(viewModel.Items).IsBusy);
+        Assert.Empty(viewModel.ActivityItems);
+    }
+
+    [Fact]
     public async Task ManualRefresh_AfterFailedReconciliation_ResumesRetainedOperationOnce()
     {
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));

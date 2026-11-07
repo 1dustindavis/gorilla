@@ -72,6 +72,17 @@ public sealed class OperationTracker
         return _latest.Values.ToArray();
     }
 
+    // Status tracking is best-effort UI state. If both the stream and service
+    // lookup fail, release the stale busy projection rather than requiring
+    // subsequent refreshes to reconstruct a historical outcome.
+    public void ForgetOperation(string operationId)
+    {
+        if (_latest.TryRemove(operationId, out _))
+        {
+            OnOperationsChanged();
+        }
+    }
+
     // Canonical Activity source. This is a snapshot of the same operation-ID keyed
     // registry used by the card/details projections; Activity must not maintain a
     // separate operation/history truth.

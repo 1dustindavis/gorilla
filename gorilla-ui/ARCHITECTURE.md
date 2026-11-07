@@ -71,6 +71,12 @@ The active lifecycle states are:
 
 Every operation carries immutable `operationId`, `itemName`, and action identity. `progressPercent` is nullable and remains indeterminate when Gorilla has no measured progress.
 
+## UI status versus diagnostics
+
+Catalog observation and service-owned action policy are the UI's primary truth. Operation progress and Activity are best-effort views of in-memory service tracking, not a durable or authoritative history. On unrecoverable tracking loss the UI may discard the stale operation presentation and report that its outcome is unknown; users can refresh to inspect current observed installation state.
+
+The service independently enforces operation admission and prevents conflicting mutations, even if UI status is missing or stale. Detailed troubleshooting belongs in Gorilla logs and the latest `GorillaReport.json` written under the configured `app_data_path`; the report is a per-run snapshot, not historical audit storage. Never infer that a prior operation succeeded or failed solely from current catalog observation.
+
 ## Tracking, relaunch, and recovery
 
 The service keeps a bounded in-memory operation registry and exposes it through `ListOperations`. Active work is service-owned and independent of App Catalog pages, cards, or process lifetime while the service itself remains running.

@@ -67,7 +67,9 @@ public sealed class OperationTracker
             OnOperationsChanged();
         }
 
-        return snapshots;
+        // A stream may have advanced these operations during the lookup. Return
+        // the canonical, reconciled states so callers do not restart stale work.
+        return _latest.Values.ToArray();
     }
 
     // Canonical Activity source. This is a snapshot of the same operation-ID keyed
@@ -144,13 +146,46 @@ public sealed class OperationTracker
                     // opened status stream may replay older retained events first.
                     // Keep the operation-ID registry monotonic so Activity and the
                     // existing card/details projections never move backwards.
-                    if (_latest.TryGetValue(operationId, out var current) && IsOlderThanCurrent(current, update))
+                    var accepted = false;
+                    var changed = false;
+                    while (true)
+                    {
+                        if (!_latest.TryGetValue(operationId, out var current))
+                        {
+                            if (_latest.TryAdd(operationId, update))
+                            {
+                                accepted = true;
+                                changed = true;
+                                break;
+                            }
+                        }
+                        else if (IsOlderThanCurrent(current, update))
+                        {
+                            // A concurrent lookup or stream already published newer evidence.
+                            break;
+                        }
+                        else if (current == update)
+                        {
+                            // Still deliver a replayed terminal event to complete tracking.
+                            accepted = true;
+                            break;
+                        }
+                        else if (_latest.TryUpdate(operationId, update, current))
+                        {
+                            accepted = true;
+                            changed = true;
+                            break;
+                        }
+                    }
+
+                    if (!accepted)
                     {
                         continue;
                     }
-
-                    _latest[operationId] = update;
-                    OnOperationsChanged();
+                    if (changed)
+                    {
+                        OnOperationsChanged();
+                    }
                     onUpdate(update);
                     if (update.State == OperationState.Completed)
                     {

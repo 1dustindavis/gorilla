@@ -26,7 +26,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
     private string _searchQuery = string.Empty;
     private string? _selectedItemName;
     private bool _isActivityLoaded;
-    private bool _needsOperationReconciliation;
 
     public HomeViewModel(
         IGorillaServiceClient client,
@@ -509,9 +508,19 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            _needsOperationReconciliation = true;
+            // The outcome is unknown, not a failed install/remove. Do not leave
+            // the card busy indefinitely when both status channels are unavailable.
+            _operationTracker.ForgetOperation(operationId);
+            var item = FindItem(itemName) ?? fallbackItem;
+            if (item is not null)
+            {
+                lock (_projectionStateLock)
+                {
+                    ReprojectOperation(item);
+                }
+            }
             SetInfrastructureWarning(
-                "Gorilla couldn't reconcile the operation after losing status updates.",
+                "Operation status is unavailable. Refresh to check the current installation state; the result of the previous action is unknown.",
                 "Operation tracking-loss reconciliation failed",
                 ex,
                 operationId,
@@ -519,6 +528,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 expectedAction.ToString(),
                 additionalTechnicalDetails: $"Original tracking exception type: {trackingException.GetType().FullName}\nOriginal tracking exception message: {trackingException.Message}"
             );
+            await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
             return false;
         }
     }

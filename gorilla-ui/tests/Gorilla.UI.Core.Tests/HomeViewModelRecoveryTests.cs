@@ -148,41 +148,7 @@ public class HomeViewModelRecoveryTests
     }
 
     [Fact]
-    public async Task ManualRefresh_AfterStreamAndLookupFailure_ClearsVanishedOperationWithoutInventingResult()
-    {
-        var client = new FakeClient();
-        var tracker = new OperationTracker(client);
-        var viewModel = new HomeViewModel(client,
-            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
-        await viewModel.InitializeAsync(CancellationToken.None);
-        var item = Assert.Single(viewModel.Items);
-        client.FailRetainedLookup = true;
-        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
-
-        await viewModel.InstallAsync(item, CancellationToken.None);
-
-        Assert.NotNull(item.ActiveOperation);
-        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
-        await viewModel.RefreshCatalogAsync(CancellationToken.None);
-        item = Assert.Single(viewModel.Items);
-        Assert.True(item.IsBusy);
-
-        client.FailRetainedLookup = false;
-        await viewModel.RefreshCatalogAsync(CancellationToken.None);
-
-        item = Assert.Single(viewModel.Items);
-        Assert.False(item.IsBusy);
-        Assert.True(item.CanInstall);
-        Assert.Null(item.ActiveOperation);
-        Assert.Null(item.LatestOperation);
-        Assert.Empty(viewModel.ActivityItems);
-        Assert.Null(tracker.GetActiveForItem("VLC"));
-        Assert.Null(tracker.GetLatestTerminalForItem("VLC"));
-        Assert.Equal(2, client.StreamCalls);
-    }
-
-    [Fact]
-    public async Task ManualRefresh_RepeatedLookupFailureThenMissingOperation_RetainsLossExplanation()
+    public async Task FailedStreamAndLookup_ReleasesBusyStateWithoutInventingOutcome()
     {
         var client = new FakeClient();
         var tracker = new OperationTracker(client);
@@ -193,50 +159,25 @@ public class HomeViewModelRecoveryTests
         client.StreamAsync = (_, _) => ActiveThenDroppedStream();
 
         await viewModel.InstallAsync(Assert.Single(viewModel.Items), CancellationToken.None);
+
+        var item = Assert.Single(viewModel.Items);
+        Assert.False(item.IsBusy);
+        Assert.True(item.CanInstall);
+        Assert.Null(item.ActiveOperation);
+        Assert.Null(item.LatestOperation);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+        Assert.Contains("result of the previous action is unknown", viewModel.WarningBanner);
         Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
         Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
+        Assert.Equal(2, client.StreamCalls);
 
-        await viewModel.RefreshCatalogAsync(CancellationToken.None);
-        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
-        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
-        Assert.True(Assert.Single(viewModel.Items).IsBusy);
-
+        // Refresh updates observed catalog state, not historical operation outcomes.
         client.FailRetainedLookup = false;
         await viewModel.RefreshCatalogAsync(CancellationToken.None);
-
-        Assert.Equal("Operation disappeared during tracking-loss reconciliation",
-            viewModel.InfrastructureWarning.Context);
-        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
-        Assert.Contains("no longer available", viewModel.WarningBanner);
         Assert.False(Assert.Single(viewModel.Items).IsBusy);
         Assert.Empty(viewModel.ActivityItems);
-    }
-
-    [Fact]
-    public async Task ManualRefresh_AfterFailedReconciliation_ResumesRetainedOperationOnce()
-    {
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var client = new FakeClient();
-        var tracker = new OperationTracker(client);
-        var viewModel = new HomeViewModel(client,
-            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
-        await viewModel.InitializeAsync(cancellation.Token);
-        client.FailRetainedLookup = true;
-        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
-        await viewModel.InstallAsync(Assert.Single(viewModel.Items), cancellation.Token);
-
-        client.FailRetainedLookup = false;
-        client.Operations = [ActiveOperation()];
-        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        client.StreamAsync = (_, token) => ActiveStream(started, token);
-        await viewModel.RefreshCatalogAsync(cancellation.Token);
-        await started.Task.WaitAsync(cancellation.Token);
-        await viewModel.RefreshCatalogAsync(cancellation.Token);
-
-        Assert.True(Assert.Single(viewModel.Items).IsBusy);
-        Assert.Equal(3, client.StreamCalls);
-        Assert.Empty(viewModel.WarningBanner);
-        cancellation.Cancel();
+        Assert.Equal(2, client.StreamCalls);
     }
 
     private static async IAsyncEnumerable<OperationStatusEvent> ActiveThenDroppedStream()

@@ -451,14 +451,14 @@ func TestTrackedOperationPruningDropsOldCompletedEntries(t *testing.T) {
 	for i := 0; i < trackedOperationsMaxCount+50; i++ {
 		id := fmt.Sprintf("done-%d", i)
 		sr.operations[id] = &trackedOperation{
-			events:      []operationStatusEventPayload{{State: "Completed", Message: "done"}},
+			events:      []trackedOperationEvent{{operationStatusEventPayload: operationStatusEventPayload{State: "Completed", Message: "done"}}},
 			done:        true,
 			lastUpdated: now.Add(-time.Duration(i) * time.Minute),
 			completedAt: now.Add(-time.Duration(i) * time.Minute),
 		}
 	}
 	sr.operations["active-op"] = &trackedOperation{
-		events:      []operationStatusEventPayload{{State: "Installing", Message: "running"}},
+		events:      []trackedOperationEvent{{operationStatusEventPayload: operationStatusEventPayload{State: "Installing", Message: "running"}}},
 		done:        false,
 		lastUpdated: now,
 	}

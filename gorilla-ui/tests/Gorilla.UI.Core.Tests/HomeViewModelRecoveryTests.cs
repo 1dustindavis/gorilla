@@ -147,6 +147,46 @@ public class HomeViewModelRecoveryTests
         Assert.Equal([true, false, true], client.RefreshArguments);
     }
 
+    [Fact]
+    public async Task FailedStreamAndLookup_ReleasesBusyStateWithoutInventingOutcome()
+    {
+        var client = new FakeClient();
+        var tracker = new OperationTracker(client);
+        var viewModel = new HomeViewModel(client,
+            new OptionalInstallsCacheCoordinator(client, new InMemoryCacheStore()), tracker);
+        await viewModel.InitializeAsync(CancellationToken.None);
+        client.FailRetainedLookup = true;
+        client.StreamAsync = (_, _) => ActiveThenDroppedStream();
+
+        await viewModel.InstallAsync(Assert.Single(viewModel.Items), CancellationToken.None);
+
+        var item = Assert.Single(viewModel.Items);
+        Assert.False(item.IsBusy);
+        Assert.True(item.CanInstall);
+        Assert.Null(item.ActiveOperation);
+        Assert.Null(item.LatestOperation);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+        Assert.Contains("result of the previous action is unknown", viewModel.WarningBanner);
+        Assert.Equal("Operation tracking-loss reconciliation failed", viewModel.InfrastructureWarning.Context);
+        Assert.Equal("op-1", viewModel.InfrastructureWarning.OperationId);
+        Assert.Equal(2, client.StreamCalls);
+
+        // Refresh updates observed catalog state, not historical operation outcomes.
+        client.FailRetainedLookup = false;
+        await viewModel.RefreshCatalogAsync(CancellationToken.None);
+        Assert.False(Assert.Single(viewModel.Items).IsBusy);
+        Assert.Empty(viewModel.ActivityItems);
+        Assert.Equal(2, client.StreamCalls);
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> ActiveThenDroppedStream()
+    {
+        yield return ActiveOperation();
+        await Task.Yield();
+        throw new IOException("service stopped");
+    }
+
     private static UiOptionalInstallItem MakeUiItem() => new()
     {
         ItemName = "VLC",
@@ -232,7 +272,8 @@ public class HomeViewModelRecoveryTests
 
     private sealed class FakeClient : IGorillaServiceClient
     {
-        public IReadOnlyList<OperationStatusEvent> Operations { get; init; } = [];
+        public IReadOnlyList<OperationStatusEvent> Operations { get; set; } = [];
+        public bool FailRetainedLookup { get; set; }
         public Func<string, CancellationToken, IAsyncEnumerable<OperationStatusEvent>> StreamAsync { get; set; }
             = (_, _) => EmptyStream();
         public Func<bool, CancellationToken, Task<OptionalInstallsSnapshotResult>> ListAsync { get; init; }
@@ -260,6 +301,10 @@ public class HomeViewModelRecoveryTests
         public Task<IReadOnlyList<OperationStatusEvent>> ListOperationsAsync(CancellationToken cancellationToken)
         {
             ListOperationsCalls++;
+            if (FailRetainedLookup)
+            {
+                throw new IOException("service unavailable");
+            }
             return Task.FromResult(Operations);
         }
 

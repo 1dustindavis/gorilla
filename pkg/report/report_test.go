@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -69,12 +70,41 @@ func TestEnd(t *testing.T) {
 	expectedItems["UninstalledItems"] = UninstalledItems
 
 	// Run the `End` function
-	End()
+	End(t.TempDir())
 
 	// Compare the actual results
 	mapsMatch := reflect.DeepEqual(expectedItems, Items)
 
 	if !mapsMatch {
 		t.Errorf("\n\nExpected:\n\n%#v\n\nReceived:\n\n %#v", expectedItems, Items)
+	}
+}
+
+func TestEndWritesReportToConfiguredAppDataPath(t *testing.T) {
+	programData := t.TempDir()
+	t.Setenv("ProgramData", programData)
+	defaultPath := filepath.Join(programData, "gorilla")
+	if err := os.MkdirAll(defaultPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	customPath := t.TempDir()
+	defaultReport := filepath.Join(defaultPath, "GorillaReport.json")
+	if err := os.WriteFile(defaultReport, []byte("other configuration"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	End(customPath)
+	if _, err := os.Stat(filepath.Join(customPath, "GorillaReport.json")); err != nil {
+		t.Fatalf("custom report was not written: %v", err)
+	}
+	content, err := os.ReadFile(defaultReport)
+	if err != nil || string(content) != "other configuration" {
+		t.Fatalf("report from another configuration was overwritten: %q, %v", content, err)
+	}
+
+	End("")
+	content, err = os.ReadFile(defaultReport)
+	if err != nil || string(content) == "other configuration" {
+		t.Fatalf("empty app data path did not retain the default destination: %q, %v", content, err)
 	}
 }

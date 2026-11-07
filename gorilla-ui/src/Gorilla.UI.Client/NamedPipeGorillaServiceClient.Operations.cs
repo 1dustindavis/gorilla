@@ -30,7 +30,8 @@ public sealed partial class NamedPipeGorillaServiceClient
                 State: operation.Status.State,
                 ProgressPercent: operation.Status.ProgressPercent,
                 Message: operation.Status.Message,
-                TimestampUtc: responseEnvelope.TimestampUtc,
+                // Older services omit the per-operation timestamp.
+                TimestampUtc: operation.TimestampUtc ?? responseEnvelope.TimestampUtc,
                 ItemName: operation.Status.ItemName!,
                 Action: operation.Status.Action!.Value,
                 Result: operation.Status.Result

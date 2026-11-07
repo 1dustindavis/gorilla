@@ -27,6 +27,7 @@ service_interval: 1h
 - `url_packages`: Optional alternate base URL for package downloads. Defaults to `url`.
 - `local_manifests`: Optional list of local manifest paths processed after remote manifests.
 - `app_data_path`: Working directory for cache, logs, reports, and the service manifest. Defaults to `%ProgramData%\gorilla`.
+  Managed runs write `GorillaReport.json` directly in this directory, including targeted App Catalog installs and removals.
 - `service_interval`: Interval between service runs in Go duration format, such as `30m`, `1h`, or `2h`. Defaults to `1h`.
 - `auth_user` and `auth_pass`: Optional HTTP Basic Authentication credentials.
 - `tls_auth`: Enables mutual TLS when `true`.

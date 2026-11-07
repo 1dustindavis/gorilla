@@ -109,6 +109,91 @@ public class OperationTrackerRecoveryTests
         Assert.Equal("op-old", byId?.OperationId);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RefreshKnownOperations_DoesNotEraseOrRegressStreamUpdatesDuringLookup(bool missing)
+    {
+        var old = Event(OperationState.Installing, "Copying files");
+        var lookup = new TaskCompletionSource<IReadOnlyList<OperationStatusEvent>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = call => call == 1
+                ? Task.FromResult<IReadOnlyList<OperationStatusEvent>>([old]) : lookup.Task,
+            StreamAsync = (_, _, _) => ReplayedAfterRecoveredSnapshot(),
+        };
+        var tracker = new OperationTracker(client);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+
+        var refresh = tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+        await tracker.TrackAsync("op-1", _ => { }, CancellationToken.None);
+        lookup.SetResult(missing ? [] : [old]);
+        await refresh;
+
+        Assert.Equal(OperationState.Completed, tracker.GetLatestTerminalForItem("VLC")?.State);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+    }
+
+    [Fact]
+    public async Task TrackAsync_ConcurrentTerminalLookupCannotBeRegressedByOlderStreamReplay()
+    {
+        var allowStream = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var active = Event(OperationState.Installing, "Installing");
+        var terminal = new OperationStatusEvent(
+            "op-1", OperationState.Completed, null, "Installed", Now.AddSeconds(10),
+            "VLC", AppCatalog.Action.Install,
+            new Result(Outcome.Succeeded, "completed", Message: "Installed"));
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = call => Task.FromResult<IReadOnlyList<OperationStatusEvent>>(
+                call == 1 ? [active] : [terminal]),
+            StreamAsync = (_, _, _) => DelayedOldStream(allowStream.Task, active),
+        };
+        var tracker = new OperationTracker(client);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+
+        var delivered = new List<OperationStatusEvent>();
+        var tracking = tracker.TrackAsync("op-1", delivered.Add, CancellationToken.None);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+        allowStream.SetResult(true);
+        await tracking;
+
+        Assert.Equal(OperationState.Completed, tracker.GetLatestTerminalForItem("VLC")?.State);
+        Assert.Null(tracker.GetActiveForItem("VLC"));
+        Assert.Empty(delivered);
+    }
+
+    [Fact]
+    public async Task RefreshKnownOperations_ReturnsReconciledStateAfterConcurrentStreamCompletion()
+    {
+        var active = Event(OperationState.Installing, "Installing");
+        var lookup = new TaskCompletionSource<IReadOnlyList<OperationStatusEvent>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeClient
+        {
+            ListOperationsAsyncImpl = call => call == 1
+                ? Task.FromResult<IReadOnlyList<OperationStatusEvent>>([active]) : lookup.Task,
+            StreamAsync = (_, _, _) => ReplayedAfterRecoveredSnapshot(),
+        };
+        var tracker = new OperationTracker(client);
+        await tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+
+        var refresh = tracker.RefreshKnownOperationsAsync(CancellationToken.None);
+        await tracker.TrackAsync("op-1", _ => { }, CancellationToken.None);
+        lookup.SetResult([active]);
+        var results = await refresh;
+
+        Assert.Equal(OperationState.Completed, Assert.Single(results).State);
+    }
+
+    private static async IAsyncEnumerable<OperationStatusEvent> DelayedOldStream(
+        Task gate, OperationStatusEvent active)
+    {
+        await gate;
+        yield return active;
+    }
+
     private static async IAsyncEnumerable<OperationStatusEvent> DroppedStream()
     {
         yield return Event(OperationState.Queued, "Operation queued");

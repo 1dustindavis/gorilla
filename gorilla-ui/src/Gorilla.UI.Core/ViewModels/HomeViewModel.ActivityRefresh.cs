@@ -16,7 +16,6 @@ public sealed partial class HomeViewModel
             var operations = await _operationTracker.RefreshKnownOperationsAsync(cancellationToken);
             IsActivityLoaded = true;
             RebuildActivityProjection();
-
             foreach (var operation in operations)
             {
                 ProjectOperation(operation);

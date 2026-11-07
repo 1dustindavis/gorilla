@@ -48,6 +48,7 @@ public sealed partial class HomeViewModel
         }
 
         ClearCatalogRecoveryInfrastructureWarning();
+
     }
 
     private void EnsureCatalogStateSubscription()

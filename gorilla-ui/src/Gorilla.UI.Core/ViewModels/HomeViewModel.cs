@@ -328,6 +328,32 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         UiOptionalInstallItem? initiatingItem = null
     )
     {
+        // Initiated and recovered work share ownership of the status stream.
+        if (!_recoveryTracking.TryAdd(operationId, 0))
+        {
+            return;
+        }
+        try
+        {
+            await TrackAndRefreshCoreAsync(itemName, displayName, operationId, expectedAction,
+                streamFailureMessage, initiatingItem, cancellationToken);
+        }
+        finally
+        {
+            _recoveryTracking.TryRemove(operationId, out _);
+        }
+    }
+
+    private async Task TrackAndRefreshCoreAsync(
+        string itemName,
+        string displayName,
+        string operationId,
+        AppCatalog.Action expectedAction,
+        string streamFailureMessage,
+        UiOptionalInstallItem? initiatingItem,
+        CancellationToken cancellationToken
+    )
+    {
         while (true)
         {
             var completedObserved = false;
@@ -395,11 +421,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
 
     private void StartRecoveredTracking(OperationStatusEvent operation, CancellationToken cancellationToken)
     {
-        if (!_recoveryTracking.TryAdd(operation.OperationId, 0))
-        {
-            return;
-        }
-
         _ = TrackRecoveredOperationAsync(operation, cancellationToken);
     }
 
@@ -429,10 +450,6 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 operation.ItemName,
                 operation.Action.ToString()
             );
-        }
-        finally
-        {
-            _recoveryTracking.TryRemove(operation.OperationId, out _);
         }
     }
 
@@ -491,8 +508,19 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
+            // The outcome is unknown, not a failed install/remove. Do not leave
+            // the card busy indefinitely when both status channels are unavailable.
+            _operationTracker.ForgetOperation(operationId);
+            var item = FindItem(itemName) ?? fallbackItem;
+            if (item is not null)
+            {
+                lock (_projectionStateLock)
+                {
+                    ReprojectOperation(item);
+                }
+            }
             SetInfrastructureWarning(
-                "Gorilla couldn't reconcile the operation after losing status updates.",
+                "Operation status is unavailable. Refresh to check the current installation state; the result of the previous action is unknown.",
                 "Operation tracking-loss reconciliation failed",
                 ex,
                 operationId,
@@ -500,6 +528,7 @@ public sealed partial class HomeViewModel : INotifyPropertyChanged
                 expectedAction.ToString(),
                 additionalTechnicalDetails: $"Original tracking exception type: {trackingException.GetType().FullName}\nOriginal tracking exception message: {trackingException.Message}"
             );
+            await RefreshCatalogAfterOperationAsync(cancellationToken, preserveExistingWarning: true);
             return false;
         }
     }

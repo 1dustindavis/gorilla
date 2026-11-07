@@ -67,8 +67,13 @@ const (
 	trackedCompletedOperationTTL = 24 * time.Hour
 )
 
+type trackedOperationEvent struct {
+	operationStatusEventPayload
+	timestamp time.Time
+}
+
 type trackedOperation struct {
-	events      []operationStatusEventPayload
+	events      []trackedOperationEvent
 	done        bool
 	lastUpdated time.Time
 	completedAt time.Time
@@ -622,8 +627,8 @@ func (sr *serviceRunner) writeStreamOperationStatusSequence(file *os.File, req s
 				Operation:    actionStreamOperationStatus,
 				RequestID:    "",
 				OperationID:  operationID,
-				TimestampUTC: nowRFC3339UTC(),
-				Payload:      events[sent],
+				TimestampUTC: events[sent].timestamp.UTC().Format(time.RFC3339Nano),
+				Payload:      events[sent].operationStatusEventPayload,
 			}); err != nil {
 				return err
 			}
@@ -650,17 +655,21 @@ func (sr *serviceRunner) registerTrackedOperation(operationID string, identity .
 	}
 	sr.operationsMu.Lock()
 	defer sr.operationsMu.Unlock()
-	sr.pruneTrackedOperationsLocked(time.Now())
+	now := time.Now()
+	sr.pruneTrackedOperationsLocked(now)
 	sr.operations[operationID] = &trackedOperation{
-		events: []operationStatusEventPayload{
+		events: []trackedOperationEvent{
 			{
-				State:    "Queued",
-				Message:  "Operation queued",
-				ItemName: itemName,
-				Action:   appCatalogAction(action),
+				operationStatusEventPayload: operationStatusEventPayload{
+					State:    "Queued",
+					Message:  "Operation queued",
+					ItemName: itemName,
+					Action:   appCatalogAction(action),
+				},
+				timestamp: now,
 			},
 		},
-		lastUpdated: time.Now(),
+		lastUpdated: now,
 	}
 }
 
@@ -675,7 +684,7 @@ func (sr *serviceRunner) appendOperationEvent(operationID string, event operatio
 		return
 	}
 	now := time.Now()
-	op.events = append(op.events, event)
+	op.events = append(op.events, trackedOperationEvent{operationStatusEventPayload: event, timestamp: now})
 	op.lastUpdated = now
 	if event.State == "Completed" {
 		op.done = true
@@ -691,14 +700,14 @@ func (sr *serviceRunner) hasTrackedOperation(operationID string) bool {
 	return ok
 }
 
-func (sr *serviceRunner) snapshotTrackedOperation(operationID string) ([]operationStatusEventPayload, bool, bool) {
+func (sr *serviceRunner) snapshotTrackedOperation(operationID string) ([]trackedOperationEvent, bool, bool) {
 	sr.operationsMu.Lock()
 	defer sr.operationsMu.Unlock()
 	op, ok := sr.operations[operationID]
 	if !ok {
 		return nil, false, false
 	}
-	out := make([]operationStatusEventPayload, len(op.events))
+	out := make([]trackedOperationEvent, len(op.events))
 	copy(out, op.events)
 	return out, op.done, true
 }

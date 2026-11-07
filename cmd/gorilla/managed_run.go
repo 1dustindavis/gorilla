@@ -89,7 +89,7 @@ func managedRun(cfg config.Configuration) (managedrun.RunResult, error) {
 	}
 	if !cfg.CheckOnly {
 		report.Start()
-		defer report.End()
+		defer report.End(cfg.AppDataPath)
 	}
 	ctx, err := prepareManagedExecution(cfg)
 	if err != nil {
@@ -128,7 +128,7 @@ func managedItemRun(cfg config.Configuration, requestedItem, requestedAction str
 	}
 	if !cfg.CheckOnly {
 		report.Start()
-		defer report.End()
+		defer report.End(cfg.AppDataPath)
 	}
 	ctx, err := prepareManagedExecution(cfg)
 	if err != nil {

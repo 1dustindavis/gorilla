@@ -19,25 +19,44 @@ public sealed class OperationTracker
 
     public async Task<IReadOnlyList<OperationStatusEvent>> RefreshKnownOperationsAsync(CancellationToken cancellationToken)
     {
+        var beforeLookup = _latest.ToArray();
         var snapshots = await _client.ListOperationsAsync(cancellationToken);
         var retainedIds = snapshots.Select(operation => operation.OperationId).ToHashSet(StringComparer.Ordinal);
         var changed = false;
 
         foreach (var operation in snapshots)
         {
-            if (!_latest.TryGetValue(operation.OperationId, out var existing) || existing != operation)
+            while (true)
             {
-                _latest[operation.OperationId] = operation;
-                changed = true;
+                if (!_latest.TryGetValue(operation.OperationId, out var existing))
+                {
+                    if (_latest.TryAdd(operation.OperationId, operation))
+                    {
+                        changed = true;
+                        break;
+                    }
+                    continue;
+                }
+                if (existing == operation || IsOlderThanCurrent(existing, operation))
+                {
+                    break;
+                }
+                if (_latest.TryUpdate(operation.OperationId, operation, existing))
+                {
+                    changed = true;
+                    break;
+                }
             }
         }
 
         // The service operation registry is authoritative. Missing IDs mean the
         // operation aged out or the service restarted; neither is a terminal
         // success/failure result and neither should remain projected as activity.
-        foreach (var operationId in _latest.Keys)
+        foreach (var entry in beforeLookup)
         {
-            if (!retainedIds.Contains(operationId) && _latest.TryRemove(operationId, out _))
+            // Do not erase work started or advanced while the lookup was in flight.
+            if (!retainedIds.Contains(entry.Key) &&
+                ((ICollection<KeyValuePair<string, OperationStatusEvent>>)_latest).Remove(entry))
             {
                 changed = true;
             }
@@ -48,7 +67,20 @@ public sealed class OperationTracker
             OnOperationsChanged();
         }
 
-        return snapshots;
+        // A stream may have advanced these operations during the lookup. Return
+        // the canonical, reconciled states so callers do not restart stale work.
+        return _latest.Values.ToArray();
+    }
+
+    // Status tracking is best-effort UI state. If both the stream and service
+    // lookup fail, release the stale busy projection rather than requiring
+    // subsequent refreshes to reconstruct a historical outcome.
+    public void ForgetOperation(string operationId)
+    {
+        if (_latest.TryRemove(operationId, out _))
+        {
+            OnOperationsChanged();
+        }
     }
 
     // Canonical Activity source. This is a snapshot of the same operation-ID keyed
@@ -125,13 +157,46 @@ public sealed class OperationTracker
                     // opened status stream may replay older retained events first.
                     // Keep the operation-ID registry monotonic so Activity and the
                     // existing card/details projections never move backwards.
-                    if (_latest.TryGetValue(operationId, out var current) && IsOlderThanCurrent(current, update))
+                    var accepted = false;
+                    var changed = false;
+                    while (true)
+                    {
+                        if (!_latest.TryGetValue(operationId, out var current))
+                        {
+                            if (_latest.TryAdd(operationId, update))
+                            {
+                                accepted = true;
+                                changed = true;
+                                break;
+                            }
+                        }
+                        else if (IsOlderThanCurrent(current, update))
+                        {
+                            // A concurrent lookup or stream already published newer evidence.
+                            break;
+                        }
+                        else if (current == update)
+                        {
+                            // Still deliver a replayed terminal event to complete tracking.
+                            accepted = true;
+                            break;
+                        }
+                        else if (_latest.TryUpdate(operationId, update, current))
+                        {
+                            accepted = true;
+                            changed = true;
+                            break;
+                        }
+                    }
+
+                    if (!accepted)
                     {
                         continue;
                     }
-
-                    _latest[operationId] = update;
-                    OnOperationsChanged();
+                    if (changed)
+                    {
+                        OnOperationsChanged();
+                    }
                     onUpdate(update);
                     if (update.State == OperationState.Completed)
                     {

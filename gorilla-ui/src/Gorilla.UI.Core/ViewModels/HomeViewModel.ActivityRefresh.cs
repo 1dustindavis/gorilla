@@ -64,6 +64,14 @@ public sealed partial class HomeViewModel
         }
         catch (Exception ex)
         {
+            // Retain the operation-specific context for a later successful
+            // reconciliation. A generic lookup failure would otherwise overwrite
+            // the only evidence needed to explain a vanished operation.
+            if (_needsOperationReconciliation &&
+                InfrastructureWarning.Context == "Operation tracking-loss reconciliation failed")
+            {
+                return;
+            }
             SetInfrastructureWarning(
                 "Operation status is temporarily unavailable.",
                 "Retained operation lookup during App Catalog refresh",

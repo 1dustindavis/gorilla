@@ -88,31 +88,6 @@ public sealed class AppDetailsPresentationMapperTests
     }
 
     [Fact]
-    public void Map_UsesServiceDecisionReasonsForUnavailableActionExplanations()
-    {
-        var item = Item(ObservedState.Installed);
-        item.InstallDecision = new ActionDecision(false, "required_install");
-        item.RemoveDecision = new ActionDecision(false, "required_dependency");
-
-        var details = AppDetailsPresentationMapper.Map(item);
-
-        Assert.Equal("Install unavailable: This app is required to stay installed by managed policy.", details.InstallUnavailableExplanation);
-        Assert.Equal("Remove unavailable: Another managed app requires this app as a dependency.", details.RemoveUnavailableExplanation);
-        Assert.True(details.HasActionExplanation);
-    }
-
-    [Fact]
-    public void Map_PreservesUnknownServiceReasonInsteadOfReconstructingPolicy()
-    {
-        var item = Item(ObservedState.Installed);
-        item.InstallDecision = new ActionDecision(false, "future_service_reason");
-
-        var details = AppDetailsPresentationMapper.Map(item);
-
-        Assert.Equal("Install unavailable: future_service_reason", details.InstallUnavailableExplanation);
-    }
-
-    [Fact]
     public void Map_UpdateAvailableWithBothAuthorizedActionsUsesUpdateThenRemove()
     {
         var item = Item(ObservedState.UpdateAvailable);

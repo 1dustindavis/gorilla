@@ -91,7 +91,6 @@ Repeated child IDs intentionally do not incorporate display name, status text, v
 - `DetailsActiveOperation`
 - `DetailsActiveOperationAnnouncement`
 - `DetailsLatestResult`
-- `DetailsActionExplanation`
 - `DetailsPrimaryAction`, `DetailsSecondaryAction`
 - `DetailsUnavailable`
 

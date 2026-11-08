@@ -33,7 +33,6 @@ internal sealed class AppDetailsPageDriver
         _session.WaitFor(() => Root.FindAllDescendants()
             .FirstOrDefault(element => SafeAutomationId(element).StartsWith("DetailsFailureTitle-", StringComparison.Ordinal)))
     );
-    public string ActionExplanation => OptionalText("DetailsActionExplanation");
 
     public Button SecondaryAction => WaitNamedButton("DetailsSecondaryAction");
 

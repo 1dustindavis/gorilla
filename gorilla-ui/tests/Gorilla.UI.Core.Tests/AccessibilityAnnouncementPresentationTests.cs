@@ -56,8 +56,6 @@ public sealed class AccessibilityAnnouncementPresentationTests
             LatestOperationId: null,
             PrimaryAction: null,
             SecondaryAction: null,
-            InstallUnavailableExplanation: null,
-            RemoveUnavailableExplanation: null,
             ActionFeedbackText: null
         );
 }

@@ -19,8 +19,6 @@ public sealed record AppDetailsPresentation(
     string? LatestOperationId,
     CatalogCardActionPresentation? PrimaryAction,
     CatalogCardActionPresentation? SecondaryAction,
-    string? InstallUnavailableExplanation,
-    string? RemoveUnavailableExplanation,
     string? ActionFeedbackText
 )
 {
@@ -58,9 +56,6 @@ public sealed record AppDetailsPresentation(
     public string LatestTechnicalDetailsContentAutomationId => $"DetailsTechnicalDetailsContent-{LatestOperationId}";
     public bool HasPrimaryAction => PrimaryAction is not null;
     public bool HasSecondaryAction => SecondaryAction is not null;
-    public bool HasInstallUnavailableExplanation => !string.IsNullOrWhiteSpace(InstallUnavailableExplanation);
-    public bool HasRemoveUnavailableExplanation => !string.IsNullOrWhiteSpace(RemoveUnavailableExplanation);
-    public bool HasActionExplanation => HasInstallUnavailableExplanation || HasRemoveUnavailableExplanation;
     public bool HasActionFeedback => !string.IsNullOrWhiteSpace(ActionFeedbackText);
 
     private static string JoinAnnouncement(string? primary, string? detail)
@@ -114,8 +109,6 @@ public static class AppDetailsPresentationMapper
             LatestOperationId: latest?.OperationId,
             PrimaryAction: card.PrimaryAction,
             SecondaryAction: card.SecondaryAction,
-            InstallUnavailableExplanation: Explanation("Install", item.InstallDecision),
-            RemoveUnavailableExplanation: Explanation("Remove", item.RemoveDecision),
             ActionFeedbackText: item.HasCurrentActivity ? null : EmptyToNull(item.TransientFeedback)
         );
     }
@@ -184,16 +177,6 @@ public static class AppDetailsPresentationMapper
         Outcome.Interrupted => "Interrupted",
         _ => outcome.ToString(),
     };
-
-    private static string? Explanation(string actionLabel, ActionDecision decision)
-    {
-        if (decision.Allowed || string.IsNullOrWhiteSpace(decision.Reason))
-        {
-            return null;
-        }
-
-        return $"{actionLabel} unavailable: {OperationRecoveryPresentationMapper.ReasonText(decision.Reason)}";
-    }
 
     private static string? EmptyToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;

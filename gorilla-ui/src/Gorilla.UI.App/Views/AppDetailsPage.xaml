@@ -49,10 +49,6 @@
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding DetailsPresentation.ActionFeedbackText}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasActionFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" controls:LiveRegionAnnouncer.IsEnabled="True" AutomationProperties.Name="{Binding DetailsPresentation.ActionFeedbackText}" AutomationProperties.LiveSetting="Polite" />
-                <StackPanel Spacing="5" Visibility="{Binding DetailsPresentation.HasActionExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" AutomationProperties.AutomationId="DetailsActionExplanation" AutomationProperties.Name="Action availability">
-                    <TextBlock Text="{Binding DetailsPresentation.InstallUnavailableExplanation}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasInstallUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Text="{Binding DetailsPresentation.RemoveUnavailableExplanation}" TextWrapping="Wrap" Visibility="{Binding DetailsPresentation.HasRemoveUnavailableExplanation, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                </StackPanel>
             </StackPanel>
             <StackPanel x:Name="UnavailableContent" MaxWidth="620" HorizontalAlignment="Left" Spacing="8" Visibility="Collapsed" AutomationProperties.AutomationId="DetailsUnavailable" AutomationProperties.Name="App unavailable"><TextBlock Text="App unavailable" FontSize="28" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" /><TextBlock Text="This app is no longer available in the current catalog. Return to the catalog to choose another app." TextWrapping="Wrap" /></StackPanel>
         </Grid>

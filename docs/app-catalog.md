@@ -17,7 +17,7 @@ Depending on the app's current state, you may see actions such as:
 - **Enable Updates** — start managing an app that is already installed so Gorilla keeps it installed and updated.
 - **Remove** — stop managing the app and uninstall it once.
 
-Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. If an action is unavailable, App Catalog explains why.
+Not every action is always available. Gorilla checks the computer's current state and Gorilla's catalog before allowing a change. The app details page shows the available action buttons without a separate action availability section.
 
 Removing an app does not create a permanent rule to keep it uninstalled. If it is installed again later outside Gorilla, App Catalog will not automatically remove it again unless another policy requires that.
 

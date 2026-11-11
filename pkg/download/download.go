@@ -102,7 +102,7 @@ func Get(url string) ([]byte, error) {
 				Dial: (&net.Dialer{
 					Timeout:   10 * time.Second,
 					KeepAlive: 10 * time.Second,
-				}).Dial,
+				}).DialContext,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ResponseHeaderTimeout: 10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
@@ -115,7 +115,7 @@ func Get(url string) ([]byte, error) {
 			Dial: (&net.Dialer{
 				Timeout:   10 * time.Second,
 				KeepAlive: 10 * time.Second,
-			}).Dial,
+			}).DialContext,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,

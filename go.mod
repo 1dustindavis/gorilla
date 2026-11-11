@@ -1,6 +1,6 @@
 module github.com/1dustindavis/gorilla
 
-go 1.26.0
+go 1.27.4
 
 require (
 	github.com/hashicorp/go-version v1.8.0

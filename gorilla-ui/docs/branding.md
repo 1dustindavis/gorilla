@@ -1,40 +1,38 @@
 # Application branding
 
-The packaged Gorilla UI supports a narrow presentation-only branding surface.
+Gorilla's packaged UI can be customized with a different app name and visual assets without changing how Gorilla works.
 
-## Supported branding
+## What can be customized
 
-A packaged build may customize these presentation values:
+The supported branding fields are:
 
 - `Package/Properties/DisplayName`;
 - `Package/Applications/Application/uap:VisualElements/@DisplayName`;
 - `Package/Applications/Application/uap:VisualElements/@Description`;
-- visual resources referenced by the package manifest, such as the application and package logos.
+- the visual assets referenced by the package manifest, including the app/package logos.
 
-The package display name is the authoritative application title. The WinUI window resolves its title from `Package.Current.DisplayName`; source-built or unpackaged development runs fall back to `App Catalog`.
+The package display name is also used for the WinUI window title through `Package.Current.DisplayName`. Source-built or unpackaged development runs fall back to `App Catalog`.
 
-The checked-in/default Gorilla package remains branded as `App Catalog`.
+The default Gorilla package still uses `App Catalog` and the existing Gorilla artwork.
 
-## Fixed Gorilla identity
+## What stays the same
 
-Branding does not define a different Gorilla runtime. The following are functional identity and are outside the supported branding surface:
+Branding should not change Gorilla's underlying package or runtime identity. These values stay fixed:
 
-- package `Identity.Name`;
-- package `Identity.Publisher`;
-- package `Application/@Id`;
-- packaged application executable identity;
-- the `gorilla.exe` application execution alias;
-- the `gorilla` packaged Windows service name;
-- the packaged service executable, startup account, startup type, and arguments;
+- `Identity.Name`;
+- `Identity.Publisher`;
+- `Application/@Id`;
+- the packaged app executable identity;
+- the `gorilla.exe` execution alias;
+- the `gorilla` Windows service name;
+- the service executable, startup account, startup type, and arguments;
 - package capabilities;
 - package dependencies.
 
-`Identity.Version` is package/release metadata rather than branding.
+`Identity.Version` is release/package metadata, not branding.
 
-`PublisherDisplayName` remains Gorilla-controlled and is not a third-party branding field.
+`PublisherDisplayName` also stays Gorilla-controlled.
 
-## Invariant
+The basic rule is simple: branding can change how the app is presented, but it should not change what Gorilla is or how it runs.
 
-> Gorilla branding changes presentation only. A branded Gorilla package remains Gorilla: it retains the same package family identity, application identity, executable and execution alias, Windows service identity, capabilities, and runtime behavior.
-
-Changes to fixed identity values are valid only as deliberate Gorilla product changes and should be reviewed independently of branding work.
+If one of the fixed identity values ever needs to change, treat that as a separate Gorilla product change rather than part of branding.

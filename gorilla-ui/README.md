@@ -70,4 +70,5 @@ Logs use bounded rotation with one backup; logging/rotation failures are best-ef
 - [docs/app-catalog-contract.md](docs/app-catalog-contract.md) — state/action/result contract.
 - [docs/app-catalog-recovery.md](docs/app-catalog-recovery.md) — mutation and recovery semantics.
 - [docs/accessibility-automation.md](docs/accessibility-automation.md) — keyboard/accessibility/UIA contract.
+- [docs/branding.md](docs/branding.md) — supported packaged application branding boundary.
 - [../docs/app-catalog.md](../docs/app-catalog.md) — user/operator App Catalog documentation.

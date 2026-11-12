@@ -8,11 +8,14 @@ using Gorilla.UI.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.ApplicationModel;
 
 namespace Gorilla.UI.App
 {
     public sealed partial class MainWindow : Window
     {
+        private const string DefaultWindowTitle = "App Catalog";
+
         private enum ShellHeaderMode
         {
             None,
@@ -27,6 +30,7 @@ namespace Gorilla.UI.App
         public MainWindow()
         {
             InitializeComponent();
+            Title = ResolveWindowTitle();
             _session = App.CurrentSession;
             _viewModel = _session.ViewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -36,6 +40,20 @@ namespace Gorilla.UI.App
             UpdateCatalogFreshnessPresentation();
             UpdateInfrastructureWarningPresentation();
             RootFrame.Navigate(typeof(HomePage));
+        }
+
+        private static string ResolveWindowTitle()
+        {
+            try
+            {
+                var displayName = Package.Current.DisplayName;
+                return string.IsNullOrWhiteSpace(displayName) ? DefaultWindowTitle : displayName;
+            }
+            catch (InvalidOperationException)
+            {
+                // Source-built/unpackaged development runs do not have package identity.
+                return DefaultWindowTitle;
+            }
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)

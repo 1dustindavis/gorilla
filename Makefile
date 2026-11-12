@@ -2,7 +2,7 @@ all: build
 
 .PHONY: build clean help \
 	go-format go-vet go-staticcheck go-test lint test \
-	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test \
+	ui-restore ui-lint ui-test ui-windows-build ui-e2e ui-e2e-test ui-branding-test \
 	coverage coverage-go coverage-ui \
 	mutation mutation-go mutation-ui \
 	windows-integration release-integration installed-product-integration \
@@ -85,6 +85,7 @@ define HELP_TEXT
 	make coverage-go     - Produce Go coverage profile and summary
 	make coverage-ui     - Produce portable .NET Cobertura coverage reports
 	make ui-windows-build - Build the real WinUI app and Windows UI test project
+	make ui-branding-test - Validate supported MSIX branding against fixed Gorilla identity
 	make windows-integration - Run source-built Windows installer integration
 	make ui-e2e          - Build source service/UI and run critical FlaUI E2E workflows
 	make ui-e2e-test     - Run critical FlaUI E2E against existing source builds
@@ -204,8 +205,17 @@ mutation-ui:
 
 mutation: mutation-go mutation-ui
 
+ui-branding-test:
+ifeq ($(OS), Windows_NT)
+	pwsh -NoProfile -ExecutionPolicy Bypass -File gorilla-ui/tools/test-package-branding.ps1
+else
+	@echo "ui-branding-test requires Windows"
+	@exit 1
+endif
+
 ui-windows-build:
 ifeq ($(OS), Windows_NT)
+	$(MAKE) ui-branding-test
 	dotnet build gorilla-ui/src/Gorilla.UI.App/Gorilla.UI.App.csproj -t:Rebuild -c Release -p:Platform=x64 -p:WindowsPackageType=None -p:GenerateAppxPackageOnBuild=false -p:AppxPackageSigningEnabled=false -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false -p:PublishTrimmed=false
 	dotnet build gorilla-ui/tests/Gorilla.UI.App.WindowsUiTests/Gorilla.UI.App.WindowsUiTests.csproj -c Release
 else
